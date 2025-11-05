@@ -1,0 +1,33 @@
+Fix import reference functionality in less.go
+
+You're working on a Go port of less.js. Import reference handling has bugs.
+
+YOUR TASK:
+- Fix 2-3 of 5 import tests
+- Target: import-reference, import-reference-issues, (stretch: import-module)
+- DEFER: import-interpolation (architectural), google (network issue)
+- Files to check: import_visitor.go, import_manager.go, import.go, set_tree_visibility_visitor.go
+- Branch: claude/fix-imports-<your-session-id>
+
+Read .claude/agents/agent-imports/TASK.md for full details.
+
+KEY ISSUES:
+1. import-reference: CSS files being processed instead of kept as @import statements
+2. import-reference-issues: Referenced mixins not accessible (#Namespace > .mixin undefined)
+
+THE CONCEPT:
+@import (reference) should:
+- Make mixins/variables available
+- NOT output the imported CSS by default
+- Only output explicitly used selectors
+
+Start by testing:
+cd packages/less/src/less/less_go
+go test -run "TestIntegrationSuite/main/import-reference" -v
+
+CONSTRAINTS:
+- Never modify .js files
+- Must pass: pnpm -w test:go:unit
+- Create branch, commit, push when done
+
+NOTE: agent-paths also touches import_manager.go but they focus on path searching. You focus on reference flags and CSS detection. Different sections.
