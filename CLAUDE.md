@@ -38,17 +38,25 @@ When working on this project, please be aware of the following:
    - JavaScript tests use Vitest framework
    - Go tests should verify ported functionality matches JavaScript behavior
 
-4. **Current Integration Test Status** (as of 2025-11-04):
-   - **71/185 tests passing (38.4%)** - UP from 70!
-   - 15 perfect CSS matches (8.1%) - UP from 14!
-   - 56 correct error handling (30.3%)
-   - 102 tests with output differences (55.1%) - **compiles but CSS doesn't match**
-   - 12 tests failing (6.5%) - **runtime/evaluation errors, NOT parser errors** - DOWN from 13!
-   - 7 tests quarantined (plugin system & JavaScript execution - punted for later)
+4. **Current Integration Test Status** (as of 2025-11-05, latest audit):
+   - **14 perfect CSS matches** - SEE REGRESSION WARNING BELOW ⚠️
+   - **11 compilation failures** - REGRESSIONS DETECTED ⚠️
+   - **~100+ tests with output differences** - compiles but CSS doesn't match
+   - **~35 correct error handling** - tests that should fail, do fail correctly
+   - **5 tests quarantined** (plugin system & JavaScript execution - punted for later)
+
+   **⚠️ CRITICAL: REGRESSIONS DETECTED**
+   Recent work introduced regressions that must be fixed before new feature work:
+   - ❌ namespacing-6: Perfect match → Compilation failed (REGRESSION)
+   - ❌ extend-clearfix: Perfect match → Output differs (REGRESSION)
+   - ❌ namespacing-functions: Worse (now fails to compile)
+   - ❌ import-reference: Worse (now fails to compile)
+   - ❌ import-reference-issues: Worse (now fails to compile)
+   - ✅ charsets: Improved to perfect match (+1)
+   - **Net result: REGRESSION** (see `.claude/tracking/TEST_AUDIT_2025-11-05.md`)
 
    **🎉 Parser Status: ALL BUGS FIXED!**
    - Parser correctly handles full LESS syntax
-   - **171/185 tests compile successfully (92.4% compilation rate)**
    - Remaining work is in runtime evaluation and functional implementation
 
    **Recent Progress** (Runtime Fixes):
@@ -60,26 +68,47 @@ When working on this project, please be aware of the following:
    - ✅ Issue #5: `mixins-named-args` @arguments population for named arguments - FIXED
    - ✅ Issue #6: `mixins-closure`, `mixins-interpolated` - Mixin closure frame capture - FIXED
    - ✅ Issue #7: `mixins` - Mixin recursion detection for wrapped rulesets - FIXED
-   - ✅ Compilation rate improved from 90.3% → 92.4%
-   - ✅ Runtime failures reduced from 18 → 12 tests
+   - ⚠️ Issue #8: `namespacing-6` - Was fixed but now REGRESSED (needs re-fix)
 
-5. **Current Focus: Runtime & Evaluation Issues**:
-   - **See RUNTIME_ISSUES.md** for comprehensive tracking of remaining issues
-   - **See NEXT_SESSION.md** for prompt to start fixing runtime issues
-   - Focus on variable evaluation, mixin execution, and import functionality
+5. **Organized Task System**:
+   All project coordination and task management is now organized in the `.claude/` directory:
+
+   - **`.claude/PROMPT_FIX_REGRESSIONS.md`** - URGENT: Fix critical regressions first
+   - **`.claude/PROMPT_CREATE_AGENT_TASKS.md`** - Create task specs for agent distribution
+   - **`.claude/README_AGENT_PROMPTS.md`** - Guide to using agent prompts
+   - **`.claude/AGENT_WORK_QUEUE.md`** - Ready-to-assign work for parallel agents
+   - **`.claude/VALIDATION_REQUIREMENTS.md`** - Test requirements for all PRs
+   - **`.claude/strategy/agent-workflow.md`** - Step-by-step workflow for working on tasks
+   - **`.claude/strategy/MASTER_PLAN.md`** - Overall strategy and current status
+   - **`.claude/tasks/runtime-failures/`** - High-priority failing tests
+   - **`.claude/tasks/output-differences/`** - Tests that compile but produce wrong CSS
+   - **`.claude/tracking/assignments.json`** - Track which tasks are available/in-progress/completed
+   - **`.claude/tracking/TEST_AUDIT_2025-11-05.md`** - Latest test status audit
+
+   **If you're fixing regressions**: Start with `.claude/PROMPT_FIX_REGRESSIONS.md`
+
+   **If you're creating new tasks**: Start with `.claude/PROMPT_CREATE_AGENT_TASKS.md`
+
+   **If you're a new agent**: Check `.claude/AGENT_WORK_QUEUE.md` for ready-to-assign tasks
+
+6. **Current Focus: CRITICAL REGRESSIONS MUST BE FIXED FIRST**:
    - **Runtime tracing available**: Use `LESS_GO_TRACE=1` to debug evaluation flow
    - Compare with JavaScript implementation when fixing issues
+   - See `.claude/tracking/TEST_AUDIT_2025-11-05.md` for full regression analysis
 
-   **Priority Order**:
-   1. ✅ Variable evaluation in functions/loops - FIXED (Issue #2b)
-   2. ✅ Mixin closure and variable scope - FIXED (Issue #6)
-   3. ✅ Mixin recursion detection - FIXED (Issue #7)
-   4. Import reference functionality (2 tests: `import-reference`, `import-reference-issues`)
-   5. Namespace resolution (2 tests: `namespacing-6`, `namespacing-functions`)
-   6. Other failing tests (8 tests: `urls` x2, `mixins-args` x2, `include-path`, `import-interpolation`, `bootstrap4`)
-   7. Output differences (102 tests)
+   **Priority Order** (High to Low):
+   1. **CRITICAL**: Fix namespacing-6 regression - `.claude/PROMPT_FIX_REGRESSIONS.md`
+   2. **CRITICAL**: Fix extend-clearfix regression
+   3. **CRITICAL**: Fix import-reference compilation failures (2 tests)
+   4. **CRITICAL**: Fix namespacing-functions compilation failure
+   5. **HIGH**: Mixin args with division (3 tests) - See existing tasks
+   6. **HIGH**: Namespace value lookups (10 tests) - See existing tasks
+   7. **HIGH**: Include path option (1 test) - See existing tasks
+   8. Other runtime & output issues - See `.claude/tracking/assignments.json`
 
-6. **Quarantined Features** (for future implementation):
+   ⚠️ **Before starting ANY new tasks**: Check `.claude/tracking/TEST_AUDIT_2025-11-05.md` for current status
+
+7. **Quarantined Features** (for future implementation):
    - Plugin system tests (`plugin`, `plugin-module`, `plugin-preeval`)
    - JavaScript execution tests (`javascript`, `js-type-errors/*`, `no-js-errors/*`)
    - Import test that depends on plugins (`import`)
