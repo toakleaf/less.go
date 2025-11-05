@@ -1,0 +1,23 @@
+Fix URL parsing to handle escaped characters in less.go
+
+You're working on a Go port of less.js. URLs with escaped parentheses like \( cause parser errors.
+
+YOUR TASK:
+- Fix 2 failing tests: urls (main + compression suites)
+- Error: "expected ')' got '('" when parsing url(http://example.com?family=\"Font\":\(400\))
+- Files to check: url.go, parser.go (line ~3270), parser_input.go
+- Branch: claude/fix-urls-<your-session-id>
+
+Read .claude/agents/agent-urls/TASK.md for full details.
+
+Start by running:
+cd packages/less/src/less/less_go
+go test -run "TestIntegrationSuite/main/urls" -v
+
+The regex at parser.go:3286 already tries to match escaped chars \\[()'"], but something's not working. Find and fix it.
+
+CONSTRAINTS:
+- Never modify .js files
+- Must pass: pnpm -w test:go:unit
+- Must pass both urls tests
+- Create branch, commit, push when done

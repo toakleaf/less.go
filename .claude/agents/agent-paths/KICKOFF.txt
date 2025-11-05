@@ -1,0 +1,29 @@
+Fix include path resolution for imports in less.go
+
+You're working on a Go port of less.js. Imports aren't being resolved through configured include paths.
+
+YOUR TASK:
+- Fix 1 failing test: include-path
+- Error: "open import-test-e: no such file or directory"
+- Files to check: integration_suite_test.go, import_manager.go, file_manager.go
+- Branch: claude/fix-paths-<your-session-id>
+
+Read .claude/agents/agent-paths/TASK.md for full details.
+
+Start by finding where the file actually is:
+find packages/test-data -name "*import-test-e*"
+
+Then check if the test configures include paths:
+grep -A10 "include-path" packages/less/src/less/less_go/integration_suite_test.go
+
+Likely need to either:
+A) Add include path config to test, OR
+B) Fix import_manager.go to search include paths, OR
+C) Both
+
+CONSTRAINTS:
+- Never modify .js files
+- Must pass: pnpm -w test:go:unit
+- Create branch, commit, push when done
+
+NOTE: agent-imports also touches import_manager.go but different sections. You focus on path searching, they focus on reference flags.
