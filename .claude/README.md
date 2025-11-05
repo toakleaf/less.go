@@ -2,6 +2,18 @@
 
 This directory contains everything needed to run **multiple independent Claude Code agents in parallel** to fix the remaining integration test failures.
 
+---
+
+## 🌐 **Quick Start: Web Claude Code** (Recommended)
+
+**See [`LAUNCH-WEB-AGENTS.md`](LAUNCH-WEB-AGENTS.md)** for the simplest approach:
+1. Open 5 tabs of Claude Code web
+2. Paste kickoff prompts
+3. Watch agents create PRs
+4. Done!
+
+---
+
 ## 📊 Current Status
 
 - **Tests Passing**: 71/185 (38.4%)
@@ -13,15 +25,17 @@ This directory contains everything needed to run **multiple independent Claude C
 
 ```
 .claude/
-├── README.md                    ← You are here
-├── agents/                      ← Independent agent tasks
+├── README.md                          ← You are here
+├── LAUNCH-WEB-AGENTS.md              ← START HERE for web Claude Code
+├── agents/                            ← Independent agent tasks
 │   ├── agent-urls/
-│   │   ├── TASK.md             ← Detailed task description
-│   │   └── KICKOFF.txt         ← Quick start prompt
+│   │   ├── TASK.md                   ← Detailed task description
+│   │   └── KICKOFF.txt               ← Quick start prompt
 │   ├── agent-paths/
-│   ├── agent-namespacing/
-│   └── agent-imports/
-└── reference-issues/            ← Original detailed issue analysis
+│   ├── agent-namespacing-6/
+│   ├── agent-import-reference/
+│   └── agent-import-reference-issues/
+└── reference-issues/                  ← Original detailed issue analysis
     ├── ISSUE_IMPORTS.md
     ├── ISSUE_NAMESPACING.md
     ├── ISSUE_URLS.md

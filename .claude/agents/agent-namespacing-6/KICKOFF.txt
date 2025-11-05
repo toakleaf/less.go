@@ -1,33 +1,43 @@
 Fix namespacing-6 test in less.go
 
-You're working on a Go port of less.js. Mixin calls assigned to variables fail when called.
+CONTEXT: You're working on a Go port of less.js at https://github.com/toakleaf/less.go. Mixin calls assigned to variables fail when called.
 
-YOUR SINGLE TASK:
-- Fix 1 test ONLY: namespacing-6
-- Error: "Could not evaluate variable call @alias"
-- The code: @alias: .something(foo); @alias(); ← this fails
-- Files to check: variable_call.go, variable.go, mixin_call.go
-- Branch: claude/fix-namespacing-6-<your-session-id>
+YOUR SINGLE TASK: Fix variable calls for 1 test
 
-Read .claude/agents/agent-namespacing-6/TASK.md for full details.
+FAILING TEST:
+- namespacing-6
 
-THE PROBLEM:
-When you assign a mixin call to a variable and then call it:
-  @alias: .something(foo);  // Store mixin result
-  @alias();                 // Call it - FAILS
+ERROR: "Could not evaluate variable call @alias"
 
-Start with trace:
-cd packages/less/src/less/less_go
-LESS_GO_TRACE=1 go test -run "TestIntegrationSuite/namespacing/namespacing-6" -v 2>&1 | grep -i alias
+THE BUG: When you do @alias: .something(foo); @alias(); ← the call fails
 
-Look in variable_call.go for "Could not evaluate variable call" error.
+WORKFLOW:
+1. Read .claude/agents/agent-namespacing-6/TASK.md for details
+2. Use trace to understand flow:
+   cd packages/less/src/less/less_go
+   LESS_GO_TRACE=1 go test -run "TestIntegrationSuite/namespacing/namespacing-6" -v 2>&1 | grep -i alias
+3. Find "Could not evaluate variable call" error in variable_call.go
+4. Fix it (similar to Issue #2 - check Eval(any) (any, error) before Eval(any) any)
+5. Verify fix:
+   go test -run "TestIntegrationSuite/namespacing/namespacing-6" -v
+   pnpm -w test:go:unit
+6. Create branch: claude/fix-namespacing-6-<your-session-id>
+7. Commit with clear message
+8. Push: git push -u origin claude/fix-namespacing-6-<your-session-id>
+9. Create PR:
+   gh pr create --title "Fix namespacing-6: variable calls to mixin results" \
+     --body "Fixed evaluation of mixin calls assigned to variables.
 
-HINT: Similar to Issue #2 (detached-rulesets) which was fixed by checking Eval(any) (any, error) signature before Eval(any) any. You might need a similar pattern.
+Test fixed:
+- namespacing-6
+
+When mixin calls like .something(foo) are assigned to variables and then called as @alias(), the evaluation was failing. Fixed [describe your fix].
+
+Closes #[issue-number-if-exists]"
 
 CONSTRAINTS:
 - Never modify .js files
 - Must pass: pnpm -w test:go:unit
-- Must pass namespacing-6 test ONLY
-- Create branch, commit, push when done
+- No regressions
 
-SUCCESS: Report "Fixed namespacing-6 test. Ready for PR."
+SUCCESS: Report "✅ Fixed namespacing-6 test. PR created: [URL]"

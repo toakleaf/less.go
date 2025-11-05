@@ -1,29 +1,45 @@
 Fix include path resolution for imports in less.go
 
-You're working on a Go port of less.js. Imports aren't being resolved through configured include paths.
+CONTEXT: You're working on a Go port of less.js at https://github.com/toakleaf/less.go. Imports aren't being resolved through configured include paths.
 
-YOUR TASK:
-- Fix 1 failing test: include-path
-- Error: "open import-test-e: no such file or directory"
-- Files to check: integration_suite_test.go, import_manager.go, file_manager.go
-- Branch: claude/fix-paths-<your-session-id>
+YOUR SINGLE TASK: Fix include path resolution for 1 test
 
-Read .claude/agents/agent-paths/TASK.md for full details.
+FAILING TEST:
+- include-path
 
-Start by finding where the file actually is:
-find packages/test-data -name "*import-test-e*"
+ERROR: "open import-test-e: no such file or directory"
 
-Then check if the test configures include paths:
-grep -A10 "include-path" packages/less/src/less/less_go/integration_suite_test.go
+THE BUG: Files should be searched in configured include paths, but they're not.
 
-Likely need to either:
-A) Add include path config to test, OR
-B) Fix import_manager.go to search include paths, OR
-C) Both
+WORKFLOW:
+1. Read .claude/agents/agent-paths/TASK.md for details
+2. Find where the file actually is:
+   find packages/test-data -name "*import-test-e*"
+3. Check test configuration:
+   grep -A10 "include-path" packages/less/src/less/less_go/integration_suite_test.go
+4. Fix (likely need to either):
+   - Add include path config to test, OR
+   - Fix import_manager.go to search include paths
+5. Verify fix:
+   go test -run "TestIntegrationSuite.*include-path" -v
+   pnpm -w test:go:unit
+6. Create branch: claude/fix-include-path-<your-session-id>
+7. Commit with clear message
+8. Push: git push -u origin claude/fix-include-path-<your-session-id>
+9. Create PR:
+   gh pr create --title "Fix include path resolution for imports" \
+     --body "Imports now search configured include paths when files aren't found relative to current file.
+
+Test fixed:
+- include-path
+
+Added include path configuration and/or fixed import manager to properly search configured paths.
+
+Closes #[issue-number-if-exists]"
 
 CONSTRAINTS:
 - Never modify .js files
 - Must pass: pnpm -w test:go:unit
-- Create branch, commit, push when done
+- No regressions
 
-NOTE: agent-imports also touches import_manager.go but different sections. You focus on path searching, they focus on reference flags.
+SUCCESS: Report "✅ Fixed include-path test. PR created: [URL]"
