@@ -32,7 +32,7 @@ This directory contains everything needed to run **multiple independent Claude C
 
 ### Method 1: Multiple Claude Code Sessions (Recommended)
 
-1. **Open 4 separate terminals** (or 4 Claude Code sessions)
+1. **Open 5 separate terminals** (or 5 Claude Code sessions)
 
 2. **In each terminal, checkout the repo in a separate location**:
    ```bash
@@ -45,12 +45,16 @@ This directory contains everything needed to run **multiple independent Claude C
    cd less.go-agent-paths
 
    # Terminal 3
-   git clone <repo-url> less.go-agent-namespacing
-   cd less.go-agent-namespacing
+   git clone <repo-url> less.go-agent-namespacing-6
+   cd less.go-agent-namespacing-6
 
    # Terminal 4
-   git clone <repo-url> less.go-agent-imports
-   cd less.go-agent-imports
+   git clone <repo-url> less.go-agent-import-reference
+   cd less.go-agent-import-reference
+
+   # Terminal 5
+   git clone <repo-url> less.go-agent-import-reference-issues
+   cd less.go-agent-import-reference-issues
    ```
 
 3. **Start Claude Code in each** and give each the KICKOFF prompt:
@@ -62,15 +66,18 @@ This directory contains everything needed to run **multiple independent Claude C
    cat .claude/agents/agent-paths/KICKOFF.txt
 
    # Terminal 3 - Copy/paste content of:
-   cat .claude/agents/agent-namespacing/KICKOFF.txt
+   cat .claude/agents/agent-namespacing-6/KICKOFF.txt
 
    # Terminal 4 - Copy/paste content of:
-   cat .claude/agents/agent-imports/KICKOFF.txt
+   cat .claude/agents/agent-import-reference/KICKOFF.txt
+
+   # Terminal 5 - Copy/paste content of:
+   cat .claude/agents/agent-import-reference-issues/KICKOFF.txt
    ```
 
 4. **Each agent will**:
    - Read their TASK.md for full details
-   - Work on their specific issue
+   - Work on their **single focused issue**
    - Create a branch: `claude/fix-<issue>-<session-id>`
    - Commit their fix
    - Push their branch
@@ -86,8 +93,9 @@ If you want to use a single repo with worktrees:
 # Create worktrees for each agent
 git worktree add ../less.go-urls claude/fix-urls-temp
 git worktree add ../less.go-paths claude/fix-paths-temp
-git worktree add ../less.go-namespacing claude/fix-namespacing-temp
-git worktree add ../less.go-imports claude/fix-imports-temp
+git worktree add ../less.go-namespacing-6 claude/fix-namespacing-6-temp
+git worktree add ../less.go-import-reference claude/fix-import-reference-temp
+git worktree add ../less.go-import-reference-issues claude/fix-import-reference-issues-temp
 
 # Start Claude Code in each worktree
 # Give each agent their KICKOFF prompt
@@ -97,66 +105,75 @@ git worktree add ../less.go-imports claude/fix-imports-temp
 
 | Agent | Tests | Files Modified | Independence | Priority |
 |-------|-------|----------------|--------------|----------|
-| **agent-urls** | 2 | url.go, parser.go | HIGH ✅ | High |
+| **agent-urls** | 2 (same fix) | url.go, parser.go | HIGH ✅ | High |
 | **agent-paths** | 1 | integration_suite_test.go, import_manager.go | MEDIUM ⚠️ | Medium |
-| **agent-namespacing** | 2 | variable_call.go, variable.go, mixin_call.go | HIGH ✅ | High |
-| **agent-imports** | 2-3 | import_visitor.go, import_manager.go, import.go | MEDIUM ⚠️ | High |
+| **agent-namespacing-6** | 1 | variable_call.go, variable.go, mixin_call.go | HIGH ✅ | High |
+| **agent-import-reference** | 1 | import_manager.go, import_visitor.go | MEDIUM ⚠️ | High |
+| **agent-import-reference-issues** | 1 | import_visitor.go, import.go | HIGH ✅ | High |
 
 ### Independence Notes
 
 ✅ **HIGH** = No file conflicts with other agents
-⚠️ **MEDIUM** = agent-paths and agent-imports both touch `import_manager.go`, but different sections:
-- agent-paths: Include path searching
-- agent-imports: Reference flag handling and CSS detection
+⚠️ **MEDIUM** = Potential overlap but different sections:
+- agent-paths: Include path searching in import_manager.go
+- agent-import-reference: CSS detection in import_manager.go
+- agent-import-reference-issues: Reference visibility in import_visitor.go
 
-They should not conflict if they're careful.
+All agents are aware of each other and work on different aspects.
 
 ## 📋 Quick Start for Each Agent
 
-### Agent 1: URLs (Simplest - Good Test Case)
+### Agent 1: URLs (2 tests, same fix)
 **What**: Fix URL parsing with escaped characters
 **Files**: url.go, parser.go
 **Tests**: 2 (urls in main + compression)
 **Kickoff**: `.claude/agents/agent-urls/KICKOFF.txt`
 **Branch**: `claude/fix-urls-<session-id>`
 
-### Agent 2: Paths (Quick Win)
+### Agent 2: Paths (1 test - Quick Win)
 **What**: Fix include path resolution
 **Files**: integration_suite_test.go, import_manager.go
 **Tests**: 1 (include-path)
 **Kickoff**: `.claude/agents/agent-paths/KICKOFF.txt`
 **Branch**: `claude/fix-paths-<session-id>`
 
-### Agent 3: Namespacing (Medium Complexity)
+### Agent 3: Namespacing-6 (1 test)
 **What**: Fix variable calls to mixin results
 **Files**: variable_call.go, variable.go, mixin_call.go
-**Tests**: 2 (namespacing-6, namespacing-functions)
-**Kickoff**: `.claude/agents/agent-namespacing/KICKOFF.txt`
-**Branch**: `claude/fix-namespacing-<session-id>`
+**Tests**: 1 (namespacing-6)
+**Kickoff**: `.claude/agents/agent-namespacing-6/KICKOFF.txt`
+**Branch**: `claude/fix-namespacing-6-<session-id>`
 
-### Agent 4: Imports (Most Complex)
-**What**: Fix import reference functionality
-**Files**: import_visitor.go, import_manager.go, import.go
-**Tests**: 2-3 of 5 (defer 2)
-**Kickoff**: `.claude/agents/agent-imports/KICKOFF.txt`
-**Branch**: `claude/fix-imports-<session-id>`
+### Agent 4: Import Reference (1 test)
+**What**: Fix CSS import handling
+**Files**: import_manager.go, import_visitor.go
+**Tests**: 1 (import-reference)
+**Kickoff**: `.claude/agents/agent-import-reference/KICKOFF.txt`
+**Branch**: `claude/fix-import-reference-<session-id>`
+
+### Agent 5: Import Reference Issues (1 test)
+**What**: Make referenced mixins accessible
+**Files**: import_visitor.go, import.go
+**Tests**: 1 (import-reference-issues)
+**Kickoff**: `.claude/agents/agent-import-reference-issues/KICKOFF.txt`
+**Branch**: `claude/fix-import-reference-issues-<session-id>`
 
 ## ✅ Success Criteria
 
 Each agent should:
-- [ ] Fix their assigned tests
+- [ ] Fix their assigned test(s) - ONE focused task
 - [ ] Pass all unit tests: `pnpm -w test:go:unit`
 - [ ] Not break any currently passing tests
 - [ ] Commit to their branch with clear message
 - [ ] Push their branch
-- [ ] Report: "Fixed X/Y tests. Ready for PR."
+- [ ] Report: "Fixed <test-name> test. Ready for PR."
 
 ## 📊 Expected Results
 
-After all 4 agents complete:
-- **Tests Fixed**: 7-9 tests (of 12-13 runtime failures)
-- **Pass Rate**: 38.4% → 43-47%
-- **Branches**: 4 independent branches ready for review/merge
+After all 5 agents complete:
+- **Tests Fixed**: 6 tests (2 URLs + 1 path + 1 namespacing + 2 imports)
+- **Pass Rate**: 38.4% → 41-43%
+- **Branches**: 5 independent branches ready for review/merge
 
 ## 🔄 After Wave 1
 
