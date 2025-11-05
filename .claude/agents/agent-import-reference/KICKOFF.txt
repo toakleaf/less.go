@@ -1,35 +1,42 @@
 Fix import-reference test in less.go
 
-You're working on a Go port of less.js. CSS imports are being processed instead of kept as @import statements.
+CONTEXT: You're working on a Go port of less.js at https://github.com/toakleaf/less.go. CSS imports are being processed instead of kept as @import statements.
 
-YOUR SINGLE TASK:
-- Fix 1 test ONLY: import-reference
-- Error: "open test.css: no such file or directory"
-- Files to check: import_visitor.go, import_manager.go, import.go
-- Branch: claude/fix-import-reference-<your-session-id>
+YOUR SINGLE TASK: Fix CSS import handling for 1 test
 
-Read .claude/agents/agent-import-reference/TASK.md for full details.
+FAILING TEST:
+- import-reference
 
-THE PROBLEM:
-When importing CSS files, they should remain as @import statements in output, NOT be loaded and processed as LESS files.
+ERROR: "open test.css: no such file or directory"
 
-Test code has:
-  @import (reference) url("import-once.less");
-  @import (reference) url("css-3.less");
+THE BUG: CSS files should remain as @import statements, NOT be loaded/processed as LESS.
 
-But it's trying to open ".css" files and process them.
+WORKFLOW:
+1. Read .claude/agents/agent-import-reference/TASK.md for details
+2. Test the issue:
+   cd packages/less/src/less/less_go
+   go test -run "TestIntegrationSuite/main/import-reference" -v
+3. Fix it (likely in import_manager.go - detect .css extension)
+4. Verify fix:
+   go test -run "TestIntegrationSuite/main/import-reference" -v
+   pnpm -w test:go:unit
+5. Create branch: claude/fix-import-reference-<your-session-id>
+6. Commit with clear message
+7. Push: git push -u origin claude/fix-import-reference-<your-session-id>
+8. Create PR:
+   gh pr create --title "Fix import-reference: handle CSS imports correctly" \
+     --body "CSS files now remain as @import statements instead of being processed as LESS.
 
-Start by testing:
-cd packages/less/src/less/less_go
-go test -run "TestIntegrationSuite/main/import-reference" -v
+Test fixed:
+- import-reference
 
-KEY FIX NEEDED:
-In import_manager.go, detect .css file extension and keep as @import statement instead of processing.
+Added CSS file detection in import manager to keep .css imports as-is in output.
+
+Closes #[issue-number-if-exists]"
 
 CONSTRAINTS:
 - Never modify .js files
 - Must pass: pnpm -w test:go:unit
-- Must pass import-reference test ONLY
-- Create branch, commit, push when done
+- No regressions
 
-SUCCESS: Report "Fixed import-reference test. Ready for PR."
+SUCCESS: Report "✅ Fixed import-reference test. PR created: [URL]"

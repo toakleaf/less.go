@@ -1,23 +1,46 @@
-Fix URL parsing to handle escaped characters in less.go
+Fix URL parsing with escaped characters in less.go
 
-You're working on a Go port of less.js. URLs with escaped parentheses like \( cause parser errors.
+CONTEXT: You're working on a Go port of less.js at https://github.com/toakleaf/less.go. The parser is 92% working but URLs with escaped parentheses cause errors.
 
-YOUR TASK:
-- Fix 2 failing tests: urls (main + compression suites)
-- Error: "expected ')' got '('" when parsing url(http://example.com?family=\"Font\":\(400\))
-- Files to check: url.go, parser.go (line ~3270), parser_input.go
-- Branch: claude/fix-urls-<your-session-id>
+YOUR SINGLE TASK: Fix URL parsing for 2 tests (same fix applies to both)
 
-Read .claude/agents/agent-urls/TASK.md for full details.
+FAILING TESTS:
+- urls (main suite)
+- urls (compression suite)
 
-Start by running:
-cd packages/less/src/less/less_go
-go test -run "TestIntegrationSuite/main/urls" -v
+ERROR: "expected ')' got '('" when parsing:
+  url(http://fonts.googleapis.com/css?family=\"Rokkitt\":\(400\),700)
 
-The regex at parser.go:3286 already tries to match escaped chars \\[()'"], but something's not working. Find and fix it.
+THE BUG: The parser sees \( as an opening paren instead of escaped character.
+
+WORKFLOW:
+1. Read .claude/agents/agent-urls/TASK.md for details
+2. Test the issue:
+   cd packages/less/src/less/less_go
+   go test -run "TestIntegrationSuite/main/urls" -v
+3. Fix it (likely in url.go or parser.go around line 3270)
+4. Verify fix:
+   go test -run "TestIntegrationSuite/main/urls" -v
+   go test -run "TestIntegrationSuite/compression/urls" -v
+   pnpm -w test:go:unit
+5. Create branch: claude/fix-urls-<your-session-id>
+6. Commit with clear message
+7. Push: git push -u origin claude/fix-urls-<your-session-id>
+8. Create PR:
+   gh pr create --title "Fix URL parsing with escaped characters" \
+     --body "Fixes URL parsing to handle escaped parentheses like \( and \).
+
+Tests fixed:
+- urls (main suite)
+- urls (compression suite)
+
+The parser was treating escaped characters as syntax. Updated escape handling to treat backslash-escaped characters as literals.
+
+Closes #[issue-number-if-exists]"
 
 CONSTRAINTS:
 - Never modify .js files
 - Must pass: pnpm -w test:go:unit
-- Must pass both urls tests
-- Create branch, commit, push when done
+- No regressions
+
+SUCCESS: Report "✅ Fixed 2 URL tests. PR created: [URL]"
