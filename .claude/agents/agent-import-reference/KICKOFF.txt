@@ -1,0 +1,35 @@
+Fix import-reference test in less.go
+
+You're working on a Go port of less.js. CSS imports are being processed instead of kept as @import statements.
+
+YOUR SINGLE TASK:
+- Fix 1 test ONLY: import-reference
+- Error: "open test.css: no such file or directory"
+- Files to check: import_visitor.go, import_manager.go, import.go
+- Branch: claude/fix-import-reference-<your-session-id>
+
+Read .claude/agents/agent-import-reference/TASK.md for full details.
+
+THE PROBLEM:
+When importing CSS files, they should remain as @import statements in output, NOT be loaded and processed as LESS files.
+
+Test code has:
+  @import (reference) url("import-once.less");
+  @import (reference) url("css-3.less");
+
+But it's trying to open ".css" files and process them.
+
+Start by testing:
+cd packages/less/src/less/less_go
+go test -run "TestIntegrationSuite/main/import-reference" -v
+
+KEY FIX NEEDED:
+In import_manager.go, detect .css file extension and keep as @import statement instead of processing.
+
+CONSTRAINTS:
+- Never modify .js files
+- Must pass: pnpm -w test:go:unit
+- Must pass import-reference test ONLY
+- Create branch, commit, push when done
+
+SUCCESS: Report "Fixed import-reference test. Ready for PR."

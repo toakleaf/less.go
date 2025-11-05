@@ -1,0 +1,34 @@
+Fix import-reference-issues test in less.go
+
+You're working on a Go port of less.js. Referenced imports aren't making mixins accessible.
+
+YOUR SINGLE TASK:
+- Fix 1 test ONLY: import-reference-issues
+- Error: "#Namespace > .mixin is undefined"
+- Files to check: import_visitor.go, import.go, set_tree_visibility_visitor.go
+- Branch: claude/fix-import-reference-issues-<your-session-id>
+
+Read .claude/agents/agent-import-reference-issues/TASK.md for full details.
+
+THE PROBLEM:
+@import (reference) should:
+- Make mixins/variables available for use
+- NOT output the imported CSS by default
+- Only output CSS for explicitly used selectors
+
+But currently referenced mixins are not accessible.
+
+Start by testing:
+cd packages/less/src/less/less_go
+go test -run "TestIntegrationSuite/main/import-reference-issues" -v
+
+KEY CONCEPT:
+The `reference` flag should mark imports so their mixins are accessible but CSS isn't output unless explicitly used (via extend or mixin call).
+
+CONSTRAINTS:
+- Never modify .js files
+- Must pass: pnpm -w test:go:unit
+- Must pass import-reference-issues test ONLY
+- Create branch, commit, push when done
+
+SUCCESS: Report "Fixed import-reference-issues test. Ready for PR."
