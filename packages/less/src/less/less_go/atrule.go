@@ -146,15 +146,25 @@ func (a *AtRule) IsCharset() bool {
 
 // GenCSS generates CSS representation
 func (a *AtRule) GenCSS(context any, output *CSSOutput) {
+	// Filter out AtRules from referenced imports that haven't been explicitly used
+	// Check if this AtRule blocks visibility (from a referenced import)
+	if a.BlocksVisibility() {
+		vis := a.IsVisible()
+		// If visibility is undefined (nil) or explicitly false, don't output
+		if vis == nil || !*vis {
+			return
+		}
+	}
+
 	output.Add(a.Name, a.FileInfo(), a.GetIndex())
-	
+
 	if a.Value != nil {
 		output.Add(" ", nil, nil)
 		if gen, ok := a.Value.(interface{ GenCSS(any, *CSSOutput) }); ok {
 			gen.GenCSS(context, output)
 		}
 	}
-	
+
 	if a.Rules != nil {
 		a.OutputRuleset(context, output, a.Rules)
 	} else {

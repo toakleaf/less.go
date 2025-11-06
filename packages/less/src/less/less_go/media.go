@@ -319,14 +319,24 @@ func (m *Media) BubbleSelectors(selectors any) {
 
 // GenCSS generates CSS representation
 func (m *Media) GenCSS(context any, output *CSSOutput) {
+	// Filter out Media from referenced imports that haven't been explicitly used
+	// Check if this Media blocks visibility (from a referenced import)
+	if m.BlocksVisibility() {
+		vis := m.IsVisible()
+		// If visibility is undefined (nil) or explicitly false, don't output
+		if vis == nil || !*vis {
+			return
+		}
+	}
+
 	output.Add("@media ", m.FileInfo(), m.GetIndex())
-	
+
 	if m.Features != nil {
 		if gen, ok := m.Features.(interface{ GenCSS(any, *CSSOutput) }); ok {
 			gen.GenCSS(context, output)
 		}
 	}
-	
+
 	m.OutputRuleset(context, output, m.Rules)
 }
 

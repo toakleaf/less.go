@@ -112,46 +112,86 @@ func (u *CSSVisitorUtils) ResolveVisibility(node any) any {
 	if node == nil {
 		return nil
 	}
-	
-	if blockedNode, hasBlocked := node.(interface{ BlocksVisibility() bool }); hasBlocked {
-		if !blockedNode.BlocksVisibility() {
+
+	// Check if node implements BlocksVisibility and IsVisible
+	if blockedNode, hasBlocked := node.(interface{ BlocksVisibility() bool; IsVisible() *bool }); hasBlocked {
+		blocks := blockedNode.BlocksVisibility()
+		vis := blockedNode.IsVisible()
+
+		if !blocks {
+			// Node doesn't block visibility
 			if u.IsEmpty(node) {
 				return nil
 			}
 			return node
 		}
-	} else {
-		// If node doesn't have BlocksVisibility method, treat as not blocked
-		if u.IsEmpty(node) {
+
+		// Node blocks visibility
+		// Check if the node itself has been made invisible
+		// (nil means undefined/not set, which should be filtered out)
+		if vis == nil || !*vis {
+			// Node blocks visibility and hasn't been explicitly made visible
+			// Check if it has any visible children
+			if nodeWithRules, ok := node.(interface{ GetRules() []any }); ok {
+				rules := nodeWithRules.GetRules()
+				if len(rules) > 0 {
+					compiledRulesBody := rules[0]
+					u.KeepOnlyVisibleChilds(compiledRulesBody)
+
+					if u.IsEmpty(compiledRulesBody) {
+						// No visible children, filter it out
+						return nil
+					}
+
+					// Has visible children, ensure it's visible and return it
+					if ensureVisNode, hasEnsure := node.(interface{ EnsureVisibility() }); hasEnsure {
+						ensureVisNode.EnsureVisibility()
+					}
+
+					if removeVisNode, hasRemove := node.(interface{ RemoveVisibilityBlock() }); hasRemove {
+						removeVisNode.RemoveVisibilityBlock()
+					}
+
+					return node
+				}
+			}
+
+			// Node blocks visibility, has no children or couldn't access them
 			return nil
 		}
-		return node
-	}
-	
-	// Node blocks visibility, process it
-	if nodeWithRules, ok := node.(interface{ GetRules() []any }); ok {
-		rules := nodeWithRules.GetRules()
-		if len(rules) > 0 {
-			compiledRulesBody := rules[0]
-			u.KeepOnlyVisibleChilds(compiledRulesBody)
-			
-			if u.IsEmpty(compiledRulesBody) {
-				return nil
+
+		// Node blocks visibility but is explicitly visible
+		// Still need to filter children
+		if nodeWithRules, ok := node.(interface{ GetRules() []any }); ok {
+			rules := nodeWithRules.GetRules()
+			if len(rules) > 0 {
+				compiledRulesBody := rules[0]
+				u.KeepOnlyVisibleChilds(compiledRulesBody)
+
+				if u.IsEmpty(compiledRulesBody) {
+					return nil
+				}
+
+				if ensureVisNode, hasEnsure := node.(interface{ EnsureVisibility() }); hasEnsure {
+					ensureVisNode.EnsureVisibility()
+				}
+
+				if removeVisNode, hasRemove := node.(interface{ RemoveVisibilityBlock() }); hasRemove {
+					removeVisNode.RemoveVisibilityBlock()
+				}
+
+				return node
 			}
-			
-			if ensureVisNode, hasEnsure := node.(interface{ EnsureVisibility() }); hasEnsure {
-				ensureVisNode.EnsureVisibility()
-			}
-			
-			if removeVisNode, hasRemove := node.(interface{ RemoveVisibilityBlock() }); hasRemove {
-				removeVisNode.RemoveVisibilityBlock()
-			}
-			
-			return node
 		}
+
+		return nil
 	}
-	
-	return nil
+
+	// If node doesn't have both BlocksVisibility and IsVisible methods, treat as not blocked
+	if u.IsEmpty(node) {
+		return nil
+	}
+	return node
 }
 
 // IsVisibleRuleset checks if a ruleset is visible
@@ -348,13 +388,14 @@ func (v *ToCSSVisitor) VisitAtRule(atRuleNode any, visitArgs *VisitArgs) any {
 	if atRuleNode == nil {
 		return nil
 	}
-	
+
 	if nodeWithRules, ok := atRuleNode.(interface{ GetRules() []any }); ok {
 		rules := nodeWithRules.GetRules()
 		if rules != nil && len(rules) > 0 {
 			return v.VisitAtRuleWithBody(atRuleNode, visitArgs)
 		}
 	}
+
 	return v.VisitAtRuleWithoutBody(atRuleNode, visitArgs)
 }
 
@@ -387,15 +428,13 @@ func (v *ToCSSVisitor) VisitAtRuleWithBody(atRuleNode any, visitArgs *VisitArgs)
 	if atRuleNode == nil {
 		return nil
 	}
-	
-	
-	
+
 	// Process children
 	if acceptor, ok := atRuleNode.(interface{ Accept(any) }); ok {
 		acceptor.Accept(v.visitor)
 	}
 	visitArgs.VisitDeeper = false
-	
+
 	if !v.utils.IsEmpty(atRuleNode) {
 		if nodeWithRules, ok := atRuleNode.(interface{ GetRules() []any }); ok {
 			rules := nodeWithRules.GetRules()
@@ -406,7 +445,7 @@ func (v *ToCSSVisitor) VisitAtRuleWithBody(atRuleNode any, visitArgs *VisitArgs)
 			}
 		}
 	}
-	
+
 	return v.utils.ResolveVisibility(atRuleNode)
 }
 

@@ -143,7 +143,7 @@ func (v *Visitor) Visit(node any) any {
 	} else {
 		// Build function name like JS: `visit${node.type}`
 		fnName := fmt.Sprintf("Visit%s", nodeType)
-		
+
 		// Use reflection to find methods on implementation
 		implValue := reflect.ValueOf(impl)
 		visitMethod := implValue.MethodByName(fnName)
