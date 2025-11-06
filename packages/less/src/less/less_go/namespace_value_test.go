@@ -170,7 +170,8 @@ func TestNamespaceValueEvalBasicCases(t *testing.T) {
 	t.Run("should handle empty string lookup (lastDeclaration)", func(t *testing.T) {
 		innerValue := "lastValue"
 		stubDecl := &MockVariableDeclaration{
-			value: innerValue,
+			value:    innerValue,
+			hasValue: true,
 			evalFunc: func(context any) (any, error) {
 				return map[string]any{"value": innerValue}, nil
 			},
@@ -203,7 +204,8 @@ func TestNamespaceValueEvalBasicCases(t *testing.T) {
 	t.Run("should handle variable lookups", func(t *testing.T) {
 		innerValue := "variableValue"
 		mockVariable := &MockVariableDeclaration{
-			value: innerValue,
+			value:    innerValue,
+			hasValue: true,
 			evalFunc: func(context any) (any, error) {
 				return map[string]any{"value": innerValue}, nil
 			},
@@ -240,7 +242,8 @@ func TestNamespaceValueEvalBasicCases(t *testing.T) {
 	t.Run("should handle property lookups", func(t *testing.T) {
 		innerValue := "propertyValue"
 		stubDecl := &MockVariableDeclaration{
-			value: innerValue,
+			value:    innerValue,
+			hasValue: true,
 			evalFunc: func(context any) (any, error) {
 				return map[string]any{"value": innerValue}, nil
 			},
@@ -277,7 +280,8 @@ func TestNamespaceValueEvalBasicCases(t *testing.T) {
 	t.Run("should handle property lookups with $ prefix", func(t *testing.T) {
 		innerValue := "propertyValue"
 		stubDecl := &MockVariableDeclaration{
-			value: innerValue,
+			value:    innerValue,
+			hasValue: true,
 			evalFunc: func(context any) (any, error) {
 				return map[string]any{"value": innerValue}, nil
 			},
@@ -317,7 +321,8 @@ func TestNamespaceValueEvalBasicCases(t *testing.T) {
 		for i, v := range innerValues {
 			val := v // Capture the value for the closure
 			stubDecls[i] = &MockVariableDeclaration{
-				value: val,
+				value:    val,
+				hasValue: true,
 				evalFunc: func(context any) (any, error) {
 					return map[string]any{"value": val}, nil
 				},
