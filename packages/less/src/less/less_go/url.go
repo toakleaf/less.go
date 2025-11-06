@@ -1,6 +1,8 @@
 package less_go
 
 import (
+	"fmt"
+	"os"
 	"regexp"
 	"strings"
 )
@@ -90,6 +92,13 @@ func (u *URL) GenCSS(context any, output *CSSOutput) {
 
 // Eval evaluates the URL - match JavaScript implementation closely
 func (u *URL) Eval(context any) (any, error) {
+	if os.Getenv("LESS_GO_DEBUG_URL") == "1" {
+		fmt.Printf("[URL.Eval] context type: %T\n", context)
+		if evalCtx, ok := context.(*Eval); ok {
+			fmt.Printf("[URL.Eval] *Eval context with %d frames, RewriteUrls=%v\n", len(evalCtx.Frames), evalCtx.RewriteUrls)
+		}
+	}
+
 	// Match JavaScript: const val = this.value.eval(context);
 	var val any
 	if u.Value != nil {
