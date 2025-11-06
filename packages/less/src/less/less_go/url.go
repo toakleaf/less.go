@@ -89,7 +89,7 @@ func (u *URL) GenCSS(context any, output *CSSOutput) {
 }
 
 // Eval evaluates the URL - match JavaScript implementation closely
-func (u *URL) Eval(context any) *URL {
+func (u *URL) Eval(context any) (any, error) {
 	// Match JavaScript: const val = this.value.eval(context);
 	var val any
 	if u.Value != nil {
@@ -99,7 +99,7 @@ func (u *URL) Eval(context any) *URL {
 			val = u.Value
 		}
 	}
-	
+
 	// Get rootpath from fileInfo
 	var rootpath string
 	if !u.IsEvald {
@@ -108,16 +108,120 @@ func (u *URL) Eval(context any) *URL {
 		if rp, ok := fileInfo["rootpath"].(string); ok {
 			rootpath = rp
 		}
-		
 		// Match JavaScript URL rewriting logic
-		if ctx, ok := context.(map[string]any); ok {
-			if valMap, ok := val.(map[string]any); ok {
-				if value, ok := valMap["value"].(string); ok && rootpath != "" {
-					// Match JavaScript: context.pathRequiresRewrite(val.value)
+
+		// Handle *Anonymous value (which may wrap a *Quoted)
+		var quoted *Quoted
+		if anon, ok := val.(*Anonymous); ok {
+			// Check if Anonymous.Value is a *Quoted
+			if q, ok := anon.Value.(*Quoted); ok {
+				quoted = q
+			}
+		} else if q, ok := val.(*Quoted); ok {
+			// Direct *Quoted value
+			quoted = q
+		}
+
+		if quoted != nil {
+			value := quoted.GetValue()
+
+			// Use *Eval context for rewriting
+			if evalCtx, ok := context.(*Eval); ok {
+				// Match JavaScript: if (typeof rootpath === 'string' && typeof val.value === 'string' && context.pathRequiresRewrite(val.value))
+				if rootpath != "" && evalCtx.PathRequiresRewrite(value) {
+					// Match JavaScript: if (!val.quote) { rootpath = escapePath(rootpath); }
+					if quoted.GetQuote() == "" {
+						rootpath = escapePath(rootpath)
+					}
+					// Match JavaScript: val.value = context.rewritePath(val.value, rootpath);
+					value = evalCtx.RewritePath(value, rootpath)
+				} else {
+					// Match JavaScript: val.value = context.normalizePath(val.value);
+					value = evalCtx.NormalizePath(value)
+				}
+
+				// Match JavaScript: Add url args if enabled
+				if evalCtx.UrlArgs != "" {
+					// Match JavaScript: if (!val.value.match(/^\s*data:/))
+					if !regexp.MustCompile(`^\s*data:`).MatchString(value) {
+						// Match JavaScript: const delimiter = val.value.indexOf('?') === -1 ? '?' : '&';
+						delimiter := "?"
+						if strings.Contains(value, "?") {
+							delimiter = "&"
+						}
+						urlArgsStr := delimiter + evalCtx.UrlArgs
+						// Match JavaScript: val.value.indexOf('#') !== -1
+						if strings.Contains(value, "#") {
+							// Match JavaScript: val.value.replace('#', `${urlArgs}#`)
+							value = strings.Replace(value, "#", urlArgsStr+"#", 1)
+						} else {
+							// Match JavaScript: val.value += urlArgs
+							value = value + urlArgsStr
+						}
+					}
+				}
+			}
+
+			// Create new Quoted with updated value (wrap back in Anonymous if needed)
+			newQuoted := NewQuoted(quoted.GetQuote()+value+quoted.GetQuote(), value, quoted.GetEscaped(), quoted.GetIndex(), quoted.FileInfo())
+			if oldAnon, wasAnonymous := val.(*Anonymous); wasAnonymous {
+				val = &Anonymous{
+					Node:         NewNode(),
+					Value:        newQuoted,
+					Index:        oldAnon.Index,
+					FileInfo:     oldAnon.FileInfo,
+					MapLines:     oldAnon.MapLines,
+					RulesetLike:  oldAnon.RulesetLike,
+					AllowRoot:    oldAnon.AllowRoot,
+				}
+			} else {
+				val = newQuoted
+			}
+		} else if valMap, ok := val.(map[string]any); ok {
+			// Fallback: handle map-based values for backward compatibility
+			if value, ok := valMap["value"].(string); ok {
+				if evalCtx, ok := context.(*Eval); ok {
+					// Match JavaScript: if (typeof rootpath === 'string' && typeof val.value === 'string' && context.pathRequiresRewrite(val.value))
+					if rootpath != "" && evalCtx.PathRequiresRewrite(value) {
+						// Match JavaScript: if (!val.quote) { rootpath = escapePath(rootpath); }
+						if quote, ok := valMap["quote"].(string); !ok || quote == "" {
+							rootpath = escapePath(rootpath)
+						}
+						// Match JavaScript: val.value = context.rewritePath(val.value, rootpath);
+						valMap["value"] = evalCtx.RewritePath(value, rootpath)
+					} else {
+						// Match JavaScript: val.value = context.normalizePath(val.value);
+						valMap["value"] = evalCtx.NormalizePath(value)
+					}
+
+					// Match JavaScript: Add url args if enabled
+					if evalCtx.UrlArgs != "" {
+						if value, ok := valMap["value"].(string); ok {
+							// Match JavaScript: if (!val.value.match(/^\s*data:/))
+							if !regexp.MustCompile(`^\s*data:`).MatchString(value) {
+								// Match JavaScript: const delimiter = val.value.indexOf('?') === -1 ? '?' : '&';
+								delimiter := "?"
+								if strings.Contains(value, "?") {
+									delimiter = "&"
+								}
+								urlArgsStr := delimiter + evalCtx.UrlArgs
+								// Match JavaScript: val.value.indexOf('#') !== -1
+								if strings.Contains(value, "#") {
+									// Match JavaScript: val.value.replace('#', `${urlArgs}#`)
+									valMap["value"] = strings.Replace(value, "#", urlArgsStr+"#", 1)
+								} else {
+									// Match JavaScript: val.value += urlArgs
+									valMap["value"] = value + urlArgsStr
+								}
+							}
+						}
+					}
+				} else if ctx, ok := context.(map[string]any); ok {
+					// Handle map-based context
 					if pathRequiresRewrite, ok := ctx["pathRequiresRewrite"].(func(string) bool); ok {
-						if pathRequiresRewrite(value) {
+						if rootpath != "" && pathRequiresRewrite(value) {
 							// Match JavaScript: if (!val.quote) { rootpath = escapePath(rootpath); }
-							if quote, ok := valMap["quote"].(bool); !ok || !quote {
+							if quote, ok := valMap["quote"].(string); !ok || quote == "" {
 								rootpath = escapePath(rootpath)
 							}
 							// Match JavaScript: val.value = context.rewritePath(val.value, rootpath);
@@ -131,26 +235,26 @@ func (u *URL) Eval(context any) *URL {
 							}
 						}
 					}
-				}
-				
-				// Match JavaScript: Add url args if enabled
-				if urlArgs, ok := ctx["urlArgs"].(string); ok && urlArgs != "" {
-					if value, ok := valMap["value"].(string); ok {
-						// Match JavaScript: if (!val.value.match(/^\s*data:/))
-						if !regexp.MustCompile(`^\s*data:`).MatchString(value) {
-							// Match JavaScript: const delimiter = val.value.indexOf('?') === -1 ? '?' : '&';
-							delimiter := "?"
-							if strings.Contains(value, "?") {
-								delimiter = "&"
-							}
-							urlArgsStr := delimiter + urlArgs
-							// Match JavaScript: val.value.indexOf('#') !== -1
-							if strings.Contains(value, "#") {
-								// Match JavaScript: val.value.replace('#', `${urlArgs}#`)
-								valMap["value"] = strings.Replace(value, "#", urlArgsStr+"#", 1)
-							} else {
-								// Match JavaScript: val.value += urlArgs
-								valMap["value"] = value + urlArgsStr
+
+					// Match JavaScript: Add url args if enabled
+					if urlArgs, ok := ctx["urlArgs"].(string); ok && urlArgs != "" {
+						if value, ok := valMap["value"].(string); ok {
+							// Match JavaScript: if (!val.value.match(/^\s*data:/))
+							if !regexp.MustCompile(`^\s*data:`).MatchString(value) {
+								// Match JavaScript: const delimiter = val.value.indexOf('?') === -1 ? '?' : '&';
+								delimiter := "?"
+								if strings.Contains(value, "?") {
+									delimiter = "&"
+								}
+								urlArgsStr := delimiter + urlArgs
+								// Match JavaScript: val.value.indexOf('#') !== -1
+								if strings.Contains(value, "#") {
+									// Match JavaScript: val.value.replace('#', `${urlArgs}#`)
+									valMap["value"] = strings.Replace(value, "#", urlArgsStr+"#", 1)
+								} else {
+									// Match JavaScript: val.value += urlArgs
+									valMap["value"] = value + urlArgsStr
+								}
 							}
 						}
 					}
@@ -158,7 +262,7 @@ func (u *URL) Eval(context any) *URL {
 			}
 		}
 	}
-	
+
 	// Match JavaScript: return new URL(val, this.getIndex(), this.fileInfo(), true);
-	return NewURL(val, u.GetIndex(), u.fileInfo(), true)
+	return NewURL(val, u.GetIndex(), u.fileInfo(), true), nil
 } 

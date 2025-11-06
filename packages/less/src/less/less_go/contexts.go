@@ -174,9 +174,15 @@ func (e *Eval) GetDefaultFunc() *DefaultFunc {
 
 // PathRequiresRewrite determines if a path needs to be rewritten
 func (e *Eval) PathRequiresRewrite(path string) bool {
+	// If rewriting is off, don't rewrite anything
+	if e.RewriteUrls == RewriteUrlsOff {
+		return false
+	}
+	// If set to local, only rewrite paths that start with .
 	if e.RewriteUrls == RewriteUrlsLocal {
 		return isPathLocalRelative(path)
 	}
+	// If set to all, rewrite all relative paths
 	return isPathRelative(path)
 }
 
@@ -271,6 +277,16 @@ func copyFromOriginal(original map[string]any, destination any) {
 		}
 		if rewriteUrls, ok := original["rewriteUrls"].(RewriteUrlsType); ok {
 			d.RewriteUrls = rewriteUrls
+		} else if rewriteUrlsStr, ok := original["rewriteUrls"].(string); ok {
+			// Convert string values to RewriteUrlsType enum
+			switch rewriteUrlsStr {
+			case "all":
+				d.RewriteUrls = RewriteUrlsAll
+			case "local":
+				d.RewriteUrls = RewriteUrlsLocal
+			case "off", "false":
+				d.RewriteUrls = RewriteUrlsOff
+			}
 		}
 		if rootpath, ok := original["rootpath"].(string); ok {
 			d.Rootpath = rootpath
@@ -351,6 +367,16 @@ func copyFromOriginal(original map[string]any, destination any) {
 		}
 		if rewriteUrls, ok := original["rewriteUrls"].(RewriteUrlsType); ok {
 			d.RewriteUrls = rewriteUrls
+		} else if rewriteUrlsStr, ok := original["rewriteUrls"].(string); ok {
+			// Convert string values to RewriteUrlsType enum
+			switch rewriteUrlsStr {
+			case "all":
+				d.RewriteUrls = RewriteUrlsAll
+			case "local":
+				d.RewriteUrls = RewriteUrlsLocal
+			case "off", "false":
+				d.RewriteUrls = RewriteUrlsOff
+			}
 		}
 	}
 } 
