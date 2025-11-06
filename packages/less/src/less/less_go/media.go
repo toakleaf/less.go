@@ -79,6 +79,11 @@ func (m *Media) IsRulesetLike() bool {
 	return true
 }
 
+// GetRules returns the media's rules array
+func (m *Media) GetRules() []any {
+	return m.Rules
+}
+
 // Accept visits the node with a visitor (implementing NestableAtRulePrototype)
 func (m *Media) Accept(visitor any) {
 	if m.Features != nil {
@@ -325,13 +330,13 @@ func (m *Media) BubbleSelectors(selectors any) {
 // GenCSS generates CSS representation
 func (m *Media) GenCSS(context any, output *CSSOutput) {
 	output.Add("@media ", m.FileInfo(), m.GetIndex())
-	
+
 	if m.Features != nil {
 		if gen, ok := m.Features.(interface{ GenCSS(any, *CSSOutput) }); ok {
 			gen.GenCSS(context, output)
 		}
 	}
-	
+
 	m.OutputRuleset(context, output, m.Rules)
 }
 
@@ -411,6 +416,12 @@ func (m *Media) Eval(context any) (any, error) {
 				return nil, err
 			}
 			media.Rules = []any{evaluated}
+
+			// Set root=true on the evaluated ruleset so it outputs its rules without wrapping braces
+			// This matches the pattern in JavaScript AtRule.eval()
+			if evaluatedRuleset, ok := evaluated.(*Ruleset); ok {
+				evaluatedRuleset.Root = true
+			}
 
 			// Match JavaScript: context.frames.shift();
 			if currentFrames, ok := ctx["frames"].([]any); ok && len(currentFrames) > 0 {
