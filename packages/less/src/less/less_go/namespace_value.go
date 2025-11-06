@@ -67,11 +67,26 @@ func (nv *NamespaceValue) Eval(context any) (any, error) {
 	} else {
 		rules = nv.value
 	}
-	
+
+	// Unwrap map structure returned by VariableCall.Eval()
+	// VariableCall returns map[string]any{"rules": [...]} for detached rulesets
+	if rulesMap, ok := rules.(map[string]any); ok {
+		if rulesArray, hasRules := rulesMap["rules"]; hasRules {
+			if arr, ok := rulesArray.([]any); ok {
+				// Create new Ruleset with empty selector
+				emptySelector, err := NewSelector(nil, nil, nil, 0, make(map[string]any), nil)
+				if err != nil {
+					return nil, fmt.Errorf("failed to create empty selector: %w", err)
+				}
+				rules = NewRuleset([]any{emptySelector}, arr, false, nil)
+			}
+		}
+	}
+
 	// Process each lookup
 	for i := 0; i < len(nv.lookups); i++ {
 		name = nv.lookups[i]
-		
+
 		// CRITICAL: Array conversion must happen INSIDE the loop - matches JavaScript behavior
 		// Eval'd DRs return rulesets.
 		// Eval'd mixins return rules, so let's make a ruleset if we need it.
@@ -115,7 +130,7 @@ func (nv *NamespaceValue) Eval(context any) (any, error) {
 			}
 
 			if hasVariablesProperty {
-				if ruleset, ok := rules.(interface{ Variable(string) any }); ok {
+				if ruleset, ok := rules.(interface{ Variable(string) map[string]any }); ok {
 					rules = ruleset.Variable(name)
 				}
 			}
