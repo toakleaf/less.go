@@ -58,7 +58,14 @@ func (nv *NamespaceValue) Eval(context any) (any, error) {
 	
 	// Start by evaluating the initial value - matches JavaScript: rules = this.value.eval(context)
 	var rules any
-	if evaluator, ok := nv.value.(interface{ Eval(any) (any, error) }); ok {
+	// Handle MixinCall which has Eval(any) ([]any, error) signature
+	if mixinCall, ok := nv.value.(*MixinCall); ok {
+		evalResult, err := mixinCall.Eval(context)
+		if err != nil {
+			return nil, err
+		}
+		rules = evalResult
+	} else if evaluator, ok := nv.value.(interface{ Eval(any) (any, error) }); ok {
 		evalResult, err := evaluator.Eval(context)
 		if err != nil {
 			return nil, err
@@ -184,9 +191,9 @@ func (nv *NamespaceValue) Eval(context any) (any, error) {
 			if propertyChecker, ok := rules.(interface{ HasProperties() bool }); ok {
 				hasPropertiesProperty = propertyChecker.HasProperties()
 			}
-			
+
 			if hasPropertiesProperty {
-				if ruleset, ok := rules.(interface{ Property(string) any }); ok {
+				if ruleset, ok := rules.(interface{ Property(string) []any }); ok {
 					rules = ruleset.Property(name)
 				}
 			}
@@ -213,10 +220,27 @@ func (nv *NamespaceValue) Eval(context any) (any, error) {
 		}
 		
 		// Match JavaScript: if (rules.value) { rules = rules.eval(context).value; }
-		// First check if rules is a plain map with a "value" key
-		if rulesMap, ok := rules.(map[string]any); ok {
+		// Handle Declaration - evaluate it and extract its Value field
+		if decl, ok := rules.(*Declaration); ok {
+			evalResult, err := decl.Eval(context)
+			if err != nil {
+				return nil, err
+			}
+			if evalDecl, ok := evalResult.(*Declaration); ok {
+				rules = evalDecl.Value
+			}
+		} else if rulesMap, ok := rules.(map[string]any); ok {
+			// Check if it's a plain map with a "value" key (from Variable lookup)
 			if value, exists := rulesMap["value"]; exists {
 				rules = value
+				// After extracting value from map, evaluate it if it's evaluable
+				if evaluator, ok := rules.(interface{ Eval(any) (any, error) }); ok {
+					evalResult, err := evaluator.Eval(context)
+					if err != nil {
+						return nil, err
+					}
+					rules = evalResult
+				}
 			}
 		}
 
