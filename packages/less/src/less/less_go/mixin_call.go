@@ -411,6 +411,14 @@ func (mc *MixinCall) Eval(context any) ([]any, error) {
 
 									// Evaluate call with incremented depth
 									if mixinDef, ok := mixinCandidate.(interface{ EvalCall(any, []any, bool) (*Ruleset, error) }); ok {
+										// Check if important flag is inherited from parent mixin call
+										important := mc.Important
+										if ctx, ok := context.(map[string]any); ok {
+											if ctxImportant, ok := ctx["important"].(bool); ok && ctxImportant {
+												important = true
+											}
+										}
+
 										// Create new context with incremented depth
 										callContext := context
 										if ctx, ok := context.(map[string]any); ok {
@@ -425,8 +433,8 @@ func (mc *MixinCall) Eval(context any) ([]any, error) {
 											newCtx["mixinCallDepth"] = depth + 1
 											callContext = newCtx
 										}
-										
-										if newRuleset, err := mixinDef.EvalCall(callContext, args, mc.Important); err != nil {
+
+										if newRuleset, err := mixinDef.EvalCall(callContext, args, important); err != nil{
 											return nil, &MixinCallError{
 												Message:  err.Error(),
 												Index:    mc.GetIndex(),

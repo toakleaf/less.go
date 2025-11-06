@@ -395,7 +395,7 @@ func (d *Declaration) IsVisible() bool {
 }
 
 // MakeImportant creates a new Declaration with important flag
-func (d *Declaration) MakeImportant() *Declaration {
+func (d *Declaration) MakeImportant() any {
 	newDecl, _ := NewDeclaration(d.name, d.Value, "!important", d.merge, d.GetIndex(), d.FileInfo(), d.inline, d.variable)
 	return newDecl
 }

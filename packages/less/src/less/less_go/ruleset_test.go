@@ -632,11 +632,15 @@ func TestMakeImportant(t *testing.T) {
 		rules := []any{mockRule}
 		ruleset := NewRuleset(nil, rules, true, map[string]any{})
 
-		result := ruleset.MakeImportant()
+		resultAny := ruleset.MakeImportant()
 
-		if result == nil {
+		if resultAny == nil {
 			t.Errorf("Expected result to not be nil")
 			return
+		}
+		result, ok := resultAny.(*Ruleset)
+		if !ok {
+			t.Fatalf("Expected result to be *Ruleset, got %T", resultAny)
 		}
 		if result.GetType() != "Ruleset" {
 			t.Errorf("Expected result to be a Ruleset")
@@ -651,11 +655,15 @@ func TestMakeImportant(t *testing.T) {
 		rules := []any{rule}
 		ruleset := NewRuleset(nil, rules, false, map[string]any{})
 
-		result := ruleset.MakeImportant()
+		resultAny := ruleset.MakeImportant()
 
-		if result == nil {
+		if resultAny == nil {
 			t.Errorf("Expected result to not be nil")
 			return
+		}
+		result, ok := resultAny.(*Ruleset)
+		if !ok {
+			t.Fatalf("Expected result to be *Ruleset, got %T", resultAny)
 		}
 		if len(result.Rules) != 1 {
 			t.Errorf("Expected one rule in result")

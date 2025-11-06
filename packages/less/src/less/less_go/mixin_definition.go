@@ -600,7 +600,7 @@ func (md *MixinDefinition) EvalCall(context any, args []any, important bool) (*R
 	// Evaluate ruleset with proper context
 	evalFrames := []any{md, frame}
 	evalFrames = append(evalFrames, mixinFrames...)
-	
+
 	evalContext := map[string]any{
 		"frames": evalFrames,
 	}
@@ -612,18 +612,27 @@ func (md *MixinDefinition) EvalCall(context any, args []any, important bool) (*R
 		}
 	}
 
+	// Pass the important flag through the evaluation context
+	// so that nested mixin calls can inherit it
+	if important {
+		evalContext["important"] = true
+	}
+
 	evaluated, err := ruleset.Eval(evalContext)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	evaluatedRuleset, ok := evaluated.(*Ruleset)
 	if !ok {
 		return nil, fmt.Errorf("expected *Ruleset from Eval, got %T", evaluated)
 	}
 
 	if important {
-		evaluatedRuleset = evaluatedRuleset.MakeImportant()
+		importantAny := evaluatedRuleset.MakeImportant()
+		if importantRuleset, ok := importantAny.(*Ruleset); ok {
+			evaluatedRuleset = importantRuleset
+		}
 	}
 
 	return evaluatedRuleset, nil
