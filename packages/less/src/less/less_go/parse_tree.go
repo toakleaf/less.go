@@ -48,6 +48,7 @@ type ToCSSOptions struct {
 	Functions        any
 	ProcessImports   bool
 	ImportManager    any
+	Math             MathType // Math mode for operations (ALWAYS, PARENS_DIVISION, PARENS)
 }
 
 // ToCSS converts the parse tree to CSS
@@ -70,6 +71,7 @@ func (pt *ParseTree) ToCSS(options *ToCSSOptions) (*ToCSSResult, error) {
 			"functions":        options.Functions,
 			"processImports":   options.ProcessImports,
 			"importManager":    options.ImportManager,
+			"math":             options.Math,
 		}
 	} else {
 		optionsMap = make(map[string]any)
