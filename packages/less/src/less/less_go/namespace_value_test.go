@@ -194,8 +194,9 @@ func TestNamespaceValueEvalBasicCases(t *testing.T) {
 		if err != nil {
 			t.Errorf("Expected no error, got %v", err)
 		}
-		if result != stubDecl {
-			t.Errorf("Expected result to be stubDecl")
+		// Should return the evaluated value, not the declaration
+		if result != innerValue {
+			t.Errorf("Expected result to be innerValue (%v), got %v", innerValue, result)
 		}
 	})
 
@@ -230,8 +231,9 @@ func TestNamespaceValueEvalBasicCases(t *testing.T) {
 		if err != nil {
 			t.Errorf("Expected no error, got %v", err)
 		}
-		if result != mockVariable {
-			t.Errorf("Expected result to be mockVariable")
+		// Should return the evaluated value, not the declaration object
+		if result != innerValue {
+			t.Errorf("Expected result to be innerValue (%v), got %v", innerValue, result)
 		}
 	})
 
@@ -266,8 +268,9 @@ func TestNamespaceValueEvalBasicCases(t *testing.T) {
 		if err != nil {
 			t.Errorf("Expected no error, got %v", err)
 		}
-		if result != stubDecl {
-			t.Errorf("Expected result to be stubDecl")
+		// Should return the evaluated value, not the declaration
+		if result != innerValue {
+			t.Errorf("Expected result to be innerValue (%v), got %v", innerValue, result)
 		}
 	})
 
@@ -302,8 +305,9 @@ func TestNamespaceValueEvalBasicCases(t *testing.T) {
 		if err != nil {
 			t.Errorf("Expected no error, got %v", err)
 		}
-		if result != stubDecl {
-			t.Errorf("Expected result to be stubDecl")
+		// Should return the evaluated value, not the declaration
+		if result != innerValue {
+			t.Errorf("Expected result to be innerValue (%v), got %v", innerValue, result)
 		}
 	})
 
@@ -311,10 +315,11 @@ func TestNamespaceValueEvalBasicCases(t *testing.T) {
 		innerValues := []string{"firstValue", "secondValue", "thirdValue"}
 		stubDecls := make([]any, len(innerValues))
 		for i, v := range innerValues {
+			val := v // Capture the value for the closure
 			stubDecls[i] = &MockVariableDeclaration{
-				value: v,
+				value: val,
 				evalFunc: func(context any) (any, error) {
-					return map[string]any{"value": v}, nil
+					return map[string]any{"value": val}, nil
 				},
 			}
 		}
@@ -341,8 +346,9 @@ func TestNamespaceValueEvalBasicCases(t *testing.T) {
 		if err != nil {
 			t.Errorf("Expected no error, got %v", err)
 		}
-		if result != stubDecls[2] {
-			t.Errorf("Expected result to be third stubDecl")
+		// Should return the evaluated value of the last property
+		if result != innerValues[2] {
+			t.Errorf("Expected result to be last innerValue (%v), got %v", innerValues[2], result)
 		}
 	})
 }
@@ -546,7 +552,7 @@ func TestNamespaceValueAdvancedCases(t *testing.T) {
 			t.Errorf("Expected no error, got %v", err)
 		}
 		if result != finalValue {
-			t.Errorf("Expected result to be finalValue")
+			t.Errorf("Expected result to be finalValue (%v), got result type: %T, value: %v", finalValue, result, result)
 		}
 	})
 
