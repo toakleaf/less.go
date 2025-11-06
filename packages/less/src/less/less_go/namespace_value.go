@@ -134,10 +134,21 @@ func (nv *NamespaceValue) Eval(context any) (any, error) {
 					rules = ruleset.Variable(name)
 				}
 			}
-			
+
 			// Match JavaScript: if (!rules) { throw error; } - ALWAYS check regardless of variables property
 			// This check happens AFTER the variable lookup attempt
+			// Note: In Go, when a nil map is stored in an interface, the interface != nil
+			// So we need to check both the interface and the map value
 			if rules == nil {
+				return nil, &LessError{
+					Type:     "Name",
+					Message:  fmt.Sprintf("variable %s not found", name),
+					Filename: nv.getFilename(),
+					Index:    nv.GetIndex(),
+				}
+			}
+			// Also check if rules is a nil map wrapped in an interface
+			if rulesMap, ok := rules.(map[string]any); ok && rulesMap == nil {
 				return nil, &LessError{
 					Type:     "Name",
 					Message:  fmt.Sprintf("variable %s not found", name),
@@ -207,7 +218,11 @@ func (nv *NamespaceValue) Eval(context any) (any, error) {
 			if value, exists := rulesMap["value"]; exists {
 				rules = value
 			}
-		} else if rulesWithValue, ok := rules.(interface{
+		}
+
+		// After unwrapping map, check if the result has an Eval method with HasValue
+		// Use a separate if (not else if) so this runs after the map unwrapping above
+		if rulesWithValue, ok := rules.(interface{
 			Eval(any) (any, error)
 		}); ok {
 			// Check if it has a value property (matches JavaScript rules.value check)
