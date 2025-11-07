@@ -174,16 +174,14 @@ func (e *Eval) GetDefaultFunc() *DefaultFunc {
 }
 
 // PathRequiresRewrite determines if a path needs to be rewritten
+// Match JavaScript: const isRelative = this.rewriteUrls === Constants.RewriteUrls.LOCAL ? isPathLocalRelative : isPathRelative;
 func (e *Eval) PathRequiresRewrite(path string) bool {
-	// If rewriting is off, don't rewrite anything
-	if e.RewriteUrls == RewriteUrlsOff {
-		return false
-	}
 	// If set to local, only rewrite paths that start with .
 	if e.RewriteUrls == RewriteUrlsLocal {
 		return isPathLocalRelative(path)
 	}
-	// If set to all, rewrite all relative paths
+	// Otherwise (including ALL, OFF, or unset), use isPathRelative
+	// Note: JavaScript doesn't explicitly check for OFF - it uses isPathRelative for all non-LOCAL cases
 	return isPathRelative(path)
 }
 
