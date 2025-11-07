@@ -285,8 +285,10 @@ func (pev *ProcessExtendsVisitor) doExtendChaining(extendsList []*Extend, extend
 						info = targetExtend.VisibilityInfo()
 
 						// process the extend as usual
-						// Extended selectors should always be visible (same logic as in VisitRuleset)
-						newSelector = pev.extendSelector(matches, selectorPath, selfSelector, true)
+						// Match JavaScript: use the extend's visibility, not always true
+						// This ensures that extends from reference imports create invisible selectors
+						isVisible := targetExtend.IsVisible()
+						newSelector = pev.extendSelector(matches, selectorPath, selfSelector, isVisible)
 
 						// but now we create a new extend from it
 						var infoMap map[string]any
@@ -427,10 +429,11 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 				hasAnyMatches = true
 
 				for _, selfSelector := range allExtends[extendIndex].SelfSelectors {
-					// Extended selectors should always be visible since they're being added to rulesets
-					// that will be output. The extend itself may be invisible (it's not CSS), but the
-					// extended selectors are actual CSS selectors that should appear in the output.
-					extendedSelectors := pev.extendSelector(matches, selectorPath, selfSelector, true)
+					// Match JavaScript: use the extend's visibility to determine if created selectors should be visible
+					// This ensures that extends from reference imports don't create visible selectors
+					// unless they've been explicitly made visible by being used/extended from outside the reference
+					isVisible := allExtends[extendIndex].IsVisible()
+					extendedSelectors := pev.extendSelector(matches, selectorPath, selfSelector, isVisible)
 					selectorsToAdd = append(selectorsToAdd, extendedSelectors)
 
 					// DEBUG: Log extended selectors
