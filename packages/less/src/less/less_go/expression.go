@@ -129,8 +129,8 @@ func (e *Expression) Eval(context any) (any, error) {
 				newValues[i] = nil
 				continue
 			}
-			
-			
+
+
 			newValues[i] = SafeEval(val, context)
 		}
 		

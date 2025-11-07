@@ -659,7 +659,7 @@ func (r *Ruleset) Eval(context any) (any, error) {
 		if r, ok := rule.(interface{ EvalFirst() bool }); ok && r.EvalFirst() {
 			continue // Already evaluated
 		}
-		
+
 		// Try different Eval signatures
 		switch evalRule := rule.(type) {
 		case interface{ Eval(any) (*MixinDefinition, error) }:
@@ -669,6 +669,9 @@ func (r *Ruleset) Eval(context any) (any, error) {
 				return nil, err
 			}
 			rsRules[i] = evaluated
+			// Reset cache after each rule evaluation to ensure subsequent lookups get fresh data
+			// This is critical for variables that reference other variables in the same scope
+			ruleset.ResetCache()
 		case interface{ Eval(any) (any, error) }:
 			// Handle generic Eval
 			evaluated, err := evalRule.Eval(context)
@@ -676,13 +679,19 @@ func (r *Ruleset) Eval(context any) (any, error) {
 				return nil, err
 			}
 			rsRules[i] = evaluated
+			// Reset cache after each rule evaluation to ensure subsequent lookups get fresh data
+			// This is critical for variables that reference other variables in the same scope
+			ruleset.ResetCache()
 		case interface{ Eval(any) any }:
 			// Handle Eval without error return
 			rsRules[i] = evalRule.Eval(context)
+			// Reset cache after each rule evaluation to ensure subsequent lookups get fresh data
+			// This is critical for variables that reference other variables in the same scope
+			ruleset.ResetCache()
 		}
 	}
-	
-	// Reset cache after evaluating rules since variable values may have changed
+
+	// Final cache reset after evaluating all rules
 	ruleset.ResetCache()
 
 	// Handle parent selector folding like JavaScript version
