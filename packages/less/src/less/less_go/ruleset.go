@@ -1323,17 +1323,28 @@ func (r *Ruleset) Find(selector any, self any, filter func(any) bool) []any {
 
 // GenCSS generates CSS for the ruleset
 func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
+	// Check visibility - skip if node blocks visibility and is not explicitly visible
+	// This implements the reference import functionality where nodes from referenced
+	// imports are hidden unless explicitly used (via extend or mixin call)
+	if r.Node != nil && r.Node.BlocksVisibility() {
+		nodeVisible := r.Node.IsVisible()
+		if nodeVisible == nil || !*nodeVisible {
+			// Node blocks visibility and is not explicitly visible, skip output
+			return
+		}
+	}
+
 	ctx, ok := context.(map[string]any)
 	if !ok {
 		ctx = make(map[string]any)
 	}
-	
+
 	// Set tab level
 	tabLevel := 0
 	if tl, ok := ctx["tabLevel"].(int); ok {
 		tabLevel = tl
 	}
-	
+
 	if !r.Root {
 		tabLevel++
 		ctx["tabLevel"] = tabLevel
@@ -1400,13 +1411,22 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 	ruleNodes = append(charsetRuleNodes, ruleNodes...)
 	
 	// Generate CSS for selectors if not root
-	if !r.Root {
+	// Check if this is a media-empty ruleset that should not generate selectors/braces
+	// This happens when media queries create wrapper rulesets with empty selectors
+	isMediaEmpty := false
+	if !r.Root && r.Paths == nil && len(r.Selectors) == 1 {
+		if sel, ok := r.Selectors[0].(*Selector); ok && sel.MediaEmpty {
+			isMediaEmpty = true
+		}
+	}
+
+	if !r.Root && !isMediaEmpty {
 		// Generate debug info
 		if debugInfo := GetDebugInfo(ctx, r, tabSetStr); debugInfo != "" {
 			output.Add(debugInfo, nil, nil)
 			output.Add(tabSetStr, nil, nil)
 		}
-		
+
 		// Generate selectors
 		if r.Paths != nil {
 			sep := ","
@@ -1421,19 +1441,51 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 				if i > 0 {
 					output.Add(sep, nil, nil)
 				}
-				
+
 				// Always set firstSelector to true for the first selector in a path
 				// This ensures no extra space is added at the beginning of selectors
 				ctx["firstSelector"] = true
 				if gen, ok := path[0].(interface{ GenCSS(any, *CSSOutput) }); ok {
 					gen.GenCSS(ctx, output)
 				}
-				
+
 				ctx["firstSelector"] = false
 				for j := 1; j < len(path); j++ {
 					if gen, ok := path[j].(interface{ GenCSS(any, *CSSOutput) }); ok {
 						gen.GenCSS(ctx, output)
 					}
+				}
+			}
+		} else if r.Selectors != nil && len(r.Selectors) > 0 {
+			// Fallback: if Paths is nil, use Selectors directly
+			// This handles cases where JoinSelectorVisitor hasn't run yet (e.g., in media queries)
+
+			// Check if this is a media-empty selector (should not be output)
+			isMediaEmpty := false
+			if len(r.Selectors) == 1 {
+				if sel, ok := r.Selectors[0].(*Selector); ok {
+					if sel.MediaEmpty {
+						isMediaEmpty = true
+					}
+				}
+			}
+
+			if !isMediaEmpty {
+				sep := ","
+				if !compress {
+					sep = ",\n" + tabSetStr
+				}
+
+				for i, selector := range r.Selectors {
+					if i > 0 {
+						output.Add(sep, nil, nil)
+					}
+
+					ctx["firstSelector"] = true
+					if gen, ok := selector.(interface{ GenCSS(any, *CSSOutput) }); ok {
+						gen.GenCSS(ctx, output)
+					}
+					ctx["firstSelector"] = false
 				}
 			}
 		}
@@ -1487,7 +1539,7 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 	}
 	
 	// Add closing brace
-	if !r.Root {
+	if !r.Root && !isMediaEmpty {
 		if compress {
 			output.Add("}", nil, nil)
 		} else {
@@ -1495,7 +1547,7 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 		}
 		tabLevel--
 		ctx["tabLevel"] = tabLevel
-		
+
 		// Add newline after ruleset to separate from next ruleset
 		// Check if we're not the last rule and not in compressed mode
 		if !compress {

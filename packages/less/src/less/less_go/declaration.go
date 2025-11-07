@@ -270,9 +270,16 @@ func (d *Declaration) Eval(context any) (any, error) {
 	}
 
 	// Create important scope
-	if ctx, ok := context.(map[string]any); ok {
+	if evalCtx, ok := context.(*Eval); ok {
+		// For *Eval context, append to ImportantScope directly
+		evalCtx.ImportantScope = append(evalCtx.ImportantScope, map[string]any{})
+	} else if ctx, ok := context.(map[string]any); ok {
+		// For map context, manage importantScope in the map
 		if importantScope, ok := ctx["importantScope"].([]any); ok {
 			ctx["importantScope"] = append(importantScope, map[string]any{})
+		} else {
+			// Initialize importantScope if it doesn't exist
+			ctx["importantScope"] = []any{map[string]any{}}
 		}
 	}
 
@@ -297,12 +304,26 @@ func (d *Declaration) Eval(context any) (any, error) {
 
 	// Handle important flag
 	important := d.important
-	if ctx, ok := context.(map[string]any); ok {
+	if evalCtx, ok := context.(*Eval); ok {
+		// For *Eval context, pop from ImportantScope directly
+		if len(evalCtx.ImportantScope) > 0 {
+			lastScope := evalCtx.ImportantScope[len(evalCtx.ImportantScope)-1]
+			evalCtx.ImportantScope = evalCtx.ImportantScope[:len(evalCtx.ImportantScope)-1]
+
+			// Check if we should use the important flag from the scope
+			if important == "" && lastScope != nil {
+				if imp, ok := lastScope["important"].(string); ok && imp != "" {
+					important = imp
+				}
+			}
+		}
+	} else if ctx, ok := context.(map[string]any); ok {
+		// For map context, pop from importantScope in the map
 		if importantScope, ok := ctx["importantScope"].([]any); ok && len(importantScope) > 0 {
 			// Pop the scope
 			lastScope := importantScope[len(importantScope)-1]
 			ctx["importantScope"] = importantScope[:len(importantScope)-1]
-			
+
 			// Check if we should use the important flag from the scope
 			if important == "" && lastScope != nil {
 				if scope, ok := lastScope.(map[string]any); ok {
@@ -334,6 +355,19 @@ func (d *Declaration) Eval(context any) (any, error) {
 
 // GenCSS generates CSS representation
 func (d *Declaration) GenCSS(context any, output *CSSOutput) {
+	// Check visibility - skip if node blocks visibility and is not explicitly visible
+	// Also skip if this is a variable declaration (variables are not output as CSS)
+	if d.variable {
+		return
+	}
+	if d.Node != nil && d.Node.BlocksVisibility() {
+		nodeVisible := d.Node.IsVisible()
+		if nodeVisible == nil || !*nodeVisible {
+			// Node blocks visibility and is not explicitly visible, skip output
+			return
+		}
+	}
+
 	compress := false
 	if ctx, ok := context.(map[string]any); ok {
 		if c, ok := ctx["compress"].(bool); ok {
@@ -426,8 +460,13 @@ func (d *Declaration) IsVisible() bool {
 }
 
 // MakeImportant creates a new Declaration with important flag
-func (d *Declaration) MakeImportant() *Declaration {
-	newDecl, _ := NewDeclaration(d.name, d.Value, "!important", d.merge, d.GetIndex(), d.FileInfo(), d.inline, d.variable)
+func (d *Declaration) MakeImportant() any {
+	// If already important, preserve the existing important value
+	importantValue := "!important"
+	if d.important != "" {
+		importantValue = strings.TrimSpace(d.important)
+	}
+	newDecl, _ := NewDeclaration(d.name, d.Value, importantValue, d.merge, d.GetIndex(), d.FileInfo(), d.inline, d.variable)
 	return newDecl
 }
 
