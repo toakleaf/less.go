@@ -346,17 +346,16 @@ func (m *Media) Eval(context any) (any, error) {
 		return nil, fmt.Errorf("context is required for Media.Eval")
 	}
 
-	// Accept both *Eval and map[string]any contexts (like Ruleset does)
+	// Accept both *Eval and map[string]any contexts
 	var ctx map[string]any
 	var evalCtx *Eval
 
 	if ec, ok := context.(*Eval); ok {
 		evalCtx = ec
-		// Create a minimal map for state tracking (mediaBlocks, mediaPath, etc.)
-		// We'll pass the original context to child evaluations
-		ctx = make(map[string]any)
-		// Copy frames from *Eval to ctx for compatibility
-		ctx["frames"] = ec.Frames
+		// Create a map that wraps the *Eval context for media-specific state
+		ctx = map[string]any{
+			"frames": ec.Frames,
+		}
 	} else if mapCtx, ok := context.(map[string]any); ok {
 		ctx = mapCtx
 	} else {
@@ -406,12 +405,16 @@ func (m *Media) Eval(context any) (any, error) {
 	// Match JavaScript: this.rules[0].functionRegistry = context.frames[0].functionRegistry.inherit();
 	if len(m.Rules) > 0 {
 		if ruleset, ok := m.Rules[0].(*Ruleset); ok {
-			frames, framesOk := ctx["frames"].([]any)
-			if !framesOk {
-				// JavaScript would throw here - frames key must exist
+			// Get frames from the appropriate source
+			var frames []any
+			if evalCtx != nil {
+				frames = evalCtx.Frames
+			} else if f, ok := ctx["frames"].([]any); ok {
+				frames = f
+			} else {
 				return nil, fmt.Errorf("frames is required for media evaluation")
 			}
-			
+
 			// Handle function registry inheritance if frames exist
 			if len(frames) > 0 {
 				if frameRuleset, ok := frames[0].(*Ruleset); ok && frameRuleset.FunctionRegistry != nil {
@@ -424,10 +427,12 @@ func (m *Media) Eval(context any) (any, error) {
 			newFrames := make([]any, len(frames)+1)
 			newFrames[0] = ruleset
 			copy(newFrames[1:], frames)
-			ctx["frames"] = newFrames
-			// If we have an *Eval context, update its Frames field too
+
+			// Update frames in the appropriate location
 			if evalCtx != nil {
 				evalCtx.Frames = newFrames
+			} else {
+				ctx["frames"] = newFrames
 			}
 
 			// Match JavaScript: media.rules = [this.rules[0].eval(context)];
@@ -438,12 +443,12 @@ func (m *Media) Eval(context any) (any, error) {
 			media.Rules = []any{evaluated}
 
 			// Match JavaScript: context.frames.shift();
-			if currentFrames, ok := ctx["frames"].([]any); ok && len(currentFrames) > 0 {
-				ctx["frames"] = currentFrames[1:]
-				// If we have an *Eval context, update its Frames field too
-				if evalCtx != nil {
-					evalCtx.Frames = currentFrames[1:]
+			if evalCtx != nil {
+				if len(evalCtx.Frames) > 0 {
+					evalCtx.Frames = evalCtx.Frames[1:]
 				}
+			} else if currentFrames, ok := ctx["frames"].([]any); ok && len(currentFrames) > 0 {
+				ctx["frames"] = currentFrames[1:]
 			}
 		}
 	}
