@@ -342,9 +342,25 @@ func (m *Media) GenCSS(context any, output *CSSOutput) {
 
 // Eval evaluates the media rule - matching JavaScript implementation closely
 func (m *Media) Eval(context any) (any, error) {
-	ctx, ok := context.(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf("context must be a map")
+	if context == nil {
+		return nil, fmt.Errorf("context is required for Media.Eval")
+	}
+
+	// Accept both *Eval and map[string]any contexts (like Ruleset does)
+	var ctx map[string]any
+	var evalCtx *Eval
+
+	if ec, ok := context.(*Eval); ok {
+		evalCtx = ec
+		// Create a minimal map for state tracking (mediaBlocks, mediaPath, etc.)
+		// We'll pass the original context to child evaluations
+		ctx = make(map[string]any)
+		// Copy frames from *Eval to ctx for compatibility
+		ctx["frames"] = ec.Frames
+	} else if mapCtx, ok := context.(map[string]any); ok {
+		ctx = mapCtx
+	} else {
+		return nil, fmt.Errorf("context must be *Eval or map[string]any, got %T", context)
 	}
 
 	// Match JavaScript: if (!context.mediaBlocks) { context.mediaBlocks = []; context.mediaPath = []; }
@@ -409,6 +425,10 @@ func (m *Media) Eval(context any) (any, error) {
 			newFrames[0] = ruleset
 			copy(newFrames[1:], frames)
 			ctx["frames"] = newFrames
+			// If we have an *Eval context, update its Frames field too
+			if evalCtx != nil {
+				evalCtx.Frames = newFrames
+			}
 
 			// Match JavaScript: media.rules = [this.rules[0].eval(context)];
 			evaluated, err := ruleset.Eval(context)
@@ -420,6 +440,10 @@ func (m *Media) Eval(context any) (any, error) {
 			// Match JavaScript: context.frames.shift();
 			if currentFrames, ok := ctx["frames"].([]any); ok && len(currentFrames) > 0 {
 				ctx["frames"] = currentFrames[1:]
+				// If we have an *Eval context, update its Frames field too
+				if evalCtx != nil {
+					evalCtx.Frames = currentFrames[1:]
+				}
 			}
 		}
 	}
