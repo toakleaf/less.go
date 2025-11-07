@@ -14,20 +14,12 @@ func TransformTree(root any, options map[string]any) any {
 
 	var evaldRoot any
 	variables := options["variables"]
-	
-	// Create evaluation context as a map, matching JavaScript's plain object approach
-	evalEnv := make(map[string]any)
-	// Copy options to evalEnv
-	for k, v := range options {
-		evalEnv[k] = v
-	}
-	// Initialize required fields
-	evalEnv["frames"] = []any{}
-	evalEnv["importantScope"] = []any{}  // Changed from []map[string]bool{} to []any{}
-	evalEnv["mathOn"] = true
-	
+
+	// Create evaluation context as an *Eval struct
+	evalEnv := NewEval(options, []any{})
+
 	// Initialize defaultFunc for mixin guards
-	evalEnv["defaultFunc"] = NewDefaultFunc()
+	evalEnv.DefaultFunc = NewDefaultFunc()
 	
 	// Add function registry support - check if functions are provided in options
 	var functionRegistry *Registry
@@ -90,51 +82,12 @@ func TransformTree(root any, options map[string]any) any {
 			}
 		}
 	}
-	evalEnv["functionRegistry"] = functionRegistry
+	evalEnv.FunctionRegistry = functionRegistry
 	// Set default math mode to ALWAYS for now (can be overridden by options)
-	if _, exists := evalEnv["math"]; !exists {
-		evalEnv["math"] = Math.Always
+	if evalEnv.Math == 0 {
+		evalEnv.Math = Math.Always
 	}
-	// Set mathOn to true by default, matching JavaScript contexts.js
-	evalEnv["mathOn"] = true
-	// Add isMathOn function that matches JavaScript contexts.js implementation
-	evalEnv["isMathOn"] = func(op string) bool {
-		mathOn, exists := evalEnv["mathOn"]
-		if !exists || !mathOn.(bool) {
-			return false
-		}
-		
-		// Check for division operator with math mode restrictions
-		if op == "/" {
-			math, mathExists := evalEnv["math"]
-			if mathExists && math != Math.Always {
-				// Check if we're in parentheses
-				parensStack, parensExists := evalEnv["parensStack"]
-				if !parensExists {
-					return false
-				}
-				if stack, ok := parensStack.([]bool); ok && len(stack) == 0 {
-					return false
-				}
-			}
-		}
-		
-		// Check if math is disabled for everything except in parentheses
-		if math, mathExists := evalEnv["math"]; mathExists {
-			if mathType, ok := math.(MathType); ok && mathType > Math.ParensDivision {
-				parensStack, parensExists := evalEnv["parensStack"]
-				if !parensExists {
-					return false
-				}
-				if stack, ok := parensStack.([]bool); ok {
-					return len(stack) > 0
-				}
-				return false
-			}
-		}
-		
-		return true
-	}
+	// MathOn is already set to true in NewEval
 
 	//
 	// Allows setting variables with a hash, so:
@@ -186,7 +139,7 @@ func TransformTree(root any, options map[string]any) any {
 			}
 			declarations = append(declarations, decl)
 		}
-		evalEnv["frames"] = []any{NewRuleset(nil, declarations, false, nil)}
+		evalEnv.Frames = []any{NewRuleset(nil, declarations, false, nil)}
 	}
 
 	// Create visitors exactly like JavaScript

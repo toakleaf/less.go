@@ -48,6 +48,8 @@ type ToCSSOptions struct {
 	Functions        any
 	ProcessImports   bool
 	ImportManager    any
+	RewriteUrls      any    // Can be string ("all", "local", "off") or RewriteUrlsType
+	Rootpath         string // Root path for URL rewriting
 }
 
 // ToCSS converts the parse tree to CSS
@@ -70,6 +72,8 @@ func (pt *ParseTree) ToCSS(options *ToCSSOptions) (*ToCSSResult, error) {
 			"functions":        options.Functions,
 			"processImports":   options.ProcessImports,
 			"importManager":    options.ImportManager,
+			"rewriteUrls":      options.RewriteUrls,
+			"rootpath":         options.Rootpath,
 		}
 	} else {
 		optionsMap = make(map[string]any)

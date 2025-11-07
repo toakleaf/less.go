@@ -53,12 +53,13 @@ type Eval struct {
 	RewriteUrls     RewriteUrlsType
 
 	// Internal state
-	Frames       []any
-	CalcStack    []bool
-	ParensStack  []bool
-	InCalc       bool
-	MathOn       bool
-	DefaultFunc  *DefaultFunc // For default() function in mixin guards
+	Frames           []any
+	CalcStack        []bool
+	ParensStack      []bool
+	InCalc           bool
+	MathOn           bool
+	DefaultFunc      *DefaultFunc // For default() function in mixin guards
+	FunctionRegistry *Registry    // Function registry for built-in and custom functions
 }
 
 // NewEval creates a new Eval context with the given options and frames

@@ -386,6 +386,12 @@ func createRender(env any, parseTree any, importManager any) func(string, ...any
 					if strictUnits, ok := opts["strictUnits"].(bool); ok {
 						toCSSOptions.StrictUnits = strictUnits
 					}
+					if rewriteUrls, ok := opts["rewriteUrls"]; ok {
+						toCSSOptions.RewriteUrls = rewriteUrls
+					}
+					if rootpath, ok := opts["rootpath"].(string); ok {
+						toCSSOptions.Rootpath = rootpath
+					}
 				}
 				
 				// Call ToCSS which will run TransformTree and visitors

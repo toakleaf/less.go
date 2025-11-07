@@ -97,7 +97,11 @@ func (o *Operation) Eval(context any) (any, error) {
 	
 	// Match JavaScript: if (context.isMathOn(this.op))
 	mathOn := false
-	if ctx, ok := context.(map[string]any); ok {
+	if evalCtx, ok := context.(*Eval); ok {
+		// Check if context is *Eval and use the method directly
+		mathOn = evalCtx.IsMathOnWithOp(o.Op)
+	} else if ctx, ok := context.(map[string]any); ok {
+		// Fallback for map-based context
 		if mathOnFunc, ok := ctx["isMathOn"].(func(string) bool); ok {
 			mathOn = mathOnFunc(o.Op)
 		}

@@ -471,7 +471,11 @@ func (r *Ruleset) Eval(context any) (any, error) {
 		frames = framesVal
 	}
 
-	if len(frames) > 0 {
+	// Check evalCtx for FunctionRegistry first
+	if evalCtx != nil && evalCtx.FunctionRegistry != nil {
+		functionRegistry = evalCtx.FunctionRegistry
+	} else if len(frames) > 0 {
+		// Fall back to checking frames
 		for _, frame := range frames {
 			if f, ok := frame.(*Ruleset); ok {
 				if f.FunctionRegistry != nil {
@@ -515,9 +519,19 @@ func (r *Ruleset) Eval(context any) (any, error) {
 		ctx["selectors"] = newSelectors
 	}
 
-	// Ensure function registry is available in context map
-	if _, exists := ctx["functionRegistry"]; !exists && ruleset.FunctionRegistry != nil {
-		ctx["functionRegistry"] = ruleset.FunctionRegistry
+	// Ensure function registry is available in context
+	if evalCtx != nil {
+		// For *Eval context, set FunctionRegistry if not already set
+		if evalCtx.FunctionRegistry == nil && ruleset.FunctionRegistry != nil {
+			if registry, ok := ruleset.FunctionRegistry.(*Registry); ok {
+				evalCtx.FunctionRegistry = registry
+			}
+		}
+	} else {
+		// For map context, set functionRegistry if not already set
+		if _, exists := ctx["functionRegistry"]; !exists && ruleset.FunctionRegistry != nil {
+			ctx["functionRegistry"] = ruleset.FunctionRegistry
+		}
 	}
 
 	// Evaluate imports
