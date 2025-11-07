@@ -75,7 +75,7 @@ func isTruthy(v any) bool {
 	if v == nil {
 		return false
 	}
-	
+
 	switch val := v.(type) {
 	case bool:
 		return val
@@ -105,6 +105,24 @@ func isTruthy(v any) bool {
 		return val != 0 && !isNaN(val)
 	case string:
 		return val != ""
+	case *Keyword:
+		// Special handling for Keyword types - check their value
+		// Keywords "false", "null", "undefined" are falsy
+		if val == nil {
+			return false
+		}
+		// Keyword.Value is stored in the embedded Node.Value field as a string
+		if strVal, ok := val.Value.(string); ok {
+			result := strVal != "false" && strVal != "null" && strVal != "undefined"
+			// Debug output
+			debug := os.Getenv("LESS_DEBUG_TRUTHY") == "1"
+			if debug {
+				fmt.Printf("[isTruthy] Keyword with value %q -> %v\n", strVal, result)
+			}
+			return result
+		}
+		// Fallback: treat as truthy if we can't extract the value
+		return true
 	default:
 		// For all other types (objects, arrays, functions, etc.), they are truthy
 		return true

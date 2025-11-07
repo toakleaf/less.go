@@ -1,6 +1,10 @@
 package less_go
 
-import "fmt"
+import (
+	"fmt"
+	"os"
+	"reflect"
+)
 
 func init() {
 	// Register boolean functions in DefaultRegistry so they're available even when
@@ -23,11 +27,43 @@ func init() {
 }
 
 // Boolean function implementation
+// In JavaScript, boolean(x) returns true if x is truthy AS AN OBJECT
+// This is different from isTruthy which evaluates Keywords by their value
 func Boolean(condition any) *Keyword {
-	if isTruthy(condition) {
+	// Special handling: all objects (including Keyword nodes) are truthy
+	// Only primitive falsy values should return false
+	if condition == nil {
+		return KeywordFalse
+	}
+
+	switch val := condition.(type) {
+	case bool:
+		if val {
+			return KeywordTrue
+		}
+		return KeywordFalse
+	case string:
+		if val == "" {
+			return KeywordFalse
+		}
+		return KeywordTrue
+	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+		// All numeric types - check if zero
+		if fmt.Sprintf("%v", val) == "0" {
+			return KeywordFalse
+		}
+		return KeywordTrue
+	case float32, float64:
+		// Check for zero and NaN
+		f := reflect.ValueOf(val).Float()
+		if f == 0 || f != f { // f != f checks for NaN
+			return KeywordFalse
+		}
+		return KeywordTrue
+	default:
+		// All objects (including Keywords) are truthy
 		return KeywordTrue
 	}
-	return KeywordFalse
 }
 
 // If function implementation - takes unevaluated nodes
@@ -43,8 +79,18 @@ func If(context *Context, condition any, trueValue any, falseValue any) any {
 	if evaluable, ok := condition.(interface{ Eval(any) (any, error) }); ok {
 		result, _ := evaluable.Eval(evalContext)
 		conditionResult = result
+	} else if evaluable, ok := condition.(interface{ Eval(any) any }); ok {
+		conditionResult = evaluable.Eval(evalContext)
 	} else {
 		conditionResult = condition
+	}
+
+	// Debug output
+	debug := os.Getenv("LESS_DEBUG_IF") == "1"
+	if debug {
+		fmt.Printf("[If] condition=%v (type: %T)\n", condition, condition)
+		fmt.Printf("[If] conditionResult=%v (type: %T)\n", conditionResult, conditionResult)
+		fmt.Printf("[If] isTruthy(conditionResult)=%v\n", isTruthy(conditionResult))
 	}
 
 	if isTruthy(conditionResult) {
@@ -52,6 +98,8 @@ func If(context *Context, condition any, trueValue any, falseValue any) any {
 		if evaluable, ok := trueValue.(interface{ Eval(any) (any, error) }); ok {
 			result, _ := evaluable.Eval(evalContext)
 			return result
+		} else if evaluable, ok := trueValue.(interface{ Eval(any) any }); ok {
+			return evaluable.Eval(evalContext)
 		}
 		return trueValue
 	}
@@ -61,6 +109,8 @@ func If(context *Context, condition any, trueValue any, falseValue any) any {
 		if evaluable, ok := falseValue.(interface{ Eval(any) (any, error) }); ok {
 			result, _ := evaluable.Eval(evalContext)
 			return result
+		} else if evaluable, ok := falseValue.(interface{ Eval(any) any }); ok {
+			return evaluable.Eval(evalContext)
 		}
 		return falseValue
 	}
