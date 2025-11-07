@@ -137,9 +137,10 @@ func (u *URL) Eval(context any) (any, error) {
 			// Use *Eval context for rewriting
 			if evalCtx, ok := context.(*Eval); ok {
 				// Match JavaScript: if (typeof rootpath === 'string' && typeof val.value === 'string' && context.pathRequiresRewrite(val.value))
-				if rootpath != "" && evalCtx.PathRequiresRewrite(value) {
+				// Note: in JavaScript, typeof "" === "string" is true, so we check PathRequiresRewrite regardless of rootpath being empty
+				if evalCtx.PathRequiresRewrite(value) {
 					// Match JavaScript: if (!val.quote) { rootpath = escapePath(rootpath); }
-					if quoted.GetQuote() == "" {
+					if quoted.GetQuote() == "" && rootpath != "" {
 						rootpath = escapePath(rootpath)
 					}
 					// Match JavaScript: val.value = context.rewritePath(val.value, rootpath);
@@ -191,9 +192,9 @@ func (u *URL) Eval(context any) (any, error) {
 			if value, ok := valMap["value"].(string); ok {
 				if evalCtx, ok := context.(*Eval); ok {
 					// Match JavaScript: if (typeof rootpath === 'string' && typeof val.value === 'string' && context.pathRequiresRewrite(val.value))
-					if rootpath != "" && evalCtx.PathRequiresRewrite(value) {
+					if evalCtx.PathRequiresRewrite(value) {
 						// Match JavaScript: if (!val.quote) { rootpath = escapePath(rootpath); }
-						if quote, ok := valMap["quote"].(string); !ok || quote == "" {
+						if quote, ok := valMap["quote"].(string); (!ok || quote == "") && rootpath != "" {
 							rootpath = escapePath(rootpath)
 						}
 						// Match JavaScript: val.value = context.rewritePath(val.value, rootpath);
@@ -228,9 +229,9 @@ func (u *URL) Eval(context any) (any, error) {
 				} else if ctx, ok := context.(map[string]any); ok {
 					// Handle map-based context
 					if pathRequiresRewrite, ok := ctx["pathRequiresRewrite"].(func(string) bool); ok {
-						if rootpath != "" && pathRequiresRewrite(value) {
+						if pathRequiresRewrite(value) {
 							// Match JavaScript: if (!val.quote) { rootpath = escapePath(rootpath); }
-							if quote, ok := valMap["quote"].(string); !ok || quote == "" {
+							if quote, ok := valMap["quote"].(string); (!ok || quote == "") && rootpath != "" {
 								rootpath = escapePath(rootpath)
 							}
 							// Match JavaScript: val.value = context.rewritePath(val.value, rootpath);
