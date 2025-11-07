@@ -2,6 +2,8 @@ package less_go
 
 import (
 	"fmt"
+	"os"
+	"runtime"
 	"strings"
 )
 
@@ -48,8 +50,9 @@ type ToCSSOptions struct {
 	Functions        any
 	ProcessImports   bool
 	ImportManager    any
-	RewriteUrls      any    // Can be string ("all", "local", "off") or RewriteUrlsType
-	Rootpath         string // Root path for URL rewriting
+	RewriteUrls      any      // Can be string ("all", "local", "off") or RewriteUrlsType
+	Rootpath         string   // Root path for URL rewriting
+	Math             MathType // Math mode for operations (ALWAYS, PARENS_DIVISION, PARENS)
 }
 
 // ToCSS converts the parse tree to CSS
@@ -74,6 +77,7 @@ func (pt *ParseTree) ToCSS(options *ToCSSOptions) (*ToCSSResult, error) {
 			"importManager":    options.ImportManager,
 			"rewriteUrls":      options.RewriteUrls,
 			"rootpath":         options.Rootpath,
+			"math":             options.Math,
 		}
 	} else {
 		optionsMap = make(map[string]any)
@@ -82,15 +86,26 @@ func (pt *ParseTree) ToCSS(options *ToCSSOptions) (*ToCSSResult, error) {
 	// Use defer to catch panics from transform tree and convert to LessError
 	defer func() {
 		if r := recover(); r != nil {
+			// Get stack trace for debugging
+			buf := make([]byte, 4096)
+			n := runtime.Stack(buf, false)
+			stackTrace := string(buf[:n])
+
+			var errMsg string
 			if err, ok := r.(error); ok {
-				panic(NewLessError(ErrorDetails{
-					Message: err.Error(),
-				}, pt.Imports.Contents(), pt.Imports.RootFilename()))
+				errMsg = err.Error()
 			} else {
-				panic(NewLessError(ErrorDetails{
-					Message: fmt.Sprintf("transform tree failed: %v", r),
-				}, pt.Imports.Contents(), pt.Imports.RootFilename()))
+				errMsg = fmt.Sprintf("transform tree failed: %v", r)
 			}
+
+			// Log stack trace for index out of range errors
+			if strings.Contains(errMsg, "index out of range") {
+				fmt.Fprintf(os.Stderr, "\n=== DEBUG: ParseTree.ToCSS panic ===\nError: %s\nStack trace:\n%s\n===\n", errMsg, stackTrace)
+			}
+
+			panic(NewLessError(ErrorDetails{
+				Message: errMsg,
+			}, pt.Imports.Contents(), pt.Imports.RootFilename()))
 		}
 	}()
 

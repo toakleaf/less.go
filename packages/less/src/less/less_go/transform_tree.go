@@ -1,6 +1,8 @@
 package less_go
 
 import (
+	"fmt"
+	"os"
 	"reflect"
 )
 
@@ -87,7 +89,11 @@ func TransformTree(root any, options map[string]any) any {
 	if evalEnv.Math == 0 {
 		evalEnv.Math = Math.Always
 	}
+	if os.Getenv("LESS_GO_TRACE") == "1" {
+		fmt.Printf("[TRANSFORM-TREE-DEBUG] Initial math mode: %v, evalEnv type: *Eval\n", evalEnv.Math)
+	}
 	// MathOn is already set to true in NewEval
+	// ParensStack, InParenthesis, OutOfParenthesis, IsMathOnWithOp are all methods on *Eval
 
 	//
 	// Allows setting variables with a hash, so:

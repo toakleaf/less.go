@@ -1,6 +1,8 @@
 package less_go
 
 import (
+	"fmt"
+	"os"
 	"reflect"
 	"strings"
 )
@@ -97,16 +99,30 @@ func (o *Operation) Eval(context any) (any, error) {
 	
 	// Match JavaScript: if (context.isMathOn(this.op))
 	mathOn := false
+	// First try the proper Eval context
 	if evalCtx, ok := context.(*Eval); ok {
-		// Check if context is *Eval and use the method directly
 		mathOn = evalCtx.IsMathOnWithOp(o.Op)
+		if os.Getenv("LESS_GO_TRACE") == "1" && o.Op == "/" {
+			fmt.Printf("[OPERATION-DEBUG] Operation.Eval: op=/, using Eval context, mathOn=%v\n", mathOn)
+		}
 	} else if ctx, ok := context.(map[string]any); ok {
-		// Fallback for map-based context
+		// Fallback to map-based context for compatibility
 		if mathOnFunc, ok := ctx["isMathOn"].(func(string) bool); ok {
 			mathOn = mathOnFunc(o.Op)
+			if os.Getenv("LESS_GO_TRACE") == "1" && o.Op == "/" {
+				fmt.Printf("[OPERATION-DEBUG] Operation.Eval: op=/, using map context with isMathOn func, mathOn=%v\n", mathOn)
+			}
+		} else if os.Getenv("LESS_GO_TRACE") == "1" && o.Op == "/" {
+			fmt.Printf("[OPERATION-DEBUG] Operation.Eval: op=/, using map context but NO isMathOn func, mathOn=%v\n", mathOn)
 		}
+	} else if os.Getenv("LESS_GO_TRACE") == "1" && o.Op == "/" {
+		fmt.Printf("[OPERATION-DEBUG] Operation.Eval: op=/, unknown context type %T, mathOn=%v\n", context, mathOn)
 	}
-	
+
+	if os.Getenv("LESS_GO_TRACE") == "1" && o.Op == "/" {
+		fmt.Printf("[OPERATION-DEBUG] Operation.Eval: op=/, mathOn=%v, a=%v, b=%v\n", mathOn, a, b)
+	}
+
 	if mathOn {
 		// Match JavaScript: op = this.op === './' ? '/' : this.op;
 		op := o.Op
@@ -223,6 +239,11 @@ func (o *Operation) GenCSS(context any, output *CSSOutput) {
 
 // IsMathParensDivision checks if the math mode is PARENS_DIVISION
 func IsMathParensDivision(context any) bool {
+	// First try the proper Eval context
+	if evalCtx, ok := context.(*Eval); ok {
+		return evalCtx.Math == MathParensDivision
+	}
+	// Fallback to map-based context for compatibility
 	if ctx, ok := context.(map[string]any); ok {
 		if mathType, ok := ctx["math"].(MathType); ok {
 			return mathType == Math.ParensDivision

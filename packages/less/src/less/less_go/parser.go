@@ -1528,6 +1528,13 @@ func (e *EntityParsers) Color() any {
 		if rgb != nil {
 			matches := rgb.([]string)
 			if len(matches) > 1 {
+				// Check if followed by '.' or '[' - if so, this is a namespace/mixin reference, not a color
+				// This handles cases like #DEF.colors[primary] where #DEF looks like a color but isn't
+				nextChar := e.parsers.parser.parserInput.CurrentChar()
+				if nextChar == '.' || nextChar == '[' {
+					e.parsers.parser.parserInput.Restore("")
+					return nil
+				}
 				e.parsers.parser.parserInput.Forget()
 				return NewColor(matches[1], 1.0, matches[0])
 			}
@@ -2477,7 +2484,12 @@ func (p *Parsers) Conditions() any {
 		if b == nil {
 			break
 		}
-		condition = NewCondition("or", condition, b, index+p.parser.currentIndex, false)
+		// Build OR condition: use 'a' for first iteration, then accumulated 'condition'
+		if condition != nil {
+			condition = NewCondition("or", condition, b, index+p.parser.currentIndex, false)
+		} else {
+			condition = NewCondition("or", a, b, index+p.parser.currentIndex, false)
+		}
 	}
 
 	if condition != nil {

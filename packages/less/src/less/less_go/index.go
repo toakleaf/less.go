@@ -305,7 +305,16 @@ func createRender(env any, parseTree any, importManager any) func(string, ...any
 		if options == nil {
 			options = make(map[string]any)
 		}
-		
+
+		// Convert options (string values to proper types like MathType)
+		if os.Getenv("LESS_GO_TRACE") == "1" {
+			fmt.Printf("[RENDER-DEBUG] Options before CopyOptions: math=%v (type=%T)\n", options["math"], options["math"])
+		}
+		options = CopyOptions(options, nil)
+		if os.Getenv("LESS_GO_TRACE") == "1" {
+			fmt.Printf("[RENDER-DEBUG] Options after CopyOptions: math=%v (type=%T)\n", options["math"], options["math"])
+		}
+
 		// Create the parse function
 		parseFunc := CreateParse(env, parseTree, func(environment any, context *Parse, rootFileInfo map[string]any) *ImportManager {
 			// Debug logging
@@ -378,6 +387,7 @@ func createRender(env any, parseTree any, importManager any) func(string, ...any
 					Functions:     functionsObj,
 					ProcessImports: true,  // Enable import processing
 					ImportManager: imports, // Pass the import manager
+					Math:          Math.ParensDivision, // Default math mode
 				}
 				if opts != nil {
 					if compress, ok := opts["compress"].(bool); ok {
@@ -392,15 +402,45 @@ func createRender(env any, parseTree any, importManager any) func(string, ...any
 					if rootpath, ok := opts["rootpath"].(string); ok {
 						toCSSOptions.Rootpath = rootpath
 					}
+					if math, ok := opts["math"].(MathType); ok {
+						toCSSOptions.Math = math
+					}
 				}
 				
 				// Call ToCSS which will run TransformTree and visitors
-				cssResult, err := parseTreeInstance.ToCSS(toCSSOptions)
-				if err != nil {
-					errorChan <- err
-				} else {
-					resultChan <- cssResult.CSS
-				}
+				// Add panic recovery to catch runtime errors during ToCSS
+				func() {
+					defer func() {
+						if r := recover(); r != nil {
+							// Get stack trace
+							buf := make([]byte, 8192)
+							n := runtime.Stack(buf, false)
+							stackTrace := string(buf[:n])
+
+							var errMsg string
+							if err, ok := r.(error); ok {
+								errMsg = err.Error()
+							} else {
+								errMsg = fmt.Sprintf("%v", r)
+							}
+
+							// Always log for debugging
+							if strings.Contains(errMsg, "index out of range") {
+								fmt.Fprintf(os.Stderr, "\n=== PANIC in ToCSS ===\nError: %s\nStack:\n%s\n===\n", errMsg, stackTrace)
+								fmt.Printf("\n=== PANIC in ToCSS ===\nError: %s\nStack:\n%s\n===\n", errMsg, stackTrace)
+							}
+
+							errorChan <- fmt.Errorf("%s", errMsg)
+						}
+					}()
+
+					cssResult, err := parseTreeInstance.ToCSS(toCSSOptions)
+					if err != nil {
+						errorChan <- err
+					} else {
+						resultChan <- cssResult.CSS
+					}
+				}()
 			}
 		})
 		

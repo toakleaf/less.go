@@ -116,6 +116,11 @@ func (efv *ExtendFinderVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitAr
 			if j == 0 {
 				extend.FirstExtendOnThisSelectorPath = true
 			}
+			// Defensive bounds check - ensure stack is not empty
+			if len(efv.allExtendsStack) == 0 {
+				// Initialize stack with empty slice if needed
+				efv.allExtendsStack = append(efv.allExtendsStack, make([]any, 0))
+			}
 			efv.allExtendsStack[len(efv.allExtendsStack)-1] = append(efv.allExtendsStack[len(efv.allExtendsStack)-1], extend)
 		}
 	}
@@ -143,7 +148,8 @@ func (efv *ExtendFinderVisitor) VisitMedia(mediaNode any, visitArgs *VisitArgs) 
 
 func (efv *ExtendFinderVisitor) VisitMediaOut(mediaNode any) {
 	// Match JavaScript: this.allExtendsStack.length = this.allExtendsStack.length - 1;
-	if len(efv.allExtendsStack) > 0 {
+	// But ensure we never go below 1 element (the root level)
+	if len(efv.allExtendsStack) > 1 {
 		efv.allExtendsStack = efv.allExtendsStack[:len(efv.allExtendsStack)-1]
 	}
 }
@@ -157,7 +163,8 @@ func (efv *ExtendFinderVisitor) VisitAtRule(atRuleNode any, visitArgs *VisitArgs
 
 func (efv *ExtendFinderVisitor) VisitAtRuleOut(atRuleNode any) {
 	// Match JavaScript: this.allExtendsStack.length = this.allExtendsStack.length - 1;
-	if len(efv.allExtendsStack) > 0 {
+	// But ensure we never go below 1 element (the root level)
+	if len(efv.allExtendsStack) > 1 {
 		efv.allExtendsStack = efv.allExtendsStack[:len(efv.allExtendsStack)-1]
 	}
 }
@@ -413,6 +420,15 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 			if len(matches) > 0 {
 				allExtends[extendIndex].HasFoundMatches = true
 
+				// IMPORTANT: When a selector path is matched by an extend, mark all selectors
+				// in that path as visible because they're being referenced/used.
+				// This ensures the original selectors appear in the output alongside the extended ones.
+				for _, pathSelector := range selectorPath {
+					if sel, ok := pathSelector.(*Selector); ok {
+						sel.EnsureVisibility()
+					}
+				}
+
 				for _, selfSelector := range allExtends[extendIndex].SelfSelectors {
 					// Extended selectors should always be visible since they're being added to rulesets
 					// that will be output. The extend itself may be invisible (it's not CSS), but the
@@ -651,7 +667,11 @@ func (pev *ProcessExtendsVisitor) extendSelector(matches []any, selectorPath []a
 
 	for matchIndex = 0; matchIndex < len(matches); matchIndex++ {
 		match = matches[matchIndex].(map[string]any)
-		selector = selectorPath[match["pathIndex"].(int)].(*Selector)
+		pathIndex := match["pathIndex"].(int)
+		if pathIndex < 0 || pathIndex >= len(selectorPath) {
+			panic(fmt.Sprintf("Invalid pathIndex %d for selectorPath length %d", pathIndex, len(selectorPath)))
+		}
+		selector = selectorPath[pathIndex].(*Selector)
 		
 		// Get replacement selector elements
 		replacementSel := replacementSelector.(*Selector)
@@ -788,7 +808,8 @@ func (pev *ProcessExtendsVisitor) VisitMedia(mediaNode any, visitArgs *VisitArgs
 
 func (pev *ProcessExtendsVisitor) VisitMediaOut(mediaNode any) {
 	// Match JavaScript: this.allExtendsStack.length = lastIndex;
-	if len(pev.allExtendsStack) > 0 {
+	// But ensure we never go below 1 element (the root level)
+	if len(pev.allExtendsStack) > 1 {
 		lastIndex := len(pev.allExtendsStack) - 1
 		pev.allExtendsStack = pev.allExtendsStack[:lastIndex]
 	}
@@ -814,7 +835,8 @@ func (pev *ProcessExtendsVisitor) VisitAtRule(atRuleNode any, visitArgs *VisitAr
 
 func (pev *ProcessExtendsVisitor) VisitAtRuleOut(atRuleNode any) {
 	// Match JavaScript: this.allExtendsStack.length = lastIndex;
-	if len(pev.allExtendsStack) > 0 {
+	// But ensure we never go below 1 element (the root level)
+	if len(pev.allExtendsStack) > 1 {
 		lastIndex := len(pev.allExtendsStack) - 1
 		pev.allExtendsStack = pev.allExtendsStack[:lastIndex]
 	}
