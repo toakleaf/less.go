@@ -173,12 +173,12 @@ func (u *CSSVisitorUtils) IsVisibleRuleset(rulesetNode any) bool {
 		return false
 	}
 
-	// Check if the ruleset blocks visibility and has undefined nodeVisible
-	// This indicates it's from a referenced import and hasn't been explicitly used
+	// Check if the ruleset blocks visibility and hasn't been made explicitly visible
+	// This filters out rulesets from reference imports that haven't been used
 	if blockedNode, ok := rulesetNode.(interface{ BlocksVisibility() bool; IsVisible() *bool }); ok {
 		if blockedNode.BlocksVisibility() {
 			vis := blockedNode.IsVisible()
-			// If visibility is undefined (nil) or explicitly false, hide the ruleset
+			// If visibility is not explicitly true, hide the ruleset
 			if vis == nil || !*vis {
 				return false
 			}
@@ -730,11 +730,19 @@ func (v *ToCSSVisitor) compileRulesetPaths(rulesetNode any) {
 						// Check if it's a selector with the required methods
 						if sel, ok := selector.(*Selector); ok {
 							// Check visibility - handle that IsVisible returns *bool
-							// When visibility is undefined (nil), it's falsy in JavaScript
-							// So we default to false to match JavaScript's behavior
-							isVisible := false
+							// nil = inherit from parent (check blocksVisibility)
+							// true = explicitly visible
+							// false = explicitly hidden
+							isVisible := true // default to visible if not explicitly set
 							if vis := sel.IsVisible(); vis != nil {
 								isVisible = *vis
+							} else {
+								// nil visibility means inherit - check if blocked
+								if blocker, ok := selector.(interface{ BlocksVisibility() bool }); ok {
+									if blocker.BlocksVisibility() {
+										isVisible = false
+									}
+								}
 							}
 
 							// Check output status
