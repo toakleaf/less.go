@@ -1,0 +1,10 @@
+@c: 3;
+
+.scope-check when (@c = 3) {
+  @k: 1px;
+  & when (@c = 3) {
+    @k: 2px;
+    sub-prop: @k;
+  }
+  prop: @k;
+}
