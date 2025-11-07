@@ -2,9 +2,9 @@ package less_go
 
 import (
 	"fmt"
+	"os"
 	"reflect"
 	"strings"
-
 )
 
 // SelectorsParseFunc is a function type for parsing selector strings into selectors
@@ -1319,13 +1319,18 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 	if !ok {
 		ctx = make(map[string]any)
 	}
-	
+
+	// Debug output
+	if os.Getenv("LESS_GO_TRACE") == "1" {
+		fmt.Printf("[RULESET-GENCSS] Root=%v, Selectors=%d, Rules=%d\n", r.Root, len(r.Selectors), len(r.Rules))
+	}
+
 	// Set tab level
 	tabLevel := 0
 	if tl, ok := ctx["tabLevel"].(int); ok {
 		tabLevel = tl
 	}
-	
+
 	if !r.Root {
 		tabLevel++
 		ctx["tabLevel"] = tabLevel

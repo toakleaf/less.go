@@ -248,29 +248,41 @@ func (a *AtRule) Rulesets() []any {
 // OutputRuleset outputs CSS for rules with proper formatting
 func (a *AtRule) OutputRuleset(context any, output *CSSOutput, rules []any) {
 	ruleCnt := len(rules)
-	
-	ctx, ok := context.(map[string]any)
-	if !ok {
+
+	// Handle both *Eval and map contexts
+	var ctx map[string]any
+	var compress bool
+	var tabLevel int
+
+	if evalCtx, ok := context.(*Eval); ok {
+		// Create a temporary map context for GenCSS calls
+		ctx = make(map[string]any)
+		compress = evalCtx.Compress
+		// tabLevel starts at 0 for new contexts
+		tabLevel = 0
+		if tl, ok := ctx["tabLevel"].(int); ok {
+			tabLevel = tl
+		}
+	} else if mapCtx, ok := context.(map[string]any); ok {
+		ctx = mapCtx
+		if c, ok := ctx["compress"].(bool); ok {
+			compress = c
+		}
+		if tl, ok := ctx["tabLevel"].(int); ok {
+			tabLevel = tl
+		}
+	} else {
 		ctx = make(map[string]any)
 	}
-	
-	tabLevel := 0
-	if tl, ok := ctx["tabLevel"].(int); ok {
-		tabLevel = tl
-	}
+
 	tabLevel = tabLevel + 1
 	ctx["tabLevel"] = tabLevel
-
-	compress := false
-	if c, ok := ctx["compress"].(bool); ok {
-		compress = c
-	}
 
 	if compress {
 		output.Add("{", nil, nil)
 		for i := 0; i < ruleCnt; i++ {
 			if gen, ok := rules[i].(interface{ GenCSS(any, *CSSOutput) }); ok {
-				gen.GenCSS(context, output)
+				gen.GenCSS(ctx, output)
 			}
 		}
 		output.Add("}", nil, nil)
@@ -282,18 +294,18 @@ func (a *AtRule) OutputRuleset(context any, output *CSSOutput, rules []any) {
 	// JavaScript: Array(context.tabLevel).join('  ') creates (tabLevel-1) pairs of spaces
 	tabSetStr := "\n" + strings.Repeat("  ", tabLevel-1)
 	tabRuleStr := tabSetStr + "  "
-	
+
 	if ruleCnt == 0 {
 		output.Add(" {"+tabSetStr+"}", nil, nil)
 	} else {
 		output.Add(" {"+tabRuleStr, nil, nil)
 		if gen, ok := rules[0].(interface{ GenCSS(any, *CSSOutput) }); ok {
-			gen.GenCSS(context, output)
+			gen.GenCSS(ctx, output)
 		}
 		for i := 1; i < ruleCnt; i++ {
 			output.Add(tabRuleStr, nil, nil)
 			if gen, ok := rules[i].(interface{ GenCSS(any, *CSSOutput) }); ok {
-				gen.GenCSS(context, output)
+				gen.GenCSS(ctx, output)
 			}
 		}
 		output.Add(tabSetStr+"}", nil, nil)
