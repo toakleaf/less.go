@@ -19,6 +19,18 @@ This directory contains task files for issues that have been successfully resolv
 - **Commit**: ca022ec
 - **Summary**: Fixed variadic parameter evaluation context and argument expansion handling in mixin pattern matching. This unblocked the entire math test suite.
 
+### extend-functionality.md
+- **Completed**: 2025-11-07 (identified)
+- **Issue #14**: Extend functionality implementation
+- **Impact**: Fixed 5 tests (extend, extend-exact, extend-nest, extend-selector, extend-clearfix)
+- **Summary**: Core extend functionality now working for basic cases. Remaining edge cases: extend-chaining, extend-media.
+
+### guards-conditionals.md
+- **Completed**: 2025-11-07 (identified)
+- **Issue #12-13**: CSS and mixin guards evaluation
+- **Impact**: Fixed 3 tests (css-guards, mixins-guards-default-func, mixins-guards)
+- **Summary**: Guard conditions now fully evaluate and control rule/mixin inclusion. Both CSS guards and mixin guards working correctly.
+
 ## Archive Policy
 
 Task files are moved here when:

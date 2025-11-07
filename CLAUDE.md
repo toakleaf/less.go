@@ -44,22 +44,21 @@ When working on this project, please be aware of the following:
    - Go tests should verify ported functionality matches JavaScript behavior
 
 4. **Current Integration Test Status** (as of 2025-11-07 - Latest):
-   - **30 perfect CSS matches (16.3%)** - MAJOR PROGRESS! ✅ ⬆️ +9 from last update! (+43%)
-   - **0 real compilation failures** - ALL FIXED! 🎉 (extend issues now resolved)
-   - **4 expected compilation failures (2.2%)** - network/path issues (bootstrap4, google, import-module, import-interpolation)
-   - **~60 tests with output differences** - compiles but CSS doesn't match
+   - **33 perfect CSS matches (17.9%)** - MAJOR PROGRESS! ✅ ⬆️ +3 from last update! (+10%)
+   - **2 real compilation failures (1.1%)** - import-interpolation, import-module
+   - **2 expected compilation failures (1.1%)** - network/path issues (bootstrap4, google)
+   - **~58 tests with output differences** - compiles but CSS doesn't match
    - **58+ correct error handling** - tests that should fail, do fail correctly
    - **7 tests quarantined** (plugin system & JavaScript execution - punted for later)
-   - **Overall Success Rate: ~48%** ⬆️ (89/184 tests passing or correctly erroring)
+   - **Overall Success Rate: ~49.5%** ⬆️ (91/184 tests passing or correctly erroring)
 
    **🎉 Parser Status: ALL BUGS FIXED!**
    - Parser correctly handles full LESS syntax
    - **180/184 tests compile successfully (97.8% compilation rate)** ⬆️
    - Remaining work is primarily CSS generation and output formatting
 
-   **⚠️ Unit Test Status:**
-   - **1 test fixed today**: TestQuoted_Eval (was panicking with MockDeclaration type assertion) ✅
-   - **1 pre-existing failure**: TestMergeRulesTruthiness (3/6 sub-tests failing - merge behavior issue)
+   **✅ Unit Test Status:**
+   - **ALL UNIT TESTS PASSING** - 100% pass rate! 🎉
 
    **Recent Progress** (Runtime Fixes):
    - ✅ Issue #1: `if()` function context passing - FIXED
@@ -101,18 +100,17 @@ When working on this project, please be aware of the following:
    **Priority Order** (High to Low):
    1. **HIGH**: Math operations and expressions (10+ tests) - `.claude/tasks/output-differences/math-operations.md`
    2. **HIGH**: Extend edge cases (2 tests) - extend-chaining, extend-media (output differences, complex nesting)
-   3. **MEDIUM**: Remaining namespacing issues (3 tests) - namespacing-3, namespacing-5, namespacing-8
-   4. **MEDIUM**: Guard conditionals (2 tests) - mixins-guards-default-func, mixins-guards (main has complex cases)
+   3. **HIGH**: Compilation failures (2 tests) - import-interpolation, import-module
+   4. **MEDIUM**: Remaining namespacing issues (3 tests) - namespacing-3, namespacing-8, namespacing-media
    5. **MEDIUM**: Import functionality (3 tests) - import-reference, import-reference-issues, import-once
-   6. **MEDIUM**: CSS output formatting issues - comments2, media queries, directives-bubling
-   7. **LOW**: Fix TestMergeRulesTruthiness unit test (3 sub-tests failing)
+   6. **MEDIUM**: Mixin output issues (2 tests) - mixins-nested, mixins-important
+   7. **MEDIUM**: CSS output formatting issues - comments2, media queries, directives-bubling
 
    **Recently Completed** (Since last session):
    - ✅ **MAJOR BREAKTHROUGH**: Extend functionality - 5 tests now passing! (extend, extend-exact, extend-nest, extend-selector, extend-clearfix)
-   - ✅ CSS guards now working - css-guards perfect match!
-   - ✅ Mixin guards working - math-always/mixins-guards passing
-   - ✅ Namespace value evaluation - namespacing-1, -2, -4, -6, -7, -functions, -operations all passing (7 tests!)
-   - ✅ Unit test panic fixed - TestQuoted_Eval now passes
+   - ✅ **Guards fully working** - All 3 guard tests passing! (css-guards, mixins-guards-default-func, mixins-guards)
+   - ✅ **Namespacing mostly complete** - 8/11 tests passing! (namespacing-1, -2, -4, -5, -6, -7, -functions, -operations)
+   - ✅ All unit tests now passing - TestQuoted_Eval fixed, TestMergeRulesTruthiness resolved
 
 7. **Quarantined Features** (for future implementation):
    - Plugin system tests (`plugin`, `plugin-module`, `plugin-preeval`)
