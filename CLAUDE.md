@@ -44,13 +44,13 @@ When working on this project, please be aware of the following:
    - Go tests should verify ported functionality matches JavaScript behavior
 
 4. **Current Integration Test Status** (as of 2025-11-07 - Latest):
-   - **30 perfect CSS matches (16.3%)** - MAJOR PROGRESS! ✅ ⬆️ +9 from last update! (+43%)
+   - **33 perfect CSS matches (17.9%)** - MAJOR PROGRESS! ✅ ⬆️ +3 from last update! (+10%)
    - **0 real compilation failures** - ALL FIXED! 🎉 (extend issues now resolved)
    - **4 expected compilation failures (2.2%)** - network/path issues (bootstrap4, google, import-module, import-interpolation)
-   - **~60 tests with output differences** - compiles but CSS doesn't match
+   - **~53 tests with output differences** - compiles but CSS doesn't match (down from ~60)
    - **58+ correct error handling** - tests that should fail, do fail correctly
    - **7 tests quarantined** (plugin system & JavaScript execution - punted for later)
-   - **Overall Success Rate: ~48%** ⬆️ (89/184 tests passing or correctly erroring)
+   - **Overall Success Rate: ~50%** ⬆️ (92/184 tests passing or correctly erroring)
 
    **🎉 Parser Status: ALL BUGS FIXED!**
    - Parser correctly handles full LESS syntax
@@ -101,17 +101,18 @@ When working on this project, please be aware of the following:
    **Priority Order** (High to Low):
    1. **HIGH**: Math operations and expressions (10+ tests) - `.claude/tasks/output-differences/math-operations.md`
    2. **HIGH**: Extend edge cases (2 tests) - extend-chaining, extend-media (output differences, complex nesting)
-   3. **MEDIUM**: Remaining namespacing issues (3 tests) - namespacing-3, namespacing-5, namespacing-8
-   4. **MEDIUM**: Guard conditionals (2 tests) - mixins-guards-default-func, mixins-guards (main has complex cases)
-   5. **MEDIUM**: Import functionality (3 tests) - import-reference, import-reference-issues, import-once
-   6. **MEDIUM**: CSS output formatting issues - comments2, media queries, directives-bubling
+   3. **MEDIUM**: Remaining namespacing issues (3 tests) - namespacing-3, namespacing-8, namespacing-media
+   4. **MEDIUM**: Import functionality (3 tests) - import-reference, import-reference-issues, import-once
+   5. **MEDIUM**: CSS output formatting issues - comments2, media queries, directives-bubling
+   6. **MEDIUM**: Mixin and detached ruleset edge cases - mixins-nested, mixins-important, functions-each, detached-rulesets
    7. **LOW**: Fix TestMergeRulesTruthiness unit test (3 sub-tests failing)
 
    **Recently Completed** (Since last session):
    - ✅ **MAJOR BREAKTHROUGH**: Extend functionality - 5 tests now passing! (extend, extend-exact, extend-nest, extend-selector, extend-clearfix)
    - ✅ CSS guards now working - css-guards perfect match!
-   - ✅ Mixin guards working - math-always/mixins-guards passing
-   - ✅ Namespace value evaluation - namespacing-1, -2, -4, -6, -7, -functions, -operations all passing (7 tests!)
+   - ✅ Mixin guards working - mixins-guards (main), mixins-guards-default-func both passing! ⬆️
+   - ✅ Namespace value evaluation - namespacing-1, -2, -4, -5, -6, -7, -functions, -operations all passing (8 tests!) ⬆️
+   - ✅ Additional fixes - colors2, new-division, no-sm-operations now passing
    - ✅ Unit test panic fixed - TestQuoted_Eval now passes
 
 7. **Quarantined Features** (for future implementation):
