@@ -3,7 +3,6 @@ package less_go
 import (
 	"fmt"
 	"os"
-	"reflect"
 )
 
 func init() {
@@ -27,43 +26,12 @@ func init() {
 }
 
 // Boolean function implementation
-// In JavaScript, boolean(x) returns true if x is truthy AS AN OBJECT
-// This is different from isTruthy which evaluates Keywords by their value
+// The boolean() function uses isTruthy to check truthiness
 func Boolean(condition any) *Keyword {
-	// Special handling: all objects (including Keyword nodes) are truthy
-	// Only primitive falsy values should return false
-	if condition == nil {
-		return KeywordFalse
-	}
-
-	switch val := condition.(type) {
-	case bool:
-		if val {
-			return KeywordTrue
-		}
-		return KeywordFalse
-	case string:
-		if val == "" {
-			return KeywordFalse
-		}
-		return KeywordTrue
-	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
-		// All numeric types - check if zero
-		if fmt.Sprintf("%v", val) == "0" {
-			return KeywordFalse
-		}
-		return KeywordTrue
-	case float32, float64:
-		// Check for zero and NaN
-		f := reflect.ValueOf(val).Float()
-		if f == 0 || f != f { // f != f checks for NaN
-			return KeywordFalse
-		}
-		return KeywordTrue
-	default:
-		// All objects (including Keywords) are truthy
+	if isTruthy(condition) {
 		return KeywordTrue
 	}
+	return KeywordFalse
 }
 
 // If function implementation - takes unevaluated nodes

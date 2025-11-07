@@ -60,6 +60,8 @@ type Eval struct {
 	MathOn           bool
 	DefaultFunc      *DefaultFunc // For default() function in mixin guards
 	FunctionRegistry *Registry    // Function registry for built-in and custom functions
+	MediaBlocks      []any        // Stack of media blocks for media query merging
+	MediaPath        []any        // Path of nested media queries for merging
 }
 
 // NewEval creates a new Eval context with the given options and frames
@@ -109,6 +111,24 @@ func (e *Eval) InParenthesis() {
 func (e *Eval) OutOfParenthesis() {
 	if len(e.ParensStack) > 0 {
 		e.ParensStack = e.ParensStack[:len(e.ParensStack)-1]
+	}
+}
+
+// ToMap converts the Eval context to a map for copying to child contexts
+// This matches the JavaScript behavior where a parent context is passed to new Eval()
+func (e *Eval) ToMap() map[string]any {
+	return map[string]any{
+		"paths":             e.Paths,
+		"compress":          e.Compress,
+		"math":              e.Math,
+		"strictUnits":       e.StrictUnits,
+		"sourceMap":         e.SourceMap,
+		"importMultiple":    e.ImportMultiple,
+		"urlArgs":           e.UrlArgs,
+		"javascriptEnabled": e.JavascriptEnabled,
+		"pluginManager":     e.PluginManager,
+		"importantScope":    e.ImportantScope,
+		"rewriteUrls":       e.RewriteUrls,
 	}
 }
 
