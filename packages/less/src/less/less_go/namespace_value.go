@@ -55,7 +55,7 @@ func (nv *NamespaceValue) FileInfo() map[string]any {
 // Eval evaluates the namespace value
 func (nv *NamespaceValue) Eval(context any) (any, error) {
 	var name string
-	
+
 	// Start by evaluating the initial value - matches JavaScript: rules = this.value.eval(context)
 	var rules any
 	// Handle MixinCall which has Eval(any) ([]any, error) signature
@@ -106,7 +106,7 @@ func (nv *NamespaceValue) Eval(context any) (any, error) {
 			}
 			rules = NewRuleset([]any{emptySelector}, rulesArray, false, nil)
 		}
-		
+
 		if name == "" {
 			// Empty string lookup - call lastDeclaration
 			if ruleset, ok := rules.(interface{ LastDeclaration() any }); ok {
@@ -350,7 +350,7 @@ func (nv *NamespaceValue) Eval(context any) (any, error) {
 			}
 		}
 	}
-	
+
 	return rules, nil
 }
 
