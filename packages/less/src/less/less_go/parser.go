@@ -3403,7 +3403,7 @@ func (p *Parsers) PrepareAndGetNestableAtRule(atRuleType string, index int, debu
 		if features != nil {
 			featuresValue, _ = NewValue(features.([]any))
 		}
-		return NewMedia(rules.([]any), featuresValue, index+p.parser.currentIndex, p.parser.fileInfo, debugInfo)
+		return NewMedia(rules.([]any), featuresValue, index+p.parser.currentIndex, p.parser.fileInfo, nil)
 	case "Container":
 		var featuresValue any
 		if features != nil {

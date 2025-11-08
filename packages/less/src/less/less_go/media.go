@@ -389,7 +389,16 @@ func (m *Media) AddVisibilityBlock() {
 	// Add visibility block to this media's AtRule node only
 	// Do NOT recurse into child rules - they will be visible when this Media is used
 	if m.AtRule != nil && m.AtRule.Node != nil {
+		before := 0
+		if m.AtRule.Node.VisibilityBlocks != nil {
+			before = *m.AtRule.Node.VisibilityBlocks
+		}
 		m.AtRule.Node.AddVisibilityBlock()
+		after := 0
+		if m.AtRule.Node.VisibilityBlocks != nil {
+			after = *m.AtRule.Node.VisibilityBlocks
+		}
+		fmt.Printf("[MEDIA AddVisibilityBlock] before=%d, after=%d, Features=%v\n", before, after, m.Features != nil)
 	}
 }
 
