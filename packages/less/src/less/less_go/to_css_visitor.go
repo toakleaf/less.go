@@ -555,8 +555,7 @@ func (v *ToCSSVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitArgs) any {
 	if rulesetNode == nil {
 		return nil
 	}
-	
-	
+
 	var rulesets []any
 	
 	
@@ -612,15 +611,29 @@ func (v *ToCSSVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitArgs) any {
 			// remove rulesets from this ruleset body and compile them separately
 			if nodeWithRules, ok := rulesetNode.(interface{ GetRules() []any; SetRules([]any) }); ok {
 				nodeRules := nodeWithRules.GetRules()
-				
+
 				if nodeRules != nil {
 					nodeRuleCnt := len(nodeRules)
 					for i := 0; i < nodeRuleCnt; {
 						rule := nodeRules[i]
 						if ruleWithRules, ok := rule.(interface{ GetRules() []any }); ok {
 							if ruleWithRules.GetRules() != nil {
+								// Skip MixinDefinitions - they should not be extracted as nested rulesets
+								// Mixin definitions should only be processed when they are called, not during CSS generation
+								var ruleType string
+								if typeNode, ok := rule.(interface{ GetType() string }); ok {
+									ruleType = typeNode.GetType()
+								}
+
+								if ruleType == "MixinDefinition" {
+									i++
+									continue
+								}
+
 								// visit because we are moving them out from being a child
-								rulesets = append(rulesets, v.visitor.Visit(rule))
+								visited := v.visitor.Visit(rule)
+
+								rulesets = append(rulesets, visited)
 								// Remove from nodeRules
 								nodeRules = append(nodeRules[:i], nodeRules[i+1:]...)
 								nodeRuleCnt--
