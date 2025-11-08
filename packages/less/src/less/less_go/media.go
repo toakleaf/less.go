@@ -17,7 +17,7 @@ func NewMedia(value any, features any, index int, currentFileInfo map[string]any
 	// Match JavaScript: (new Selector([], null, null, this._index, this._fileInfo)).createEmptySelectors()
 	selector, _ := NewSelector([]any{}, nil, nil, index, currentFileInfo, nil)
 	emptySelectors, _ := selector.CreateEmptySelectors()
-	
+
 	// Convert selectors to []any for Ruleset
 	selectors := make([]any, len(emptySelectors))
 	for i, sel := range emptySelectors {
@@ -381,6 +381,16 @@ func (m *Media) BubbleSelectors(selectors any) {
 	newRuleset := NewRuleset(anySelectors, []any{m.Rules[0]}, false, nil)
 	m.Rules = []any{newRuleset}
 	m.SetParent(m.Rules, m.Node)
+}
+
+// AddVisibilityBlock increments visibility blocks on this media rule only
+// Child rules are handled separately by their parent's AddVisibilityBlock call
+func (m *Media) AddVisibilityBlock() {
+	// Add visibility block to this media's AtRule node only
+	// Do NOT recurse into child rules - they will be visible when this Media is used
+	if m.AtRule != nil && m.AtRule.Node != nil {
+		m.AtRule.Node.AddVisibilityBlock()
+	}
 }
 
 // GenCSS generates CSS representation

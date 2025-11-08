@@ -295,6 +295,24 @@ func (r *Ruleset) Accept(visitor any) {
 	}
 }
 
+// AddVisibilityBlock increments visibility blocks on this ruleset and all immediate child rules
+// This ensures that reference imports properly hide top-level content
+// Note: We only block immediate children, not descendants, so that mixin-generated
+// content (which comes from inside mixin definitions) remains visible
+func (r *Ruleset) AddVisibilityBlock() {
+	// First, add visibility block to this ruleset's node
+	r.Node.AddVisibilityBlock()
+
+	// Then add visibility blocks to immediate child rules
+	// We do NOT recurse into nested rules (like rules inside mixins or media queries)
+	// because those will be visible when the mixin/media is evaluated
+	for _, rule := range r.Rules {
+		if ruleWithVisibility, ok := rule.(interface{ AddVisibilityBlock() }); ok {
+			ruleWithVisibility.AddVisibilityBlock()
+		}
+	}
+}
+
 // Eval evaluates the ruleset in the given context
 func (r *Ruleset) Eval(context any) (any, error) {
 	if context == nil {

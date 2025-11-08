@@ -150,6 +150,16 @@ func (a *AtRule) IsCharset() bool {
 	return a.Name == "@charset"
 }
 
+// AddVisibilityBlock increments visibility blocks on this at-rule only
+// Child rules are handled separately by their parent's AddVisibilityBlock call
+func (a *AtRule) AddVisibilityBlock() {
+	// Add visibility block to this at-rule's node only
+	// Do NOT recurse into child rules - they will be visible when this AtRule is used
+	if a.Node != nil {
+		a.Node.AddVisibilityBlock()
+	}
+}
+
 // GenCSS generates CSS representation
 func (a *AtRule) GenCSS(context any, output *CSSOutput) {
 	// Check visibility - skip if node blocks visibility and is not explicitly visible
