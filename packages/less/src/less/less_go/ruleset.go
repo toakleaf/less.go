@@ -478,6 +478,15 @@ func (r *Ruleset) Eval(context any) (any, error) {
 	ruleset.FirstRoot = r.FirstRoot
 	ruleset.AllowImports = r.AllowImports
 
+	// Copy visibility blocks from original ruleset to preserve reference import visibility
+	// This is critical for @import (reference) functionality - when a ruleset from a
+	// referenced import is evaluated, the visibility blocks must be preserved
+	if r.Node != nil && r.Node.VisibilityBlocks != nil && ruleset.Node != nil {
+		// Copy the visibility blocks count
+		blockCount := *r.Node.VisibilityBlocks
+		ruleset.Node.VisibilityBlocks = &blockCount
+	}
+
 	if r.DebugInfo != nil {
 		ruleset.DebugInfo = r.DebugInfo
 	}
@@ -1381,8 +1390,15 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 	// imports are hidden unless explicitly used (via extend or mixin call)
 	if r.Node != nil && r.Node.BlocksVisibility() {
 		nodeVisible := r.Node.IsVisible()
+		if os.Getenv("LESS_GO_DEBUG_IMPORT_REF") == "1" {
+			fmt.Printf("[DEBUG Ruleset.GenCSS] BlocksVisibility=true, IsVisible=%v, Selectors=%v\n",
+				nodeVisible, r.Selectors)
+		}
 		if nodeVisible == nil || !*nodeVisible {
 			// Node blocks visibility and is not explicitly visible, skip output
+			if os.Getenv("LESS_GO_DEBUG_IMPORT_REF") == "1" {
+				fmt.Printf("[DEBUG Ruleset.GenCSS] Skipping output due to visibility\n")
+			}
 			return
 		}
 	}

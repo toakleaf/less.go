@@ -2,6 +2,7 @@ package less_go
 
 import (
 	"fmt"
+	"os"
 	"strings"
 )
 
@@ -159,8 +160,14 @@ func (a *AtRule) GenCSS(context any, output *CSSOutput) {
 	// imports are hidden unless explicitly used (via extend or mixin call)
 	if a.Node != nil && a.Node.BlocksVisibility() {
 		nodeVisible := a.Node.IsVisible()
+		if os.Getenv("LESS_GO_DEBUG_IMPORT_REF") == "1" {
+			fmt.Printf("[DEBUG AtRule.GenCSS] BlocksVisibility=true, IsVisible=%v, Name=%v\n", nodeVisible, a.Name)
+		}
 		if nodeVisible == nil || !*nodeVisible {
 			// Node blocks visibility and is not explicitly visible, skip output
+			if os.Getenv("LESS_GO_DEBUG_IMPORT_REF") == "1" {
+				fmt.Printf("[DEBUG AtRule.GenCSS] Skipping output due to visibility\n")
+			}
 			return
 		}
 	}
@@ -225,7 +232,16 @@ func (a *AtRule) Eval(context any) (any, error) {
 		ctx["mediaBlocks"] = mediaBlocksBackup
 	}
 
-	return NewAtRule(a.Name, value, rules, a.GetIndex(), a.FileInfo(), a.DebugInfo, a.IsRooted, a.VisibilityInfo()), nil
+	newAtRule := NewAtRule(a.Name, value, rules, a.GetIndex(), a.FileInfo(), a.DebugInfo, a.IsRooted, a.VisibilityInfo())
+
+	// Copy visibility blocks from original AtRule to preserve reference import visibility
+	// This is critical for @import (reference) functionality
+	if a.Node != nil && a.Node.VisibilityBlocks != nil && newAtRule.Node != nil {
+		blockCount := *a.Node.VisibilityBlocks
+		newAtRule.Node.VisibilityBlocks = &blockCount
+	}
+
+	return newAtRule, nil
 }
 
 // Variable returns a variable from the first rule (if rules exist)

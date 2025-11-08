@@ -3,6 +3,7 @@ package less_go
 import (
 	"fmt"
 	"math"
+	"os"
 	"regexp"
 )
 
@@ -341,16 +342,30 @@ func (i *Import) Eval(context any) (any, error) {
 		return nil, err
 	}
 
-	if i.getBoolOption("reference") || i.BlocksVisibility() {
+	isReference := i.getBoolOption("reference")
+	blocksVis := i.BlocksVisibility()
+
+	if os.Getenv("LESS_GO_DEBUG_IMPORT_REF") == "1" {
+		fmt.Printf("[DEBUG Import.Eval] reference=%v, blocksVisibility=%v, path=%v\n",
+			isReference, blocksVis, i.GetPath())
+	}
+
+	if isReference || blocksVis {
 		if resultSlice, ok := result.([]any); ok {
-			for _, node := range resultSlice {
+			for idx, node := range resultSlice {
 				if nodeWithVisibility, ok := node.(interface{ AddVisibilityBlock() }); ok {
 					nodeWithVisibility.AddVisibilityBlock()
+					if os.Getenv("LESS_GO_DEBUG_IMPORT_REF") == "1" {
+						fmt.Printf("[DEBUG Import.Eval] Added visibility block to node %d (type %T)\n", idx, node)
+					}
 				}
 			}
 		} else {
 			if nodeWithVisibility, ok := result.(interface{ AddVisibilityBlock() }); ok {
 				nodeWithVisibility.AddVisibilityBlock()
+				if os.Getenv("LESS_GO_DEBUG_IMPORT_REF") == "1" {
+					fmt.Printf("[DEBUG Import.Eval] Added visibility block to single result (type %T)\n", result)
+				}
 			}
 		}
 	}

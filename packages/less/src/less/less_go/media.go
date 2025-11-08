@@ -2,6 +2,7 @@ package less_go
 
 import (
 	"fmt"
+	"os"
 )
 
 // Media represents a media query node in the Less AST
@@ -135,6 +136,13 @@ func (m *Media) EvalTop(context any) any {
 			ruleset := NewRuleset(selectors, mediaBlocks, false, m.VisibilityInfo())
 			ruleset.MultiMedia = true // Set MultiMedia to true for multiple media blocks
 			ruleset.CopyVisibilityInfo(m.VisibilityInfo())
+
+			// Copy visibility blocks from Media to preserve reference import visibility
+			if m.AtRule != nil && m.AtRule.Node != nil && m.AtRule.Node.VisibilityBlocks != nil && ruleset.Node != nil {
+				blockCount := *m.AtRule.Node.VisibilityBlocks
+				ruleset.Node.VisibilityBlocks = &blockCount
+			}
+
 			m.SetParent(ruleset.Node, m.Node)
 			result = ruleset
 		}
@@ -172,6 +180,13 @@ func (m *Media) EvalTop(context any) any {
 		ruleset := NewRuleset(selectors, mediaBlocks, false, m.VisibilityInfo())
 		ruleset.MultiMedia = true // Set MultiMedia to true for multiple media blocks
 		ruleset.CopyVisibilityInfo(m.VisibilityInfo())
+
+		// Copy visibility blocks from Media to preserve reference import visibility
+		if m.AtRule != nil && m.AtRule.Node != nil && m.AtRule.Node.VisibilityBlocks != nil && ruleset.Node != nil {
+			blockCount := *m.AtRule.Node.VisibilityBlocks
+			ruleset.Node.VisibilityBlocks = &blockCount
+		}
+
 		m.SetParent(ruleset.Node, m.Node)
 		result = ruleset
 	}
@@ -390,8 +405,14 @@ func (m *Media) GenCSS(context any, output *CSSOutput) {
 	// imports are hidden unless explicitly used (via extend or mixin call)
 	if m.AtRule != nil && m.AtRule.Node != nil && m.AtRule.Node.BlocksVisibility() {
 		nodeVisible := m.AtRule.Node.IsVisible()
+		if os.Getenv("LESS_GO_DEBUG_IMPORT_REF") == "1" {
+			fmt.Printf("[DEBUG Media.GenCSS] BlocksVisibility=true, IsVisible=%v\n", nodeVisible)
+		}
 		if nodeVisible == nil || !*nodeVisible {
 			// Node blocks visibility and is not explicitly visible, skip output
+			if os.Getenv("LESS_GO_DEBUG_IMPORT_REF") == "1" {
+				fmt.Printf("[DEBUG Media.GenCSS] Skipping output due to visibility\n")
+			}
 			return
 		}
 	}
@@ -433,6 +454,13 @@ func (m *Media) Eval(context any) (any, error) {
 
 	// Match JavaScript: const media = new Media(null, [], this._index, this._fileInfo, this.visibilityInfo())
 	media := NewMedia(nil, []any{}, m.GetIndex(), m.FileInfo(), m.VisibilityInfo())
+
+	// Copy visibility blocks from original media to preserve reference import visibility
+	// This is critical for @import (reference) functionality
+	if m.AtRule != nil && m.AtRule.Node != nil && m.AtRule.Node.VisibilityBlocks != nil && media.AtRule != nil && media.AtRule.Node != nil {
+		blockCount := *m.AtRule.Node.VisibilityBlocks
+		media.AtRule.Node.VisibilityBlocks = &blockCount
+	}
 
 	// Match JavaScript: if (this.debugInfo) { this.rules[0].debugInfo = this.debugInfo; media.debugInfo = this.debugInfo; }
 	if m.DebugInfo != nil {
@@ -516,6 +544,13 @@ func (m *Media) evalWithMapContext(ctx map[string]any) (any, error) {
 
 	// Match JavaScript: const media = new Media(null, [], this._index, this._fileInfo, this.visibilityInfo())
 	media := NewMedia(nil, []any{}, m.GetIndex(), m.FileInfo(), m.VisibilityInfo())
+
+	// Copy visibility blocks from original media to preserve reference import visibility
+	// This is critical for @import (reference) functionality
+	if m.AtRule != nil && m.AtRule.Node != nil && m.AtRule.Node.VisibilityBlocks != nil && media.AtRule != nil && media.AtRule.Node != nil {
+		blockCount := *m.AtRule.Node.VisibilityBlocks
+		media.AtRule.Node.VisibilityBlocks = &blockCount
+	}
 
 	// Match JavaScript: if (this.debugInfo) { this.rules[0].debugInfo = this.debugInfo; media.debugInfo = this.debugInfo; }
 	if m.DebugInfo != nil {
