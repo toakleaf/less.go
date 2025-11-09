@@ -268,7 +268,48 @@ func (a *AtRule) evalBubbling(context any) (any, error) {
 		return nil, fmt.Errorf("context is required for AtRule.evalBubbling")
 	}
 
-	// Route to appropriate context handler
+	// Check if we're in a bubbling context (has frames/mediaBlocks)
+	// If not, fall back to standard evaluation (for tests or standalone usage)
+	hasBubblingContext := false
+	if evalCtx, ok := context.(*Eval); ok {
+		hasBubblingContext = evalCtx.Frames != nil || evalCtx.MediaBlocks != nil
+	} else if mapCtx, ok := context.(map[string]any); ok {
+		_, hasFrames := mapCtx["frames"]
+		_, hasMediaBlocks := mapCtx["mediaBlocks"]
+		hasBubblingContext = hasFrames || hasMediaBlocks
+	}
+
+	// If no bubbling context, use standard evaluation
+	if !hasBubblingContext {
+		// Fall back to standard AtRule evaluation
+		var value any = a.Value
+		var rules []any = a.Rules
+
+		if value != nil {
+			if eval, ok := value.(interface{ Eval(any) (any, error) }); ok {
+				evaluated, err := eval.Eval(context)
+				if err != nil {
+					return nil, err
+				}
+				value = evaluated
+			}
+		}
+
+		if len(rules) > 0 {
+			if eval, ok := rules[0].(interface{ Eval(any) (*Ruleset, error) }); ok {
+				evaluated, err := eval.Eval(context)
+				if err != nil {
+					return nil, err
+				}
+				rules = []any{evaluated}
+				evaluated.Root = true
+			}
+		}
+
+		return NewAtRule(a.Name, value, rules, a.GetIndex(), a.FileInfo(), a.DebugInfo, a.IsRooted, a.VisibilityInfo()), nil
+	}
+
+	// Route to appropriate context handler for bubbling
 	if evalCtx, ok := context.(*Eval); ok {
 		return a.evalBubblingWithEvalContext(evalCtx)
 	} else if mapCtx, ok := context.(map[string]any); ok {
