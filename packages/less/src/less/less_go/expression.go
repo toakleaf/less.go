@@ -73,7 +73,7 @@ func (e *Expression) Eval(context any) (any, error) {
 
 	if inParenthesis {
 		if debugTrace {
-			fmt.Printf("[TRACE] Expression.Eval: Parens=true, calling InParenthesis()\n")
+			fmt.Printf("[TRACE] Expression.Eval: Parens=true, calling InParenthesis(), context type=%T\n", context)
 		}
 		// Check if context is *Eval and use the method directly
 		if evalCtx, ok := context.(*Eval); ok {
@@ -83,10 +83,28 @@ func (e *Expression) Eval(context any) (any, error) {
 			}
 		} else if ctx, ok := context.(map[string]any); ok {
 			// Fallback for map-based context
+			if debugTrace {
+				fmt.Printf("[TRACE] Expression.Eval: context is map[string]any, looking for inParenthesis func\n")
+			}
 			if inParenFunc, ok := SafeMapAccess(ctx, "inParenthesis"); ok {
 				if parenthesisFunc, ok := SafeTypeAssertion[func()](inParenFunc); ok {
+					if debugTrace {
+						fmt.Printf("[TRACE] Expression.Eval: calling inParenthesis from map\n")
+					}
 					parenthesisFunc()
+				} else {
+					if debugTrace {
+						fmt.Printf("[TRACE] Expression.Eval: inParenthesis exists but wrong type: %T\n", inParenFunc)
+					}
 				}
+			} else {
+				if debugTrace {
+					fmt.Printf("[TRACE] Expression.Eval: inParenthesis not found in map\n")
+				}
+			}
+		} else {
+			if debugTrace {
+				fmt.Printf("[TRACE] Expression.Eval: context is neither *Eval nor map[string]any, type=%T\n", context)
 			}
 		}
 	}
