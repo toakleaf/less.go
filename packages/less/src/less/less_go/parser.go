@@ -823,6 +823,10 @@ func (p *Parsers) Declaration() any {
 			isVariable = false
 		}
 
+		// Clear commentStore to prevent comments absorbed during property name parsing
+		// from appearing in the value. This matches JavaScript's behavior at parser.js:1637
+		p.parser.parserInput.commentStore = make([]inputComment, 0)
+
 		if !hasDR {
 			// Handle merge flag for non-variables
 			if !isVariable {
