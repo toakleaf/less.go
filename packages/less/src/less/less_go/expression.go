@@ -2,6 +2,7 @@ package less_go
 
 import (
 	"fmt"
+	"os"
 )
 
 // Expression represents a list of values with optional spacing in the Less AST
@@ -68,10 +69,18 @@ func (e *Expression) Eval(context any) (any, error) {
 	inParenthesis := e.Parens
 	doubleParen := false
 
+	debugTrace := os.Getenv("LESS_GO_TRACE") == "1"
+
 	if inParenthesis {
+		if debugTrace {
+			fmt.Printf("[TRACE] Expression.Eval: Parens=true, calling InParenthesis()\n")
+		}
 		// Check if context is *Eval and use the method directly
 		if evalCtx, ok := context.(*Eval); ok {
 			evalCtx.InParenthesis()
+			if debugTrace {
+				fmt.Printf("[TRACE] Expression.Eval: ParensStack len=%d\n", len(evalCtx.ParensStack))
+			}
 		} else if ctx, ok := context.(map[string]any); ok {
 			// Fallback for map-based context
 			if inParenFunc, ok := SafeMapAccess(ctx, "inParenthesis"); ok {
@@ -100,6 +109,10 @@ func (e *Expression) Eval(context any) (any, error) {
 		returnValue = expr
 	} else if len(e.Value) == 1 {
 		if val0, ok := SafeSliceIndex(e.Value, 0); ok && !SafeNilCheck(val0) {
+			if debugTrace {
+				fmt.Printf("[TRACE] Expression.Eval: single value type=%T\n", val0)
+			}
+
 			// Check if val0 has parens and !parensInOp
 			// This handles nodes with embedded Node struct
 			hasParens := false
@@ -136,6 +149,9 @@ func (e *Expression) Eval(context any) (any, error) {
 			}
 
 			returnValue = SafeEval(val0, context)
+			if debugTrace {
+				fmt.Printf("[TRACE] Expression.Eval: after Eval, returnValue type=%T\n", returnValue)
+			}
 		}
 	} else {
 		returnValue = e
@@ -145,6 +161,9 @@ func (e *Expression) Eval(context any) (any, error) {
 		// Check if context is *Eval and use the method directly
 		if evalCtx, ok := context.(*Eval); ok {
 			evalCtx.OutOfParenthesis()
+			if debugTrace {
+				fmt.Printf("[TRACE] Expression.Eval: after OutOfParenthesis, ParensStack len=%d\n", len(evalCtx.ParensStack))
+			}
 		} else if ctx, ok := context.(map[string]any); ok {
 			// Fallback for map-based context
 			if outParenFunc, ok := SafeMapAccess(ctx, "outOfParenthesis"); ok {
