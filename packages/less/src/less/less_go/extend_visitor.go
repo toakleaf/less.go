@@ -468,6 +468,7 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 				// Match JavaScript: use the extend's visibility to determine if created selectors should be visible
 				// This ensures that extends from reference imports don't create visible selectors
 				// unless they've been explicitly made visible by being used/extended from outside the reference
+				// Note: Extend.IsVisible() returns bool (not *bool), taking visibility blocks into account
 				isVisible := allExtends[extendIndex].IsVisible()
 
 				// Mark the matched selector path as visible only if the extend itself is visible
