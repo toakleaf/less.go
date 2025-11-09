@@ -843,7 +843,7 @@ type mockRulesetEvaluatable struct {
 	evalCalled bool
 }
 
-func (m *mockRulesetEvaluatable) Eval(context any) (*Ruleset, error) {
+func (m *mockRulesetEvaluatable) Eval(context any) (any, error) {
 	m.evalCalled = true
 	return m.evalResult, nil
 }
