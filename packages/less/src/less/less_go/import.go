@@ -3,6 +3,7 @@ package less_go
 import (
 	"fmt"
 	"math"
+	"os"
 	"regexp"
 )
 
@@ -283,6 +284,10 @@ func (i *Import) EvalForImport(context any) *Import {
 
 // EvalPath evaluates the import path
 func (i *Import) EvalPath(context any) any {
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Printf("[DEBUG Import.EvalPath] Starting, i.css=%v, i.path type=%T\n", i.css, i.path)
+	}
+
 	var path any
 	if pathEval, ok := i.path.(interface{ Eval(any) (any, error) }); ok {
 		result, err := pathEval.Eval(context)
@@ -297,35 +302,88 @@ func (i *Import) EvalPath(context any) any {
 
 	fileInfo := i._fileInfo
 
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Printf("[DEBUG Import.EvalPath] After Eval, path type=%T\n", path)
+	}
+
 	// Check if path is not a URL
 	if _, ok := path.(*URL); !ok {
 		var pathValue any
 		if pathMap, ok := path.(map[string]any); ok {
 			pathValue = pathMap["value"]
+		} else if quoted, ok := path.(*Quoted); ok {
+			// *Quoted.GetValue() returns string, not any
+			pathValue = quoted.GetValue()
 		} else if pathWithValue, ok := path.(interface{ GetValue() any }); ok {
 			pathValue = pathWithValue.GetValue()
 		} else {
 			pathValue = path
 		}
 
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Printf("[DEBUG Import.EvalPath] pathValue type=%T, value=%q, fileInfo=%+v\n", pathValue, pathValue, fileInfo)
+		}
+
 		if pathValueStr, ok := pathValue.(string); ok && pathValueStr != "" && fileInfo != nil {
-			ctx, ok := context.(map[string]any)
-			if ok {
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Printf("[DEBUG Import.EvalPath] pathValueStr=%q, fileInfo=%+v, context type=%T\n", pathValueStr, fileInfo, context)
+			}
+
+			var newValue string
+			needsUpdate := false
+
+			// Handle *Eval context (like url.go does)
+			if evalCtx, ok := context.(*Eval); ok {
+				requiresRewrite := evalCtx.PathRequiresRewrite(pathValueStr)
+				if os.Getenv("LESS_GO_DEBUG") == "1" {
+					fmt.Printf("[DEBUG Import.EvalPath] *Eval context, requiresRewrite=%v\n", requiresRewrite)
+				}
+				if requiresRewrite {
+					if rootpath, ok := fileInfo["rootpath"].(string); ok {
+						newValue = evalCtx.RewritePath(pathValueStr, rootpath)
+						needsUpdate = true
+						if os.Getenv("LESS_GO_DEBUG") == "1" {
+							fmt.Printf("[DEBUG Import.EvalPath] Rewriting %q -> %q (rootpath=%q)\n", pathValueStr, newValue, rootpath)
+						}
+					}
+				} else {
+					newValue = evalCtx.NormalizePath(pathValueStr)
+					needsUpdate = true
+					if os.Getenv("LESS_GO_DEBUG") == "1" {
+						fmt.Printf("[DEBUG Import.EvalPath] Normalizing %q -> %q\n", pathValueStr, newValue)
+					}
+				}
+			} else if ctx, ok := context.(map[string]any); ok {
+				// Handle map-based context (for backward compatibility)
 				// Check if path requires rewrite
 				if pathRequiresRewrite, ok := ctx["pathRequiresRewrite"].(func(string) bool); ok && pathRequiresRewrite(pathValueStr) {
 					if rewritePath, ok := ctx["rewritePath"].(func(string, string) string); ok {
 						if rootpath, ok := fileInfo["rootpath"].(string); ok {
-							newValue := rewritePath(pathValueStr, rootpath)
-							if pathMap, ok := path.(map[string]any); ok {
-								pathMap["value"] = newValue
-							}
+							newValue = rewritePath(pathValueStr, rootpath)
+							needsUpdate = true
 						}
 					}
 				} else if normalizePath, ok := ctx["normalizePath"].(func(string) string); ok {
-					normalizedValue := normalizePath(pathValueStr)
-					if pathMap, ok := path.(map[string]any); ok {
-						pathMap["value"] = normalizedValue
+					newValue = normalizePath(pathValueStr)
+					needsUpdate = true
+				}
+			}
+
+			// Apply the update if needed
+			if needsUpdate {
+				if pathMap, ok := path.(map[string]any); ok {
+					// Update map-based path
+					pathMap["value"] = newValue
+				} else if quoted, ok := path.(*Quoted); ok {
+					// Create a new Quoted with the updated value
+					// Preserve the quote character and escaped flag
+					var str string
+					if quoted.GetQuote() == "" {
+						str = ""  // Unquoted
+					} else {
+						str = quoted.GetQuote() + newValue + quoted.GetQuote()  // Quoted
 					}
+					path = NewQuoted(str, newValue, quoted.GetEscaped(), quoted.GetIndex(), quoted.FileInfo())
 				}
 			}
 		}
