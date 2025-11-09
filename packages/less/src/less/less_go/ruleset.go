@@ -1482,6 +1482,9 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 		}
 	}
 
+	// Track how many paths were actually output (for visibility filtering)
+	outputCount := 0
+
 	if !r.Root && !isMediaEmpty && !hasOnlyExtends {
 		// Generate debug info
 		if debugInfo := GetDebugInfo(ctx, r, tabSetStr); debugInfo != "" {
@@ -1497,13 +1500,48 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 				sep = ",\n" + tabSetStr
 			}
 
-			for i, path := range r.Paths {
+			// Filter paths to only include visible selectors
+			// This implements reference import functionality where selectors from reference imports
+			// are hidden unless explicitly made visible (via extend or mixin call)
+			for _, path := range r.Paths {
 				if len(path) == 0 {
 					continue
 				}
-				if i > 0 {
+
+				// Check if any selector in the path is invisible
+				// If so, skip this entire path
+				pathIsVisible := true
+				for _, pathElem := range path {
+					if sel, ok := pathElem.(*Selector); ok {
+						if sel.Node != nil {
+							// Check if selector blocks visibility (from reference imports)
+							if sel.Node.BlocksVisibility() {
+								selVisible := sel.Node.IsVisible()
+								if selVisible == nil || !*selVisible {
+									pathIsVisible = false
+									break
+								}
+							} else {
+								// Even if not blocking visibility, check if explicitly marked invisible
+								// This handles selectors marked invisible by extend processing
+								selVisible := sel.Node.IsVisible()
+								if selVisible != nil && !*selVisible {
+									pathIsVisible = false
+									break
+								}
+							}
+						}
+					}
+				}
+
+				if !pathIsVisible {
+					continue
+				}
+
+				if outputCount > 0 {
 					output.Add(sep, nil, nil)
 				}
+				outputCount++
 
 				// Always set firstSelector to true for the first selector in a path
 				// This ensures no extra space is added at the beginning of selectors
@@ -1546,14 +1584,18 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 			// This can happen for rulesets that only contain declarations
 		}
 
-		// Add opening brace (unless we skipped selector output)
-		if (r.Paths != nil && len(r.Paths) > 0) || (r.Selectors != nil && len(r.Selectors) > 0) {
+		// Add opening brace (unless we skipped selector output or all paths were filtered)
+		// For reference imports: if all paths were filtered out due to visibility, skip the entire ruleset
+		if outputCount > 0 || (r.Selectors != nil && len(r.Selectors) > 0 && r.Paths == nil) {
 			if compress {
 				output.Add("{", nil, nil)
 			} else {
 				output.Add(" {\n", nil, nil)
 			}
 			output.Add(tabRuleStr, nil, nil)
+		} else if r.Paths != nil && len(r.Paths) > 0 && outputCount == 0 {
+			// All paths were filtered out - skip the entire ruleset
+			return
 		}
 	}
 
@@ -1629,8 +1671,8 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 		ctx["tabLevel"] = tabLevel
 	}
 
-	// Add closing brace (skip if this ruleset contains only extends)
-	if !r.Root && !isMediaEmpty && !hasOnlyExtends {
+	// Add closing brace (skip if this ruleset contains only extends or all paths were filtered)
+	if !r.Root && !isMediaEmpty && !hasOnlyExtends && (outputCount > 0 || r.Paths == nil) {
 		if compress {
 			output.Add("}", nil, nil)
 		} else {
