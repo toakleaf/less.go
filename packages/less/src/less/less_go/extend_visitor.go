@@ -306,14 +306,6 @@ func (pev *ProcessExtendsVisitor) doExtendChaining(extendsList []*Extend, extend
 
 			// find a match in the target extends self selector (the bit before :extend)
 			if len(targetExtend.SelfSelectors) > 0 {
-				// Skip if the target extend's self selector has extends (same logic as VisitRuleset)
-				// This prevents matching against selectors that were created by extending
-				if selectorWithExtends, ok := targetExtend.SelfSelectors[0].(interface{ GetExtendList() []*Extend }); ok {
-					if extendList := selectorWithExtends.GetExtendList(); extendList != nil && len(extendList) > 0 {
-						continue
-					}
-				}
-
 				selectorPath = []any{targetExtend.SelfSelectors[0]}
 				matches = pev.findMatch(extend, selectorPath)
 
@@ -457,21 +449,14 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 				continue
 			}
 
-			// Skip selectors that have extends or that were created during chaining
-			// This prevents over-extension issues like .v.w.v becoming .v.v.w.v.v
+			// Match JavaScript: only check if the LAST element in the path has extends
+			// Line 280-281 in extend-visitor.js: const extendList = selectorPath[selectorPath.length - 1].extendList;
 			if len(selectorPath) > 0 {
-				hasExtends := false
-				// Check all elements in the path for extends, not just the last one
-				for _, pathElem := range selectorPath {
-					if selectorWithExtends, ok := pathElem.(interface{ GetExtendList() []*Extend }); ok {
-						if extendList := selectorWithExtends.GetExtendList(); extendList != nil && len(extendList) > 0 {
-							hasExtends = true
-							break
-						}
+				lastElement := selectorPath[len(selectorPath)-1]
+				if selectorWithExtends, ok := lastElement.(interface{ GetExtendList() []*Extend }); ok {
+					if extendList := selectorWithExtends.GetExtendList(); extendList != nil && len(extendList) > 0 {
+						continue
 					}
-				}
-				if hasExtends {
-					continue
 				}
 			}
 
@@ -497,11 +482,6 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 				for _, selfSelector := range allExtends[extendIndex].SelfSelectors {
 					extendedSelectors := pev.extendSelector(matches, selectorPath, selfSelector, isVisible)
 					selectorsToAdd = append(selectorsToAdd, extendedSelectors)
-
-					// DEBUG: Log extended selectors
-					if debugMode := false; debugMode {
-						fmt.Printf("DEBUG: Extended selector created: %d elements\n", len(extendedSelectors))
-					}
 				}
 			}
 		}
