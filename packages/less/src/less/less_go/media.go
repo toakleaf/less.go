@@ -348,6 +348,59 @@ func (m *Media) Permute(arr []any) any {
 	}
 }
 
+// hasOnlyEmptyContent recursively checks if rules contain only empty content
+func hasOnlyEmptyContent(rules []any) bool {
+	if len(rules) == 0 {
+		return true
+	}
+
+	for _, rule := range rules {
+		// Check if it's a Ruleset
+		if rs, ok := rule.(*Ruleset); ok {
+			// If it has selectors with content, it's not empty
+			if len(rs.Selectors) > 0 && len(rs.Rules) > 0 && !hasOnlyEmptyContent(rs.Rules) {
+				return false
+			}
+			// Recursively check nested rulesets
+			if !hasOnlyEmptyContent(rs.Rules) {
+				return false
+			}
+		} else if media, ok := rule.(*Media); ok {
+			// Check if nested media has content
+			if len(media.Rules) > 0 {
+				if rs, ok := media.Rules[0].(*Ruleset); ok {
+					if !hasOnlyEmptyContent(rs.Rules) {
+						return false
+					}
+				} else {
+					// Media has non-Ruleset content
+					return false
+				}
+			}
+		} else if _, ok := rule.(*Declaration); ok {
+			// Declarations are content
+			return false
+		} else if _, ok := rule.(*Comment); ok {
+			// Comments might be considered content in some contexts
+			// For now, we'll consider them as non-content for empty detection
+			continue
+		} else if _, ok := rule.(*VariableCall); ok {
+			// VariableCall nodes don't have GenCSS, so they output nothing
+			// They should have been evaluated during Eval, but if they're still here
+			// at GenCSS time, treat them as empty
+			continue
+		} else if _, ok := rule.(*MixinCall); ok {
+			// MixinCall nodes don't have GenCSS either
+			continue
+		} else {
+			// Any other rule type is considered content
+			return false
+		}
+	}
+
+	return true
+}
+
 // BubbleSelectors bubbles selectors up the tree (implementing NestableAtRulePrototype)
 func (m *Media) BubbleSelectors(selectors any) {
 	if selectors == nil {
@@ -388,6 +441,22 @@ func (m *Media) GenCSS(context any, output *CSSOutput) {
 	// Match JavaScript: Media nodes are always output
 	// Visibility filtering happens at the rule level inside the media block, not at the media block itself
 	// JavaScript media.genCSS() has no visibility check
+
+	// Skip media queries with empty rulesets (happens when nested media queries are merged)
+	// When evalNested merges nested media queries, it returns an empty Ruleset as a placeholder
+	// but the Media node itself should not be output if it has no content
+	if len(m.Rules) == 0 {
+		// No rules at all, skip
+		return
+	}
+
+	if ruleset, ok := m.Rules[0].(*Ruleset); ok {
+		// Check if the ruleset has only empty content (regardless of selectors)
+		// A ruleset with selectors but no actual declarations/rules should not be output
+		if hasOnlyEmptyContent(ruleset.Rules) {
+			return // Skip empty media blocks
+		}
+	}
 
 	output.Add("@media ", m.FileInfo(), m.GetIndex())
 
