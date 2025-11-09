@@ -2,7 +2,6 @@ package less_go
 
 import (
 	"fmt"
-	"os"
 )
 
 // Expression represents a list of values with optional spacing in the Less AST
@@ -105,7 +104,7 @@ func (e *Expression) Eval(context any) (any, error) {
 			// This handles nodes with embedded Node struct
 			hasParens := false
 			hasParensInOp := false
-			
+
 			// Check various node types that embed Node
 			if expr, ok := val0.(*Expression); ok && expr.Node != nil {
 				hasParens = expr.Node.Parens
@@ -120,7 +119,7 @@ func (e *Expression) Eval(context any) (any, error) {
 				hasParens = dim.Node.Parens
 				hasParensInOp = dim.Node.ParensInOp
 			}
-			
+
 			if hasParens && !hasParensInOp {
 				// Check if we're in calc
 				if evalCtx, ok := context.(*Eval); ok {
@@ -135,7 +134,7 @@ func (e *Expression) Eval(context any) (any, error) {
 					}
 				}
 			}
-			
+
 			returnValue = SafeEval(val0, context)
 		}
 	} else {
@@ -156,24 +155,12 @@ func (e *Expression) Eval(context any) (any, error) {
 		}
 	}
 
-	debugTrace := os.Getenv("LESS_GO_TRACE") == "1"
-	if debugTrace {
-		fmt.Printf("[TRACE] Expression.Eval: Parens=%v, ParensInOp=%v, mathOn=%v, doubleParen=%v, returnValue type=%T\n",
-			e.Parens, e.ParensInOp, mathOn, doubleParen, returnValue)
-	}
-
 	// Match JavaScript: if (this.parens && this.parensInOp && !mathOn && !doubleParen && (!(returnValue instanceof Dimension)))
 	if e.Parens && e.ParensInOp && !mathOn && !doubleParen {
 		if _, isDimension := SafeTypeAssertion[*Dimension](returnValue); !isDimension {
 			returnValue = NewParen(returnValue)
-			if debugTrace {
-				fmt.Printf("[TRACE] Expression.Eval: wrapped in Paren (ParensInOp case)\n")
-			}
 		}
 	} else if e.Parens && !mathOn && !doubleParen {
-		if debugTrace {
-			fmt.Printf("[TRACE] Expression.Eval: checking if should wrap in Paren (!mathOn case)\n")
-		}
 		// Special case for calc(): preserve parentheses even without ParensInOp
 		// Check if we're in calc context
 		if evalCtx, ok := context.(*Eval); ok {
@@ -192,14 +179,6 @@ func (e *Expression) Eval(context any) (any, error) {
 					}
 				}
 			}
-		}
-	}
-
-	if debugTrace {
-		if dim, ok := returnValue.(*Dimension); ok {
-			fmt.Printf("[TRACE] Expression.Eval: returning Dimension value=%v unit=%v\n", dim.Value, dim.Unit)
-		} else {
-			fmt.Printf("[TRACE] Expression.Eval: returning %T\n", returnValue)
 		}
 	}
 
