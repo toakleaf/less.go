@@ -2,6 +2,7 @@ package less_go
 
 import (
 	"fmt"
+	"os"
 	"strings"
 )
 
@@ -196,6 +197,9 @@ func (a *AtRule) GenCSS(context any, output *CSSOutput) {
 
 // Eval evaluates the at-rule
 func (a *AtRule) Eval(context any) (any, error) {
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Printf("[DEBUG AtRule.Eval] name=%q, hasRules=%v\n", a.Name, len(a.Rules) > 0)
+	}
 	var mediaPathBackup, mediaBlocksBackup any
 	var value any = a.Value
 	var rules []any = a.Rules
@@ -222,13 +226,18 @@ func (a *AtRule) Eval(context any) (any, error) {
 
 	if len(rules) > 0 {
 		// Assuming that there is only one rule at this point - that is how parser constructs the rule
-		if eval, ok := rules[0].(interface{ Eval(any) (*Ruleset, error) }); ok {
+		if eval, ok := rules[0].(interface{ Eval(any) (any, error) }); ok {
 			evaluated, err := eval.Eval(context)
 			if err != nil {
 				return nil, err
 			}
-			rules = []any{evaluated}
-			evaluated.Root = true
+			// Convert back to Ruleset if possible
+			if rs, ok := evaluated.(*Ruleset); ok {
+				rules = []any{rs}
+				rs.Root = true
+			} else {
+				rules = []any{evaluated}
+			}
 		}
 	}
 

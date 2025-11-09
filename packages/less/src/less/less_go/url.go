@@ -92,6 +92,9 @@ func (u *URL) GenCSS(context any, output *CSSOutput) {
 
 // Eval evaluates the URL - match JavaScript implementation closely
 func (u *URL) Eval(context any) (any, error) {
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Printf("[DEBUG URL.Eval CALLED] isEvald=%v\n", u.IsEvald)
+	}
 	// Match JavaScript: const val = this.value.eval(context);
 	var val any
 	var err error
@@ -115,7 +118,18 @@ func (u *URL) Eval(context any) (any, error) {
 			rootpath = rp
 		}
 		if os.Getenv("LESS_GO_DEBUG") == "1" {
-			fmt.Printf("[DEBUG URL.Eval] rootpath=%q, fileInfo=%+v\n", rootpath, fileInfo)
+			// Try to extract value string for debug
+			valueStr := "unknown"
+			if quoted, ok := val.(*Quoted); ok {
+				valueStr = quoted.GetValue()
+			} else if anon, ok := val.(*Anonymous); ok {
+				if q, ok := anon.Value.(*Quoted); ok {
+					valueStr = q.GetValue()
+				} else if str, ok := anon.Value.(string); ok {
+					valueStr = str
+				}
+			}
+			fmt.Printf("[DEBUG URL.Eval] rootpath=%q, value=%q, fileInfo=%+v\n", rootpath, valueStr, fileInfo)
 		}
 		// Match JavaScript URL rewriting logic
 

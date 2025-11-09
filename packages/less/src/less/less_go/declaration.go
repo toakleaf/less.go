@@ -222,6 +222,17 @@ func evalName(context any, name []any) string {
 	return value
 }
 
+// Accept visits the declaration value with a visitor
+// This matches JavaScript Node's accept method: this.value = visitor.visit(this.value)
+func (d *Declaration) Accept(visitor any) {
+	if v, ok := visitor.(interface{ Visit(any) any }); ok && d.Value != nil {
+		result := v.Visit(d.Value)
+		if resultValue, ok := result.(*Value); ok {
+			d.Value = resultValue
+		}
+	}
+}
+
 // Eval evaluates the declaration
 func (d *Declaration) Eval(context any) (any, error) {
 	if context == nil {
