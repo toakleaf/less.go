@@ -135,7 +135,7 @@ func (pt *ParseTree) ToCSS(options *ToCSSOptions) (*ToCSSResult, error) {
 		"compress":         compress,
 		"dumpLineNumbers":  dumpLineNumbers,
 		"strictUnits":      strictUnits,
-		"numPrecision":     0,
+		"numPrecision":     8,  // Match less.js default precision
 	}
 
 	// Handle source map generation
