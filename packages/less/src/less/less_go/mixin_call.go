@@ -291,14 +291,17 @@ func (mc *MixinCall) Eval(context any) ([]any, error) {
 	}
 
 	// No arguments filter - In JavaScript this calls rule.matchArgs(null, context)
-	// but this is used as a preliminary filter to find ALL potential mixin candidates
-	// The actual argument matching happens later in the code
-	// So we should accept all MixinDefinitions and Rulesets, not filter them here
+	// This filters namespace path elements to ensure they can be entered (called with zero args)
+	// The final mixin will be checked again with actual args later
 	noArgumentsFilter = func(rule any) bool {
-		// Accept all MixinDefinitions and Rulesets - the actual matching will be done later
-		_, isMixinDef := rule.(*MixinDefinition)
-		_, isRuleset := rule.(*Ruleset)
-		return isMixinDef || isRuleset
+		// Match JavaScript: noArgumentsFilter = function(rule) {return rule.matchArgs(null, context);};
+		// Pass nil/empty args to check if namespace can be entered (not the final mixin call args)
+		if mixinDef, ok := rule.(*MixinDefinition); ok {
+			return mixinDef.MatchArgs(nil, context)
+		} else if ruleset, ok := rule.(*Ruleset); ok {
+			return ruleset.MatchArgs(nil)
+		}
+		return false
 	}
 
 	// Find mixins in context frames
