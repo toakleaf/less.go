@@ -44,13 +44,13 @@ When working on this project, please be aware of the following:
    - Go tests should verify ported functionality matches JavaScript behavior
 
 4. **Current Integration Test Status** (as of 2025-11-09 - Latest Update):
-   - **69 perfect CSS matches (37.5%)** - AMAZING PROGRESS! ✅ ⬆️ +5 new wins from 64!
+   - **69 perfect CSS matches (37.5%)** - AMAZING PROGRESS! ✅
    - **✅ ZERO REGRESSIONS** - All previously passing tests still passing!
    - **0 real compilation failures** - ALL CORE BUGS FIXED! 🎉
    - **3 expected compilation failures (1.6%)** - network/path issues (bootstrap4, google, import-module)
-   - **23 tests with CSS output differences** - compiles but CSS doesn't match (down from 25!)
+   - **23 tests with CSS output differences** - compiles but CSS doesn't match
    - **62+ correct error handling** - tests that should fail, do fail correctly
-   - **7 tests quarantined** (plugin system & JavaScript execution - punted for later)
+   - **5 tests quarantined** (plugin system & JavaScript execution - punted for later)
    - **Overall Success Rate: 75.0%+** ⬆️ (138+/184 tests passing or correctly erroring)
    - **Compilation Rate: 98.4%** (181/184 tests compile successfully)
 
@@ -133,7 +133,6 @@ When working on this project, please be aware of the following:
    - ✅ **ALL URL rewriting tests FIXED**: rewrite-urls-all, rewrite-urls-local, rootpath variants - 4/4 passing!
    - ✅ **Mixin improvements**: mixins-named-args, mixins-important, mixins-nested, mixins, mixins-interpolated now perfect matches!
    - ✅ **Import fixes**: import-once, import-inline, import-interpolation now passing!
-   - ✅ **Color functions**: Both colors and colors2 perfect matches!
    - ✅ **Compression suite**: compression test passing!
    - ✅ **Math suites**: All 6 tests now compile successfully (media-math, new-division, mixins-guards, no-sm-operations all passing)!
    - ✅ **Units tests**: strict-units passing!
