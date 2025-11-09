@@ -1,0 +1,127 @@
+================================================================================
+SELECTOR INTERPOLATION BUG - INVESTIGATION COMPLETE
+================================================================================
+
+KEY FINDINGS:
+=============
+
+The parse-interpolation test fails because the Go implementation doesn't properly
+expand comma-separated selectors when they're interpolated with variables.
+
+EXAMPLE:
+--------
+Input LESS:
+  @inputs: input[type=text], input[type=email];
+  @{inputs} { &:focus { foo: bar; } }
+
+Expected CSS:
+  input[type=text]:focus,
+  input[type=email]:focus {
+    foo: bar;
+  }
+
+Actual CSS (WRONG):
+  input[type=text], input[type=email]:focus {
+    foo: bar;
+  }
+
+ROOT CAUSE - 4-Step Problem Chain:
+==================================
+
+1. PARSER (parser.go:3043)
+   - When parsing selector "@{inputs}", the regex pattern matches "@{inputs}"
+     as a STRING element, not as a VariableCurly (Variable node)
+   - Result: Element.IsVariable = false (it's a string, not a Variable node)
+   
+2. ELEMENT EVALUATION (element.go:151-166)
+   - When Element.Eval() runs, it detects the string contains "@{"
+   - It creates a Quoted node to interpolate "@{inputs}"
+   - The Variable gets evaluated to "input[type=text], input[type=email]"
+   - Result: Element with Value=string containing commas, IsVariable=false
+
+3. MISSING RE-PARSE DETECTION (ruleset.go:360-378)
+   - In Ruleset.Eval(), after evaluating selectors, it checks:
+     "if elem.IsVariable { hasVariable = true }"
+   - Problem: elem.IsVariable is false (it's a string, not a Variable node)
+   - Result: hasVariable never becomes true
+   - Therefore: Re-parsing code (lines 384-431) is never executed!
+
+4. SELECTOR JOINING BREAKS (ruleset.go:1665+)
+   - JoinSelector receives an Element with Value="input[type=text], input[type=email]"
+   - This comma-separated string is treated as a SINGLE element
+   - When "&:focus" is applied via parent multiplication
+   - The ":focus" only gets appended to the LAST part of the string
+   - Result: "input[type=text], input[type=email]:focus" (WRONG!)
+
+CRITICAL CODE LOCATIONS:
+========================
+
+File: /home/user/less.go/packages/less/src/less/less_go/parser.go
+Line 3043: Regex that matches "@{inputs}" as STRING instead of Variable node
+Line 3068: VariableCurly() never called because regex matched first
+
+File: /home/user/less.go/packages/less/src/less/less_go/element.go
+Line 151-166: Handles interpolation of "@{" strings via Quoted node
+Line 207: IsVariable flag is preserved but remains false
+           (should be set to true for interpolated selectors!)
+
+File: /home/user/less.go/packages/less/src/less/less_go/ruleset.go
+Line 360-378: Checks for elements with IsVariable==true to trigger re-parsing
+             Problem: interpolated string elements have IsVariable=false!
+Line 384-431: Re-parsing code that SHOULD split "a, b" into multiple selectors
+             But never executes because hasVariable=false!
+Line 1657-1944: JoinSelectors/JoinSelector that processes elements
+
+THE FIX NEEDED:
+===============
+
+Enhance the variable detection in ruleset.go:360-378 to also catch:
+- Strings that came from interpolating variables
+- Strings containing commas (indicating multiple selectors)
+
+Two approaches:
+
+Approach A: In Element.Eval() (element.go:204-211)
+  When interpolation occurs (lines 151-166), set a flag on the Element
+  to indicate it was interpolated, so Ruleset.Eval() can detect it.
+  
+  Change line 207 from:
+    e.IsVariable,
+  
+  To something like:
+    (e.IsVariable || stringContainedInterpolation),
+  
+  Where stringContainedInterpolation = true when "@{" was in original string
+
+Approach B: In Ruleset.Eval() (ruleset.go:366)
+  Instead of just checking IsVariable, also check:
+  - If element value is a string
+  - And that string contains commas
+  - Then set hasVariable = true
+  
+  This would trigger the re-parsing logic that already exists!
+
+AFFECTED TEST CASES:
+====================
+All 8 test cases in packages/test-data/less/_main/parse-interpolation.less fail:
+1. @{inputs}:focus - :focus only applies to last selector
+2. @{classes} + .z - + .z only applies to last selector  
+3. .bar .d@{classes}&:hover - Parent/interpolation joining broken
+4. input { @{textClasses} { ... } } - Nested parent joining broken
+5. .master-page-1 { @{my-selector} { ... } } - Parent joining broken
+6. @{list} .fruit-& - Parent reference with interpolation broken
+
+IMPACT:
+=======
+- Breaks any selector interpolation with multiple comma-separated selectors
+- Affects pseudo-classes (::focus, :hover, etc.)
+- Affects combinators (>, +, ~)
+- Affects nested parent selectors
+- Likely affects ~25-30 other integration tests that depend on this
+
+NEXT STEPS:
+===========
+1. Implement one of the two fix approaches above
+2. Run: pnpm -w test:go to verify parse-interpolation now passes
+3. Check for any regressions in selector-related tests
+4. Test edge cases with nested interpolations and complex selectors
