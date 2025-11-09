@@ -19,6 +19,61 @@ This directory contains task files for issues that have been successfully resolv
 - **Commit**: ca022ec
 - **Summary**: Fixed variadic parameter evaluation context and argument expansion handling in mixin pattern matching. This unblocked the entire math test suite.
 
+### namespacing-output.md
+- **Completed**: 2025-11-07
+- **Issues**: Namespace variable lookups, operations, and function calls
+- **Impact**: Fixed ALL 11 namespacing tests (100% completion!)
+- **Tests**: namespacing-1 through namespacing-8, namespacing-functions, namespacing-operations, namespacing-media
+- **Summary**: Completed all namespace functionality - variable resolution, operations, function calls, and media query variable interpolation all working correctly.
+
+### guards-conditionals.md
+- **Completed**: 2025-11-07
+- **Issues**: CSS guards and mixin guards with default() function
+- **Impact**: Fixed ALL 3 guard tests (100% completion!)
+- **Tests**: css-guards, mixins-guards, mixins-guards-default-func
+- **Summary**: All guard evaluation and conditional logic now matches less.js behavior perfectly.
+
+### extend-functionality.md
+- **Completed**: 2025-11-09
+- **Issues**: Extend selector functionality and chaining
+- **Impact**: Fixed ALL 7 extend tests (100% completion!)
+- **Tests**: extend, extend-chaining, extend-clearfix, extend-exact, extend-media, extend-nest, extend-selector
+- **Summary**: Complete extend functionality including multi-level chaining, exact matching, media query handling, and selector nesting all working perfectly.
+
+### mixin-issues.md
+- **Completed**: 2025-11-08
+- **Issues**: Mixin nesting, named arguments, and !important flag propagation
+- **Impact**: Fixed 3+ mixin tests
+- **Tests**: mixins-nested, mixins-named-args, mixins-important
+- **Summary**: All mixin edge cases and special handling now working correctly.
+
+### import-interpolation.md
+- **Completed**: 2025-11-08
+- **Issues**: Variable interpolation in import paths
+- **Impact**: Fixed 1 test
+- **Tests**: import-interpolation
+- **Summary**: Import path variable interpolation now working correctly.
+
+### url-processing.md
+- **Completed**: 2025-11-08
+- **Issues**: URL rewriting and processing
+- **Impact**: Fixed 4 URL rewriting tests (100% completion!)
+- **Tests**: rewrite-urls-all, rewrite-urls-local, rootpath-rewrite-urls-all, rootpath-rewrite-urls-local
+- **Summary**: All URL rewriting modes now working perfectly.
+
+### math-operations.md
+- **Completed**: 2025-11-08 (partially)
+- **Issues**: Math mode handling across different contexts
+- **Impact**: Unblocked all math test suites (they now compile)
+- **Tests**: All math-parens, math-parens-division, and math-always suites now compile
+- **Summary**: Math operation compilation issues fixed. Some tests still have output differences but are no longer blocked.
+
+### mixin-regressions.md
+- **Completed**: 2025-11-08
+- **Issues**: Various mixin regression fixes
+- **Impact**: Maintained and improved mixin functionality
+- **Summary**: All documented mixin regressions fixed.
+
 ## Archive Policy
 
 Task files are moved here when:
