@@ -452,7 +452,21 @@ func (c *Call) Eval(context any) (any, error) {
 		}
 	}
 	// Turn off math for calc(), and switch back on for evaluating nested functions
-	currentMathContext := evalContext.IsMathOn()
+	// Match JavaScript: save the mathOn FIELD value, not the computed result from isMathOn()
+	var currentMathContext bool
+	if evalCtx, ok := evalContext.(*Eval); ok {
+		currentMathContext = evalCtx.MathOn
+	} else if mapCtx, ok := evalContext.(*MapEvalContext); ok {
+		// For map context, get the raw mathOn value from the map
+		if mathOn, exists := mapCtx.ctx["mathOn"]; exists {
+			if enabled, ok := mathOn.(bool); ok {
+				currentMathContext = enabled
+			}
+		}
+	} else {
+		// Fallback for other context types
+		currentMathContext = evalContext.IsMathOn()
+	}
 	evalContext.SetMathOn(!c.Calc)
 
 	if c.Calc || evalContext.IsInCalc() {
