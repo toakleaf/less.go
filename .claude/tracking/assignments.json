@@ -1,11 +1,13 @@
 {
-  "version": "1.5",
-  "last_updated": "2025-11-08T00:00:00Z",
+  "version": "1.6",
+  "last_updated": "2025-11-09T00:00:00Z",
   "summary": {
-    "perfect_matches": 47,
+    "perfect_matches": 63,
     "compilation_failures": 3,
-    "output_differences": 45,
+    "output_differences": 29,
     "error_handling_tests": 39,
+    "compilation_rate": "98.4%",
+    "overall_success_rate": "55.4%+",
     "tasks_available": 9,
     "tasks_completed": 9,
     "tasks_partial": 2,
