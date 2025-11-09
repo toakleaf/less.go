@@ -556,4 +556,12 @@ func (s *Selector) GetExtendList() []*Extend {
 		}
 	}
 	return extends
+}
+
+// SetExtendList sets the extend list for this selector
+func (s *Selector) SetExtendList(extends []*Extend) {
+	s.ExtendList = make([]any, len(extends))
+	for i, ext := range extends {
+		s.ExtendList[i] = ext
+	}
 } 
