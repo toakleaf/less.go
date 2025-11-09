@@ -173,8 +173,9 @@ func Replace(stringArg, pattern, replacement interface{}, flags ...interface{}) 
 	} else if cssable, ok := stringArg.(interface{ ToCSS(interface{}) string }); ok {
 		// Handle Keyword, Anonymous, etc. by calling ToCSS
 		stringVal = cssable.ToCSS(nil)
+		escaped = true // Non-quoted types don't have quotes
 	}
-	
+
 	// Get the pattern
 	var patternStr string
 	if quoted, ok := pattern.(*Quoted); ok {
@@ -246,17 +247,25 @@ func Format(stringArg interface{}, args ...interface{}) (*Quoted, error) {
 	var stringVal string
 	var quote string
 	var escaped bool
-	
+
 	if quotedStr, ok := stringArg.(*Quoted); ok {
 		stringVal = quotedStr.value
 		quote = quotedStr.quote
 		escaped = quotedStr.escaped
+	} else if keyword, ok := stringArg.(*Keyword); ok {
+		// Handle Keyword arguments - use ToCSS to get the string value
+		stringVal = keyword.ToCSS(nil)
+		escaped = true // Keywords don't have quotes, so mark as escaped
+	} else if cssable, ok := stringArg.(interface{ ToCSS(interface{}) string }); ok {
+		// Handle other types with ToCSS method
+		stringVal = cssable.ToCSS(nil)
+		escaped = true // Non-quoted types don't have quotes
 	} else if valuer, ok := stringArg.(interface{ GetValue() interface{} }); ok {
 		if strVal, ok := valuer.GetValue().(string); ok {
 			stringVal = strVal
 		}
 	}
-	
+
 	result := stringVal
 	
 	// Replace placeholders sequentially, matching JavaScript behavior exactly
