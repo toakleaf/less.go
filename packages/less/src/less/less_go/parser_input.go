@@ -124,8 +124,8 @@ func (p *ParserInput) skipWhitespace(length int) bool {
 				} else if nextChar == '*' { // Block comment
 					comment = inputComment{index: p.i, isLineComment: false}
 					nextEndComment := -1
-					for k := p.i + 2; k < len(inp)-1; k++ { // Use k
-						if inp[k] == '*' && inp[k+1] == '/' {
+					for k := p.i + 2; k < len(inp); k++ { // Use k (check up to len-1 for '*', len for '/')
+						if k+1 < len(inp) && inp[k] == '*' && inp[k+1] == '/' {
 							nextEndComment = k + 2
 							break
 						}

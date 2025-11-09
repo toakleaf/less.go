@@ -765,6 +765,16 @@ func (p *Parsers) Primary() []any {
 		}
 	}
 
+	// Collect any remaining comments that were absorbed by skipWhitespace
+	// but not yet added to root (happens when EOF is reached)
+	for {
+		node = p.Comment()
+		if node == nil {
+			break
+		}
+		root = append(root, node)
+	}
+
 	return root
 }
 
