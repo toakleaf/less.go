@@ -213,10 +213,10 @@ func (p *Property) mergeRules(rules []any) []any {
 		return rules
 	}
 
-	// Groups of rules by name
-	groups := make(map[string][]int) // Store indices instead of values
-	groupsArr := [][]int{}
-	
+	// Groups of rules by name - use pointers to avoid slice aliasing issues
+	groups := make(map[string]*[]int)
+	groupsArr := []*[]int{}
+
 	// First pass: identify groups
 	for i := 0; i < len(rules); i++ {
 		if decl, ok := rules[i].(*Declaration); ok && decl.GetMerge() != nil && decl.GetMerge() != false {
@@ -224,16 +224,18 @@ func (p *Property) mergeRules(rules []any) []any {
 			if _, exists := groups[key]; !exists {
 				// Create new group
 				group := []int{}
-				groups[key] = group
-				groupsArr = append(groupsArr, group)
+				groups[key] = &group
+				groupsArr = append(groupsArr, &group)
 			}
-			groups[key] = append(groups[key], i)
+			// Append to the group
+			*groups[key] = append(*groups[key], i)
 		}
 	}
 	
 	// Second pass: process groups and remove merged declarations
 	// Work backwards to avoid index issues when removing
-	for _, indices := range groupsArr {
+	for _, indicesPtr := range groupsArr {
+		indices := *indicesPtr
 		if len(indices) > 1 {
 			// Get the first declaration (result)
 			result := rules[indices[0]].(*Declaration)
@@ -281,7 +283,8 @@ func (p *Property) mergeRules(rules []any) []any {
 		}
 		
 		// Mark indices to remove
-		for _, indices := range groupsArr {
+		for _, indicesPtr := range groupsArr {
+			indices := *indicesPtr
 			if len(indices) > 1 {
 				for i := 1; i < len(indices); i++ {
 					keep[indices[i]] = false
@@ -298,6 +301,6 @@ func (p *Property) mergeRules(rules []any) []any {
 		}
 		return newRules
 	}
-	
+
 	return rules
 } 

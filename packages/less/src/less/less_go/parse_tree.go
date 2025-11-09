@@ -135,7 +135,7 @@ func (pt *ParseTree) ToCSS(options *ToCSSOptions) (*ToCSSResult, error) {
 		"compress":         compress,
 		"dumpLineNumbers":  dumpLineNumbers,
 		"strictUnits":      strictUnits,
-		"numPrecision":     8,
+		"numPrecision":     0,
 	}
 
 	// Handle source map generation

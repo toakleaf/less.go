@@ -267,7 +267,7 @@ func (nv *NamespaceValue) Eval(context any) (any, error) {
 					Index:    nv.GetIndex(),
 				}
 			}
-			
+
 			// Properties are an array of values, since a ruleset can have multiple props.
 			// We pick the last one (the "cascaded" value)
 			if rulesArray, ok := rules.([]any); ok && len(rulesArray) > 0 {

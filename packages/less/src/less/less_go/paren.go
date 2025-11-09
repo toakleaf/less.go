@@ -31,12 +31,12 @@ func (p *Paren) GetType() string {
 // GenCSS generates CSS representation with parentheses around the value
 func (p *Paren) GenCSS(context any, output *CSSOutput) {
 	output.Add("(", nil, nil)
-	
+
 	// Match JavaScript: this.value.genCSS(context, output);
 	if valueWithGenCSS, ok := p.Value.(interface{ GenCSS(any, *CSSOutput) }); ok {
 		valueWithGenCSS.GenCSS(context, output)
 	}
-	
+
 	output.Add(")", nil, nil)
 }
 

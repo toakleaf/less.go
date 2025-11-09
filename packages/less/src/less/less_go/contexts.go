@@ -75,7 +75,7 @@ func NewEval(options map[string]any, frames []any) *Eval {
 		Frames:       frames,
 		MathOn:       true,
 		ImportantScope: []map[string]any{},
-		NumPrecision: 8, // Default to 8 like JavaScript
+		NumPrecision: 0, // Default to 0 to preserve full JavaScript number precision
 		RewriteUrls: RewriteUrlsOff, // Default to OFF to match JavaScript default (false)
 	}
 	copyFromOriginal(options, e)

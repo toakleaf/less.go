@@ -168,22 +168,43 @@ func (e *Element) Eval(context any) (any, error) {
 	}
 
 	// Unwrap Paren nodes that contain simple values (fixes double parentheses in selectors like :nth-child(@{num}))
-	if paren, ok := evaluatedValue.(*Paren); ok && paren != nil {
-		if innerValue := paren.Value; innerValue != nil {
-			// Check if it's a simple value type or a Quoted string - these don't need explicit Paren wrapping in selectors
-			switch v := innerValue.(type) {
-			case *Dimension, *Keyword, *Anonymous, string, int, float64:
-				evaluatedValue = innerValue
-			case *Quoted:
-				// For Quoted nodes, unwrap to the string value if it's escaped (unquoted)
-				if v.GetEscaped() {
-					evaluatedValue = v.GetValue()
-				} else {
-					evaluatedValue = innerValue
-				}
-			}
+	// This recursively unwraps nested Paren nodes until we reach a non-Paren value
+	for {
+		paren, ok := evaluatedValue.(*Paren)
+		if !ok || paren == nil {
+			break
 		}
+
+		innerValue := paren.Value
+		if innerValue == nil {
+			break
+		}
+
+		// Check if the inner value is another Paren (for recursive unwrapping)
+		if _, isNestedParen := innerValue.(*Paren); isNestedParen {
+			evaluatedValue = innerValue
+			continue
+		}
+
+		// Check if it's a simple value type or a Quoted string - these don't need explicit Paren wrapping in selectors
+		switch v := innerValue.(type) {
+		case *Dimension, *Keyword, *Anonymous, string, int, float64:
+			evaluatedValue = innerValue
+		case *Quoted:
+			// For Quoted nodes, unwrap to the string value if it's escaped (unquoted)
+			if v.GetEscaped() {
+				evaluatedValue = v.GetValue()
+			} else {
+				evaluatedValue = innerValue
+			}
+		default:
+			// For complex values (selectors, expressions, etc.), keep the Paren
+			// This preserves important grouping in cases like :not(.foo&)
+			goto endUnwrap
+		}
+		break
 	}
+	endUnwrap:
 
 	// Handle potential nil Node
 	index := 0

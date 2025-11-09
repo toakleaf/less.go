@@ -1668,30 +1668,6 @@ func (r *Ruleset) JoinSelector(paths *[][]any, context [][]any, selector any) {
 		return
 	}
 
-	// createParenthesis helper function
-	createParenthesis := func(elementsToPak []*Element, originalElement *Element) (*Paren, error) {
-		if len(elementsToPak) == 0 {
-			return NewParen(originalElement), nil
-		} else {
-			insideParent := make([]*Element, len(elementsToPak))
-			for j := 0; j < len(elementsToPak); j++ {
-				insideParent[j] = NewElement(
-					nil,
-					elementsToPak[j],
-					originalElement.IsVariable,
-					originalElement.GetIndex(),
-					originalElement.FileInfo(),
-					nil,
-				)
-			}
-			newSel, err := NewSelector(insideParent, nil, nil, 0, make(map[string]any), nil)
-			if err != nil {
-				return nil, err
-			}
-			return NewParen(newSel), nil
-		}
-	}
-
 	// createSelector helper function
 	createSelector := func(containedElement any, originalElement *Element) (*Selector, error) {
 		element := NewElement(nil, containedElement, originalElement.IsVariable, originalElement.GetIndex(), originalElement.FileInfo(), nil)
@@ -1831,11 +1807,45 @@ func (r *Ruleset) JoinSelector(paths *[][]any, context [][]any, selector any) {
 					replacedNewSelectors := [][]any{}
 					replaced := replaceParentSelector(&nestedPaths, context, nestedSelector)
 					hadParentSelector = hadParentSelector || replaced
-					
+
 					// The nestedPaths array should have only one member - replaceParentSelector does not multiply selectors
 					for k := 0; k < len(nestedPaths); k++ {
-						if paren, err := createParenthesis([]*Element{}, el); err == nil {
-							if replacementSelector, err := createSelector(paren, el); err == nil {
+						// Reconstruct the selector from the path (which has & expanded)
+						// nestedPaths[k] is a path containing selector(s) with expanded &
+						var reconstructedSelector *Selector
+						if len(nestedPaths[k]) == 1 {
+							// Simple case: path contains one selector
+							if sel, ok := nestedPaths[k][0].(*Selector); ok {
+								reconstructedSelector = sel
+							}
+						} else if len(nestedPaths[k]) > 1 {
+							// Complex case: path contains multiple selectors that need to be joined
+							// Merge all elements from all selectors in the path
+							var allElements []*Element
+							for _, pathSel := range nestedPaths[k] {
+								if sel, ok := pathSel.(*Selector); ok {
+									allElements = append(allElements, sel.Elements...)
+								}
+							}
+							if len(allElements) > 0 {
+								reconstructedSelector, _ = NewSelector(allElements, nil, nil, 0, make(map[string]any), nil)
+							}
+						}
+
+						if reconstructedSelector != nil {
+							// Create a Paren containing the reconstructed selector with expanded &
+							paren := NewParen(reconstructedSelector)
+							// Create a new element with this Paren as the value
+							newElement := NewElement(
+								el.Combinator,
+								paren,
+								el.IsVariable,
+								el.GetIndex(),
+								el.FileInfo(),
+								nil,
+							)
+							// Create a selector from this element
+							if replacementSelector, err := createSelector(newElement, el); err == nil {
 								addAllReplacementsIntoPath(newSelectors, []any{replacementSelector}, el, inSelector, &replacedNewSelectors)
 							}
 						}

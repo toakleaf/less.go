@@ -403,7 +403,7 @@ func createRender(env any, parseTree any, importManager any) func(string, ...any
 				toCSSOptions := &ToCSSOptions{
 					Compress:      false,
 					StrictUnits:   false,
-					NumPrecision:  8,
+					NumPrecision:  0,
 					Functions:     functionsObj,
 					ProcessImports: true,  // Enable import processing
 					ImportManager: imports, // Pass the import manager
