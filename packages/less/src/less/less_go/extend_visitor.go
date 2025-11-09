@@ -471,18 +471,38 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 				// Note: Extend.IsVisible() returns bool (not *bool), taking visibility blocks into account
 				isVisible := allExtends[extendIndex].IsVisible()
 
-				// Mark the matched selector path as visible only if the extend itself is visible
-				// This ensures that selectors matched by visible extends become visible in the output
-				if isVisible {
-					for _, pathSelector := range selectorPath {
-						if sel, ok := pathSelector.(*Selector); ok {
-							sel.EnsureVisibility()
+				// Check if the matched selector path has visibility blocks (is from a reference import)
+				// Also check if the ruleset itself has visibility blocks
+				// This determines if an invisible extend should match this selector/ruleset
+				selectorHasVisibilityBlocks := false
+				for _, pathSelector := range selectorPath {
+					if sel, ok := pathSelector.(*Selector); ok {
+						if sel.Node != nil && sel.Node.BlocksVisibility() {
+							selectorHasVisibilityBlocks = true
+							break
 						}
 					}
 				}
-				for _, selfSelector := range allExtends[extendIndex].SelfSelectors {
-					extendedSelectors := pev.extendSelector(matches, selectorPath, selfSelector, isVisible)
-					selectorsToAdd = append(selectorsToAdd, extendedSelectors)
+				rulesetHasVisibilityBlocks := ruleset.Node != nil && ruleset.Node.BlocksVisibility()
+
+				// Only process the match if:
+				// 1. The extend is visible (from a non-reference import), OR
+				// 2. The extend, selector, and ruleset are all from reference imports (all have visibility blocks)
+				// This prevents extends from reference imports from polluting non-reference rulesets
+				if isVisible || (selectorHasVisibilityBlocks && rulesetHasVisibilityBlocks) {
+					// Mark the matched selector path as visible only if the extend itself is visible
+					// This ensures that selectors matched by visible extends become visible in the output
+					if isVisible {
+						for _, pathSelector := range selectorPath {
+							if sel, ok := pathSelector.(*Selector); ok {
+								sel.EnsureVisibility()
+							}
+						}
+					}
+					for _, selfSelector := range allExtends[extendIndex].SelfSelectors {
+						extendedSelectors := pev.extendSelector(matches, selectorPath, selfSelector, isVisible)
+						selectorsToAdd = append(selectorsToAdd, extendedSelectors)
+					}
 				}
 			}
 		}
@@ -870,9 +890,17 @@ func (pev *ProcessExtendsVisitor) extendSelector(matches []any, selectorPath []a
 			if match["pathIndex"].(int) > currentSelectorPathIndex {
 				path = append(path, selectorPath[currentSelectorPathIndex:match["pathIndex"].(int)]...)
 			}
-			
+
+			// Inherit visibility info from the matched selector (selector from selectorPath)
+			// This ensures that selectors created during extend processing preserve visibility blocks
+			// from reference imports
+			var visibilityInfo map[string]any
+			if selector.Node != nil {
+				visibilityInfo = selector.VisibilityInfo()
+			}
+
 			// Equivalent to JS: path.push(new tree.Selector(newElements))
-			newSelector, err := NewSelector(newElements, nil, nil, 0, nil, nil)
+			newSelector, err := NewSelector(newElements, nil, nil, 0, nil, visibilityInfo)
 			if err == nil {
 				path = append(path, newSelector)
 			}
