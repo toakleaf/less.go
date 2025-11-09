@@ -757,6 +757,23 @@ func (r *Ruleset) Eval(context any) (any, error) {
 		}
 	}
 
+	// CRITICAL: If this is the file-level root ruleset, append any bubbled mediaBlocks to Rules
+	// This is how directives like @supports and @document bubble to the top level
+	// Match JavaScript behavior: after evaluation, mediaBlocks at root get appended to rules
+	if ruleset.Root && mediaBlocks != nil && len(mediaBlocks) > 0 {
+		// Append all mediaBlocks to the ruleset's Rules array
+		ruleset.Rules = append(ruleset.Rules, mediaBlocks...)
+
+		// Clear mediaBlocks from context (they've been consumed)
+		if evalCtx != nil {
+			evalCtx.MediaBlocks = nil
+			evalCtx.MediaPath = nil
+		} else {
+			ctx["mediaBlocks"] = nil
+			ctx["mediaPath"] = nil
+		}
+	}
+
 	return ruleset, nil
 }
 
