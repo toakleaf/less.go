@@ -348,7 +348,23 @@ func (md *MixinDefinition) EvalParams(context any, mixinEnv any, args []any, eva
 								argValue = evalMethod.Eval(context)
 							}
 							// If no Eval method, use the value as-is (e.g., Keywords)
-							varargs = append(varargs, argValue)
+
+							// IMPORTANT: Flatten Expression/Value types with multiple items
+							// This handles cases like .mixin(a b c d) where space-separated
+							// values should become individual arguments for ...
+							// BUT: Only flatten if there's a single argument total
+							if argsLength == 1 {
+								if exprValue, ok := argValue.(*Expression); ok && len(exprValue.Value) > 0 {
+									varargs = append(varargs, exprValue.Value...)
+								} else if valueValue, ok := argValue.(*Value); ok && len(valueValue.Value) > 0 {
+									varargs = append(varargs, valueValue.Value...)
+								} else {
+									varargs = append(varargs, argValue)
+								}
+							} else {
+								// Multiple arguments - don't flatten
+								varargs = append(varargs, argValue)
+							}
 						}
 					}
 					expr, err := NewExpression(varargs, false)
@@ -466,8 +482,53 @@ func (md *MixinDefinition) EvalParams(context any, mixinEnv any, args []any, eva
 						evaldArguments[i] = val
 					}
 				}
+			} else {
+				// Handle ... syntax without a parameter name
+				if variadic, ok := paramMap["variadic"].(bool); ok && variadic {
+					// Process varargs even without a parameter name
+					// This handles the ... syntax where there's no named parameter
+					varargs := []any{}
+					for j := argIndex; j < argsLength; j++ {
+						if argMap, ok := args[j].(map[string]any); ok {
+							argValue := argMap["value"]
+							// Evaluate the value
+							if evalMethod, ok := argValue.(interface{ Eval(any) (any, error) }); ok {
+								evaluated, err := evalMethod.Eval(context)
+								if err == nil {
+									argValue = evaluated
+								}
+							} else if evalMethod, ok := argValue.(interface{ Eval(any) any }); ok {
+								argValue = evalMethod.Eval(context)
+							}
+
+							// Flatten Expression/Value types only if single argument
+							if argsLength == 1 {
+								if exprValue, ok := argValue.(*Expression); ok && len(exprValue.Value) > 0 {
+									varargs = append(varargs, exprValue.Value...)
+								} else if valueValue, ok := argValue.(*Value); ok && len(valueValue.Value) > 0 {
+									varargs = append(varargs, valueValue.Value...)
+								} else {
+									varargs = append(varargs, argValue)
+								}
+							} else {
+								// Multiple arguments - don't flatten
+								varargs = append(varargs, argValue)
+							}
+						}
+					}
+					// Create Expression from flattened varargs and store in evaldArguments[0]
+					expr, err := NewExpression(varargs, false)
+					if err == nil {
+						evalExpr, err := expr.Eval(context)
+						if err == nil && i < len(evaldArguments) {
+							evaldArguments[i] = evalExpr
+						}
+					}
+					// Note: Don't create a parameter declaration since there's no name
+					// The @arguments variable will be created later in EvalCall
+				}
 			}
-			
+
 			// Always increment argIndex to match JavaScript behavior (line 135)
 			if arg != nil {
 				argIndex++
@@ -475,12 +536,21 @@ func (md *MixinDefinition) EvalParams(context any, mixinEnv any, args []any, eva
 
 			if variadic, ok := paramMap["variadic"].(bool); ok && variadic && args != nil {
 				// For variadic parameters, populate evaldArguments with evaluated args
+				// This is a fallback/secondary location
 				for j := argIndex; j < argsLength; j++ {
 					if j < len(evaldArguments) {
 						if argMap, ok := args[j].(map[string]any); ok {
 							if argValue, ok := argMap["value"]; ok {
 								if evalValue, ok := argValue.(interface{ Eval(any) any }); ok {
-									evaldArguments[j] = evalValue.Eval(context)
+									argValue = evalValue.Eval(context)
+								}
+								// Apply flattening here too
+								if exprValue, ok := argValue.(*Expression); ok && len(exprValue.Value) > 0 {
+									// Can't easily expand here, just store the Expression
+									// The primary handling above should have already flattened
+									evaldArguments[j] = argValue
+								} else if valueValue, ok := argValue.(*Value); ok && len(valueValue.Value) > 0 {
+									evaldArguments[j] = argValue
 								} else {
 									evaldArguments[j] = argValue
 								}

@@ -135,7 +135,18 @@ func (d *Dimension) GenCSS(context any, output *CSSOutput) {
 		roundedValue = 0
 	}
 
-	strValue := fmt.Sprintf("%v", roundedValue)
+	// Match JavaScript: String(value) which doesn't use scientific notation
+	// for reasonable-sized numbers
+	var strValue string
+	if roundedValue == 0 {
+		strValue = "0"
+	} else if math.Abs(roundedValue) >= 1e-6 && math.Abs(roundedValue) < 1e21 {
+		// Use %f format to avoid scientific notation
+		strValue = strconv.FormatFloat(roundedValue, 'f', -1, 64)
+	} else {
+		// For very small or very large numbers, use default formatting
+		strValue = fmt.Sprintf("%v", roundedValue)
+	}
 	if roundedValue != 0 && math.Abs(roundedValue) < 0.000001 {
 		// Mimic JavaScript's toFixed(20) and trim trailing zeros
 		strValue = strings.TrimRight(fmt.Sprintf("%.20f", roundedValue), "0")
