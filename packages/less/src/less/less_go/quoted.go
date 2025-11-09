@@ -8,8 +8,10 @@ import (
 
 // Compile regex patterns once at package level
 var (
-	variableRegex = regexp.MustCompile(`@\{([\w-]+)\}`)
-	propRegex     = regexp.MustCompile(`\$\{([\w-]+)\}`)
+	// Match both @{variable} and @variable syntax
+	variableRegex = regexp.MustCompile(`@\{([\w-]+)\}|@([\w-]+)`)
+	// Match both ${property} and $property syntax
+	propRegex     = regexp.MustCompile(`\$\{([\w-]+)\}|\$([\w-]+)`)
 )
 
 // Quoted represents a quoted string in the Less AST
@@ -156,18 +158,24 @@ func (q *Quoted) Eval(context any) (any, error) {
 				if len(matches) < 2 {
 					return match
 				}
-				replacement, e := replacementFn(matches[0], matches[1])
+				// Handle both @{name} (group 1) and @name (group 2) syntax
+				// Use first non-empty capture group
+				name := matches[1]
+				if name == "" && len(matches) > 2 {
+					name = matches[2]
+				}
+				replacement, e := replacementFn(matches[0], name)
 				if e != nil {
 					err = e
 					return match
 				}
 				return replacement
 			})
-			
+
 			if err != nil {
 				return value, err
 			}
-			
+
 			if value == evaluatedValue {
 				break
 			}

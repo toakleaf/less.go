@@ -3086,10 +3086,10 @@ func (p *Parsers) Element() any {
 				
 				if p.parser.parserInput.Char(')') != nil {
 					if len(selectors) > 1 {
-						// Create a selector with multiple elements
-						if selector, err := NewSelector(selectors, []any{}, nil, index+p.parser.currentIndex, p.parser.fileInfo, nil); err == nil {
-							e = NewParen(selector)
-						}
+						// Create a SelectorList to hold multiple comma-separated selectors
+						// This is used for pseudo-classes like :is(), :not(), :where(), :has()
+						selectorList := NewSelectorList(selectors)
+						e = NewParen(selectorList)
 					} else {
 						e = NewParen(selectors[0])
 					}
