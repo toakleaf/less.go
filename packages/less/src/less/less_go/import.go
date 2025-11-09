@@ -433,6 +433,24 @@ func addVisibilityBlockRecursive(node any) {
 			addVisibilityBlockRecursive(rule)
 		}
 	}
+
+	// Also recurse into Selectors for Ruleset nodes
+	// Selectors contain ExtendList which needs visibility blocks
+	if nodeWithSelectors, ok := node.(interface{ GetSelectors() []any }); ok {
+		selectors := nodeWithSelectors.GetSelectors()
+		for _, selector := range selectors {
+			addVisibilityBlockRecursive(selector)
+		}
+	}
+
+	// Also recurse into ExtendList for Selector nodes
+	// Extend nodes need visibility blocks too when inside reference imports
+	if nodeWithExtends, ok := node.(interface{ GetExtendList() []*Extend }); ok {
+		extendList := nodeWithExtends.GetExtendList()
+		for _, extend := range extendList {
+			addVisibilityBlockRecursive(extend)
+		}
+	}
 }
 
 // DoEval performs the actual evaluation logic

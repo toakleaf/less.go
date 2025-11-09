@@ -498,6 +498,12 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 								sel.EnsureVisibility()
 							}
 						}
+						// Also ensure the ruleset itself is visible when visible extends match it
+						// This is critical for reference imports: when a selector from a reference import
+						// is extended from outside, the ruleset containing that selector must become visible
+						if ruleset.Node != nil {
+							ruleset.Node.EnsureVisibility()
+						}
 					}
 					for _, selfSelector := range allExtends[extendIndex].SelfSelectors {
 						extendedSelectors := pev.extendSelector(matches, selectorPath, selfSelector, isVisible)
