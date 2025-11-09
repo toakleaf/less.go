@@ -1588,12 +1588,26 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 
 		// Add newline after rule if it's not the last rule
 		if !currentLastRule {
+			shouldAddNewline := false
+
+			// Check if rule is visible (for declarations, etc.)
 			if vis, ok := rule.(interface{ IsVisible() bool }); ok && vis.IsVisible() {
-				if compress {
-					// Don't add anything for compressed mode
-				} else {
-					output.Add("\n"+tabRuleStr, nil, nil)
+				shouldAddNewline = true
+			}
+
+			// Special case: Add newlines for child rulesets inside container rulesets
+			// (like @keyframes which creates a container ruleset with no selectors)
+			if rulesetLike, ok := rule.(interface{ IsRulesetLike() bool }); ok && rulesetLike.IsRulesetLike() {
+				// Only add newline if parent ruleset has no selectors (is a container)
+				// and we're not at the file-level root (tabLevel > 0)
+				isContainer := (r.Paths == nil || len(r.Paths) == 0) && (r.Selectors == nil || len(r.Selectors) == 0)
+				if isContainer && tabLevel > 0 {
+					shouldAddNewline = true
 				}
+			}
+
+			if shouldAddNewline && !compress {
+				output.Add("\n"+tabRuleStr, nil, nil)
 			}
 		} else {
 			ctx["lastRule"] = false

@@ -299,7 +299,7 @@ func (a *AtRule) OutputRuleset(context any, output *CSSOutput, rules []any) {
 		output.Add("{", nil, nil)
 		for i := 0; i < ruleCnt; i++ {
 			if gen, ok := rules[i].(interface{ GenCSS(any, *CSSOutput) }); ok {
-				gen.GenCSS(context, output)
+				gen.GenCSS(ctx, output)
 			}
 		}
 		output.Add("}", nil, nil)
@@ -317,19 +317,33 @@ func (a *AtRule) OutputRuleset(context any, output *CSSOutput, rules []any) {
 	} else {
 		output.Add(" {"+tabRuleStr, nil, nil)
 
-		// Process rules, setting lastRule for the final rule
-		for i := 0; i < ruleCnt; i++ {
-			if i > 0 {
-				output.Add(tabRuleStr, nil, nil)
+		// Output first rule
+		if ruleCnt > 0 {
+			// Set lastRule flag for the last rule (similar to JavaScript ruleset.js line 533)
+			if ruleCnt == 1 {
+				ctx["lastRule"] = true
 			}
 
-			// Set lastRule flag for the last rule (similar to JavaScript ruleset.js line 533)
+			if gen, ok := rules[0].(interface{ GenCSS(any, *CSSOutput) }); ok {
+				gen.GenCSS(ctx, output)
+			}
+
+			if ruleCnt == 1 {
+				ctx["lastRule"] = false
+			}
+		}
+
+		// Output subsequent rules with indentation before each
+		for i := 1; i < ruleCnt; i++ {
+			output.Add(tabRuleStr, nil, nil)
+
+			// Set lastRule flag for the last rule
 			if i+1 == ruleCnt {
 				ctx["lastRule"] = true
 			}
 
 			if gen, ok := rules[i].(interface{ GenCSS(any, *CSSOutput) }); ok {
-				gen.GenCSS(context, output)
+				gen.GenCSS(ctx, output)
 			}
 
 			// Clear lastRule after processing

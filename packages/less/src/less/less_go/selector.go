@@ -499,8 +499,21 @@ func (s *Selector) GenCSS(context any, output *CSSOutput) { // CSSOutput from go
 		output.Add(" ", s.FileInfo(), s.GetIndex())
 	}
 
-	for _, element := range s.Elements {
-		element.GenCSS(context, output) // Element must have GenCSS taking CSSOutput
+	for i, element := range s.Elements {
+		// When firstSelector is true and this is the first element with a space combinator,
+		// skip the combinator to prevent extra indentation in at-rule contexts
+		if i == 0 && firstSelector && element.Combinator != nil && element.Combinator.Value == " " {
+			// Output just the element value without the combinator
+			if element.Value != nil {
+				if gen, ok := element.Value.(interface{ GenCSS(any, *CSSOutput) }); ok {
+					gen.GenCSS(context, output)
+				} else if str, ok := element.Value.(string); ok {
+					output.Add(str, element.FileInfo(), element.GetIndex())
+				}
+			}
+		} else {
+			element.GenCSS(context, output) // Element must have GenCSS taking CSSOutput
+		}
 	}
 }
 
