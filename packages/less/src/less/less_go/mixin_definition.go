@@ -580,6 +580,14 @@ func (md *MixinDefinition) EvalCall(context any, args []any, important bool) (*R
 				mixinEnv[k] = v
 			}
 		}
+	} else if evalCtx, ok := context.(*Eval); ok {
+		// Convert *Eval to map to preserve ParensStack functions
+		ctxMap := evalCtx.ToMap()
+		for k, v := range ctxMap {
+			if k != "frames" {
+				mixinEnv[k] = v
+			}
+		}
 	}
 
 	// Evaluate parameters
@@ -627,6 +635,14 @@ func (md *MixinDefinition) EvalCall(context any, args []any, important bool) (*R
 	}
 	if ctx, ok := context.(map[string]any); ok {
 		for k, v := range ctx {
+			if k != "frames" {
+				evalContext[k] = v
+			}
+		}
+	} else if evalCtx, ok := context.(*Eval); ok {
+		// Convert *Eval to map to preserve ParensStack functions
+		ctxMap := evalCtx.ToMap()
+		for k, v := range ctxMap {
 			if k != "frames" {
 				evalContext[k] = v
 			}

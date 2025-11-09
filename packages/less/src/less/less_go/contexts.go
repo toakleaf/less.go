@@ -145,6 +145,17 @@ func (e *Eval) ToMap() map[string]any {
 		"importantScope":    e.ImportantScope,
 		"rewriteUrls":       e.RewriteUrls,
 		"numPrecision":      e.NumPrecision,
+		// Add ParensStack management functions that reference the same stacks
+		"inParenthesis": func() {
+			e.InParenthesis()
+		},
+		"outOfParenthesis": func() {
+			e.OutOfParenthesis()
+		},
+		"isMathOn": func(op string) bool {
+			return e.IsMathOnWithOp(op)
+		},
+		"inCalc": e.InCalc,
 	}
 }
 
