@@ -28,14 +28,18 @@ func formatNumber(n float64) string {
 // This is used after Fround has already applied precision formatting
 // Match JavaScript behavior: just convert to string, removing trailing zeros
 func formatNumberForCSS(n float64) string {
+	// Round to 8 decimal places to match JavaScript's string conversion behavior
+	// JavaScript limits precision to avoid floating-point errors while maintaining reasonable accuracy
+	rounded := math.Round(n*1e8) / 1e8
+
 	// If the number is effectively an integer, return it without decimals
-	if n == math.Floor(n) {
-		return fmt.Sprintf("%.0f", n)
+	if rounded == math.Floor(rounded) {
+		return fmt.Sprintf("%.0f", rounded)
 	}
 
 	// Convert to string using %g which automatically removes trailing zeros
 	// but doesn't use scientific notation for reasonable values
-	s := fmt.Sprintf("%g", n)
+	s := fmt.Sprintf("%g", rounded)
 	return s
 }
 
