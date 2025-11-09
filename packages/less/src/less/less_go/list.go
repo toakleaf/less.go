@@ -216,6 +216,24 @@ func EachWithContext(list any, rs any, ctx *Context) any {
 
 	// tryEval function - evaluates nodes if they have an Eval method
 	tryEval := func(val any) any {
+		// Special case: MixinCall.Eval returns ([]any, error) instead of (any, error)
+		if mixinCall, ok := val.(*MixinCall); ok {
+			if evalContext != nil {
+				// Evaluate the mixin call and wrap results in a temporary ruleset
+				rules, err := mixinCall.Eval(evalContext)
+				if err == nil && rules != nil {
+					// Create a temporary ruleset to hold the results
+					// This matches JavaScript behavior where mixin calls return rulesets
+					ampersandElement := NewElement(nil, "&", false, 0, nil, nil)
+					ampersandSelector, sErr := NewSelector([]*Element{ampersandElement}, nil, nil, 0, nil, nil)
+					if sErr == nil {
+						return NewRuleset([]any{ampersandSelector}, rules, false, nil)
+					}
+				}
+			}
+			return mixinCall
+		}
+
 		// Check if val has an Eval method (implements Node interface)
 		if evalable, ok := val.(interface{ Eval(any) (any, error) }); ok {
 			if evalContext != nil {
@@ -291,7 +309,8 @@ func EachWithContext(list any, rs any, ctx *Context) any {
 	indexName := "@index"
 
 	// Handle MixinDefinition (anonymous mixins with parameters)
-	// If rs is a MixinDefinition, extract parameter names and get the rules
+	// If rs is a MixinDefinition, extract parameter names
+	// Note: MixinDefinition embeds *Ruleset, so it IS a Ruleset and will be handled below
 	if mixinDef, ok := rs.(*MixinDefinition); ok {
 		// Extract parameter names from mixin params
 		if len(mixinDef.Params) > 0 {
@@ -315,14 +334,17 @@ func EachWithContext(list any, rs any, ctx *Context) any {
 				}
 			}
 		}
-		// Use the mixin definition's rules as rs
-		rs = mixinDef.Rules
+		// Don't reassign rs - MixinDefinition embeds *Ruleset so it will be handled
+		// in the targetRuleset extraction below
 	}
 
 	// Handle ruleset parameter extraction (for mixin calls with parameters)
 	var targetRuleset *Ruleset
-	// For now, we'll assume rs is a DetachedRuleset or map with rules
-	if detachedRuleset, ok := rs.(*DetachedRuleset); ok && detachedRuleset.ruleset != nil {
+	// Check MixinDefinition first since it embeds *Ruleset but is a different type
+	if mixinDef, ok := rs.(*MixinDefinition); ok {
+		// MixinDefinition embeds *Ruleset, access it directly
+		targetRuleset = mixinDef.Ruleset
+	} else if detachedRuleset, ok := rs.(*DetachedRuleset); ok && detachedRuleset.ruleset != nil {
 		if rulesetNode, ok := detachedRuleset.ruleset.(*Ruleset); ok {
 			targetRuleset = rulesetNode
 		} else if node, ok := detachedRuleset.ruleset.(*Node); ok && node.Value != nil {
@@ -348,11 +370,6 @@ func EachWithContext(list any, rs any, ctx *Context) any {
 
 	if targetRuleset == nil {
 		return createEmptyRuleset()
-	}
-
-	// DEBUG: Log iterator details
-	if os.Getenv("LESS_GO_TRACE") == "1" {
-		fmt.Printf("[EACH-DEBUG] Iterator length: %d, items: %+v\n", len(iterator), iterator)
 	}
 
 	// Iterate through items
