@@ -129,6 +129,12 @@ func (d *Dimension) GenCSS(context any, output *CSSOutput) {
 	}
 
 	roundedValue := d.Fround(context, d.Value)
+
+	// Normalize -0 to 0 (handles cases like -0.0000000001 rounding to -0)
+	if roundedValue == 0 || math.Abs(roundedValue) < 1e-10 {
+		roundedValue = 0
+	}
+
 	strValue := fmt.Sprintf("%v", roundedValue)
 	if roundedValue != 0 && math.Abs(roundedValue) < 0.000001 {
 		// Mimic JavaScript's toFixed(20) and trim trailing zeros

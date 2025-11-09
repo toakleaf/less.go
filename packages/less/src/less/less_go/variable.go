@@ -196,8 +196,8 @@ func (v *Variable) Eval(context any) (any, error) {
 					selfCall := NewCall("_SELF", []any{val}, v.GetIndex(), v.FileInfo())
 					// Set the CallerFactory so _SELF can be resolved later
 					selfCall.CallerFactory = NewDefaultFunctionCallerFactory(DefaultRegistry)
-					// Return the Call object, don't evaluate it yet (JavaScript behavior)
-					return selfCall, nil
+					// Evaluate the Call object immediately (matches JavaScript: return (new Call('_SELF', [v.value])).eval(context))
+					return selfCall.Eval(context)
 				}
 
 				// Evaluate value - check both interface types
@@ -261,8 +261,8 @@ func (v *Variable) Eval(context any) (any, error) {
 						selfCall := NewCall("_SELF", []any{val}, v.GetIndex(), v.FileInfo())
 						// Set the CallerFactory so _SELF can be resolved later
 						selfCall.CallerFactory = NewDefaultFunctionCallerFactory(DefaultRegistry)
-						// Return the Call object, don't evaluate it yet (JavaScript behavior)
-						return selfCall, nil
+						// Evaluate the Call object immediately (matches JavaScript: return (new Call('_SELF', [v.value])).eval(context))
+						return selfCall.Eval(context)
 					}
 
 					// Evaluate value - check both interface types
