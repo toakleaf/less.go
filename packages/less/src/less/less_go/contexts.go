@@ -136,6 +136,7 @@ func (e *Eval) ToMap() map[string]any {
 		"paths":             e.Paths,
 		"compress":          e.Compress,
 		"math":              e.Math,
+		"mathOn":            e.MathOn,
 		"strictUnits":       e.StrictUnits,
 		"sourceMap":         e.SourceMap,
 		"importMultiple":    e.ImportMultiple,
