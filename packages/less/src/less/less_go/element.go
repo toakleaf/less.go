@@ -137,6 +137,7 @@ func (e *Element) Accept(visitor any) {
 // Eval evaluates the element and returns a new Element with evaluated values
 func (e *Element) Eval(context any) (any, error) {
 	var evaluatedValue any = e.Value
+	wasInterpolated := false
 
 	// Match JavaScript logic: this.value.eval ? this.value.eval(context) : this.value
 	if e.Value != nil {
@@ -163,6 +164,8 @@ func (e *Element) Eval(context any) (any, error) {
 				} else {
 					evaluatedValue = evaluated
 				}
+				// Mark that interpolation occurred so we can set IsVariable flag
+				wasInterpolated = true
 			}
 		}
 	}
@@ -201,10 +204,14 @@ func (e *Element) Eval(context any) (any, error) {
 		visibilityInfo = e.VisibilityInfo()
 	}
 
+	// Set IsVariable to true if interpolation occurred, otherwise use original value
+	// This allows the ruleset evaluation to detect interpolated selectors and re-parse them
+	isVariable := e.IsVariable || wasInterpolated
+
 	newElement := NewElement(
 		e.Combinator,
 		evaluatedValue,
-		e.IsVariable,
+		isVariable,
 		index,
 		fileInfo,
 		visibilityInfo,
