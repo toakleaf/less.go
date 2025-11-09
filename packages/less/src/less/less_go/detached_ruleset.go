@@ -124,13 +124,53 @@ func (dr *DetachedRuleset) CallEval(context any) any {
 					}
 				}
 			}
-			// Ruleset.Eval expects map[string]any, convert if needed
+
+			// Convert evalContext to map for Ruleset.Eval (it expects map[string]any or *Eval)
+			// But we need to track the original parent context to copy mediaBlocks back
 			mapContext := evalContextToMap(evalContext)
 			result, err := ruleset.Eval(mapContext)
 			if err != nil {
 				// Match JavaScript behavior - throw the error
 				panic(err)
 			}
+
+			// IMPORTANT: Copy back NEW mediaBlocks from the map context to the parent context
+			// When DetachedRuleset creates a new map context with copied mediaBlocks,
+			// any new media blocks added during evaluation need to be propagated to the parent.
+
+			// Copy from map back to parent *Eval context
+			if parentEval, ok := context.(*Eval); ok {
+				if childBlocks, hasChild := mapContext["mediaBlocks"].([]any); hasChild {
+					originalCount := len(parentEval.MediaBlocks)
+					if len(childBlocks) > originalCount {
+						newBlocks := childBlocks[originalCount:]
+						parentEval.MediaBlocks = append(parentEval.MediaBlocks, newBlocks...)
+					}
+				}
+				if childPath, hasPath := mapContext["mediaPath"].([]any); hasPath {
+					parentEval.MediaPath = childPath
+				}
+			}
+
+			// Copy from map back to parent map context
+			if parentMap, ok := context.(map[string]any); ok {
+				if childBlocks, hasChild := mapContext["mediaBlocks"].([]any); hasChild {
+					if parentBlocks, hasParent := parentMap["mediaBlocks"].([]any); hasParent {
+						originalCount := len(parentBlocks)
+						if len(childBlocks) > originalCount {
+							newBlocks := childBlocks[originalCount:]
+							parentMap["mediaBlocks"] = append(parentBlocks, newBlocks...)
+						}
+					} else {
+						// Parent didn't have mediaBlocks, copy all from child
+						parentMap["mediaBlocks"] = childBlocks
+					}
+				}
+				if childPath, hasPath := mapContext["mediaPath"].([]any); hasPath {
+					parentMap["mediaPath"] = childPath
+				}
+			}
+
 			if os.Getenv("LESS_GO_DEBUG") == "1" {
 				if rs, ok := result.(*Ruleset); ok {
 					fmt.Fprintf(os.Stderr, "[DEBUG DetachedRuleset.CallEval] Result Ruleset has %d selectors, %d rules\n", len(rs.Selectors), len(rs.Rules))
@@ -146,12 +186,48 @@ func (dr *DetachedRuleset) CallEval(context any) any {
 				if os.Getenv("LESS_GO_DEBUG") == "1" {
 					fmt.Fprintf(os.Stderr, "[DEBUG DetachedRuleset.CallEval] Evaluating Node.Value Ruleset with %d selectors, %d rules\n", len(ruleset.Selectors), len(ruleset.Rules))
 				}
-				// Ruleset.Eval expects map[string]any, convert if needed
+
+				// Convert evalContext to map for Ruleset.Eval
 				mapContext := evalContextToMap(evalContext)
 				result, err := ruleset.Eval(mapContext)
 				if err != nil {
 					panic(err)
 				}
+
+				// IMPORTANT: Copy back NEW mediaBlocks from the map context to the parent context
+
+				// Copy from map back to parent *Eval context
+				if parentEval, ok := context.(*Eval); ok {
+					if childBlocks, hasChild := mapContext["mediaBlocks"].([]any); hasChild {
+						originalCount := len(parentEval.MediaBlocks)
+						if len(childBlocks) > originalCount {
+							newBlocks := childBlocks[originalCount:]
+							parentEval.MediaBlocks = append(parentEval.MediaBlocks, newBlocks...)
+						}
+					}
+					if childPath, hasPath := mapContext["mediaPath"].([]any); hasPath {
+						parentEval.MediaPath = childPath
+					}
+				}
+
+				// Copy from map back to parent map context
+				if parentMap, ok := context.(map[string]any); ok {
+					if childBlocks, hasChild := mapContext["mediaBlocks"].([]any); hasChild {
+						if parentBlocks, hasParent := parentMap["mediaBlocks"].([]any); hasParent {
+							originalCount := len(parentBlocks)
+							if len(childBlocks) > originalCount {
+								newBlocks := childBlocks[originalCount:]
+								parentMap["mediaBlocks"] = append(parentBlocks, newBlocks...)
+							}
+						} else {
+							parentMap["mediaBlocks"] = childBlocks
+						}
+					}
+					if childPath, hasPath := mapContext["mediaPath"].([]any); hasPath {
+						parentMap["mediaPath"] = childPath
+					}
+				}
+
 				if os.Getenv("LESS_GO_DEBUG") == "1" {
 					if rs, ok := result.(*Ruleset); ok {
 						fmt.Fprintf(os.Stderr, "[DEBUG DetachedRuleset.CallEval] Result Ruleset has %d selectors, %d rules\n", len(rs.Selectors), len(rs.Rules))
