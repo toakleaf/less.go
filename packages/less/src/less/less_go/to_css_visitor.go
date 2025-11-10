@@ -683,10 +683,14 @@ func (v *ToCSSVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitArgs) any {
 			}
 			visitArgs.VisitDeeper = false
 		} else if isMultiMedia {
-			// For MultiMedia rulesets, don't visit children at all
-			// The Media nodes inside should be kept as-is and rendered during GenCSS
+			// For MultiMedia rulesets, visit children but don't extract them
+			// The Media nodes need to be visited for selector processing (extends, etc.)
+			// but should remain in the MultiMedia ruleset
 			if os.Getenv("LESS_GO_DEBUG") == "1" {
-				fmt.Fprintf(os.Stderr, "[ToCSSVisitor] MultiMedia ruleset - skipping child visitation\n")
+				fmt.Fprintf(os.Stderr, "[ToCSSVisitor] MultiMedia ruleset - visiting children without extraction\n")
+			}
+			if acceptor, ok := rulesetNode.(interface{ Accept(any) }); ok {
+				acceptor.Accept(v.visitor)
 			}
 			visitArgs.VisitDeeper = false
 		} else {
