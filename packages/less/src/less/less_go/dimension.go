@@ -136,13 +136,14 @@ func (d *Dimension) GenCSS(context any, output *CSSOutput) {
 	}
 
 	// Match JavaScript: String(value) which doesn't use scientific notation
-	// for reasonable-sized numbers
+	// for reasonable-sized numbers and preserves full precision
 	var strValue string
 	if roundedValue == 0 {
 		strValue = "0"
 	} else if math.Abs(roundedValue) >= 1e-6 && math.Abs(roundedValue) < 1e21 {
-		// Use %f format to avoid scientific notation
-		strValue = strconv.FormatFloat(roundedValue, 'f', -1, 64)
+		// Use fmt.Sprintf("%v") to match JavaScript's String() behavior
+		// This preserves full float64 precision similar to JavaScript
+		strValue = fmt.Sprintf("%v", roundedValue)
 	} else {
 		// For very small or very large numbers, use default formatting
 		strValue = fmt.Sprintf("%v", roundedValue)

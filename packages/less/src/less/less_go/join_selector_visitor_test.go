@@ -74,8 +74,13 @@ func (mmr *MockMediaRule) SetRoot(root bool) {
 
 // MockAtRule implements the AtRule interface
 type MockAtRule struct {
+	name     string
 	isRooted bool
 	rules    []any
+}
+
+func (mar *MockAtRule) GetName() string {
+	return mar.name
 }
 
 func (mar *MockAtRule) GetIsRooted() bool {
@@ -432,18 +437,70 @@ func TestJoinSelectorVisitor_VisitMedia(t *testing.T) {
 func TestJoinSelectorVisitor_VisitAtRule(t *testing.T) {
 	visitor := NewJoinSelectorVisitor()
 	
-	t.Run("should set root to true when context is empty", func(t *testing.T) {
+	t.Run("should set root to true for rooted directives when context is empty", func(t *testing.T) {
 		visitor.contexts = [][]any{{}} // empty context
 		mockAtRuleRule := &MockAtRuleRule{}
 		mockAtRuleNode := &MockAtRule{
+			isRooted: true,  // Rooted directive like @font-face
 			rules: []any{mockAtRuleRule},
 		}
 		visitArgs := &VisitArgs{}
-		
+
 		visitor.VisitAtRule(mockAtRuleNode, visitArgs)
-		
+
 		if mockAtRuleRule.root != true {
-			t.Error("Expected root to be true")
+			t.Error("Expected root to be true for rooted directive")
+		}
+	})
+
+	t.Run("should set root to false for @supports when context is empty", func(t *testing.T) {
+		visitor.contexts = [][]any{{}} // empty context
+		mockAtRuleRule := &MockAtRuleRule{}
+		mockAtRuleNode := &MockAtRule{
+			name:     "@supports",
+			isRooted: false,
+			rules:    []any{mockAtRuleRule},
+		}
+		visitArgs := &VisitArgs{}
+
+		visitor.VisitAtRule(mockAtRuleNode, visitArgs)
+
+		if mockAtRuleRule.root != false {
+			t.Error("Expected root to be false for @supports to allow nested selector joining")
+		}
+	})
+
+	t.Run("should set root to false for @document when context is empty", func(t *testing.T) {
+		visitor.contexts = [][]any{{}} // empty context
+		mockAtRuleRule := &MockAtRuleRule{}
+		mockAtRuleNode := &MockAtRule{
+			name:     "@document",
+			isRooted: false,
+			rules:    []any{mockAtRuleRule},
+		}
+		visitArgs := &VisitArgs{}
+
+		visitor.VisitAtRule(mockAtRuleNode, visitArgs)
+
+		if mockAtRuleRule.root != false {
+			t.Error("Expected root to be false for @document to allow nested selector joining")
+		}
+	})
+
+	t.Run("should set root to true for other non-rooted directives when context is empty", func(t *testing.T) {
+		visitor.contexts = [][]any{{}} // empty context
+		mockAtRuleRule := &MockAtRuleRule{}
+		mockAtRuleNode := &MockAtRule{
+			name:     "@-moz-document",  // Other directive, not @supports/@document
+			isRooted: false,
+			rules:    []any{mockAtRuleRule},
+		}
+		visitArgs := &VisitArgs{}
+
+		visitor.VisitAtRule(mockAtRuleNode, visitArgs)
+
+		if mockAtRuleRule.root != true {
+			t.Error("Expected root to be true for non-bubbling directive when context is empty")
 		}
 	})
 	
@@ -463,19 +520,37 @@ func TestJoinSelectorVisitor_VisitAtRule(t *testing.T) {
 		}
 	})
 	
-	t.Run("should set root to nil when context has items and isRooted is false", func(t *testing.T) {
+	t.Run("should set root to false for @supports when context has items", func(t *testing.T) {
 		visitor.contexts = [][]any{{map[string]any{"someContext": true}}}
 		mockAtRuleRule := &MockAtRuleRule{}
 		mockAtRuleNode := &MockAtRule{
+			name:     "@supports",
 			isRooted: false,
 			rules:    []any{mockAtRuleRule},
 		}
 		visitArgs := &VisitArgs{}
-		
+
 		visitor.VisitAtRule(mockAtRuleNode, visitArgs)
-		
+
+		if mockAtRuleRule.root != false {
+			t.Error("Expected root to be false for @supports")
+		}
+	})
+
+	t.Run("should set root to nil for other non-rooted directives when context has items", func(t *testing.T) {
+		visitor.contexts = [][]any{{map[string]any{"someContext": true}}}
+		mockAtRuleRule := &MockAtRuleRule{}
+		mockAtRuleNode := &MockAtRule{
+			name:     "@-moz-document",
+			isRooted: false,
+			rules:    []any{mockAtRuleRule},
+		}
+		visitArgs := &VisitArgs{}
+
+		visitor.VisitAtRule(mockAtRuleNode, visitArgs)
+
 		if mockAtRuleRule.root != nil {
-			t.Error("Expected root to be nil")
+			t.Error("Expected root to be nil for non-bubbling directive when context has items")
 		}
 	})
 	
@@ -507,14 +582,15 @@ func TestJoinSelectorVisitor_VisitAtRule(t *testing.T) {
 		mockAtRuleRule2 := &MockAtRuleRule{}
 		mockAtRuleRule3 := &MockAtRuleRule{}
 		mockAtRuleNode := &MockAtRule{
+			isRooted: true,  // Use rooted directive to expect Root=true
 			rules: []any{mockAtRuleRule1, mockAtRuleRule2, mockAtRuleRule3},
 		}
 		visitArgs := &VisitArgs{}
-		
+
 		visitor.VisitAtRule(mockAtRuleNode, visitArgs)
-		
+
 		if mockAtRuleRule1.root != true {
-			t.Error("Expected first rule root to be true")
+			t.Error("Expected first rule root to be true for rooted directive")
 		}
 		if mockAtRuleRule2.root != nil {
 			t.Error("Expected second rule root to remain nil")

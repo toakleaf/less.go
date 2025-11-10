@@ -350,11 +350,59 @@ func (jsv *JoinSelectorVisitor) VisitAtRule(atRuleNode any, visitArgs *VisitArgs
 		if rules != nil && len(rules) > 0 {
 			if atRuleRule, ok := rules[0].(interface{ SetRoot(any) }); ok {
 				var rootValue any = nil
-				
+
+				// Check if this is a bubbling directive that needs special handling
+				// Only @supports and @document need selector bubbling and Root=false
+				var isBubblingDirective bool
+				if nameInterface, ok := atRuleNode.(interface{ GetName() string }); ok {
+					name := nameInterface.GetName()
+					isBubblingDirective = (name == "@supports" || name == "@document")
+				}
+
 				// Check if atRule has GetIsRooted method
 				if isRootedInterface, ok := atRuleNode.(interface{ GetIsRooted() bool }); ok {
-					if isRootedInterface.GetIsRooted() || len(context) == 0 {
+					isRooted := isRootedInterface.GetIsRooted()
+					if isRooted {
+						// Rooted directives (@font-face, @keyframes) always have Root=true
 						rootValue = true
+					} else if isBubblingDirective {
+						// ONLY @supports and @document get special bubbling treatment
+						// - With context: bubble selectors and set Root=false
+						// - Without context: set Root=false to allow nested selector joining
+						if len(context) > 0 {
+							// For bubbling directives with context, bubble selectors
+							// This joins parent selectors with nested selectors
+							if bubbleInterface, ok := atRuleNode.(interface{ BubbleSelectors(any) }); ok {
+								// Extract selectors from context paths
+								// Context is []any where each element is a path ([]any of selectors)
+								selectors := make([]any, 0)
+								for _, path := range context {
+									if pathArray, ok := path.([]any); ok {
+										// Each path is an array of selectors
+										// We want to pass all selectors from all paths
+										for _, sel := range pathArray {
+											selectors = append(selectors, sel)
+										}
+									} else {
+										// Single selector
+										selectors = append(selectors, path)
+									}
+								}
+								if len(selectors) > 0 {
+									bubbleInterface.BubbleSelectors(selectors)
+								}
+							}
+						}
+						// Always set Root=false for bubbling directives
+						// This allows nested selectors to be joined properly
+						rootValue = false
+					} else {
+						// Other non-rooted directives use the old behavior
+						// Set Root=nil when context has items, Root=true when empty
+						if len(context) == 0 {
+							rootValue = true
+						}
+						// else rootValue stays nil
 					}
 				} else if len(context) == 0 {
 					rootValue = true

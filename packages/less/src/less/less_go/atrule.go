@@ -115,6 +115,23 @@ func (a *AtRule) GetIsRooted() bool {
 	return a.IsRooted
 }
 
+// GetRules returns the rules array (for ToCSSVisitor extraction)
+// Only @supports and @document should use this for extraction
+// This handles vendor-prefixed variants like @-moz-document
+func (a *AtRule) GetRules() []any {
+	// Only return rules for directives that should be extracted
+	nonVendorName := stripVendorPrefix(a.Name)
+	if nonVendorName == "@supports" || nonVendorName == "@document" {
+		return a.Rules
+	}
+	return nil
+}
+
+// SetRules sets the rules array (for ToCSSVisitor extraction)
+func (a *AtRule) SetRules(rules []any) {
+	a.Rules = rules
+}
+
 // ToCSS converts the at-rule to CSS string
 func (a *AtRule) ToCSS(context any) string {
 	var strs []string
@@ -158,6 +175,20 @@ func (a *AtRule) IsCharset() bool {
 	return a.Name == "@charset"
 }
 
+// stripVendorPrefix removes vendor prefix from at-rule names
+// e.g., "@-x-document" -> "@document", "@-webkit-keyframes" -> "@keyframes"
+func stripVendorPrefix(name string) string {
+	if len(name) > 1 && name[1] == '-' {
+		// Find the second dash (after vendor prefix)
+		for i := 2; i < len(name); i++ {
+			if name[i] == '-' {
+				return "@" + name[i+1:]
+			}
+		}
+	}
+	return name
+}
+
 // GenCSS generates CSS representation
 func (a *AtRule) GenCSS(context any, output *CSSOutput) {
 	// Check visibility - skip if node blocks visibility and is not explicitly visible
@@ -167,6 +198,40 @@ func (a *AtRule) GenCSS(context any, output *CSSOutput) {
 		nodeVisible := a.Node.IsVisible()
 		if nodeVisible == nil || !*nodeVisible {
 			// Node blocks visibility and is not explicitly visible, skip output
+			return
+		}
+	}
+
+	// Check if this directive has rules but they ONLY contain comments (no actual content)
+	// In that case, skip output entirely
+	if a.Rules != nil {
+		hasOnlyComments := false
+		for _, rule := range a.Rules {
+			if ruleset, ok := rule.(*Ruleset); ok {
+				// Only check if ruleset has rules - empty rulesets should still be output
+				if len(ruleset.Rules) > 0 {
+					hasContent := false
+					// Check if ruleset has any non-comment rules
+					for _, r := range ruleset.Rules {
+						// Ignore comments - they don't count as content
+						if _, isComment := r.(*Comment); !isComment {
+							hasContent = true
+							break
+						}
+					}
+					if !hasContent {
+						// This ruleset has rules, but they're all comments
+						hasOnlyComments = true
+					} else {
+						// This ruleset has actual content
+						hasOnlyComments = false
+						break
+					}
+				}
+			}
+		}
+		if hasOnlyComments {
+			// All rulesets contain only comments, skip output
 			return
 		}
 	}
@@ -206,23 +271,22 @@ func (a *AtRule) Eval(context any) (any, error) {
 		fmt.Printf("[DEBUG AtRule.Eval] name=%q, hasRules=%v\n", a.Name, len(a.Rules) > 0)
 	}
 
-	// Check if this is a bubbling directive (@supports, @document)
-	// These specific directives bubble to the root level like Media nodes
-	// We check by name rather than just isRooted to be more explicit
-	isBubblingDirective := !a.IsRooted && (a.Name == "@supports" || a.Name == "@document")
-
-	if isBubblingDirective {
-		return a.evalBubbling(context)
-	}
-
-	// Standard directives use the regular evaluation
+	// Standard directives use regular evaluation
+	// Note: @supports/@document should NOT use the mediaBlocks bubbling mechanism
+	// They bubble via ToCSSVisitor extraction AFTER JoinSelectorVisitor has run
 	var mediaPathBackup, mediaBlocksBackup any
 	var value any = a.Value
 	var rules []any = a.Rules
 
 	// Media stored inside other atrule should not bubble over it
 	// Backup media bubbling information
-	if ctx, ok := context.(map[string]any); ok {
+	if evalCtx, ok := context.(*Eval); ok {
+		mediaPathBackup = evalCtx.MediaPath
+		mediaBlocksBackup = evalCtx.MediaBlocks
+		// Delete media bubbling information
+		evalCtx.MediaPath = []any{}
+		evalCtx.MediaBlocks = []any{}
+	} else if ctx, ok := context.(map[string]any); ok {
 		mediaPathBackup = ctx["mediaPath"]
 		mediaBlocksBackup = ctx["mediaBlocks"]
 		// Delete media bubbling information
@@ -250,7 +314,14 @@ func (a *AtRule) Eval(context any) (any, error) {
 			// Convert back to Ruleset if possible
 			if rs, ok := evaluated.(*Ruleset); ok {
 				rules = []any{rs}
-				rs.Root = true
+				// IMPORTANT: Set Root=true for rooted directives (@font-face, @keyframes)
+				// Also set Root=true for vendor-prefixed @keyframes (@-webkit-keyframes, etc.)
+				// For non-rooted directives (@supports, @document), leave Root unset
+				// so JoinSelectorVisitor can properly handle selector joining
+				isKeyframes := strings.Contains(a.Name, "keyframes")
+				if a.IsRooted || isKeyframes {
+					rs.Root = true
+				}
 			} else {
 				rules = []any{evaluated}
 			}
@@ -258,7 +329,14 @@ func (a *AtRule) Eval(context any) (any, error) {
 	}
 
 	// Restore media bubbling information
-	if ctx, ok := context.(map[string]any); ok {
+	if evalCtx, ok := context.(*Eval); ok {
+		if mb, ok := mediaBlocksBackup.([]any); ok {
+			evalCtx.MediaBlocks = mb
+		}
+		if mp, ok := mediaPathBackup.([]any); ok {
+			evalCtx.MediaPath = mp
+		}
+	} else if ctx, ok := context.(map[string]any); ok {
 		ctx["mediaPath"] = mediaPathBackup
 		ctx["mediaBlocks"] = mediaBlocksBackup
 	}

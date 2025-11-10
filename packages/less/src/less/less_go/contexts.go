@@ -264,7 +264,8 @@ func (e *Eval) RewritePath(path, rootpath string) string {
 	if rootpath == "" {
 		rootpath = ""
 	}
-	newPath := e.NormalizePath(rootpath + path)
+	combined := rootpath + path
+	newPath := e.NormalizePath(combined)
 
 	// If a path was explicit relative and the rootpath was not an absolute path
 	// we must ensure that the new path is also explicit relative.
