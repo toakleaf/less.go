@@ -1614,7 +1614,7 @@ func (e *EntityParsers) Dimension() any {
 		return nil
 	}
 
-	value := e.parsers.parser.parserInput.Re(regexp.MustCompile(`^([+-]?\d*\.?\d+)(%|[a-z_]+)?`))
+	value := e.parsers.parser.parserInput.Re(regexp.MustCompile(`^([+-]?\d*\.?\d+)(%|[a-zA-Z_]+)?`))
 	if value != nil {
 		matches := value.([]string)
 		var unit string
