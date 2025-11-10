@@ -10,8 +10,7 @@ type Expression struct {
 	*Node
 	Value      []any
 	NoSpacing  bool
-	Parens     bool
-	ParensInOp bool
+	// Note: Parens and ParensInOp are managed via the embedded *Node
 }
 
 // NewExpression creates a new Expression instance
@@ -66,7 +65,7 @@ func (e *Expression) Eval(context any) (any, error) {
 		}
 	}
 
-	inParenthesis := e.Parens
+	inParenthesis := e.Node.Parens
 	doubleParen := false
 
 	debugTrace := os.Getenv("LESS_GO_TRACE") == "1"
@@ -193,11 +192,11 @@ func (e *Expression) Eval(context any) (any, error) {
 	}
 
 	// Match JavaScript: if (this.parens && this.parensInOp && !mathOn && !doubleParen && (!(returnValue instanceof Dimension)))
-	if e.Parens && e.ParensInOp && !mathOn && !doubleParen {
+	if e.Node.Parens && e.Node.ParensInOp && !mathOn && !doubleParen {
 		if _, isDimension := SafeTypeAssertion[*Dimension](returnValue); !isDimension {
 			returnValue = NewParen(returnValue)
 		}
-	} else if e.Parens && !mathOn && !doubleParen {
+	} else if e.Node.Parens && !mathOn && !doubleParen {
 		// Special case for calc(): preserve parentheses even without ParensInOp
 		// Check if we're in calc context
 		if evalCtx, ok := context.(*Eval); ok {
@@ -216,6 +215,37 @@ func (e *Expression) Eval(context any) (any, error) {
 					}
 				}
 			}
+		}
+	}
+
+	// Propagate ParensInOp flag to the return value for parens-division mode
+	// This ensures division operations know when an operand came from a parenthesized expression
+	if e.Node.ParensInOp && returnValue != nil {
+		if debugTrace {
+			fmt.Printf("[TRACE] Expression.Eval: propagating ParensInOp to returnValue (type=%T)\n", returnValue)
+		}
+		if nodeWithParens, ok := returnValue.(interface{ SetParensInOp(bool) }); ok {
+			nodeWithParens.SetParensInOp(true)
+			if debugTrace {
+				fmt.Printf("[TRACE] Expression.Eval: set ParensInOp=true via SetParensInOp interface\n")
+			}
+		} else if dimNode, ok := returnValue.(*Dimension); ok && dimNode.Node != nil {
+			dimNode.Node.ParensInOp = true
+			if debugTrace {
+				fmt.Printf("[TRACE] Expression.Eval: set ParensInOp=true on Dimension.Node\n")
+			}
+		} else if exprNode, ok := returnValue.(*Expression); ok && exprNode.Node != nil {
+			exprNode.Node.ParensInOp = true
+			if debugTrace {
+				fmt.Printf("[TRACE] Expression.Eval: set ParensInOp=true on Expression.Node\n")
+			}
+		} else if opNode, ok := returnValue.(*Operation); ok && opNode.Node != nil {
+			opNode.Node.ParensInOp = true
+			if debugTrace {
+				fmt.Printf("[TRACE] Expression.Eval: set ParensInOp=true on Operation.Node\n")
+			}
+		} else if debugTrace {
+			fmt.Printf("[TRACE] Expression.Eval: could not set ParensInOp on returnValue (type=%T)\n", returnValue)
 		}
 	}
 
@@ -303,12 +333,12 @@ func (e *Expression) ThrowAwayComments() {
 
 // GetParens returns the Parens flag
 func (e *Expression) GetParens() bool {
-	return e.Parens
+	return e.Node.Parens
 }
 
 // GetParensInOp returns the ParensInOp flag
 func (e *Expression) GetParensInOp() bool {
-	return e.ParensInOp
+	return e.Node.ParensInOp
 }
 
 // GetType returns the type of the node for visitor pattern consistency

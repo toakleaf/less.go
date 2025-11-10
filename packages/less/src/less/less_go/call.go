@@ -683,9 +683,9 @@ func (c *Call) preprocessArgs(args []any) []any {
 				newExpr := &Expression{
 					Node:       NewNode(),
 					Value:      subNodes,
-					ParensInOp: expr.ParensInOp,
-					Parens:     expr.Parens,
 				}
+				newExpr.Node.ParensInOp = expr.Node.ParensInOp
+				newExpr.Node.Parens = expr.Node.Parens
 				newExpr.Node.Index = expr.GetIndex()
 				newExpr.Node.SetFileInfo(expr.FileInfo())
 				processed = append(processed, newExpr)

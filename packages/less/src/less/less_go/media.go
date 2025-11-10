@@ -601,8 +601,8 @@ func (m *Media) deeplyEvaluateFeatures(features any, context any) any {
 		}
 		newExpr, _ := NewExpression(evaluatedValues, exprNode.NoSpacing)
 		if newExpr != nil {
-			newExpr.Parens = exprNode.Parens
-			newExpr.ParensInOp = exprNode.ParensInOp
+			newExpr.Node.Parens = exprNode.Node.Parens
+			newExpr.Node.ParensInOp = exprNode.Node.ParensInOp
 		}
 		return newExpr
 	}

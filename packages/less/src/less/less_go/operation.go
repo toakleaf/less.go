@@ -113,6 +113,68 @@ func (o *Operation) Eval(context any) (any, error) {
 		}
 	}
 
+	// In parens-division mode, if math is OFF but either operand has parensInOp=true,
+	// we should evaluate the operation because at least one operand was in parentheses
+	if !mathOn && o.Op == "/" && IsMathParensDivision(context) {
+		// Check if either operand has parensInOp set
+		aHasParensInOp := false
+		bHasParensInOp := false
+
+		// Check various node types for parensInOp
+		if nodeA, ok := a.(interface{ GetParensInOp() bool }); ok {
+			aHasParensInOp = nodeA.GetParensInOp()
+			if debugTrace {
+				fmt.Printf("[TRACE] Operation.Eval: operand a (interface) parensInOp=%v, type=%T\n", aHasParensInOp, a)
+			}
+		} else if nodeA, ok := a.(*Expression); ok && nodeA.Node != nil {
+			aHasParensInOp = nodeA.Node.ParensInOp
+			if debugTrace {
+				fmt.Printf("[TRACE] Operation.Eval: operand a (Expression) parensInOp=%v\n", aHasParensInOp)
+			}
+		} else if nodeA, ok := a.(*Dimension); ok && nodeA.Node != nil {
+			aHasParensInOp = nodeA.Node.ParensInOp
+			if debugTrace {
+				fmt.Printf("[TRACE] Operation.Eval: operand a (Dimension) parensInOp=%v\n", aHasParensInOp)
+			}
+		} else if nodeA, ok := a.(*Operation); ok && nodeA.Node != nil {
+			aHasParensInOp = nodeA.Node.ParensInOp
+			if debugTrace {
+				fmt.Printf("[TRACE] Operation.Eval: operand a (Operation) parensInOp=%v\n", aHasParensInOp)
+			}
+		}
+
+		if nodeB, ok := b.(interface{ GetParensInOp() bool }); ok {
+			bHasParensInOp = nodeB.GetParensInOp()
+			if debugTrace {
+				fmt.Printf("[TRACE] Operation.Eval: operand b (interface) parensInOp=%v, type=%T\n", bHasParensInOp, b)
+			}
+		} else if nodeB, ok := b.(*Expression); ok && nodeB.Node != nil {
+			bHasParensInOp = nodeB.Node.ParensInOp
+			if debugTrace {
+				fmt.Printf("[TRACE] Operation.Eval: operand b (Expression) parensInOp=%v\n", bHasParensInOp)
+			}
+		} else if nodeB, ok := b.(*Dimension); ok && nodeB.Node != nil {
+			bHasParensInOp = nodeB.Node.ParensInOp
+			if debugTrace {
+				fmt.Printf("[TRACE] Operation.Eval: operand b (Dimension) parensInOp=%v\n", bHasParensInOp)
+			}
+		} else if nodeB, ok := b.(*Operation); ok && nodeB.Node != nil {
+			bHasParensInOp = nodeB.Node.ParensInOp
+			if debugTrace {
+				fmt.Printf("[TRACE] Operation.Eval: operand b (Operation) parensInOp=%v\n", bHasParensInOp)
+			}
+		}
+
+		if aHasParensInOp || bHasParensInOp {
+			mathOn = true
+			if debugTrace {
+				fmt.Printf("[TRACE] Operation.Eval: enabling math for division due to parensInOp (a=%v, b=%v)\n", aHasParensInOp, bHasParensInOp)
+			}
+		} else if debugTrace {
+			fmt.Printf("[TRACE] Operation.Eval: NOT enabling math for division - parensInOp (a=%v, b=%v), types (a=%T, b=%T)\n", aHasParensInOp, bHasParensInOp, a, b)
+		}
+	}
+
 	if mathOn {
 		// Match JavaScript: op = this.op === './' ? '/' : this.op;
 		op := o.Op

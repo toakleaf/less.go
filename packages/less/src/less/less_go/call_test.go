@@ -727,33 +727,36 @@ func TestCallArgumentPreprocessing_JavaScriptConsistency(t *testing.T) {
 		},
 		{
 			name: "single-item expression flattening",
-			input: []any{
-				&Expression{
+			input: func() []any {
+				expr := &Expression{
 					Node:   NewNode(),
 					Value:  []any{"single_value"},
-					Parens: false,
-				},
-			},
+				}
+				expr.Node.Parens = false
+				return []any{expr}
+			}(),
 			expected: []any{"single_value"},
 			jsLogic:  "JavaScript: single-item expression flattens to the item",
 		},
 		{
 			name: "single-item expression with parens and division - keep expression",
-			input: []any{
-				&Expression{
+			input: func() []any {
+				expr := &Expression{
 					Node:   NewNode(),
 					Value:  []any{NewOperation("/", []any{"10", "2"}, false)},
-					Parens: true,
-				},
-			},
+				}
+				expr.Node.Parens = true
+				return []any{expr}
+			}(),
 			// Should keep the expression due to parens + division rule
-			expected: []any{
-				&Expression{
+			expected: func() []any {
+				expr := &Expression{
 					Node:   NewNode(),
 					Value:  []any{NewOperation("/", []any{"10", "2"}, false)},
-					Parens: true,
-				},
-			},
+				}
+				expr.Node.Parens = true
+				return []any{expr}
+			}(),
 			jsLogic: "JavaScript: if (item.parens && subNodes[0].op === '/') return item",
 		},
 		{

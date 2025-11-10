@@ -2302,7 +2302,7 @@ func (p *Parsers) Sub() any {
 			// This allows math operations to collapse during evaluation
 			expr, err := NewExpression([]any{a}, false)
 			if err == nil {
-				expr.Parens = true
+				expr.Node.Parens = true
 				e = expr
 			}
 			return e
@@ -2346,7 +2346,7 @@ func (p *Parsers) Sub() any {
 					if hasColon {
 						return NewParen(expr)
 					} else {
-						expr.Parens = true
+						expr.Node.Parens = true
 						return expr
 					}
 				}

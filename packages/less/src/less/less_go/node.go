@@ -411,4 +411,14 @@ func (n *Node) CopyVisibilityInfo(info map[string]any) {
 	if visible, ok := info["nodeVisible"].(*bool); ok {
 		n.NodeVisible = visible
 	}
+}
+
+// SetParensInOp sets the ParensInOp flag for this node
+func (n *Node) SetParensInOp(value bool) {
+	n.ParensInOp = value
+}
+
+// GetParensInOp returns the ParensInOp flag for this node
+func (n *Node) GetParensInOp() bool {
+	return n.ParensInOp
 } 
