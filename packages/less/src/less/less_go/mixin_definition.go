@@ -729,23 +729,14 @@ func (md *MixinDefinition) EvalCall(context any, args []any, important bool) (*R
 		return nil, fmt.Errorf("expected *Ruleset from Eval, got %T", evaluated)
 	}
 
-	// IMPORTANT: Clear visibility blocks from output rules
-	// When a mixin from a reference import is called, the output should start as visible.
+	// IMPORTANT: Ensure visibility for all output rules (including nested content)
+	// When a mixin from a reference import is called, the output should be visible.
 	// The MixinCall.setVisibilityToReplacement() will add visibility blocks back if needed
 	// (i.e., if the mixin CALL itself is from a reference import).
 	// This ensures that calling a mixin from a reference import makes its output visible.
-	if evaluatedRuleset.Rules != nil {
-		for _, rule := range evaluatedRuleset.Rules {
-			if ruleNode, ok := rule.(interface{ GetNode() *Node }); ok {
-				if node := ruleNode.GetNode(); node != nil {
-					// Clear visibility blocks and visibility state
-					zero := 0
-					node.VisibilityBlocks = &zero
-					node.NodeVisible = nil
-				}
-			}
-		}
-	}
+	// Use SetTreeVisibilityVisitor to recursively ensure visibility for all nested nodes.
+	visitor := NewSetTreeVisibilityVisitor(true)
+	visitor.Run(evaluatedRuleset)
 
 	if important {
 		importantResult := evaluatedRuleset.MakeImportant()
