@@ -312,7 +312,11 @@ func Max(args ...interface{}) (interface{}, error) {
 
 // Convert converts a dimension to the specified unit
 func Convert(val *Dimension, unit *Dimension) (*Dimension, error) {
-	result := val.ConvertTo(unit.Value)
+	// Extract the unit string from the unit argument
+	// In JavaScript, the second parameter is often a Keyword where .value is the string
+	// But in Go, we wrap it in a Dimension, so we need to extract the unit string
+	unitStr := unit.Unit.ToString()
+	result := val.ConvertTo(unitStr)
 	return result, nil
 }
 
