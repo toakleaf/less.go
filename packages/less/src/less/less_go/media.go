@@ -134,6 +134,7 @@ func (m *Media) EvalTop(context any) any {
 			}
 			ruleset := NewRuleset(selectors, mediaBlocks, false, m.VisibilityInfo())
 			ruleset.MultiMedia = true // Set MultiMedia to true for multiple media blocks
+			ruleset.AllowImports = true // CRITICAL FIX: MultiMedia rulesets must have AllowImports=true
 			ruleset.CopyVisibilityInfo(m.VisibilityInfo())
 			m.SetParent(ruleset.Node, m.Node)
 			result = ruleset
@@ -171,6 +172,7 @@ func (m *Media) EvalTop(context any) any {
 		}
 		ruleset := NewRuleset(selectors, mediaBlocks, false, m.VisibilityInfo())
 		ruleset.MultiMedia = true // Set MultiMedia to true for multiple media blocks
+		ruleset.AllowImports = true // CRITICAL FIX: MultiMedia rulesets must have AllowImports=true
 		ruleset.CopyVisibilityInfo(m.VisibilityInfo())
 		m.SetParent(ruleset.Node, m.Node)
 		result = ruleset
@@ -432,6 +434,7 @@ func (m *Media) BubbleSelectors(selectors any) {
 	}
 	
 	newRuleset := NewRuleset(anySelectors, []any{m.Rules[0]}, false, nil)
+	newRuleset.AllowImports = true // CRITICAL FIX: BubbleSelectors rulesets must have AllowImports=true
 	m.Rules = []any{newRuleset}
 	m.SetParent(m.Rules, m.Node)
 }
@@ -549,6 +552,12 @@ func (m *Media) Eval(context any) (any, error) {
 			evaluated, err := ruleset.Eval(context)
 			if err != nil {
 				return nil, err
+			}
+			// CRITICAL FIX: Preserve AllowImports flag from original ruleset
+			// This ensures rulesets inside Media nodes are kept during CSS generation
+			// Must be set BEFORE assigning to media.Rules
+			if evaluatedRuleset, ok := evaluated.(*Ruleset); ok {
+				evaluatedRuleset.AllowImports = ruleset.AllowImports
 			}
 			media.Rules = []any{evaluated}
 
@@ -726,6 +735,10 @@ func (m *Media) evalWithMapContext(ctx map[string]any) (any, error) {
 				return nil, err
 			}
 			media.Rules = []any{evaluated}
+			// CRITICAL FIX: Preserve AllowImports flag from original ruleset
+			if evaluatedRuleset, ok := evaluated.(*Ruleset); ok {
+				evaluatedRuleset.AllowImports = ruleset.AllowImports
+			}
 
 			// Match JavaScript: context.frames.shift();
 			if currentFrames, ok := ctx["frames"].([]any); ok && len(currentFrames) > 0 {

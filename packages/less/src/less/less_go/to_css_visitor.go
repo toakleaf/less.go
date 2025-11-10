@@ -184,6 +184,19 @@ func (u *CSSVisitorUtils) IsVisibleRuleset(rulesetNode any) bool {
 		}
 	}
 
+	// CRITICAL FIX: Check AllowImports BEFORE checking if empty!
+	// Special case: rulesets that are direct children of Media/AtRule nodes
+	// These rulesets have AllowImports == true and don't need visible selectors
+	// or content because their parent node provides the selector context
+	// This must come before the empty check to prevent filtering out Media wrapper rulesets
+	if allowImportsNode, ok := rulesetNode.(interface{ GetAllowImports() bool }); ok {
+		if allowImportsNode.GetAllowImports() {
+			// This is a wrapper ruleset inside a Media/AtRule node
+			// Keep it even if it has no visible selectors or is empty
+			return true
+		}
+	}
+
 	if u.IsEmpty(rulesetNode) {
 		return false
 	}
@@ -197,17 +210,6 @@ func (u *CSSVisitorUtils) IsVisibleRuleset(rulesetNode any) bool {
 			if vis == nil || !*vis {
 				return false
 			}
-		}
-	}
-
-	// Special case: rulesets that are direct children of Media/AtRule nodes
-	// These rulesets have AllowImports == true and don't need visible selectors
-	// because their parent node provides the selector context
-	if allowImportsNode, ok := rulesetNode.(interface{ GetAllowImports() bool }); ok {
-		if allowImportsNode.GetAllowImports() {
-			// This is a wrapper ruleset inside a Media/AtRule node
-			// Keep it even if it has no visible selectors
-			return true
 		}
 	}
 
@@ -706,8 +708,7 @@ func (v *ToCSSVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitArgs) any {
 		// Insert at beginning
 		rulesets = append([]any{rulesetNode}, rulesets...)
 	}
-	
-	
+
 	if len(rulesets) == 1 {
 		return rulesets[0]
 	}
