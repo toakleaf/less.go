@@ -3,8 +3,8 @@
 ## Current Status
 
 **Branch:** `claude/fix-detached-rulesets-mediapath-011CUzHVDoVsRgMmWen7BWeb`
-**Latest Commit:** `c6be828` - "WIP: Fix detached-rulesets media query output (partial)"
-**Test Status:** 77/184 perfect matches (baseline: 78-79) - **NO MAJOR REGRESSIONS**
+**Latest Commit:** `747ab5f` - "Fix regression: Visit MultiMedia children for selector processing"
+**Test Status:** 79/184 perfect matches (baseline: 79) - **ZERO REGRESSIONS** ✅
 **Target Test:** `detached-rulesets` - Currently compiles but CSS output differs
 
 ## What's Been Done (Session Summary)
@@ -22,6 +22,7 @@ The detached-rulesets test was failing because merged media queries from detache
    - **Problem:** ToCSSVisitor was extracting Media nodes from MultiMedia Rulesets
    - **Fix:** Added check to skip extraction for rulesets with `MultiMedia=true`
    - **Fix:** Always keep MultiMedia Rulesets (don't filter based on visibility)
+   - **Fix:** Visit MultiMedia children for selector processing without extracting them
 
 3. **CSS Generation Phase (PARTIALLY FIXED):**
    - **Fixed:** MultiMedia Rulesets now render directly without selectors
