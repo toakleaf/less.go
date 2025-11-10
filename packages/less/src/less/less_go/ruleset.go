@@ -7,6 +7,29 @@ import (
 	"strings"
 )
 
+// Debug helper functions
+func elementToString(el *Element) string {
+	if el == nil {
+		return "nil"
+	}
+	combStr := ""
+	if el.Combinator != nil {
+		combStr = fmt.Sprintf("[comb:%q]", el.Combinator.Value)
+	}
+	return fmt.Sprintf("%s%v", combStr, el.Value)
+}
+
+func elementSliceToString(els []*Element) string {
+	if len(els) == 0 {
+		return "[]"
+	}
+	parts := make([]string, len(els))
+	for i, el := range els {
+		parts[i] = elementToString(el)
+	}
+	return "[" + strings.Join(parts, ", ") + "]"
+}
+
 // SelectorsParseFunc is a function type for parsing selector strings into selectors
 type SelectorsParseFunc func(input string, context map[string]any, imports map[string]any, fileInfo map[string]any, index int) ([]any, error)
 
@@ -1784,7 +1807,10 @@ func (r *Ruleset) JoinSelector(paths *[][]any, context [][]any, selector any) {
 			copy(newSelectorPath, beginningPath)
 			if lastSel, ok := newSelectorPath[len(newSelectorPath)-1].(*Selector); ok {
 				newSelectorPath = newSelectorPath[:len(newSelectorPath)-1]
-				newJoinedSelector, _ = originalSelector.CreateDerived(lastSel.Elements[:], nil, nil)
+				// Create a copy of lastSel.Elements to avoid modifying the original
+				lastSelElements := make([]*Element, len(lastSel.Elements))
+				copy(lastSelElements, lastSel.Elements)
+				newJoinedSelector, _ = originalSelector.CreateDerived(lastSelElements, nil, nil)
 			}
 		} else {
 			newJoinedSelector, _ = originalSelector.CreateDerived([]*Element{}, nil, nil)
@@ -1803,6 +1829,11 @@ func (r *Ruleset) JoinSelector(paths *[][]any, context [][]any, selector any) {
 					combinator = parentEl.Combinator
 				}
 				// Join the elements so far with the first part of the parent
+				// Debug: Print what we're doing
+				if os.Getenv("LESS_GO_DEBUG_SELECTOR") == "1" {
+					fmt.Fprintf(os.Stderr, "DEBUG addReplacementIntoPath: newJoinedSelector before=%v, parentEl=%v\n",
+						elementSliceToString(newJoinedSelector.Elements), elementToString(parentEl))
+				}
 				newJoinedSelector.Elements = append(newJoinedSelector.Elements, NewElement(
 					combinator,
 					parentEl.Value,
@@ -1812,6 +1843,10 @@ func (r *Ruleset) JoinSelector(paths *[][]any, context [][]any, selector any) {
 					nil,
 				))
 				newJoinedSelector.Elements = append(newJoinedSelector.Elements, firstPathSel.Elements[1:]...)
+				if os.Getenv("LESS_GO_DEBUG_SELECTOR") == "1" {
+					fmt.Fprintf(os.Stderr, "DEBUG addReplacementIntoPath: newJoinedSelector after=%v\n",
+						elementSliceToString(newJoinedSelector.Elements))
+				}
 			}
 		}
 
