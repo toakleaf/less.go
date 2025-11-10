@@ -377,14 +377,18 @@ func (n *Node) RemoveVisibilityBlock() {
 
 // EnsureVisibility sets node visibility to true
 func (n *Node) EnsureVisibility() {
-	trueVal := true
-	n.NodeVisible = &trueVal
+	// Allocate a new bool to avoid local variable scope issues
+	trueVal := new(bool)
+	*trueVal = true
+	n.NodeVisible = trueVal
 }
 
 // EnsureInvisibility sets node visibility to false
 func (n *Node) EnsureInvisibility() {
-	falseVal := false
-	n.NodeVisible = &falseVal
+	// Allocate a new bool to avoid local variable scope issues
+	falseVal := new(bool)
+	*falseVal = false
+	n.NodeVisible = falseVal
 }
 
 // IsVisible returns the node's visibility state
