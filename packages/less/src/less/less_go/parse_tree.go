@@ -187,6 +187,9 @@ func (pt *ParseTree) ToCSS(options *ToCSSOptions) (*ToCSSResult, error) {
 		// Generate CSS without source map
 		// Handle case where ToCSSVisitor returns multiple rulesets as array
 		if rulesetArray, ok := evaldRoot.([]any); ok {
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Fprintf(os.Stderr, "[PARSE_TREE.ToCSS] Processing array of %d rulesets\n", len(rulesetArray))
+			}
 			// Multiple rulesets returned by ToCSSVisitor - generate CSS for each separately
 			var cssBuilder strings.Builder
 			for i, ruleset := range rulesetArray {

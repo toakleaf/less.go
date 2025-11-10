@@ -1529,6 +1529,14 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 		ctx = make(map[string]any)
 	}
 
+	// Check if this ruleset should be treated as top-level
+	// When rulesets are extracted from parent rulesets and output separately,
+	// they should be formatted as top-level rulesets even though Root=false
+	isTopLevel := false
+	if tl, ok := ctx["topLevel"].(bool); ok && tl {
+		isTopLevel = true
+	}
+
 	// Set tab level
 	tabLevel := 0
 	if tl, ok := ctx["tabLevel"].(int); ok {
@@ -1544,7 +1552,9 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 		}
 	}
 
-	if !r.Root && !isMediaEmpty {
+	// For non-root, non-media-empty rulesets: increment tabLevel
+	// But skip this for top-level rulesets (extracted rulesets that should be formatted at root level)
+	if !r.Root && !isMediaEmpty && !isTopLevel {
 		tabLevel++
 		ctx["tabLevel"] = tabLevel
 	}
@@ -1559,9 +1569,16 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 		tabRuleStr = ""
 		tabSetStr = ""
 	} else {
+		// For top-level rulesets, calculate tabRuleStr as if we had incremented tabLevel
+		// This ensures declarations inside have correct indentation (2 spaces)
+		effectiveTabLevel := tabLevel
+		if !r.Root && isTopLevel {
+			effectiveTabLevel = tabLevel + 1
+		}
+
 		// JavaScript: Array(tabLevel + 1).join('  ') produces (tabLevel) * 2 spaces
 		// JavaScript: Array(tabLevel).join('  ') produces (tabLevel - 1) * 2 spaces (minimum 0)
-		tabRuleStr = strings.Repeat("  ", tabLevel)
+		tabRuleStr = strings.Repeat("  ", effectiveTabLevel)
 		if tabLevel > 0 {
 			tabSetStr = strings.Repeat("  ", tabLevel-1)
 		} else {
@@ -1765,9 +1782,27 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 			ctx["lastRule"] = false
 		}
 
+		// For file-level root rulesets: mark child rulesets as top-level so they format correctly
+		// This ensures extracted rulesets (that were moved to root's rules) are treated as top-level
+		// Only do this for the actual file root (tabLevel == 0), not for container rulesets like @keyframes
+		childContext := ctx
+		if r.Root && tabLevel == 0 {
+			if childRuleset, ok := rule.(*Ruleset); ok && !childRuleset.Root {
+				// Create a new context for the child with topLevel flag
+				// Don't modify tabLevel - let it stay as-is so declarations inside have correct indentation
+				childContext = make(map[string]any)
+				for k, v := range ctx {
+					childContext[k] = v
+				}
+				childContext["topLevel"] = true
+				// Note: We don't set tabLevel=0 because that would affect indentation of declarations
+				// The topLevel flag will prevent incrementing tabLevel, which is what we want
+			}
+		}
+
 		// Generate CSS for the rule
 		if gen, ok := rule.(interface{ GenCSS(any, *CSSOutput) }); ok {
-			gen.GenCSS(ctx, output)
+			gen.GenCSS(childContext, output)
 		} else if val, ok := rule.(interface{ GetValue() any }); ok {
 			output.Add(fmt.Sprintf("%v", val.GetValue()), nil, nil)
 		}
@@ -1779,7 +1814,27 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 			shouldAddNewline := false
 
 			// Check if rule is visible (for declarations, etc.)
-			if vis, ok := rule.(interface{ IsVisible() bool }); ok && vis.IsVisible() {
+			// Also check if rule blocks visibility but is not explicitly visible (from reference imports)
+			// IMPORTANT: Check for Node visibility (BlocksVisibility/IsVisible *bool) FIRST,
+			// before checking simple IsVisible() bool, because Comment has both methods
+			// and we want to respect the Node's visibility from reference imports
+			if visNode, ok := rule.(interface{ BlocksVisibility() bool; IsVisible() *bool }); ok {
+				blocksVis := visNode.BlocksVisibility()
+				if blocksVis {
+					// Node blocks visibility (from reference import) - only visible if explicitly marked
+					nodeVisible := visNode.IsVisible()
+					if nodeVisible != nil && *nodeVisible {
+						shouldAddNewline = true
+					}
+					// else: invisible, don't add newline
+				} else {
+					// Node doesn't block visibility - check simple IsVisible
+					if vis2, ok2 := rule.(interface{ IsVisible() bool }); ok2 && vis2.IsVisible() {
+						shouldAddNewline = true
+					}
+				}
+			} else if vis, ok := rule.(interface{ IsVisible() bool }); ok && vis.IsVisible() {
+				// Node doesn't have BlocksVisibility/IsVisible *bool, and IsVisible() is true
 				shouldAddNewline = true
 			}
 
@@ -1811,9 +1866,10 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 	}
 
 	// Decrement tab level FIRST for correct newline logic
-	// Do this for all non-root rulesets, even if we skip output (for extend-only rulesets)
-	// But skip for media-empty rulesets since they didn't increment tabLevel
-	if !r.Root && !isMediaEmpty {
+	// Do this for all non-root rulesets (except top-level and media-empty), even if we skip output (for extend-only rulesets)
+	// Skip for top-level because we didn't increment it
+	// Skip for media-empty rulesets since they didn't increment tabLevel
+	if !r.Root && !isTopLevel && !isMediaEmpty {
 		tabLevel--
 		ctx["tabLevel"] = tabLevel
 	}
@@ -1830,7 +1886,7 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 		// Only add if we're not the last rule and not inside an at-rule container
 		// At-rule containers (Media, etc.) handle their own spacing via OutputRuleset
 		if !compress && !parentLastRule && tabLevel == 0 {
-			// We're a top-level ruleset (tabLevel was 1, now 0 after decrement)
+			// We're a top-level ruleset (tabLevel was 1 before decrement, or 0 for isTopLevel)
 			// Add newline to separate from next top-level ruleset
 			output.Add("\n", nil, nil)
 		}
