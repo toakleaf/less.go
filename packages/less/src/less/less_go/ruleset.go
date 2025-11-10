@@ -1782,10 +1782,11 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 			ctx["lastRule"] = false
 		}
 
-		// For root rulesets: mark child rulesets as top-level so they format correctly
+		// For file-level root rulesets: mark child rulesets as top-level so they format correctly
 		// This ensures extracted rulesets (that were moved to root's rules) are treated as top-level
+		// Only do this for the actual file root (tabLevel == 0), not for container rulesets like @keyframes
 		childContext := ctx
-		if r.Root {
+		if r.Root && tabLevel == 0 {
 			if childRuleset, ok := rule.(*Ruleset); ok && !childRuleset.Root {
 				// Create a new context for the child with topLevel flag
 				// Don't modify tabLevel - let it stay as-is so declarations inside have correct indentation
@@ -1813,7 +1814,27 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 			shouldAddNewline := false
 
 			// Check if rule is visible (for declarations, etc.)
-			if vis, ok := rule.(interface{ IsVisible() bool }); ok && vis.IsVisible() {
+			// Also check if rule blocks visibility but is not explicitly visible (from reference imports)
+			// IMPORTANT: Check for Node visibility (BlocksVisibility/IsVisible *bool) FIRST,
+			// before checking simple IsVisible() bool, because Comment has both methods
+			// and we want to respect the Node's visibility from reference imports
+			if visNode, ok := rule.(interface{ BlocksVisibility() bool; IsVisible() *bool }); ok {
+				blocksVis := visNode.BlocksVisibility()
+				if blocksVis {
+					// Node blocks visibility (from reference import) - only visible if explicitly marked
+					nodeVisible := visNode.IsVisible()
+					if nodeVisible != nil && *nodeVisible {
+						shouldAddNewline = true
+					}
+					// else: invisible, don't add newline
+				} else {
+					// Node doesn't block visibility - check simple IsVisible
+					if vis2, ok2 := rule.(interface{ IsVisible() bool }); ok2 && vis2.IsVisible() {
+						shouldAddNewline = true
+					}
+				}
+			} else if vis, ok := rule.(interface{ IsVisible() bool }); ok && vis.IsVisible() {
+				// Node doesn't have BlocksVisibility/IsVisible *bool, and IsVisible() is true
 				shouldAddNewline = true
 			}
 
