@@ -8,8 +8,8 @@
 
 ## Critical Information
 - **Project**: `/home/user/less.go` - LESS CSS preprocessor ported from JavaScript to Go
-- **Branch**: `claude/fix-import-reference-visibility-011CUzUW1GkAgERNMJy2XUnx`
-- **Session ID**: `011CUzWJ7hLvtarEucR1NpB9` (use for new branch if needed)
+- **Branch**: `claude/fix-import-reference-ruleset-properties-011CUzWJ7hLvtarEucR1NpB9`
+- **Session ID**: `011CUzWJ7hLvtarEucR1NpB9`
 - **Context file**: Read `/home/user/less.go/CLAUDE.md` for full project context
 - **Zero regressions tolerance**: Must maintain 79 perfect CSS matches
 
@@ -195,9 +195,9 @@ The issue is in how rulesets from reference imports are made visible:
 
 ## Branch Information
 
-- **Current branch**: `claude/fix-import-reference-visibility-011CUzUW1GkAgERNMJy2XUnx`
-- **If you need a new branch**: Use session ID `011CUzWJ7hLvtarEucR1NpB9`
-- **Push with**: `git push -u origin <branch-name>`
+- **Current branch**: `claude/fix-import-reference-ruleset-properties-011CUzWJ7hLvtarEucR1NpB9`
+- **Session ID**: `011CUzWJ7hLvtarEucR1NpB9`
+- **Push with**: `git push -u origin claude/fix-import-reference-ruleset-properties-011CUzWJ7hLvtarEucR1NpB9`
 
 ## Context
 
