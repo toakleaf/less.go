@@ -134,18 +134,17 @@ func (dr *DetachedRuleset) CallEval(context any) any {
 				panic(err)
 			}
 
-			// IMPORTANT: Copy back NEW mediaBlocks from the map context to the parent context
-			// When DetachedRuleset creates a new map context with copied mediaBlocks,
-			// any new media blocks added during evaluation need to be propagated to the parent.
+			// IMPORTANT: Copy back ALL mediaBlocks from the map context to the parent context
+			// When DetachedRuleset evaluates nested media queries, those queries modify existing
+			// media blocks (combining features) and may add new ones. We need to replace the
+			// parent's mediaBlocks entirely with the child's version, not try to merge them.
 
 			// Copy from map back to parent *Eval context
 			if parentEval, ok := context.(*Eval); ok {
 				if childBlocks, hasChild := mapContext["mediaBlocks"].([]any); hasChild {
-					originalCount := len(parentEval.MediaBlocks)
-					if len(childBlocks) > originalCount {
-						newBlocks := childBlocks[originalCount:]
-						parentEval.MediaBlocks = append(parentEval.MediaBlocks, newBlocks...)
-					}
+					// Replace parent's mediaBlocks with child's version entirely
+					// This ensures modifications to existing blocks and new blocks are both captured
+					parentEval.MediaBlocks = childBlocks
 				}
 				if childPath, hasPath := mapContext["mediaPath"].([]any); hasPath {
 					parentEval.MediaPath = childPath
@@ -155,16 +154,8 @@ func (dr *DetachedRuleset) CallEval(context any) any {
 			// Copy from map back to parent map context
 			if parentMap, ok := context.(map[string]any); ok {
 				if childBlocks, hasChild := mapContext["mediaBlocks"].([]any); hasChild {
-					if parentBlocks, hasParent := parentMap["mediaBlocks"].([]any); hasParent {
-						originalCount := len(parentBlocks)
-						if len(childBlocks) > originalCount {
-							newBlocks := childBlocks[originalCount:]
-							parentMap["mediaBlocks"] = append(parentBlocks, newBlocks...)
-						}
-					} else {
-						// Parent didn't have mediaBlocks, copy all from child
-						parentMap["mediaBlocks"] = childBlocks
-					}
+					// Replace parent's mediaBlocks with child's version entirely
+					parentMap["mediaBlocks"] = childBlocks
 				}
 				if childPath, hasPath := mapContext["mediaPath"].([]any); hasPath {
 					parentMap["mediaPath"] = childPath
@@ -194,16 +185,17 @@ func (dr *DetachedRuleset) CallEval(context any) any {
 					panic(err)
 				}
 
-				// IMPORTANT: Copy back NEW mediaBlocks from the map context to the parent context
+				// IMPORTANT: Copy back ALL mediaBlocks from the map context to the parent context
+				// When DetachedRuleset evaluates nested media queries, those queries modify existing
+				// media blocks (combining features) and may add new ones. We need to replace the
+				// parent's mediaBlocks entirely with the child's version, not try to merge them.
 
 				// Copy from map back to parent *Eval context
 				if parentEval, ok := context.(*Eval); ok {
 					if childBlocks, hasChild := mapContext["mediaBlocks"].([]any); hasChild {
-						originalCount := len(parentEval.MediaBlocks)
-						if len(childBlocks) > originalCount {
-							newBlocks := childBlocks[originalCount:]
-							parentEval.MediaBlocks = append(parentEval.MediaBlocks, newBlocks...)
-						}
+						// Replace parent's mediaBlocks with child's version entirely
+						// This ensures modifications to existing blocks and new blocks are both captured
+						parentEval.MediaBlocks = childBlocks
 					}
 					if childPath, hasPath := mapContext["mediaPath"].([]any); hasPath {
 						parentEval.MediaPath = childPath
@@ -213,15 +205,8 @@ func (dr *DetachedRuleset) CallEval(context any) any {
 				// Copy from map back to parent map context
 				if parentMap, ok := context.(map[string]any); ok {
 					if childBlocks, hasChild := mapContext["mediaBlocks"].([]any); hasChild {
-						if parentBlocks, hasParent := parentMap["mediaBlocks"].([]any); hasParent {
-							originalCount := len(parentBlocks)
-							if len(childBlocks) > originalCount {
-								newBlocks := childBlocks[originalCount:]
-								parentMap["mediaBlocks"] = append(parentBlocks, newBlocks...)
-							}
-						} else {
-							parentMap["mediaBlocks"] = childBlocks
-						}
+						// Replace parent's mediaBlocks with child's version entirely
+						parentMap["mediaBlocks"] = childBlocks
 					}
 					if childPath, hasPath := mapContext["mediaPath"].([]any); hasPath {
 						parentMap["mediaPath"] = childPath
