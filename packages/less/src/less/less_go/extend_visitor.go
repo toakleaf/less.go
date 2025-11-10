@@ -491,6 +491,9 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 				// Note: Extend.IsVisible() returns bool (not *bool), taking visibility blocks into account
 				isVisible := allExtends[extendIndex].IsVisible()
 
+				// Check if the extend itself has visibility blocks (was created from chaining with invisible target)
+				extendHasVisibilityBlocks := allExtends[extendIndex].Node != nil && allExtends[extendIndex].Node.BlocksVisibility()
+
 				// Check if the matched selector path has visibility blocks (is from a reference import)
 				// Also check if the ruleset itself has visibility blocks
 				// This determines if an invisible extend should match this selector/ruleset
@@ -518,11 +521,11 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 
 				// Only process the match if:
 				// 1. The extend is visible (from a non-reference import), OR
-				// 2. The extend, selector, and ruleset are all from reference imports (all have visibility blocks)
+				// 2. The extend, selector, and ruleset are ALL from reference imports (all have visibility blocks)
 				// BUT: Skip deeply chained extends that target reference import rulesets
 				shouldSkipDeeplyChainedRefExtend := isDeeplyChainedExtend && rulesetHasVisibilityBlocks && isVisible
 
-				if (isVisible || (selectorHasVisibilityBlocks && rulesetHasVisibilityBlocks)) && !shouldSkipDeeplyChainedRefExtend {
+				if (isVisible || (extendHasVisibilityBlocks && selectorHasVisibilityBlocks && rulesetHasVisibilityBlocks)) && !shouldSkipDeeplyChainedRefExtend {
 					// CRITICAL FIX: When a visible extend (from outside a reference import) matches
 					// selectors from a reference import, mark the RULESET as visible (but NOT the original selectors).
 					// The newly created selector (from extendSelector) will be marked as visible via EvaldCondition.
