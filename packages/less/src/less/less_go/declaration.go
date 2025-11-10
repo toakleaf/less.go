@@ -38,8 +38,9 @@ func NewDeclaration(name any, value any, important any, merge any, index int, fi
 	// Handle important flag
 	if important != nil {
 		if str, ok := important.(string); ok {
-			// Ensure consistent spacing: remove any leading space and add exactly one
-			str = strings.TrimLeft(str, " ")
+			// Match JavaScript: always prepend a space to the trimmed important string
+			// JavaScript: this.important = important ? ` ${important.trim()}` : '';
+			str = strings.TrimSpace(str)
 			if str != "" {
 				d.important = " " + str
 			}
@@ -169,7 +170,8 @@ func (d *Declaration) SetValue(value any) {
 // SetImportant sets the important flag
 func (d *Declaration) SetImportant(important bool) {
 	if important {
-		d.important = "!important"
+		// Match JavaScript: always prepend a space
+		d.important = " !important"
 	} else {
 		d.important = ""
 	}
