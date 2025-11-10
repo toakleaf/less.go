@@ -385,6 +385,11 @@ func hasOnlyEmptyContent(rules []any) bool {
 	for _, rule := range rules {
 		// Check if it's a Ruleset
 		if rs, ok := rule.(*Ruleset); ok {
+			// AllowImports rulesets are considered to have content
+			// even if they appear empty (they're structural wrappers)
+			if rs.AllowImports {
+				return false
+			}
 			// If it has selectors with content, it's not empty
 			if len(rs.Selectors) > 0 && len(rs.Rules) > 0 && !hasOnlyEmptyContent(rs.Rules) {
 				return false
@@ -601,6 +606,16 @@ func (m *Media) Eval(context any) (any, error) {
 				return nil, err
 			}
 			media.Rules = []any{evaluated}
+
+			// Propagate AllowImports to direct children to preserve them during ToCSSVisitor
+			// This ensures that rulesets like .my-selector inside detached rulesets are kept
+			if evaluatedRuleset, ok := evaluated.(*Ruleset); ok {
+				for _, child := range evaluatedRuleset.Rules {
+					if childRuleset, ok := child.(*Ruleset); ok {
+						childRuleset.AllowImports = true
+					}
+				}
+			}
 
 			// Match JavaScript: context.frames.shift();
 			if len(evalCtx.Frames) > 0 {
