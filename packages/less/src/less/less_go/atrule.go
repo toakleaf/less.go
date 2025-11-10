@@ -115,6 +115,23 @@ func (a *AtRule) GetIsRooted() bool {
 	return a.IsRooted
 }
 
+// GetRules returns the rules array (for ToCSSVisitor extraction)
+// Only @supports and @document should use this for extraction
+// This handles vendor-prefixed variants like @-moz-document
+func (a *AtRule) GetRules() []any {
+	// Only return rules for directives that should be extracted
+	nonVendorName := stripVendorPrefix(a.Name)
+	if nonVendorName == "@supports" || nonVendorName == "@document" {
+		return a.Rules
+	}
+	return nil
+}
+
+// SetRules sets the rules array (for ToCSSVisitor extraction)
+func (a *AtRule) SetRules(rules []any) {
+	a.Rules = rules
+}
+
 // ToCSS converts the at-rule to CSS string
 func (a *AtRule) ToCSS(context any) string {
 	var strs []string
@@ -254,18 +271,9 @@ func (a *AtRule) Eval(context any) (any, error) {
 		fmt.Printf("[DEBUG AtRule.Eval] name=%q, hasRules=%v\n", a.Name, len(a.Rules) > 0)
 	}
 
-	// Check if this is a bubbling directive (@supports, @document)
-	// These specific directives bubble to the root level like Media nodes
-	// We check by name (after stripping vendor prefix) rather than just isRooted to be more explicit
-	// This handles both @document and vendor-prefixed variants like @-x-document, @-moz-document
-	nonVendorName := stripVendorPrefix(a.Name)
-	isBubblingDirective := !a.IsRooted && (nonVendorName == "@supports" || nonVendorName == "@document")
-
-	if isBubblingDirective {
-		return a.evalBubbling(context)
-	}
-
-	// Standard directives use the regular evaluation
+	// Standard directives use regular evaluation
+	// Note: @supports/@document should NOT use the mediaBlocks bubbling mechanism
+	// They bubble via ToCSSVisitor extraction AFTER JoinSelectorVisitor has run
 	var mediaPathBackup, mediaBlocksBackup any
 	var value any = a.Value
 	var rules []any = a.Rules
@@ -306,7 +314,14 @@ func (a *AtRule) Eval(context any) (any, error) {
 			// Convert back to Ruleset if possible
 			if rs, ok := evaluated.(*Ruleset); ok {
 				rules = []any{rs}
-				rs.Root = true
+				// IMPORTANT: Set Root=true for rooted directives (@font-face, @keyframes)
+				// Also set Root=true for vendor-prefixed @keyframes (@-webkit-keyframes, etc.)
+				// For non-rooted directives (@supports, @document), leave Root unset
+				// so JoinSelectorVisitor can properly handle selector joining
+				isKeyframes := strings.Contains(a.Name, "keyframes")
+				if a.IsRooted || isKeyframes {
+					rs.Root = true
+				}
 			} else {
 				rules = []any{evaluated}
 			}
