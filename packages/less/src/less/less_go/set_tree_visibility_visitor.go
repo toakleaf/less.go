@@ -108,13 +108,13 @@ func (v *SetTreeVisibilityVisitor) callEnsureVisibility(node any) {
 	if node == nil {
 		return
 	}
-	
+
 	// Try interface-based approach first (preferred)
 	if visibilityNode, ok := node.(interface{ EnsureVisibility() }); ok {
 		visibilityNode.EnsureVisibility()
 		return
 	}
-	
+
 	// Fallback to reflection for backward compatibility
 	nodeVal := reflect.ValueOf(node)
 	method := nodeVal.MethodByName("EnsureVisibility")
@@ -122,7 +122,7 @@ func (v *SetTreeVisibilityVisitor) callEnsureVisibility(node any) {
 		method.Call(nil)
 		return
 	}
-	
+
 	// Gracefully handle missing methods - this is a more idiomatic Go approach
 	// than the JavaScript's runtime failure. Nodes that don't support visibility
 	// simply don't get visibility updates, which is a reasonable default.
@@ -158,7 +158,7 @@ func (v *SetTreeVisibilityVisitor) callAccept(node any, visitor any) {
 	if node == nil {
 		return
 	}
-	
+
 	nodeVal := reflect.ValueOf(node)
 	method := nodeVal.MethodByName("Accept")
 	if method.IsValid() {

@@ -954,6 +954,9 @@ func (pev *ProcessExtendsVisitor) extendSelector(matches []any, selectorPath []a
 			if err == nil {
 				if isVisible {
 					derived.EnsureVisibility()
+					// If the extend is visible, also set EvaldCondition so it passes the isOutput check
+					// This is necessary when extending selectors from reference imports
+					derived.EvaldCondition = true
 				} else {
 					derived.EnsureInvisibility()
 				}
