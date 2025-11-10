@@ -689,13 +689,26 @@ func createFunctions(env any) any {
 				})
 			}
 		case "range":
-			if rangeFn, ok := fn.(func(any, any, any) any); ok {
+			if rangeFn, ok := fn.(func(any, any, any) *Expression); ok {
+				// Wrap the function to match the expected signature
 				registry.Add(name, &FlexibleFunctionDef{
 					name:      name,
 					minArgs:   1,
 					maxArgs:   3,
 					variadic:  false,
-					fn:        rangeFn,
+					fn:        func(args ...any) any {
+						var start, end, step any
+						if len(args) > 0 {
+							start = args[0]
+						}
+						if len(args) > 1 {
+							end = args[1]
+						}
+						if len(args) > 2 {
+							step = args[2]
+						}
+						return rangeFn(start, end, step)
+					},
 					needsEval: true,
 				})
 			}
