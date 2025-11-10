@@ -20,16 +20,23 @@ func flattenPath(path []any) []any {
 	return result
 }
 
+// contextInfo holds context information for the JoinSelectorVisitor
+// It tracks both selector paths and whether we're in a MultiMedia Ruleset
+type contextInfo struct {
+	paths      []any // Selector paths
+	multiMedia bool  // True if the Ruleset has MultiMedia=true
+}
+
 // JoinSelectorVisitor implements a visitor that joins selectors in rulesets
 type JoinSelectorVisitor struct {
-	contexts [][]any
+	contexts []*contextInfo
 	visitor  *Visitor
 }
 
 // NewJoinSelectorVisitor creates a new JoinSelectorVisitor
 func NewJoinSelectorVisitor() *JoinSelectorVisitor {
 	jsv := &JoinSelectorVisitor{
-		contexts: [][]any{{}},
+		contexts: []*contextInfo{{paths: []any{}, multiMedia: false}},
 	}
 	jsv.visitor = NewVisitor(jsv)
 	return jsv
@@ -59,11 +66,18 @@ func (jsv *JoinSelectorVisitor) VisitMixinDefinition(mixinDefinitionNode any, vi
 
 // VisitRuleset processes ruleset nodes
 func (jsv *JoinSelectorVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitArgs) any {
-	context := jsv.contexts[len(jsv.contexts)-1]
+	contextItem := jsv.contexts[len(jsv.contexts)-1]
+	context := contextItem.paths
 	paths := make([]any, 0)
 
-	// Push paths to context stack BEFORE JoinSelectors (matches JavaScript)
-	jsv.contexts = append(jsv.contexts, paths)
+	// Check if this is a MultiMedia ruleset
+	isMultiMedia := false
+	if rs, ok := rulesetNode.(*Ruleset); ok {
+		isMultiMedia = rs.MultiMedia
+	}
+
+	// Push new context info to context stack BEFORE JoinSelectors (matches JavaScript)
+	jsv.contexts = append(jsv.contexts, &contextInfo{paths: paths, multiMedia: isMultiMedia})
 	
 	// Try interface-based approach first
 	if rulesetInterface, ok := rulesetNode.(interface {
@@ -124,7 +138,7 @@ func (jsv *JoinSelectorVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitAr
 						}
 						
 						// Update the context stack with the populated paths
-						jsv.contexts[len(jsv.contexts)-1] = paths
+						jsv.contexts[len(jsv.contexts)-1].paths = paths
 					}
 				} else {
 					rulesetInterface.SetSelectors(nil)
@@ -189,7 +203,7 @@ func (jsv *JoinSelectorVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitAr
 						}
 						
 						// Update the context stack with the populated paths
-						jsv.contexts[len(jsv.contexts)-1] = paths
+						jsv.contexts[len(jsv.contexts)-1].paths = paths
 						ruleset.SetPaths(paths)
 					}
 				} else {
@@ -224,25 +238,27 @@ func (jsv *JoinSelectorVisitor) VisitMedia(mediaNode any, visitArgs *VisitArgs) 
 	if len(jsv.contexts) == 0 {
 		return nil
 	}
-	context := jsv.contexts[len(jsv.contexts)-1]
-	
+	contextItem := jsv.contexts[len(jsv.contexts)-1]
+
+	// Set root flag on inner ruleset
+	// JavaScript: mediaNode.rules[0].root = (context.length === 0 || context[0].multiMedia);
+	// Root is true if we're at the top level (context.paths empty) OR inside a MultiMedia Ruleset
+	rootValue := len(contextItem.paths) == 0 || contextItem.multiMedia
+
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor.VisitMedia] contextItem.paths len=%d, multiMedia=%v, setting root=%v\n",
+			len(contextItem.paths), contextItem.multiMedia, rootValue)
+	}
+
 	// Try interface-based approach first
 	if mediaInterface, ok := mediaNode.(interface{ GetRules() []any }); ok {
 		rules := mediaInterface.GetRules()
 		if len(rules) > 0 {
 			if mediaRule, ok := rules[0].(interface{ SetRoot(bool) }); ok {
-				rootValue := len(context) == 0
-				if len(context) > 0 {
-					// Check if first context item has multiMedia property
-					if contextItem, ok := context[0].(map[string]any); ok {
-						if multiMedia, exists := contextItem["multiMedia"]; exists {
-							if multiMediaBool, ok := multiMedia.(bool); ok {
-								rootValue = multiMediaBool
-							}
-						}
-					}
-				}
 				mediaRule.SetRoot(rootValue)
+				if os.Getenv("LESS_GO_DEBUG") == "1" {
+					fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor.VisitMedia] Set root=%v on inner ruleset (interface)\n", rootValue)
+				}
 			}
 		}
 	} else if media, ok := mediaNode.(*Media); ok {
@@ -250,22 +266,14 @@ func (jsv *JoinSelectorVisitor) VisitMedia(mediaNode any, visitArgs *VisitArgs) 
 		rules := media.Rules
 		if len(rules) > 0 {
 			if mediaRule, ok := rules[0].(MediaRule); ok {
-				rootValue := len(context) == 0
-				if len(context) > 0 {
-					// Check if first context item has multiMedia property
-					if contextItem, ok := context[0].(map[string]any); ok {
-						if multiMedia, exists := contextItem["multiMedia"]; exists {
-							if multiMediaBool, ok := multiMedia.(bool); ok {
-								rootValue = multiMediaBool
-							}
-						}
-					}
-				}
 				mediaRule.SetRoot(rootValue)
+				if os.Getenv("LESS_GO_DEBUG") == "1" {
+					fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor.VisitMedia] Set root=%v on inner ruleset (concrete)\n", rootValue)
+				}
 			}
 		}
 	}
-	
+
 	return mediaNode
 }
 
@@ -282,28 +290,21 @@ func (jsv *JoinSelectorVisitor) VisitContainer(containerNode any, visitArgs *Vis
 		}
 		return nil
 	}
-	context := jsv.contexts[len(jsv.contexts)-1]
+	contextItem := jsv.contexts[len(jsv.contexts)-1]
 
 	if os.Getenv("LESS_GO_TRACE") != "" {
-		fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor.VisitContainer] Context length: %d\n", len(context))
+		fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor.VisitContainer] Context paths length: %d\n", len(contextItem.paths))
 	}
+
+	// Set root flag on inner ruleset (same as Media)
+	// Root is true if we're at the top level (context.paths empty) OR inside a MultiMedia Ruleset
+	rootValue := len(contextItem.paths) == 0 || contextItem.multiMedia
 
 	// Try interface-based approach first
 	if containerInterface, ok := containerNode.(interface{ GetRules() []any }); ok {
 		rules := containerInterface.GetRules()
 		if len(rules) > 0 {
 			if containerRule, ok := rules[0].(interface{ SetRoot(bool) }); ok {
-				rootValue := len(context) == 0
-				if len(context) > 0 {
-					// Check if first context item has multiMedia property
-					if contextItem, ok := context[0].(map[string]any); ok {
-						if multiMedia, exists := contextItem["multiMedia"]; exists {
-							if multiMediaBool, ok := multiMedia.(bool); ok {
-								rootValue = multiMediaBool
-							}
-						}
-					}
-				}
 				containerRule.SetRoot(rootValue)
 			}
 		}
@@ -312,17 +313,6 @@ func (jsv *JoinSelectorVisitor) VisitContainer(containerNode any, visitArgs *Vis
 		rules := container.Rules
 		if len(rules) > 0 {
 			if containerRule, ok := rules[0].(MediaRule); ok {
-				rootValue := len(context) == 0
-				if len(context) > 0 {
-					// Check if first context item has multiMedia property
-					if contextItem, ok := context[0].(map[string]any); ok {
-						if multiMedia, exists := contextItem["multiMedia"]; exists {
-							if multiMediaBool, ok := multiMedia.(bool); ok {
-								rootValue = multiMediaBool
-							}
-						}
-					}
-				}
 				containerRule.SetRoot(rootValue)
 			}
 		}
@@ -342,7 +332,8 @@ func (jsv *JoinSelectorVisitor) VisitAtRule(atRuleNode any, visitArgs *VisitArgs
 	if len(jsv.contexts) == 0 {
 		return nil
 	}
-	context := jsv.contexts[len(jsv.contexts)-1]
+	contextItem := jsv.contexts[len(jsv.contexts)-1]
+	contextPaths := contextItem.paths
 
 	// Try interface-based approach first
 	if atRuleInterface, ok := atRuleNode.(interface{ GetRules() []any }); ok {
@@ -369,14 +360,14 @@ func (jsv *JoinSelectorVisitor) VisitAtRule(atRuleNode any, visitArgs *VisitArgs
 						// ONLY @supports and @document get special bubbling treatment
 						// - With context: bubble selectors and set Root=false
 						// - Without context: set Root=false to allow nested selector joining
-						if len(context) > 0 {
+						if len(contextPaths) > 0 {
 							// For bubbling directives with context, bubble selectors
 							// This joins parent selectors with nested selectors
 							if bubbleInterface, ok := atRuleNode.(interface{ BubbleSelectors(any) }); ok {
 								// Extract selectors from context paths
 								// Context is []any where each element is a path ([]any of selectors)
 								selectors := make([]any, 0)
-								for _, path := range context {
+								for _, path := range contextPaths {
 									if pathArray, ok := path.([]any); ok {
 										// Each path is an array of selectors
 										// We want to pass all selectors from all paths
@@ -399,12 +390,12 @@ func (jsv *JoinSelectorVisitor) VisitAtRule(atRuleNode any, visitArgs *VisitArgs
 					} else {
 						// Other non-rooted directives use the old behavior
 						// Set Root=nil when context has items, Root=true when empty
-						if len(context) == 0 {
+						if len(contextPaths) == 0 {
 							rootValue = true
 						}
 						// else rootValue stays nil
 					}
-				} else if len(context) == 0 {
+				} else if len(contextPaths) == 0 {
 					rootValue = true
 				}
 				atRuleRule.SetRoot(rootValue)
@@ -417,10 +408,10 @@ func (jsv *JoinSelectorVisitor) VisitAtRule(atRuleNode any, visitArgs *VisitArgs
 			if atRuleRule, ok := rules[0].(AtRuleRule); ok {
 				var rootValue any = nil
 				if hasIsRooted(atRule) {
-					if getIsRooted(atRule) || len(context) == 0 {
+					if getIsRooted(atRule) || len(contextPaths) == 0 {
 						rootValue = true
 					}
-				} else if len(context) == 0 {
+				} else if len(contextPaths) == 0 {
 					rootValue = true
 				}
 				atRuleRule.SetRoot(rootValue)

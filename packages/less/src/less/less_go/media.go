@@ -131,6 +131,11 @@ func (m *Media) EvalTop(context any) any {
 		if hasMediaBlocks && len(mediaBlocks) > 1 {
 			if os.Getenv("LESS_GO_DEBUG") == "1" {
 				fmt.Fprintf(os.Stderr, "[MEDIA.EvalTop] Creating MultiMedia Ruleset with %d media blocks\n", len(mediaBlocks))
+				for i, mb := range mediaBlocks {
+					if media, ok := mb.(*Media); ok {
+						fmt.Fprintf(os.Stderr, "[MEDIA.EvalTop]   Media[%d]: Rules count=%d\n", i, len(media.Rules))
+					}
+				}
 			}
 
 			// Create empty selectors
@@ -148,8 +153,10 @@ func (m *Media) EvalTop(context any) any {
 			for i, sel := range emptySelectors {
 				selectors[i] = sel
 			}
+			// Create MultiMedia Ruleset with root=true so inner Media nodes are not extracted by ToCSSVisitor
 			ruleset := NewRuleset(selectors, mediaBlocks, false, m.VisibilityInfo())
 			ruleset.MultiMedia = true // Set MultiMedia to true for multiple media blocks
+			ruleset.Root = true       // Set Root to true so ToCSSVisitor doesn't extract inner Media nodes
 			ruleset.CopyVisibilityInfo(m.VisibilityInfo())
 			m.SetParent(ruleset.Node, m.Node)
 			if os.Getenv("LESS_GO_DEBUG") == "1" {
@@ -188,8 +195,10 @@ func (m *Media) EvalTop(context any) any {
 		for i, sel := range emptySelectors {
 			selectors[i] = sel
 		}
+		// Create MultiMedia Ruleset with root=true so inner Media nodes are not extracted by ToCSSVisitor
 		ruleset := NewRuleset(selectors, mediaBlocks, false, m.VisibilityInfo())
 		ruleset.MultiMedia = true // Set MultiMedia to true for multiple media blocks
+		ruleset.Root = true       // Set Root to true so ToCSSVisitor doesn't extract inner Media nodes
 		ruleset.CopyVisibilityInfo(m.VisibilityInfo())
 		m.SetParent(ruleset.Node, m.Node)
 		result = ruleset
@@ -465,11 +474,18 @@ func (m *Media) GenCSS(context any, output *CSSOutput) {
 	// Visibility filtering happens at the rule level inside the media block, not at the media block itself
 	// JavaScript media.genCSS() has no visibility check
 
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Fprintf(os.Stderr, "[Media.GenCSS] Called, Rules count=%d\n", len(m.Rules))
+	}
+
 	// Skip media queries with empty rulesets (happens when nested media queries are merged)
 	// When evalNested merges nested media queries, it returns an empty Ruleset as a placeholder
 	// but the Media node itself should not be output if it has no content
 	if len(m.Rules) == 0 {
 		// No rules at all, skip
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Fprintf(os.Stderr, "[Media.GenCSS] Skipping - no rules\n")
+		}
 		return
 	}
 
@@ -477,6 +493,9 @@ func (m *Media) GenCSS(context any, output *CSSOutput) {
 		// Check if the ruleset has only empty content (regardless of selectors)
 		// A ruleset with selectors but no actual declarations/rules should not be output
 		if hasOnlyEmptyContent(ruleset.Rules) {
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Fprintf(os.Stderr, "[Media.GenCSS] Skipping - empty content (Rules=%d)\n", len(ruleset.Rules))
+			}
 			return // Skip empty media blocks
 		}
 	}
@@ -558,6 +577,10 @@ func (m *Media) Eval(context any) (any, error) {
 	// Match JavaScript: this.rules[0].functionRegistry = context.frames[0].functionRegistry.inherit();
 	if len(m.Rules) > 0 {
 		if ruleset, ok := m.Rules[0].(*Ruleset); ok {
+			// Set AllowImports=true so the inner ruleset is considered visible even without selectors
+			// This matches JavaScript behavior where Media inner rulesets don't need visible selectors
+			ruleset.AllowImports = true
+
 			// Handle function registry inheritance if frames exist
 			if len(evalCtx.Frames) > 0 {
 				if frameRuleset, ok := evalCtx.Frames[0].(*Ruleset); ok && frameRuleset.FunctionRegistry != nil {
