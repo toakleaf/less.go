@@ -94,58 +94,154 @@ func (c *Container) GenCSS(context any, output *CSSOutput) {
 }
 
 // Eval evaluates the container at-rule
-func (c *Container) Eval(context any) (*Container, error) {
-	// Accept both *Eval and map[string]any contexts
-	var ctx map[string]any
-	var evalCtx *Eval
+func (c *Container) Eval(context any) (any, error) {
+	if context == nil {
+		return nil, fmt.Errorf("context is required for Container.Eval")
+	}
 
+	// Convert to *Eval context if needed
+	var evalCtx *Eval
 	if ec, ok := context.(*Eval); ok {
 		evalCtx = ec
-		// Create a map that wraps the *Eval context for media-specific state
-		ctx = map[string]any{
-			"frames": ec.Frames,
-		}
 	} else if mapCtx, ok := context.(map[string]any); ok {
-		ctx = mapCtx
+		// For backward compatibility with map-based contexts
+		// This path is used by EvalTop and EvalNested
+		return c.evalWithMapContext(mapCtx)
 	} else {
 		return nil, fmt.Errorf("context must be *Eval or map[string]any, got %T", context)
 	}
 
-	// Initialize mediaBlocks and mediaPath if not present (like JavaScript !context.mediaBlocks)
+	// Match JavaScript: if (!context.mediaBlocks) { context.mediaBlocks = []; context.mediaPath = []; }
+	if evalCtx.MediaBlocks == nil {
+		evalCtx.MediaBlocks = []any{}
+		evalCtx.MediaPath = []any{}
+	}
+
+	// Match JavaScript: const media = new Container(null, [], this._index, this._fileInfo, this.visibilityInfo())
+	media, err := NewContainer(nil, []any{}, c.GetIndex(), c.FileInfo(), c.VisibilityInfo())
+	if err != nil {
+		return nil, fmt.Errorf("error creating container: %w", err)
+	}
+
+	// Match JavaScript: if (this.debugInfo) { this.rules[0].debugInfo = this.debugInfo; media.debugInfo = this.debugInfo; }
+	if c.DebugInfo != nil {
+		if len(c.Rules) > 0 {
+			if ruleset, ok := c.Rules[0].(*Ruleset); ok {
+				ruleset.DebugInfo = c.DebugInfo
+			}
+		}
+		media.DebugInfo = c.DebugInfo
+	}
+
+	// Match JavaScript: media.features = this.features.eval(context)
+	if c.Features != nil {
+		evaluated, err := c.Features.Eval(context)
+		if err != nil {
+			return nil, err
+		}
+
+		if featuresValue, ok := evaluated.(*Value); ok {
+			media.Features = featuresValue
+		} else {
+			// If eval doesn't return a Value, wrap it
+			media.Features, err = NewValue(evaluated)
+			if err != nil {
+				return nil, fmt.Errorf("error wrapping features in Value: %w", err)
+			}
+		}
+	}
+
+	// Match JavaScript: context.mediaPath.push(media); context.mediaBlocks.push(media);
+	evalCtx.MediaPath = append(evalCtx.MediaPath, media)
+	evalCtx.MediaBlocks = append(evalCtx.MediaBlocks, media)
+
+	// Match JavaScript: this.rules[0].functionRegistry = context.frames[0].functionRegistry.inherit();
+	if len(c.Rules) > 0 {
+		if ruleset, ok := c.Rules[0].(*Ruleset); ok {
+			// Handle function registry inheritance if frames exist
+			if len(evalCtx.Frames) > 0 {
+				if frameRuleset, ok := evalCtx.Frames[0].(*Ruleset); ok && frameRuleset.FunctionRegistry != nil {
+					// Stub: ruleset.FunctionRegistry = frameRuleset.FunctionRegistry.Inherit()
+					ruleset.FunctionRegistry = frameRuleset.FunctionRegistry
+				}
+			}
+
+			// Match JavaScript: context.frames.unshift(this.rules[0]);
+			newFrames := make([]any, len(evalCtx.Frames)+1)
+			newFrames[0] = ruleset
+			copy(newFrames[1:], evalCtx.Frames)
+			evalCtx.Frames = newFrames
+
+			// Match JavaScript: media.rules = [this.rules[0].eval(context)];
+			evaluated, err := ruleset.Eval(context)
+			if err != nil {
+				return nil, err
+			}
+			media.Rules = []any{evaluated}
+
+			// Match JavaScript: context.frames.shift();
+			if len(evalCtx.Frames) > 0 {
+				evalCtx.Frames = evalCtx.Frames[1:]
+			}
+		}
+	}
+
+	// Match JavaScript: context.mediaPath.pop();
+	if len(evalCtx.MediaPath) > 0 {
+		evalCtx.MediaPath = evalCtx.MediaPath[:len(evalCtx.MediaPath)-1]
+	}
+
+	// Match JavaScript: return context.mediaPath.length === 0 ? media.evalTop(context) : media.evalNested(context);
+	if len(evalCtx.MediaPath) == 0 {
+		return media.EvalTop(evalCtx), nil
+	} else {
+		return media.EvalNested(evalCtx), nil
+	}
+}
+
+// evalWithMapContext handles evaluation with map-based context (for backward compatibility)
+func (c *Container) evalWithMapContext(ctx map[string]any) (any, error) {
+	// Match JavaScript: if (!context.mediaBlocks) { context.mediaBlocks = []; context.mediaPath = []; }
 	if ctx["mediaBlocks"] == nil {
 		ctx["mediaBlocks"] = []any{}
 		ctx["mediaPath"] = []any{}
 	}
 
-	// Create new Container instance for evaluation
+	// Match JavaScript: const media = new Container(null, [], this._index, this._fileInfo, this.visibilityInfo())
 	media, err := NewContainer(nil, []any{}, c.GetIndex(), c.FileInfo(), c.VisibilityInfo())
 	if err != nil {
-		return nil, fmt.Errorf("error creating media container: %w", err)
+		return nil, fmt.Errorf("error creating container: %w", err)
 	}
 
-	// Copy debug info if present
+	// Match JavaScript: if (this.debugInfo) { this.rules[0].debugInfo = this.debugInfo; media.debugInfo = this.debugInfo; }
 	if c.DebugInfo != nil {
-		c.Rules[0].(*Ruleset).DebugInfo = c.DebugInfo
+		if len(c.Rules) > 0 {
+			if ruleset, ok := c.Rules[0].(*Ruleset); ok {
+				ruleset.DebugInfo = c.DebugInfo
+			}
+		}
 		media.DebugInfo = c.DebugInfo
 	}
 
-	// Evaluate features
-	evaluatedFeatures, err := c.Features.Eval(context)
-	if err != nil {
-		return nil, fmt.Errorf("error evaluating features: %w", err)
-	}
-	
-	if featuresValue, ok := evaluatedFeatures.(*Value); ok {
-		media.Features = featuresValue
-	} else {
-		// If eval doesn't return a Value, wrap it
-		media.Features, err = NewValue(evaluatedFeatures)
+	// Match JavaScript: media.features = this.features.eval(context)
+	if c.Features != nil {
+		evaluated, err := c.Features.Eval(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("error wrapping features in Value: %w", err)
+			return nil, err
+		}
+
+		if featuresValue, ok := evaluated.(*Value); ok {
+			media.Features = featuresValue
+		} else {
+			// If eval doesn't return a Value, wrap it
+			media.Features, err = NewValue(evaluated)
+			if err != nil {
+				return nil, fmt.Errorf("error wrapping features in Value: %w", err)
+			}
 		}
 	}
 
-	// Add to media path and blocks
+	// Match JavaScript: context.mediaPath.push(media); context.mediaBlocks.push(media);
 	if mediaPath, ok := ctx["mediaPath"].([]any); ok {
 		ctx["mediaPath"] = append(mediaPath, media)
 	}
@@ -153,110 +249,337 @@ func (c *Container) Eval(context any) (*Container, error) {
 		ctx["mediaBlocks"] = append(mediaBlocks, media)
 	}
 
-	// Set up function registry inheritance
-	firstRuleset := c.Rules[0].(*Ruleset)
+	// Match JavaScript: this.rules[0].functionRegistry = context.frames[0].functionRegistry.inherit();
+	if len(c.Rules) > 0 {
+		if ruleset, ok := c.Rules[0].(*Ruleset); ok {
+			var frames []any
+			if f, ok := ctx["frames"].([]any); ok {
+				frames = f
+			} else {
+				return nil, fmt.Errorf("frames is required for container evaluation")
+			}
 
-	// Get frames from the appropriate source
-	var frames []any
-	if evalCtx != nil {
-		frames = evalCtx.Frames
-	} else if f, ok := ctx["frames"].([]any); ok {
-		frames = f
-	}
+			// Handle function registry inheritance if frames exist
+			if len(frames) > 0 {
+				if frameRuleset, ok := frames[0].(*Ruleset); ok && frameRuleset.FunctionRegistry != nil {
+					ruleset.FunctionRegistry = frameRuleset.FunctionRegistry
+				}
+			}
 
-	if len(frames) > 0 {
-		if firstFrame, ok := frames[0].(*Ruleset); ok && firstFrame.FunctionRegistry != nil {
-			// Create a mock function registry with inherit method
-			firstRuleset.FunctionRegistry = map[string]any{
-				"inherit": func() any {
-					return firstFrame.FunctionRegistry
-				},
+			// Match JavaScript: context.frames.unshift(this.rules[0]);
+			newFrames := make([]any, len(frames)+1)
+			newFrames[0] = ruleset
+			copy(newFrames[1:], frames)
+			ctx["frames"] = newFrames
+
+			// Match JavaScript: media.rules = [this.rules[0].eval(context)];
+			evaluated, err := ruleset.Eval(ctx)
+			if err != nil {
+				return nil, err
+			}
+			media.Rules = []any{evaluated}
+
+			// Match JavaScript: context.frames.shift();
+			if currentFrames, ok := ctx["frames"].([]any); ok && len(currentFrames) > 0 {
+				ctx["frames"] = currentFrames[1:]
 			}
 		}
 	}
 
-	// Evaluate rules - add current ruleset to frames
-	newFrames := append([]any{firstRuleset}, frames...)
-
-	// Update frames in the appropriate location
-	if evalCtx != nil {
-		evalCtx.Frames = newFrames
-	} else {
-		ctx["frames"] = newFrames
-	}
-
-	evaluatedRuleset, err := firstRuleset.Eval(context)
-	if err != nil {
-		return nil, fmt.Errorf("error evaluating ruleset: %w", err)
-	}
-	media.Rules = []any{evaluatedRuleset}
-
-	// Remove current ruleset from frames
-	if evalCtx != nil {
-		if len(evalCtx.Frames) > 0 {
-			evalCtx.Frames = evalCtx.Frames[1:]
-		}
-	} else if framesList, ok := ctx["frames"].([]any); ok && len(framesList) > 0 {
-		ctx["frames"] = framesList[1:]
-	}
-
-	// Pop from media path
+	// Match JavaScript: context.mediaPath.pop();
 	if mediaPath, ok := ctx["mediaPath"].([]any); ok && len(mediaPath) > 0 {
 		ctx["mediaPath"] = mediaPath[:len(mediaPath)-1]
 	}
 
-	// Determine return value based on mediaPath length
-	var mediaPathLength int
+	// Match JavaScript: return context.mediaPath.length === 0 ? media.evalTop(context) : media.evalNested(context);
 	if mediaPath, ok := ctx["mediaPath"].([]any); ok {
-		mediaPathLength = len(mediaPath)
+		if len(mediaPath) == 0 {
+			result := media.EvalTop(ctx)
+			return result, nil
+		} else {
+			return media.EvalNested(ctx), nil
+		}
 	}
 
-	if mediaPathLength == 0 {
-		return media.EvalTop(context), nil
-	}
-	return media.EvalNested(context), nil
+	return media.EvalTop(ctx), nil
 }
 
-// EvalTop evaluates the container at the top level
-func (c *Container) EvalTop(context any) *Container {
-	// Embed NestableAtRulePrototype functionality
-	prototype := NewNestableAtRulePrototype()
-	prototype.Type = "Container"
-	prototype.Features = c.Features
-	prototype.Rules = c.Rules
-	prototype.Node = c.Node
+// EvalTop evaluates the container at the top level (implementing NestableAtRulePrototype)
+func (c *Container) EvalTop(context any) any {
+	var result any = c
 
-	result := prototype.EvalTop(context)
-	
-	// If EvalTop returns a different type (like Ruleset), we need to handle it
-	if result != c {
-		// Return the container as-is since the prototype may have modified context
+	// Handle both *Eval and map[string]any contexts
+	var mediaBlocks []any
+	var hasMediaBlocks bool
+
+	if evalCtx, ok := context.(*Eval); ok {
+		mediaBlocks = evalCtx.MediaBlocks
+		hasMediaBlocks = len(mediaBlocks) > 0
+
+		// Render all dependent Container blocks
+		if hasMediaBlocks && len(mediaBlocks) > 1 {
+			// Create empty selectors
+			selector, err := NewSelector(nil, nil, nil, c.GetIndex(), c.FileInfo(), nil)
+			if err != nil {
+				return result
+			}
+			emptySelectors, err := selector.CreateEmptySelectors()
+			if err != nil {
+				return result
+			}
+
+			// Create new Ruleset - convert selectors to []any
+			selectors := make([]any, len(emptySelectors))
+			for i, sel := range emptySelectors {
+				selectors[i] = sel
+			}
+			ruleset := NewRuleset(selectors, mediaBlocks, false, c.VisibilityInfo())
+			ruleset.MultiMedia = true // Set MultiMedia to true for multiple container blocks
+			ruleset.CopyVisibilityInfo(c.VisibilityInfo())
+			c.SetParent(ruleset.Node, c.Node)
+			result = ruleset
+		}
+
+		// Delete mediaBlocks and mediaPath from context
+		evalCtx.MediaBlocks = nil
+		evalCtx.MediaPath = nil
+
+	} else if ctx, ok := context.(map[string]any); ok {
+		mediaBlocksAny, hasMediaBlocks := ctx["mediaBlocks"]
+		if hasMediaBlocks {
+			if blocks, ok := mediaBlocksAny.([]any); ok {
+				mediaBlocks = blocks
+				hasMediaBlocks = len(mediaBlocks) > 0
+			}
+		}
+
+		// Render all dependent Container blocks
+		if hasMediaBlocks && len(mediaBlocks) > 1 {
+			// Create empty selectors
+			selector, err := NewSelector(nil, nil, nil, c.GetIndex(), c.FileInfo(), nil)
+			if err != nil {
+				return result
+			}
+			emptySelectors, err := selector.CreateEmptySelectors()
+			if err != nil {
+				return result
+			}
+
+			// Create new Ruleset - convert selectors to []any
+			selectors := make([]any, len(emptySelectors))
+			for i, sel := range emptySelectors {
+				selectors[i] = sel
+			}
+			ruleset := NewRuleset(selectors, mediaBlocks, false, c.VisibilityInfo())
+			ruleset.MultiMedia = true // Set MultiMedia to true for multiple container blocks
+			c.SetParent(ruleset.Node, c.Node)
+			result = ruleset
+		}
+
+		// Delete mediaBlocks and mediaPath from context
+		delete(ctx, "mediaBlocks")
+		delete(ctx, "mediaPath")
+	}
+
+	return result
+}
+
+// EvalNested evaluates the container in a nested context (implementing NestableAtRulePrototype)
+func (c *Container) EvalNested(context any) any {
+	// Handle both *Eval and map[string]any contexts
+	var mediaPath []any
+	var hasMediaPath bool
+
+	if evalCtx, ok := context.(*Eval); ok {
+		mediaPath = evalCtx.MediaPath
+		hasMediaPath = len(mediaPath) > 0
+	} else if ctx, ok := context.(map[string]any); ok {
+		mediaPath, hasMediaPath = ctx["mediaPath"].([]any)
+	} else {
 		return c
 	}
-	
-	return c
-}
 
-// EvalNested evaluates the container in a nested context
-func (c *Container) EvalNested(context any) *Container {
-	// Embed NestableAtRulePrototype functionality
-	prototype := NewNestableAtRulePrototype()
-	prototype.Type = "Container"
-	prototype.Features = c.Features
-	prototype.Rules = c.Rules
-	prototype.Node = c.Node
+	if !hasMediaPath {
+		mediaPath = []any{}
+	}
 
-	result := prototype.EvalNested(context)
-	
-	// EvalNested typically returns a Ruleset for nested contexts
-	if ruleset, ok := result.(*Ruleset); ok {
-		// Create a new container with the nested ruleset
-		newContainer, err := NewContainer(ruleset.Rules, c.Features, c.GetIndex(), c.FileInfo(), c.VisibilityInfo())
-		if err != nil {
+	// Create path with current node
+	path := append(mediaPath, c)
+
+	// Extract the container-query conditions separated with `,` (OR)
+	for i := 0; i < len(path); i++ {
+		var pathType string
+		switch p := path[i].(type) {
+		case *Container:
+			pathType = p.GetType()
+		case interface{ GetType() string }:
+			pathType = p.GetType()
+		default:
+			continue
+		}
+
+		if pathType != c.GetType() {
+			// Remove from mediaBlocks if types don't match
+			if evalCtx, ok := context.(*Eval); ok {
+				if i < len(evalCtx.MediaBlocks) {
+					evalCtx.MediaBlocks = append(evalCtx.MediaBlocks[:i], evalCtx.MediaBlocks[i+1:]...)
+				}
+			} else if ctx, ok := context.(map[string]any); ok {
+				if mediaBlocks, hasMediaBlocks := ctx["mediaBlocks"].([]any); hasMediaBlocks && i < len(mediaBlocks) {
+					ctx["mediaBlocks"] = append(mediaBlocks[:i], mediaBlocks[i+1:]...)
+				}
+			}
 			return c
 		}
-		return newContainer
+
+		var value any
+		var features any
+
+		// Get features from the path item
+		if container, ok := path[i].(*Container); ok {
+			features = container.Features
+		}
+
+		if valueNode, ok := features.(*Value); ok {
+			value = valueNode.Value
+		} else {
+			value = features
+		}
+
+		// Convert to array if needed
+		if arr, ok := value.([]any); ok {
+			path[i] = arr
+		} else {
+			path[i] = []any{value}
+		}
 	}
-	
-	return c
+
+	// Trace all permutations to generate the resulting container-query
+	permuteResult := c.Permute(path)
+	if permuteResult == nil {
+		return c
+	}
+
+	permuteArray, ok := permuteResult.([]any)
+	if !ok {
+		return c
+	}
+
+	// Ensure every path is an array before mapping
+	for _, p := range permuteArray {
+		if _, ok := p.([]any); !ok {
+			return c
+		}
+	}
+
+	// Map paths to expressions
+	expressions := make([]any, len(permuteArray))
+	for idx, pathItem := range permuteArray {
+		pathArray, ok := pathItem.([]any)
+		if !ok {
+			continue
+		}
+
+		// Convert fragments
+		mappedPath := make([]any, len(pathArray))
+		for i, fragment := range pathArray {
+			if _, ok := fragment.(interface{ ToCSS(any) string }); ok {
+				mappedPath[i] = fragment
+			} else {
+				mappedPath[i] = NewAnonymous(fragment, 0, nil, false, false, nil)
+			}
+		}
+
+		// Insert 'and' between fragments
+		for i := len(mappedPath) - 1; i > 0; i-- {
+			andAnon := NewAnonymous("and", 0, nil, false, false, nil)
+			mappedPath = append(mappedPath[:i], append([]any{andAnon}, mappedPath[i:]...)...)
+		}
+
+		expr, err := NewExpression(mappedPath, false)
+		if err != nil {
+			continue
+		}
+		expressions[idx] = expr
+	}
+
+	// Create new Value with expressions
+	newValue, err := NewValue(expressions)
+	if err == nil {
+		c.Features = newValue
+		c.SetParent(c.Features, c.Node)
+	}
+
+	// Return fake tree-node that doesn't output anything
+	return NewRuleset([]any{}, []any{}, false, nil)
+}
+
+// Permute creates permutations of the given array (implementing NestableAtRulePrototype)
+func (c *Container) Permute(arr []any) any {
+	if len(arr) == 0 {
+		return []any{}
+	} else if len(arr) == 1 {
+		return arr[0]
+	} else {
+		result := []any{}
+		rest := c.Permute(arr[1:])
+
+		restArray, ok := rest.([]any)
+		if !ok {
+			return nil
+		}
+
+		firstArray, ok := arr[0].([]any)
+		if !ok {
+			return nil
+		}
+
+		for i := 0; i < len(restArray); i++ {
+			restItem, ok := restArray[i].([]any)
+			if !ok {
+				restItem = []any{restArray[i]}
+			}
+
+			for j := 0; j < len(firstArray); j++ {
+				combined := append([]any{firstArray[j]}, restItem...)
+				result = append(result, combined)
+			}
+		}
+		return result
+	}
+}
+
+// BubbleSelectors bubbles selectors up the tree (implementing NestableAtRulePrototype)
+func (c *Container) BubbleSelectors(selectors any) {
+	if selectors == nil {
+		return
+	}
+	if len(c.Rules) == 0 {
+		return
+	}
+
+	// Handle both []*Selector and []any types
+	var anySelectors []any
+
+	switch s := selectors.(type) {
+	case []*Selector:
+		copiedSelectors := make([]*Selector, len(s))
+		copy(copiedSelectors, s)
+
+		// Convert selectors to []any
+		anySelectors = make([]any, len(copiedSelectors))
+		for i, sel := range copiedSelectors {
+			anySelectors[i] = sel
+		}
+	case []any:
+		// Copy the slice
+		anySelectors = make([]any, len(s))
+		copy(anySelectors, s)
+	default:
+		return
+	}
+
+	newRuleset := NewRuleset(anySelectors, []any{c.Rules[0]}, false, nil)
+	c.Rules = []any{newRuleset}
+	c.SetParent(c.Rules, c.Node)
 } 
