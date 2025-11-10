@@ -364,8 +364,13 @@ func TestContainer(t *testing.T) {
 				t.Fatalf("Expected no error, got %v", err)
 			}
 
-			if result.Features == nil {
-				t.Error("Expected features to be evaluated")
+			// Cast result to *Container to access Features
+			if resultContainer, ok := result.(*Container); ok {
+				if resultContainer.Features == nil {
+					t.Error("Expected features to be evaluated")
+				}
+			} else {
+				t.Errorf("Expected result to be *Container, got %T", result)
 			}
 		})
 
