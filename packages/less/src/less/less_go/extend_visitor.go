@@ -555,6 +555,8 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 				// Only process the match if:
 				// 1. The extend is visible (from a non-reference import), OR
 				// 2. The extend, selector, and ruleset are all from reference imports (all have visibility blocks)
+				// NOTE: With the architectural fix of adding paths to extend's ruleset (not matched ruleset),
+				// we don't need the complex visibility checks from master's workaround approach.
 				if isVisible || (selectorHasVisibilityBlocks && rulesetHasVisibilityBlocks) {
 					// CRITICAL FIX: When a visible extend (from outside a reference import) matches
 					// selectors from a reference import, mark the EXTEND'S RULESET as visible (not the matched ruleset).
