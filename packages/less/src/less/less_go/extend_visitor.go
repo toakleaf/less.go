@@ -208,6 +208,8 @@ type ProcessExtendsVisitor struct {
 	extendIndices     map[string]bool
 	allExtendsStack   [][]*Extend
 	extendChainCount  int
+	// Track Media/AtRule containers we're currently inside for visibility propagation
+	mediaAtRuleStack []any
 }
 
 func NewProcessExtendsVisitor() *ProcessExtendsVisitor {
@@ -507,6 +509,11 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 						if ruleset.Node != nil {
 							ruleset.Node.EnsureVisibility()
 							ruleset.Node.RemoveVisibilityBlock()
+
+							// CRITICAL: Walk up the parent chain and make all parent Media/AtRule nodes visible
+							// This ensures that @media and @supports blocks containing extended selectors are output
+							pev.makeParentNodesVisible(ruleset.Node)
+						} else {
 						}
 					}
 
@@ -981,6 +988,9 @@ func (pev *ProcessExtendsVisitor) VisitMedia(mediaNode any, visitArgs *VisitArgs
 	chained := pev.doExtendChaining(newAllExtends, mediaAllExtends, 0)
 	newAllExtends = append(newAllExtends, chained...)
 	pev.allExtendsStack = append(pev.allExtendsStack, newAllExtends)
+
+	// Push this Media node onto the stack for visibility propagation
+	pev.mediaAtRuleStack = append(pev.mediaAtRuleStack, mediaNode)
 }
 
 func (pev *ProcessExtendsVisitor) VisitMediaOut(mediaNode any) {
@@ -989,6 +999,11 @@ func (pev *ProcessExtendsVisitor) VisitMediaOut(mediaNode any) {
 	if len(pev.allExtendsStack) > 1 {
 		lastIndex := len(pev.allExtendsStack) - 1
 		pev.allExtendsStack = pev.allExtendsStack[:lastIndex]
+	}
+
+	// Pop the Media node from the stack
+	if len(pev.mediaAtRuleStack) > 0 {
+		pev.mediaAtRuleStack = pev.mediaAtRuleStack[:len(pev.mediaAtRuleStack)-1]
 	}
 }
 
@@ -1008,6 +1023,9 @@ func (pev *ProcessExtendsVisitor) VisitAtRule(atRuleNode any, visitArgs *VisitAr
 	chained := pev.doExtendChaining(newAllExtends, atRuleAllExtends, 0)
 	newAllExtends = append(newAllExtends, chained...)
 	pev.allExtendsStack = append(pev.allExtendsStack, newAllExtends)
+
+	// Push this AtRule node onto the stack for visibility propagation
+	pev.mediaAtRuleStack = append(pev.mediaAtRuleStack, atRuleNode)
 }
 
 func (pev *ProcessExtendsVisitor) VisitAtRuleOut(atRuleNode any) {
@@ -1016,6 +1034,55 @@ func (pev *ProcessExtendsVisitor) VisitAtRuleOut(atRuleNode any) {
 	if len(pev.allExtendsStack) > 1 {
 		lastIndex := len(pev.allExtendsStack) - 1
 		pev.allExtendsStack = pev.allExtendsStack[:lastIndex]
+	}
+
+	// Pop the AtRule node from the stack
+	if len(pev.mediaAtRuleStack) > 0 {
+		pev.mediaAtRuleStack = pev.mediaAtRuleStack[:len(pev.mediaAtRuleStack)-1]
+	}
+}
+
+// makeParentNodesVisible makes all Media and AtRule nodes in the current stack visible.
+// This is critical for import (reference) to work correctly - when we extend a selector
+// from a reference import, we need to make the entire @media or @supports block visible,
+// not just the ruleset.
+func (pev *ProcessExtendsVisitor) makeParentNodesVisible(node *Node) {
+
+	// Mark all Media/AtRule containers in the stack as visible
+	for _, containerNode := range pev.mediaAtRuleStack {
+		switch v := containerNode.(type) {
+		case *Media:
+			// Make the Media node visible
+			v.Node.EnsureVisibility()
+			v.Node.RemoveVisibilityBlock()
+
+			// CRITICAL: Also make all Rules inside the Media block visible
+			// Media.GenCSS filters based on whether rules have content,
+			// and KeepOnlyVisibleChilds only keeps rules where IsVisible() returns true
+			for _, rule := range v.Rules {
+				if ruleset, ok := rule.(*Ruleset); ok {
+					trueVal := true
+					ruleset.Node.NodeVisible = &trueVal
+					ruleset.Node.EnsureVisibility()
+					ruleset.Node.RemoveVisibilityBlock()
+				}
+			}
+		case *AtRule:
+			// Make the AtRule node visible (this covers @supports, @keyframes, etc.)
+			v.Node.EnsureVisibility()
+			v.Node.RemoveVisibilityBlock()
+
+			// CRITICAL: Also make all Rules inside the AtRule visible
+			for _, rule := range v.Rules {
+				if ruleset, ok := rule.(*Ruleset); ok {
+					trueVal := true
+					ruleset.Node.NodeVisible = &trueVal
+					ruleset.Node.EnsureVisibility()
+					ruleset.Node.RemoveVisibilityBlock()
+				}
+			}
+		default:
+		}
 	}
 }
 
