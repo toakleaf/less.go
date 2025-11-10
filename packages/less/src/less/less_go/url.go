@@ -65,6 +65,29 @@ func escapePath(path string) string {
 	})
 }
 
+// normalizePath normalizes a path by removing . and .. segments
+func normalizePath(path string) string {
+	segments := strings.Split(path, "/")
+	pathSegments := make([]string, 0)
+
+	for _, segment := range segments {
+		switch segment {
+		case ".":
+			continue
+		case "..":
+			if len(pathSegments) == 0 || pathSegments[len(pathSegments)-1] == ".." {
+				pathSegments = append(pathSegments, segment)
+			} else {
+				pathSegments = pathSegments[:len(pathSegments)-1]
+			}
+		default:
+			pathSegments = append(pathSegments, segment)
+		}
+	}
+
+	return strings.Join(pathSegments, "/")
+}
+
 // Accept visits the URL with a visitor
 func (u *URL) Accept(visitor any) {
 	if v, ok := visitor.(interface{ Visit(any) any }); ok && u.Value != nil {
@@ -116,20 +139,6 @@ func (u *URL) Eval(context any) (any, error) {
 		fileInfo := u.fileInfo()
 		if rp, ok := fileInfo["rootpath"].(string); ok {
 			rootpath = rp
-		}
-		if os.Getenv("LESS_GO_DEBUG") == "1" {
-			// Try to extract value string for debug
-			valueStr := "unknown"
-			if quoted, ok := val.(*Quoted); ok {
-				valueStr = quoted.GetValue()
-			} else if anon, ok := val.(*Anonymous); ok {
-				if q, ok := anon.Value.(*Quoted); ok {
-					valueStr = q.GetValue()
-				} else if str, ok := anon.Value.(string); ok {
-					valueStr = str
-				}
-			}
-			fmt.Printf("[DEBUG URL.Eval] rootpath=%q, value=%q, fileInfo=%+v\n", rootpath, valueStr, fileInfo)
 		}
 		// Match JavaScript URL rewriting logic
 
@@ -191,6 +200,27 @@ func (u *URL) Eval(context any) (any, error) {
 						}
 					}
 				}
+			} else if _, ok := context.(map[string]any); ok {
+				// Handle map-based context (e.g., when URLs are evaluated in mixins)
+				// This is the fix for Issue #2 and Issue #3
+				// When mixins are evaluated, the context is a map but doesn't contain the rewrite functions
+				// So we implement the rewriting logic directly here using the rootpath from fileInfo
+
+				// Check if path is relative and needs rewriting
+				requiresRewrite := isPathRelative(value)
+
+				if requiresRewrite && rootpath != "" {
+					// Escape rootpath if URL is unquoted
+					escapedRootpath := rootpath
+					if quoted.GetQuote() == "" {
+						escapedRootpath = escapePath(rootpath)
+					}
+					// Rewrite path by concatenating rootpath + path and normalizing
+					combined := escapedRootpath + value
+					value = normalizePath(combined)
+				}
+
+				// Note: urlArgs is typically not set in mixin contexts
 			}
 
 			// Create new Quoted with updated value (wrap back in Anonymous if needed)
@@ -215,8 +245,10 @@ func (u *URL) Eval(context any) (any, error) {
 			} else {
 				val = newQuoted
 			}
-		} else if valMap, ok := val.(map[string]any); ok {
-			// Fallback: handle map-based values for backward compatibility
+		}
+
+		// Fallback: handle map-based values for backward compatibility
+		if valMap, ok := val.(map[string]any); ok {
 			if value, ok := valMap["value"].(string); ok {
 				if evalCtx, ok := context.(*Eval); ok {
 					// Match JavaScript: if (typeof rootpath === 'string' && typeof val.value === 'string' && context.pathRequiresRewrite(val.value))

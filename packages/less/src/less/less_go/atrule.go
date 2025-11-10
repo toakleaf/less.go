@@ -117,9 +117,11 @@ func (a *AtRule) GetIsRooted() bool {
 
 // GetRules returns the rules array (for ToCSSVisitor extraction)
 // Only @supports and @document should use this for extraction
+// This handles vendor-prefixed variants like @-moz-document
 func (a *AtRule) GetRules() []any {
 	// Only return rules for directives that should be extracted
-	if a.Name == "@supports" || a.Name == "@document" {
+	nonVendorName := stripVendorPrefix(a.Name)
+	if nonVendorName == "@supports" || nonVendorName == "@document" {
 		return a.Rules
 	}
 	return nil
@@ -173,6 +175,20 @@ func (a *AtRule) IsCharset() bool {
 	return a.Name == "@charset"
 }
 
+// stripVendorPrefix removes vendor prefix from at-rule names
+// e.g., "@-x-document" -> "@document", "@-webkit-keyframes" -> "@keyframes"
+func stripVendorPrefix(name string) string {
+	if len(name) > 1 && name[1] == '-' {
+		// Find the second dash (after vendor prefix)
+		for i := 2; i < len(name); i++ {
+			if name[i] == '-' {
+				return "@" + name[i+1:]
+			}
+		}
+	}
+	return name
+}
+
 // GenCSS generates CSS representation
 func (a *AtRule) GenCSS(context any, output *CSSOutput) {
 	// Check visibility - skip if node blocks visibility and is not explicitly visible
@@ -182,6 +198,40 @@ func (a *AtRule) GenCSS(context any, output *CSSOutput) {
 		nodeVisible := a.Node.IsVisible()
 		if nodeVisible == nil || !*nodeVisible {
 			// Node blocks visibility and is not explicitly visible, skip output
+			return
+		}
+	}
+
+	// Check if this directive has rules but they ONLY contain comments (no actual content)
+	// In that case, skip output entirely
+	if a.Rules != nil {
+		hasOnlyComments := false
+		for _, rule := range a.Rules {
+			if ruleset, ok := rule.(*Ruleset); ok {
+				// Only check if ruleset has rules - empty rulesets should still be output
+				if len(ruleset.Rules) > 0 {
+					hasContent := false
+					// Check if ruleset has any non-comment rules
+					for _, r := range ruleset.Rules {
+						// Ignore comments - they don't count as content
+						if _, isComment := r.(*Comment); !isComment {
+							hasContent = true
+							break
+						}
+					}
+					if !hasContent {
+						// This ruleset has rules, but they're all comments
+						hasOnlyComments = true
+					} else {
+						// This ruleset has actual content
+						hasOnlyComments = false
+						break
+					}
+				}
+			}
+		}
+		if hasOnlyComments {
+			// All rulesets contain only comments, skip output
 			return
 		}
 	}
@@ -230,7 +280,13 @@ func (a *AtRule) Eval(context any) (any, error) {
 
 	// Media stored inside other atrule should not bubble over it
 	// Backup media bubbling information
-	if ctx, ok := context.(map[string]any); ok {
+	if evalCtx, ok := context.(*Eval); ok {
+		mediaPathBackup = evalCtx.MediaPath
+		mediaBlocksBackup = evalCtx.MediaBlocks
+		// Delete media bubbling information
+		evalCtx.MediaPath = []any{}
+		evalCtx.MediaBlocks = []any{}
+	} else if ctx, ok := context.(map[string]any); ok {
 		mediaPathBackup = ctx["mediaPath"]
 		mediaBlocksBackup = ctx["mediaBlocks"]
 		// Delete media bubbling information
@@ -273,7 +329,14 @@ func (a *AtRule) Eval(context any) (any, error) {
 	}
 
 	// Restore media bubbling information
-	if ctx, ok := context.(map[string]any); ok {
+	if evalCtx, ok := context.(*Eval); ok {
+		if mb, ok := mediaBlocksBackup.([]any); ok {
+			evalCtx.MediaBlocks = mb
+		}
+		if mp, ok := mediaPathBackup.([]any); ok {
+			evalCtx.MediaPath = mp
+		}
+	} else if ctx, ok := context.(map[string]any); ok {
 		ctx["mediaPath"] = mediaPathBackup
 		ctx["mediaBlocks"] = mediaBlocksBackup
 	}

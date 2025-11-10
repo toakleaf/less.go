@@ -7,6 +7,29 @@ import (
 	"strings"
 )
 
+// Debug helper functions
+func elementToString(el *Element) string {
+	if el == nil {
+		return "nil"
+	}
+	combStr := ""
+	if el.Combinator != nil {
+		combStr = fmt.Sprintf("[comb:%q]", el.Combinator.Value)
+	}
+	return fmt.Sprintf("%s%v", combStr, el.Value)
+}
+
+func elementSliceToString(els []*Element) string {
+	if len(els) == 0 {
+		return "[]"
+	}
+	parts := make([]string, len(els))
+	for i, el := range els {
+		parts[i] = elementToString(el)
+	}
+	return "[" + strings.Join(parts, ", ") + "]"
+}
+
 // SelectorsParseFunc is a function type for parsing selector strings into selectors
 type SelectorsParseFunc func(input string, context map[string]any, imports map[string]any, fileInfo map[string]any, index int) ([]any, error)
 
@@ -784,8 +807,31 @@ func (r *Ruleset) Eval(context any) (any, error) {
 	}
 
 	if ruleset.Root && len(mediaPath) == 0 && mediaBlocks != nil && len(mediaBlocks) > 0 {
-		// Append all mediaBlocks to the ruleset's Rules array
-		ruleset.Rules = append(ruleset.Rules, mediaBlocks...)
+		// Replace empty rulesets (placeholders from bubbling directives) with actual mediaBlocks
+		// This maintains the original order of all directives
+		mediaBlockIndex := 0
+		newRules := make([]any, 0, len(ruleset.Rules))
+
+		for _, rule := range ruleset.Rules {
+			// Check if this is an empty placeholder ruleset from a bubbling directive
+			if rs, ok := rule.(*Ruleset); ok {
+				if len(rs.Selectors) == 0 && len(rs.Rules) == 0 && mediaBlockIndex < len(mediaBlocks) {
+					// Replace the empty placeholder with the corresponding mediaBlock
+					newRules = append(newRules, mediaBlocks[mediaBlockIndex])
+					mediaBlockIndex++
+					continue
+				}
+			}
+			newRules = append(newRules, rule)
+		}
+
+		// If there are any remaining mediaBlocks (shouldn't happen in normal cases), append them
+		for mediaBlockIndex < len(mediaBlocks) {
+			newRules = append(newRules, mediaBlocks[mediaBlockIndex])
+			mediaBlockIndex++
+		}
+
+		ruleset.Rules = newRules
 
 		// Clear mediaBlocks from context (they've been consumed)
 		if evalCtx != nil {
@@ -1410,16 +1456,9 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 		return
 	}
 
-	// Check visibility - skip if node blocks visibility and is not explicitly visible
-	// This implements the reference import functionality where nodes from referenced
-	// imports are hidden unless explicitly used (via extend or mixin call)
-	if r.Node != nil && r.Node.BlocksVisibility() {
-		nodeVisible := r.Node.IsVisible()
-		if nodeVisible == nil || !*nodeVisible {
-			// Node blocks visibility and is not explicitly visible, skip output
-			return
-		}
-	}
+	// Don't skip rulesets with visibility blocks here - they may contain visible paths
+	// from extends. The path filtering logic below will filter out invisible paths.
+	// This matches JavaScript behavior which doesn't have an early return for visibility.
 
 	ctx, ok := context.(map[string]any)
 	if !ok {
@@ -1432,7 +1471,16 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 		tabLevel = tl
 	}
 
-	if !r.Root {
+	// Check if this is a media-empty ruleset (used by Media queries)
+	// Media-empty rulesets should not increment tabLevel since they don't output braces
+	isMediaEmpty := false
+	if !r.Root && r.Paths == nil && len(r.Selectors) == 1 {
+		if sel, ok := r.Selectors[0].(*Selector); ok && sel.MediaEmpty {
+			isMediaEmpty = true
+		}
+	}
+
+	if !r.Root && !isMediaEmpty {
 		tabLevel++
 		ctx["tabLevel"] = tabLevel
 	}
@@ -1511,16 +1559,6 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 	// Check if this ruleset contains only extends (no actual CSS output)
 	// If so, we'll skip generating selectors/braces but still complete normally for proper spacing
 	hasOnlyExtends := !r.Root && len(r.Rules) > 0 && len(ruleNodes) == 0
-
-	// Generate CSS for selectors if not root
-	// Check if this is a media-empty ruleset that should not generate selectors/braces
-	// This happens when media queries create wrapper rulesets with empty selectors
-	isMediaEmpty := false
-	if !r.Root && r.Paths == nil && len(r.Selectors) == 1 {
-		if sel, ok := r.Selectors[0].(*Selector); ok && sel.MediaEmpty {
-			isMediaEmpty = true
-		}
-	}
 
 	// Track how many paths were actually output (for visibility filtering)
 	outputCount := 0
@@ -1706,7 +1744,8 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 
 	// Decrement tab level FIRST for correct newline logic
 	// Do this for all non-root rulesets, even if we skip output (for extend-only rulesets)
-	if !r.Root {
+	// But skip for media-empty rulesets since they didn't increment tabLevel
+	if !r.Root && !isMediaEmpty {
 		tabLevel--
 		ctx["tabLevel"] = tabLevel
 	}
@@ -1768,7 +1807,10 @@ func (r *Ruleset) JoinSelector(paths *[][]any, context [][]any, selector any) {
 			copy(newSelectorPath, beginningPath)
 			if lastSel, ok := newSelectorPath[len(newSelectorPath)-1].(*Selector); ok {
 				newSelectorPath = newSelectorPath[:len(newSelectorPath)-1]
-				newJoinedSelector, _ = originalSelector.CreateDerived(lastSel.Elements[:], nil, nil)
+				// Create a copy of lastSel.Elements to avoid modifying the original
+				lastSelElements := make([]*Element, len(lastSel.Elements))
+				copy(lastSelElements, lastSel.Elements)
+				newJoinedSelector, _ = originalSelector.CreateDerived(lastSelElements, nil, nil)
 			}
 		} else {
 			newJoinedSelector, _ = originalSelector.CreateDerived([]*Element{}, nil, nil)
@@ -1787,6 +1829,11 @@ func (r *Ruleset) JoinSelector(paths *[][]any, context [][]any, selector any) {
 					combinator = parentEl.Combinator
 				}
 				// Join the elements so far with the first part of the parent
+				// Debug: Print what we're doing
+				if os.Getenv("LESS_GO_DEBUG_SELECTOR") == "1" {
+					fmt.Fprintf(os.Stderr, "DEBUG addReplacementIntoPath: newJoinedSelector before=%v, parentEl=%v\n",
+						elementSliceToString(newJoinedSelector.Elements), elementToString(parentEl))
+				}
 				newJoinedSelector.Elements = append(newJoinedSelector.Elements, NewElement(
 					combinator,
 					parentEl.Value,
@@ -1796,6 +1843,10 @@ func (r *Ruleset) JoinSelector(paths *[][]any, context [][]any, selector any) {
 					nil,
 				))
 				newJoinedSelector.Elements = append(newJoinedSelector.Elements, firstPathSel.Elements[1:]...)
+				if os.Getenv("LESS_GO_DEBUG_SELECTOR") == "1" {
+					fmt.Fprintf(os.Stderr, "DEBUG addReplacementIntoPath: newJoinedSelector after=%v\n",
+						elementSliceToString(newJoinedSelector.Elements))
+				}
 			}
 		}
 

@@ -1939,6 +1939,23 @@ func (p *Parsers) Selector(isLess bool) any {
 
 	for {
 		if isLess {
+			// Special case: if we see &:extend(, we need to add & as an element first
+			// before processing the extend
+			p.parser.parserInput.Save()
+			if p.parser.parserInput.Str("&:extend(") != nil {
+				// Restore and parse & as an element first
+				p.parser.parserInput.Restore("")
+				ampElement := p.Element() // This will match &
+				if ampElement != nil {
+					if element, ok := ampElement.(*Element); ok {
+						elements = append(elements, element)
+					}
+				}
+				// Now the parser is positioned at :extend(, parse it
+			} else {
+				p.parser.parserInput.Restore("")
+			}
+
 			extendList = p.Extend()
 			if extendList != nil {
 				if allExtends != nil {
@@ -3040,13 +3057,20 @@ func (p *Parsers) Element() any {
 	e = p.parser.parserInput.Re(regexp.MustCompile(`^(?:\d+\.\d+|\d+)%`))
 	if e == nil {
 		// Match the JavaScript regex pattern, including @{} for variable interpolation
+		// IMPORTANT: [^\x00-\x9f] should NOT match & (0x26), but add @{} pattern to capture variable interpolation
 		e = p.parser.parserInput.Re(regexp.MustCompile(`^(?:[.#]?|:*)(?:[\w-]|@\{[\w-]+\}|[^\x00-\x9f]|\\(?:[A-Fa-f0-9]{1,6} ?|[^A-Fa-f0-9]))+`))
+		if e != nil && os.Getenv("LESS_GO_DEBUG_SELECTOR") == "1" {
+			fmt.Fprintf(os.Stderr, "DEBUG Element regex matched: %q\n", e)
+		}
 	}
 	if e == nil {
 		e = p.parser.parserInput.Char('*')
 	}
 	if e == nil {
 		e = p.parser.parserInput.Char('&')
+		if e != nil && os.Getenv("LESS_GO_DEBUG_SELECTOR") == "1" {
+			fmt.Fprintf(os.Stderr, "DEBUG Element & matched\n")
+		}
 	}
 	if e == nil {
 		e = p.Attribute()
