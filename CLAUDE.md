@@ -43,15 +43,16 @@ When working on this project, please be aware of the following:
    - JavaScript tests use Vitest framework
    - Go tests should verify ported functionality matches JavaScript behavior
 
-4. **Current Integration Test Status** (as of 2025-11-10 - Latest Update):
-   - **79 perfect CSS matches (42.7%)** - EXCELLENT PROGRESS! ✅ (+10 new!)
-   - **✅ ZERO REGRESSIONS** - All previously passing tests still passing!
-   - **4 compilation failures (2.2%)** - 3 external (network/packages), 1 import-module
-   - **62 correct error handling (33.5%)** - tests that should fail, do fail correctly
-   - **40 tests with CSS output differences (21.6%)** - compiles but CSS doesn't match
-   - **Overall Success Rate: 76.2%** ⬆️ (141/185 tests passing or correctly erroring)
-   - **Compilation Rate: 97.8%** (181/185 tests compile successfully)
-   - **Perfect CSS Match Rate: 42.7%** (up from 37.5%)
+4. **Current Integration Test Status** (as of 2025-11-10 - Latest Measurement):
+   - **78 perfect CSS matches (42.4%)** - EXCELLENT PROGRESS! ✅
+   - **⚠️ 1 POSSIBLE REGRESSION** - extend-chaining needs investigation (was documented as fixed)
+   - **3 compilation failures (1.6%)** - All external (network/packages) - expected
+   - **62 correct error handling (33.7%)** - tests that should fail, do fail correctly
+   - **14 tests with CSS output differences (7.6%)** - compiles but CSS doesn't match
+   - **27 incorrect error handling (14.7%)** - tests that should error but succeed
+   - **Overall Success Rate: 76.1%** ⬆️ (140/184 tests passing or correctly erroring)
+   - **Compilation Rate: 98.4%** (181/184 tests compile successfully)
+   - **Perfect CSS Match Rate: 42.4%**
 
    **🎉 Parser Status: ALL BUGS FIXED!**
    - Parser correctly handles full LESS syntax
@@ -113,14 +114,15 @@ When working on this project, please be aware of the following:
    - See `.claude/tasks/` for specific task specifications
 
    **Priority Order** (High to Low):
-   1. **HIGH**: Import reference (2 tests) - import-reference, import-reference-issues
-   2. **HIGH**: Functions - functions, functions-each
-   3. **HIGH**: CSS output formatting - detached-rulesets, directives-bubling, container, media, css-3, property-name-interp
+   1. **CRITICAL**: extend-chaining - Investigate possible regression (was documented as fixed)
+   2. **HIGH**: Import reference (2 tests) - import-reference, import-reference-issues
+   3. **HIGH**: Detached rulesets - detached-rulesets (media query merging - root cause identified)
    4. **HIGH**: URL variants - urls in main/static-urls/url-args (3 tests)
-   5. **MEDIUM**: Selectors - selectors parsing edge cases
-   6. **MEDIUM**: Error handling - 27 tests that should fail but succeed
-   7. **LOW**: External dependencies - bootstrap4, google, import-module (network/packages)
-   8. **LOW**: Unit test bug - Fix timeout in circular dependency test
+   5. **MEDIUM**: Functions - functions (1 test, functions-each already passing ✅)
+   6. **MEDIUM**: CSS output formatting - directives-bubling, container, media, css-3, comments2
+   7. **MEDIUM**: Error handling - 27 tests that should fail but succeed
+   8. **LOW**: External dependencies - bootstrap4, google, import-module (network/packages) - expected failures
+   9. **LOW**: Unit test bug - Fix timeout in circular dependency test
 
    **Recently Completed** (Past 4 weeks):
    - ✅ **MASSIVE BREAKTHROUGH**: +44 perfect matches! From 34 → 78 tests! 🎉
