@@ -145,6 +145,8 @@ func (e *Eval) ToMap() map[string]any {
 		"importantScope":    e.ImportantScope,
 		"rewriteUrls":       e.RewriteUrls,
 		"numPrecision":      e.NumPrecision,
+		"mediaBlocks":       e.MediaBlocks, // CRITICAL: Preserve media query context for nested evaluations
+		"mediaPath":         e.MediaPath,   // CRITICAL: Preserve media query path for nested evaluations
 		// Add ParensStack management functions that reference the same stacks
 		"inParenthesis": func() {
 			e.InParenthesis()
