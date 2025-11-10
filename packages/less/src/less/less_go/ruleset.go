@@ -1432,7 +1432,16 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 		tabLevel = tl
 	}
 
-	if !r.Root {
+	// Check if this is a media-empty ruleset (used by Media queries)
+	// Media-empty rulesets should not increment tabLevel since they don't output braces
+	isMediaEmpty := false
+	if !r.Root && r.Paths == nil && len(r.Selectors) == 1 {
+		if sel, ok := r.Selectors[0].(*Selector); ok && sel.MediaEmpty {
+			isMediaEmpty = true
+		}
+	}
+
+	if !r.Root && !isMediaEmpty {
 		tabLevel++
 		ctx["tabLevel"] = tabLevel
 	}
@@ -1511,16 +1520,6 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 	// Check if this ruleset contains only extends (no actual CSS output)
 	// If so, we'll skip generating selectors/braces but still complete normally for proper spacing
 	hasOnlyExtends := !r.Root && len(r.Rules) > 0 && len(ruleNodes) == 0
-
-	// Generate CSS for selectors if not root
-	// Check if this is a media-empty ruleset that should not generate selectors/braces
-	// This happens when media queries create wrapper rulesets with empty selectors
-	isMediaEmpty := false
-	if !r.Root && r.Paths == nil && len(r.Selectors) == 1 {
-		if sel, ok := r.Selectors[0].(*Selector); ok && sel.MediaEmpty {
-			isMediaEmpty = true
-		}
-	}
 
 	// Track how many paths were actually output (for visibility filtering)
 	outputCount := 0
@@ -1706,7 +1705,8 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 
 	// Decrement tab level FIRST for correct newline logic
 	// Do this for all non-root rulesets, even if we skip output (for extend-only rulesets)
-	if !r.Root {
+	// But skip for media-empty rulesets since they didn't increment tabLevel
+	if !r.Root && !isMediaEmpty {
 		tabLevel--
 		ctx["tabLevel"] = tabLevel
 	}
