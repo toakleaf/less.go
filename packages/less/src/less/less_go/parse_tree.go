@@ -54,6 +54,7 @@ type ToCSSOptions struct {
 	Rootpath         string   // Root path for URL rewriting
 	Math             MathType // Math mode for operations (ALWAYS, PARENS_DIVISION, PARENS)
 	Paths            []string // Include paths for resolving imports and file references
+	UrlArgs          string   // Query string to append to URLs (e.g., "424242")
 }
 
 // ToCSS converts the parse tree to CSS
@@ -80,6 +81,7 @@ func (pt *ParseTree) ToCSS(options *ToCSSOptions) (*ToCSSResult, error) {
 			"rootpath":         options.Rootpath,
 			"math":             options.Math,
 			"paths":            options.Paths,
+			"urlArgs":          options.UrlArgs,
 		}
 	} else {
 		optionsMap = make(map[string]any)

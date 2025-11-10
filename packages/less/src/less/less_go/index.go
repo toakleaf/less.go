@@ -431,6 +431,9 @@ func createRender(env any, parseTree any, importManager any) func(string, ...any
 					if paths, ok := opts["paths"].([]string); ok {
 						toCSSOptions.Paths = paths
 					}
+					if urlArgs, ok := opts["urlArgs"].(string); ok {
+						toCSSOptions.UrlArgs = urlArgs
+					}
 				}
 				
 				// Call ToCSS which will run TransformTree and visitors
