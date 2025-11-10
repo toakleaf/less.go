@@ -132,6 +132,27 @@ func (u *CSSVisitorUtils) ResolveVisibility(node any) any {
 		return nil
 	}
 
+	// Special case for Media nodes: if they have an AllowImports inner ruleset,
+	// keep them even if the ruleset appears empty, because it's a structural wrapper
+	if media, ok := node.(*Media); ok {
+		if len(media.Rules) > 0 {
+			if ruleset, ok := media.Rules[0].(*Ruleset); ok && ruleset.AllowImports {
+				if os.Getenv("LESS_GO_DEBUG") == "1" {
+					fmt.Fprintf(os.Stderr, "[ResolveVisibility] Keeping Media with AllowImports inner ruleset\n")
+				}
+				return node
+			}
+		}
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Fprintf(os.Stderr, "[ResolveVisibility] Media Rules=%d, checking AllowImports...\n", len(media.Rules))
+			if len(media.Rules) > 0 {
+				if rs, ok := media.Rules[0].(*Ruleset); ok {
+					fmt.Fprintf(os.Stderr, "[ResolveVisibility] Inner ruleset AllowImports=%v\n", rs.AllowImports)
+				}
+			}
+		}
+	}
+
 	if blockedNode, hasBlocked := node.(interface{ BlocksVisibility() bool }); hasBlocked {
 		if !blockedNode.BlocksVisibility() {
 			isEmpty := u.IsEmpty(node)
@@ -188,6 +209,14 @@ func (u *CSSVisitorUtils) IsVisibleRuleset(rulesetNode any) bool {
 
 	if firstRootNode, ok := rulesetNode.(interface{ GetFirstRoot() bool }); ok {
 		if firstRootNode.GetFirstRoot() {
+			return true
+		}
+	}
+
+	// Special case: AllowImports rulesets are structural wrappers for Media/AtRule nodes
+	// They must be kept even if they appear empty after child processing
+	if allowImportsNode, ok := rulesetNode.(interface{ GetAllowImports() bool }); ok {
+		if allowImportsNode.GetAllowImports() {
 			return true
 		}
 	}

@@ -382,9 +382,21 @@ func hasOnlyEmptyContent(rules []any) bool {
 		return true
 	}
 
-	for _, rule := range rules {
+	for i, rule := range rules {
 		// Check if it's a Ruleset
 		if rs, ok := rule.(*Ruleset); ok {
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Fprintf(os.Stderr, "[hasOnlyEmptyContent] rule[%d]: Ruleset AllowImports=%v\n", i, rs.AllowImports)
+			}
+			// Special case: AllowImports rulesets are structural wrappers for Media/AtRule
+			// They should always be considered as having content, even if they appear empty
+			// This can happen when nested media queries are bubbled up and merged
+			if rs.AllowImports {
+				if os.Getenv("LESS_GO_DEBUG") == "1" {
+					fmt.Fprintf(os.Stderr, "[hasOnlyEmptyContent] Found AllowImports ruleset, returning false\n")
+				}
+				return false
+			}
 			// If it has selectors with content, it's not empty
 			if len(rs.Selectors) > 0 && len(rs.Rules) > 0 && !hasOnlyEmptyContent(rs.Rules) {
 				return false
@@ -580,6 +592,13 @@ func (m *Media) Eval(context any) (any, error) {
 			// Set AllowImports=true so the inner ruleset is considered visible even without selectors
 			// This matches JavaScript behavior where Media inner rulesets don't need visible selectors
 			ruleset.AllowImports = true
+
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Fprintf(os.Stderr, "[Media.Eval] Set AllowImports=true on inner ruleset, Rules=%d\n", len(ruleset.Rules))
+				for i, rule := range ruleset.Rules {
+					fmt.Fprintf(os.Stderr, "[Media.Eval]   rule[%d]: %T\n", i, rule)
+				}
+			}
 
 			// Handle function registry inheritance if frames exist
 			if len(evalCtx.Frames) > 0 {
