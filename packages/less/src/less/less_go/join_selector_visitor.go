@@ -264,6 +264,57 @@ func (jsv *JoinSelectorVisitor) VisitMedia(mediaNode any, visitArgs *VisitArgs) 
 	return mediaNode
 }
 
+// VisitContainer processes container nodes (same logic as media for bubbling)
+func (jsv *JoinSelectorVisitor) VisitContainer(containerNode any, visitArgs *VisitArgs) any {
+	// Guard against empty contexts
+	if len(jsv.contexts) == 0 {
+		return nil
+	}
+	context := jsv.contexts[len(jsv.contexts)-1]
+
+	// Try interface-based approach first
+	if containerInterface, ok := containerNode.(interface{ GetRules() []any }); ok {
+		rules := containerInterface.GetRules()
+		if len(rules) > 0 {
+			if containerRule, ok := rules[0].(interface{ SetRoot(bool) }); ok {
+				rootValue := len(context) == 0
+				if len(context) > 0 {
+					// Check if first context item has multiMedia property
+					if contextItem, ok := context[0].(map[string]any); ok {
+						if multiMedia, exists := contextItem["multiMedia"]; exists {
+							if multiMediaBool, ok := multiMedia.(bool); ok {
+								rootValue = multiMediaBool
+							}
+						}
+					}
+				}
+				containerRule.SetRoot(rootValue)
+			}
+		}
+	} else if container, ok := containerNode.(*Container); ok {
+		// Fallback to concrete type for backward compatibility
+		rules := container.Rules
+		if len(rules) > 0 {
+			if containerRule, ok := rules[0].(MediaRule); ok {
+				rootValue := len(context) == 0
+				if len(context) > 0 {
+					// Check if first context item has multiMedia property
+					if contextItem, ok := context[0].(map[string]any); ok {
+						if multiMedia, exists := contextItem["multiMedia"]; exists {
+							if multiMediaBool, ok := multiMedia.(bool); ok {
+								rootValue = multiMediaBool
+							}
+						}
+					}
+				}
+				containerRule.SetRoot(rootValue)
+			}
+		}
+	}
+
+	return containerNode
+}
+
 // AtRuleRule interface for the first rule in at-rule
 type AtRuleRule interface {
 	SetRoot(value any)
