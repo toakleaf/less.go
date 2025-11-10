@@ -392,6 +392,12 @@ func (n *Node) IsVisible() *bool {
 	return n.NodeVisible
 }
 
+// ClearVisibilityBlocks sets visibility blocks to 0
+func (n *Node) ClearVisibilityBlocks() {
+	zero := 0
+	n.VisibilityBlocks = &zero
+}
+
 // VisibilityInfo returns the node's visibility information
 func (n *Node) VisibilityInfo() map[string]any {
 	return map[string]any{
