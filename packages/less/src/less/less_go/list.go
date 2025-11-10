@@ -2,7 +2,6 @@ package less_go
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 )
 
@@ -184,10 +183,6 @@ func Each(list any, rs any) any {
 
 // EachWithContext is the actual implementation that accepts context
 func EachWithContext(list any, rs any, ctx *Context) any {
-	// DEBUG: Log function entry
-	if os.Getenv("LESS_GO_TRACE") == "1" {
-		fmt.Printf("[EACH-DEBUG] EachWithContext called with list type: %T, rs type: %T\n", list, rs)
-	}
 
 	rules := make([]any, 0)
 	var iterator []any
@@ -252,11 +247,6 @@ func EachWithContext(list any, rs any, ctx *Context) any {
 	// Evaluate the list parameter first if it's a Variable or other evaluable node
 	// This ensures we get the actual value before type-checking
 	list = tryEval(list)
-
-	// DEBUG: Log what type list is after evaluation
-	if os.Getenv("LESS_GO_TRACE") == "1" {
-		fmt.Printf("[EACH-DEBUG] After tryEval, list type: %T, value: %+v\n", list, list)
-	}
 
 	// Handle different list types following JavaScript logic
 	if valueNode, ok := list.(*Value); ok && valueNode.Value != nil {
