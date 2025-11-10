@@ -490,9 +490,15 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 				// 2. The extend, selector, and ruleset are all from reference imports (all have visibility blocks)
 				// This prevents extends from reference imports from polluting non-reference rulesets
 				if isVisible || (selectorHasVisibilityBlocks && rulesetHasVisibilityBlocks) {
-					// Match JavaScript behavior: don't mark the original selectors or ruleset as visible
-					// Only the new derived selectors (created by extendSelector) will have their visibility
-					// set according to the extend's visibility (handled inside extendSelector)
+					// When a visible extend matches a selector from a reference import,
+					// mark the RULESET as visible (so its declarations can be output)
+					// but don't mark the original selector paths as visible (they should remain hidden)
+					// Only the new paths created by extendSelector will be visible
+					// This is the key mechanism for @import (reference) - original selectors stay hidden,
+					// but new paths with the extending selector become visible
+					if isVisible && ruleset.Node != nil {
+						ruleset.Node.EnsureVisibility()
+					}
 					for _, selfSelector := range allExtends[extendIndex].SelfSelectors {
 						extendedSelectors := pev.extendSelector(matches, selectorPath, selfSelector, isVisible)
 						selectorsToAdd = append(selectorsToAdd, extendedSelectors)
@@ -524,22 +530,51 @@ func (pev *ProcessExtendsVisitor) deduplicatePaths(paths [][]any) [][]any {
 		return paths
 	}
 
-	// Use a map to track CSS strings we've seen
-	seen := make(map[string]bool)
+	// Use a map to track CSS strings we've seen and their index in unique array
+	seen := make(map[string]int)
 	unique := make([][]any, 0, len(paths))
 
 	for _, path := range paths {
 		// Generate CSS for this path
 		css := pev.pathToCSS(path)
 
-		// Only add if we haven't seen this CSS before
-		if !seen[css] {
-			seen[css] = true
+		// Check if we've seen this CSS before
+		if existingIdx, exists := seen[css]; exists {
+			// We've seen this CSS before - prefer visible paths over invisible paths
+			// Check if the new path is more visible than the existing one
+			newIsVisible := pev.isPathVisible(path)
+			existingIsVisible := pev.isPathVisible(unique[existingIdx])
+
+			// Replace with new path if it's visible and existing is not
+			if newIsVisible && !existingIsVisible {
+				unique[existingIdx] = path
+			}
+		} else {
+			// First time seeing this CSS
+			seen[css] = len(unique)
 			unique = append(unique, path)
 		}
 	}
 
 	return unique
+}
+
+// isPathVisible checks if a selector path is marked as visible
+func (pev *ProcessExtendsVisitor) isPathVisible(path []any) bool {
+	for _, pathElement := range path {
+		if sel, ok := pathElement.(*Selector); ok {
+			if sel.Node != nil {
+				// If selector has visibility info and it's not visible, the path is invisible
+				if sel.Node.BlocksVisibility() {
+					visible := sel.Node.IsVisible()
+					if visible == nil || !*visible {
+						return false
+					}
+				}
+			}
+		}
+	}
+	return true
 }
 
 // pathToCSS converts a selector path to CSS string for comparison

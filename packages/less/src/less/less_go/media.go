@@ -357,6 +357,35 @@ func hasOnlyEmptyContent(rules []any) bool {
 	for _, rule := range rules {
 		// Check if it's a Ruleset
 		if rs, ok := rule.(*Ruleset); ok {
+			// If the ruleset is explicitly marked as visible (e.g., by extend processing),
+			// it has content that should be output
+			if rs.Node != nil {
+				visible := rs.Node.IsVisible()
+				if visible != nil && *visible {
+					// Ruleset is marked visible, so it has content
+					return false
+				}
+			}
+
+			// Check if any paths in the ruleset have visible selectors
+			if rs.Paths != nil {
+				for _, path := range rs.Paths {
+					pathIsVisible := true
+					for _, pathElem := range path {
+						if sel, ok := pathElem.(*Selector); ok && sel.Node != nil {
+							if selVisible := sel.Node.IsVisible(); selVisible != nil && !*selVisible {
+								pathIsVisible = false
+								break
+							}
+						}
+					}
+					if pathIsVisible && len(path) > 0 {
+						// Found a visible path, so the ruleset has content
+						return false
+					}
+				}
+			}
+
 			// If it has selectors with content, it's not empty
 			if len(rs.Selectors) > 0 && len(rs.Rules) > 0 && !hasOnlyEmptyContent(rs.Rules) {
 				return false

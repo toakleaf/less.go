@@ -1517,6 +1517,11 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 	// Track how many paths were actually output (for visibility filtering)
 	outputCount := 0
 
+	// Track whether we output an opening brace (determines if we should output declarations)
+	// For reference imports: if no visible selectors, we skip declarations but still process nested rulesets
+	// For root rulesets, always output all content (no selectors/braces needed)
+	outputOpeningBrace := r.Root || isMediaEmpty
+
 	if !r.Root && !isMediaEmpty && !hasOnlyExtends {
 		// Generate debug info
 		if debugInfo := GetDebugInfo(ctx, r, tabSetStr); debugInfo != "" {
@@ -1617,7 +1622,6 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 		}
 
 		// Add opening brace (unless we skipped selector output or all paths were filtered)
-		// For reference imports: if all paths were filtered out due to visibility, skip the entire ruleset
 		if outputCount > 0 || (r.Selectors != nil && len(r.Selectors) > 0 && r.Paths == nil) {
 			if compress {
 				output.Add("{", nil, nil)
@@ -1625,9 +1629,7 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 				output.Add(" {\n", nil, nil)
 			}
 			output.Add(tabRuleStr, nil, nil)
-		} else if r.Paths != nil && len(r.Paths) > 0 && outputCount == 0 {
-			// All paths were filtered out - skip the entire ruleset
-			return
+			outputOpeningBrace = true
 		}
 	}
 
@@ -1647,15 +1649,21 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 			currentLastRule = lr
 		}
 
+		isRulesetLike := false
 		if rulesetLike, ok := rule.(interface{ IsRulesetLike() bool }); ok && rulesetLike.IsRulesetLike() {
 			ctx["lastRule"] = false
+			isRulesetLike = true
 		}
 
 		// Generate CSS for the rule
-		if gen, ok := rule.(interface{ GenCSS(any, *CSSOutput) }); ok {
-			gen.GenCSS(ctx, output)
-		} else if val, ok := rule.(interface{ GetValue() any }); ok {
-			output.Add(fmt.Sprintf("%v", val.GetValue()), nil, nil)
+		// Skip declarations if we didn't output an opening brace (no visible selectors)
+		// But always process nested rulesets - they may have visible content (e.g., @media with extended selectors)
+		if outputOpeningBrace || isRulesetLike {
+			if gen, ok := rule.(interface{ GenCSS(any, *CSSOutput) }); ok {
+				gen.GenCSS(ctx, output)
+			} else if val, ok := rule.(interface{ GetValue() any }); ok {
+				output.Add(fmt.Sprintf("%v", val.GetValue()), nil, nil)
+			}
 		}
 
 		ctx["lastRule"] = currentLastRule
