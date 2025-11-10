@@ -2,6 +2,7 @@ package less_go
 
 import (
 	"fmt"
+	"os"
 	"strings"
 )
 
@@ -1047,14 +1048,37 @@ func (pev *ProcessExtendsVisitor) VisitAtRuleOut(atRuleNode any) {
 // from a reference import, we need to make the entire @media or @supports block visible,
 // not just the ruleset.
 func (pev *ProcessExtendsVisitor) makeParentNodesVisible(node *Node) {
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Printf("[EXTEND-DEBUG] makeParentNodesVisible called, stack size: %d\n", len(pev.mediaAtRuleStack))
+	}
 
 	// Mark all Media/AtRule containers in the stack as visible
 	for _, containerNode := range pev.mediaAtRuleStack {
 		switch v := containerNode.(type) {
 		case *Media:
-			// Make the Media node visible
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				visBlocks := 0
+				if v.Node.VisibilityBlocks != nil {
+					visBlocks = *v.Node.VisibilityBlocks
+				}
+				fmt.Printf("[EXTEND-DEBUG] Processing Media node, rules count: %d, VisibilityBlocks BEFORE: %d\n",
+					len(v.Rules), visBlocks)
+			}
+			// CRITICAL: Keep the visibility block! Don't call RemoveVisibilityBlock() here.
+			// The Media node needs to keep BlocksVisibility() == true so that ResolveVisibility
+			// will call KeepOnlyVisibleChilds() to filter the rules properly.
+			// Just mark the node as visible, but keep the visibility block.
 			v.Node.EnsureVisibility()
-			v.Node.RemoveVisibilityBlock()
+			// DO NOT call v.Node.RemoveVisibilityBlock() here!
+
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				visBlocks := 0
+				if v.Node.VisibilityBlocks != nil {
+					visBlocks = *v.Node.VisibilityBlocks
+				}
+				fmt.Printf("[EXTEND-DEBUG] Media node VisibilityBlocks AFTER: %d, BlocksVisibility: %v\n",
+					visBlocks, v.Node.BlocksVisibility())
+			}
 
 			// CRITICAL: Also make all Rules inside the Media block visible
 			// Media.GenCSS filters based on whether rules have content,
@@ -1064,13 +1088,46 @@ func (pev *ProcessExtendsVisitor) makeParentNodesVisible(node *Node) {
 					trueVal := true
 					ruleset.Node.NodeVisible = &trueVal
 					ruleset.Node.EnsureVisibility()
-					ruleset.Node.RemoveVisibilityBlock()
+					// Keep the visibility block on the wrapper ruleset too
+					// DO NOT call ruleset.Node.RemoveVisibilityBlock() here!
+
+					if os.Getenv("LESS_GO_DEBUG") == "1" {
+						fmt.Printf("[EXTEND-DEBUG] Marked wrapper ruleset visible, has %d selectors, %d rules, %d paths\n",
+							len(ruleset.Selectors), len(ruleset.Rules), len(ruleset.Paths))
+						if vis := ruleset.Node.IsVisible(); vis != nil {
+							fmt.Printf("[EXTEND-DEBUG] Wrapper ruleset IsVisible: %v\n", *vis)
+						} else {
+							fmt.Printf("[EXTEND-DEBUG] Wrapper ruleset IsVisible: nil\n")
+						}
+					}
+
+					// HYPOTHESIS 1: Mark all Paths and their selectors as visible
+					// The Paths contain the actual selectors that need to be output
+					for _, path := range ruleset.Paths {
+						for _, pathElement := range path {
+							if selector, ok := pathElement.(*Selector); ok {
+								selector.EnsureVisibility()
+								selector.RemoveVisibilityBlock()
+								selector.EvaldCondition = true
+							}
+						}
+					}
+
+					// HYPOTHESIS 2: Recursively mark child rulesets as visible
+					// The wrapper ruleset contains child rulesets (the actual .class { ... } nodes)
+					pev.markChildRulesetsVisible(ruleset)
 				}
 			}
 		case *AtRule:
-			// Make the AtRule node visible (this covers @supports, @keyframes, etc.)
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Printf("[EXTEND-DEBUG] Processing AtRule node, rules count: %d\n", len(v.Rules))
+			}
+			// CRITICAL: Keep the visibility block! Don't call RemoveVisibilityBlock() here.
+			// The AtRule node needs to keep BlocksVisibility() == true so that ResolveVisibility
+			// will call KeepOnlyVisibleChilds() to filter the rules properly.
+			// Just mark the node as visible, but keep the visibility block.
 			v.Node.EnsureVisibility()
-			v.Node.RemoveVisibilityBlock()
+			// DO NOT call v.Node.RemoveVisibilityBlock() here!
 
 			// CRITICAL: Also make all Rules inside the AtRule visible
 			for _, rule := range v.Rules {
@@ -1078,10 +1135,81 @@ func (pev *ProcessExtendsVisitor) makeParentNodesVisible(node *Node) {
 					trueVal := true
 					ruleset.Node.NodeVisible = &trueVal
 					ruleset.Node.EnsureVisibility()
-					ruleset.Node.RemoveVisibilityBlock()
+					// Keep the visibility block on the wrapper ruleset too
+					// DO NOT call ruleset.Node.RemoveVisibilityBlock() here!
+
+					if os.Getenv("LESS_GO_DEBUG") == "1" {
+						fmt.Printf("[EXTEND-DEBUG] Marked wrapper ruleset visible, has %d selectors, %d rules, %d paths\n",
+							len(ruleset.Selectors), len(ruleset.Rules), len(ruleset.Paths))
+						if vis := ruleset.Node.IsVisible(); vis != nil {
+							fmt.Printf("[EXTEND-DEBUG] Wrapper ruleset IsVisible: %v\n", *vis)
+						} else {
+							fmt.Printf("[EXTEND-DEBUG] Wrapper ruleset IsVisible: nil\n")
+						}
+					}
+
+					// HYPOTHESIS 1: Mark all Paths and their selectors as visible
+					// The Paths contain the actual selectors that need to be output
+					for _, path := range ruleset.Paths {
+						for _, pathElement := range path {
+							if selector, ok := pathElement.(*Selector); ok {
+								selector.EnsureVisibility()
+								selector.RemoveVisibilityBlock()
+								selector.EvaldCondition = true
+							}
+						}
+					}
+
+					// HYPOTHESIS 2: Recursively mark child rulesets as visible
+					// The wrapper ruleset contains child rulesets (the actual .class { ... } nodes)
+					pev.markChildRulesetsVisible(ruleset)
 				}
 			}
 		default:
+		}
+	}
+}
+
+// markChildRulesetsVisible recursively marks all child rulesets as visible
+func (pev *ProcessExtendsVisitor) markChildRulesetsVisible(ruleset *Ruleset) {
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Printf("[EXTEND-DEBUG] markChildRulesetsVisible called on ruleset with %d rules\n", len(ruleset.Rules))
+	}
+
+	for i, rule := range ruleset.Rules {
+		if childRuleset, ok := rule.(*Ruleset); ok {
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Printf("[EXTEND-DEBUG] Found child ruleset[%d]: %d selectors, %d rules, %d paths\n",
+					i, len(childRuleset.Selectors), len(childRuleset.Rules), len(childRuleset.Paths))
+			}
+
+			trueVal := true
+			childRuleset.Node.NodeVisible = &trueVal
+			childRuleset.Node.EnsureVisibility()
+			// Keep the visibility block on child rulesets too
+			// DO NOT call childRuleset.Node.RemoveVisibilityBlock() here!
+
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				if vis := childRuleset.Node.IsVisible(); vis != nil {
+					fmt.Printf("[EXTEND-DEBUG] Child ruleset[%d] IsVisible after marking: %v\n", i, *vis)
+				} else {
+					fmt.Printf("[EXTEND-DEBUG] Child ruleset[%d] IsVisible after marking: nil\n", i)
+				}
+			}
+
+			// Mark child paths and selectors as visible
+			for _, path := range childRuleset.Paths {
+				for _, pathElement := range path {
+					if selector, ok := pathElement.(*Selector); ok {
+						selector.EnsureVisibility()
+						selector.RemoveVisibilityBlock()
+						selector.EvaldCondition = true
+					}
+				}
+			}
+
+			// Recursively process nested rulesets
+			pev.markChildRulesetsVisible(childRuleset)
 		}
 	}
 }

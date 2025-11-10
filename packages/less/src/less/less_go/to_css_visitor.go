@@ -132,10 +132,31 @@ func (u *CSSVisitorUtils) ResolveVisibility(node any) any {
 		return nil
 	}
 
+	// Debug logging for Media and AtRule nodes
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		if _, isMedia := node.(*Media); isMedia {
+			fmt.Printf("[RESOLVE-VIS-DEBUG] Processing Media node\n")
+		} else if _, isAtRule := node.(*AtRule); isAtRule {
+			fmt.Printf("[RESOLVE-VIS-DEBUG] Processing AtRule node\n")
+		}
+	}
+
 	if blockedNode, hasBlocked := node.(interface{ BlocksVisibility() bool }); hasBlocked {
-		if !blockedNode.BlocksVisibility() {
+		blocksVis := blockedNode.BlocksVisibility()
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			if _, isMedia := node.(*Media); isMedia {
+				fmt.Printf("[RESOLVE-VIS-DEBUG] Media BlocksVisibility: %v\n", blocksVis)
+			} else if _, isAtRule := node.(*AtRule); isAtRule {
+				fmt.Printf("[RESOLVE-VIS-DEBUG] AtRule BlocksVisibility: %v\n", blocksVis)
+			}
+		}
+
+		if !blocksVis {
 			isEmpty := u.IsEmpty(node)
 			if isEmpty {
+				if os.Getenv("LESS_GO_DEBUG") == "1" {
+					fmt.Printf("[RESOLVE-VIS-DEBUG] Node doesn't block visibility but is empty, returning nil\n")
+				}
 				return nil
 			}
 			return node
@@ -152,12 +173,35 @@ func (u *CSSVisitorUtils) ResolveVisibility(node any) any {
 	// Node blocks visibility, process it
 	if nodeWithRules, ok := node.(interface{ GetRules() []any }); ok {
 		rules := nodeWithRules.GetRules()
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Printf("[RESOLVE-VIS-DEBUG] Node blocks visibility, rules count: %d\n", len(rules))
+		}
+
 		if len(rules) > 0 {
 			compiledRulesBody := rules[0]
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				if rs, ok := compiledRulesBody.(*Ruleset); ok {
+					fmt.Printf("[RESOLVE-VIS-DEBUG] Before KeepOnlyVisibleChilds: ruleset has %d rules\n", len(rs.Rules))
+				}
+			}
+
 			u.KeepOnlyVisibleChilds(compiledRulesBody)
 
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				if rs, ok := compiledRulesBody.(*Ruleset); ok {
+					fmt.Printf("[RESOLVE-VIS-DEBUG] After KeepOnlyVisibleChilds: ruleset has %d rules\n", len(rs.Rules))
+				}
+			}
+
 			if u.IsEmpty(compiledRulesBody) {
+				if os.Getenv("LESS_GO_DEBUG") == "1" {
+					fmt.Printf("[RESOLVE-VIS-DEBUG] compiledRulesBody is empty after filtering, returning nil\n")
+				}
 				return nil
+			}
+
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Printf("[RESOLVE-VIS-DEBUG] compiledRulesBody has content, keeping node\n")
 			}
 
 			// Match JavaScript: node.ensureVisibility(); node.removeVisibilityBlock();
@@ -174,6 +218,9 @@ func (u *CSSVisitorUtils) ResolveVisibility(node any) any {
 		}
 	}
 
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Printf("[RESOLVE-VIS-DEBUG] No rules found, returning nil\n")
+	}
 	return nil
 }
 
