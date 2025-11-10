@@ -88,6 +88,22 @@ func (c *Container) GetType() string {
 
 // GenCSS generates CSS representation
 func (c *Container) GenCSS(context any, output *CSSOutput) {
+	// Skip container queries with empty rulesets (happens when nested container queries are merged)
+	// When evalNested merges nested container queries, it returns an empty Ruleset as a placeholder
+	// but the Container node itself should not be output if it has no content
+	if len(c.Rules) == 0 {
+		// No rules at all, skip
+		return
+	}
+
+	if ruleset, ok := c.Rules[0].(*Ruleset); ok {
+		// Check if the ruleset has only empty content (regardless of selectors)
+		// A ruleset with selectors but no actual declarations/rules should not be output
+		if hasOnlyEmptyContent(ruleset.Rules) {
+			return // Skip empty container blocks
+		}
+	}
+
 	output.Add("@container ", c.FileInfo(), c.GetIndex())
 	c.Features.GenCSS(context, output)
 	c.OutputRuleset(context, output, c.Rules)
