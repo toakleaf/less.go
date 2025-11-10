@@ -2,6 +2,8 @@ package less_go
 
 import (
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -39,8 +41,23 @@ func NewAnonymous(value any, index int, fileInfo map[string]any, mapLines bool, 
 }
 
 // Eval evaluates the anonymous value
+// If the value is a numeric string, converts it to a Dimension
+// Otherwise returns a new Anonymous with the same value
 func (a *Anonymous) Eval(context any) (any, error) {
-	// Match JavaScript: just returns a new Anonymous with the same value (no evaluation)
+	// Try to convert numeric string values to Dimension objects
+	// This enables variables like @base: 8 to participate in math operations
+	if str, ok := a.Value.(string); ok {
+		// Try to parse as a dimension (number with optional unit)
+		if dim := tryParseDimension(str); dim != nil {
+			return dim, nil
+		}
+		// Try to parse as a color
+		if color := tryParseColor(str); color != nil {
+			return color, nil
+		}
+	}
+
+	// Match JavaScript: just returns a new Anonymous with the same value
 	// Create a new Anonymous instance like JavaScript version
 	visibilityInfo := map[string]any{}
 	if a.VisibilityBlocks != nil {
@@ -50,6 +67,68 @@ func (a *Anonymous) Eval(context any) (any, error) {
 		visibilityInfo["nodeVisible"] = *a.NodeVisible
 	}
 	return NewAnonymous(a.Value, a.Index, a.FileInfo, a.MapLines, a.RulesetLike, visibilityInfo), nil
+}
+
+// tryParseDimension attempts to parse a string as a numeric dimension with optional unit
+// Examples: "8" -> Dimension(8), "10px" -> Dimension(10, "px"), "1.5em" -> Dimension(1.5, "em")
+func tryParseDimension(s string) *Dimension {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil
+	}
+
+	// Pattern: optional sign, digits, optional decimal part, optional unit
+	// Example: "-10.5px" or "8" or ".5em"
+	// Using a regex to parse numeric + unit
+	re := regexp.MustCompile(`^([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)\s*([a-zA-Z%]*)\s*$`)
+	matches := re.FindStringSubmatch(s)
+	if matches == nil || len(matches) < 2 {
+		return nil
+	}
+
+	numStr := matches[1]
+	unitStr := matches[2]
+
+	// Try to parse the numeric part
+	num, err := strconv.ParseFloat(numStr, 64)
+	if err != nil {
+		return nil
+	}
+
+	// Create dimension with optional unit
+	dim, err := NewDimension(num, unitStr)
+	if err != nil {
+		return nil
+	}
+
+	return dim
+}
+
+// tryParseColor attempts to parse a string as a color
+// Examples: "#fff", "#ffffff", "red" (keyword)
+func tryParseColor(s string) *Color {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil
+	}
+
+	// Try hex color
+	if strings.HasPrefix(s, "#") {
+		// Simple hex color validation
+		hexPart := s[1:]
+		if len(hexPart) == 3 || len(hexPart) == 6 {
+			// Try to create color from hex
+			color := NewColor(s, 1.0, s)
+			if color != nil {
+				return color
+			}
+		}
+	}
+
+	// Could add keyword color detection here if needed
+	// For now, we'll just handle hex colors
+
+	return nil
 }
 
 // Compare compares two nodes
