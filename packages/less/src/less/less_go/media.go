@@ -106,7 +106,7 @@ func (m *Media) Accept(visitor any) {
 
 // EvalTop evaluates the media rule at the top level (implementing NestableAtRulePrototype)
 func (m *Media) EvalTop(context any) any {
-	if os.Getenv("LESS_GO_TRACE") != "" {
+	if os.Getenv("LESS_GO_TRACE") != "" || os.Getenv("LESS_GO_DEBUG") == "1" {
 		fmt.Fprintf(os.Stderr, "[MEDIA.EvalTop] Starting\n")
 	}
 
@@ -120,12 +120,19 @@ func (m *Media) EvalTop(context any) any {
 		mediaBlocks = evalCtx.MediaBlocks
 		hasMediaBlocks = len(mediaBlocks) > 0
 
-		if os.Getenv("LESS_GO_TRACE") != "" {
+		if os.Getenv("LESS_GO_TRACE") != "" || os.Getenv("LESS_GO_DEBUG") == "1" {
 			fmt.Fprintf(os.Stderr, "[MEDIA.EvalTop] mediaBlocks count: %d\n", len(mediaBlocks))
+			for i, mb := range mediaBlocks {
+				fmt.Fprintf(os.Stderr, "[MEDIA.EvalTop]   mediaBlock[%d]: type=%T\n", i, mb)
+			}
 		}
 
 		// Render all dependent Media blocks
 		if hasMediaBlocks && len(mediaBlocks) > 1 {
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Fprintf(os.Stderr, "[MEDIA.EvalTop] Creating MultiMedia Ruleset with %d media blocks\n", len(mediaBlocks))
+			}
+
 			// Create empty selectors
 			selector, err := NewSelector(nil, nil, nil, m.GetIndex(), m.FileInfo(), nil)
 			if err != nil {
@@ -145,6 +152,9 @@ func (m *Media) EvalTop(context any) any {
 			ruleset.MultiMedia = true // Set MultiMedia to true for multiple media blocks
 			ruleset.CopyVisibilityInfo(m.VisibilityInfo())
 			m.SetParent(ruleset.Node, m.Node)
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Fprintf(os.Stderr, "[MEDIA.EvalTop] MultiMedia Ruleset created, returning it\n")
+			}
 			result = ruleset
 		}
 
