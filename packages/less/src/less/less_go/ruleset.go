@@ -668,6 +668,12 @@ func (r *Ruleset) Eval(context any) (any, error) {
 			continue // Already evaluated
 		}
 
+		// Check if this is a declaration before evaluation
+		isDeclaration := false
+		if _, ok := rule.(*Declaration); ok {
+			isDeclaration = true
+		}
+
 		// Try different Eval signatures
 		switch evalRule := rule.(type) {
 		case interface{ Eval(any) (*MixinDefinition, error) }:
@@ -687,6 +693,17 @@ func (r *Ruleset) Eval(context any) (any, error) {
 		case interface{ Eval(any) any }:
 			// Handle Eval without error return
 			rsRules[i] = evalRule.Eval(context)
+		}
+
+		// CRITICAL: Update ruleset.Rules and reset cache after evaluating each declaration
+		// This ensures that subsequent rules can see newly declared variables
+		// For example, in @media blocks with variable declarations:
+		//   @media screen { @base: 8; .body { max-width: (@base * 60); } }
+		// The .body rule needs to see @base after it's been evaluated
+		// We must update ruleset.Rules BEFORE resetting cache so Variables() sees the new declaration
+		if isDeclaration {
+			ruleset.Rules = rsRules
+			ruleset.ResetCache()
 		}
 	}
 

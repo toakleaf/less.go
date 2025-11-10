@@ -552,6 +552,14 @@ func (m *Media) Eval(context any) (any, error) {
 			}
 			media.Rules = []any{evaluated}
 
+			// CRITICAL FIX: Copy evaluated rules back to original ruleset on frames stack
+			// This ensures variable lookups work correctly for variables declared inside media queries
+			// The original ruleset is on the frames stack, so child rules need to see updated variables
+			if evaluatedRuleset, ok := evaluated.(*Ruleset); ok {
+				ruleset.Rules = evaluatedRuleset.Rules
+				ruleset.ResetCache() // Reset cache so Variables() rebuilds with new rules
+			}
+
 			// Match JavaScript: context.frames.shift();
 			if len(evalCtx.Frames) > 0 {
 				evalCtx.Frames = evalCtx.Frames[1:]
@@ -726,6 +734,14 @@ func (m *Media) evalWithMapContext(ctx map[string]any) (any, error) {
 				return nil, err
 			}
 			media.Rules = []any{evaluated}
+
+			// CRITICAL FIX: Copy evaluated rules back to original ruleset on frames stack
+			// This ensures variable lookups work correctly for variables declared inside media queries
+			// The original ruleset is on the frames stack, so child rules need to see updated variables
+			if evaluatedRuleset, ok := evaluated.(*Ruleset); ok {
+				ruleset.Rules = evaluatedRuleset.Rules
+				ruleset.ResetCache() // Reset cache so Variables() rebuilds with new rules
+			}
 
 			// Match JavaScript: context.frames.shift();
 			if currentFrames, ok := ctx["frames"].([]any); ok && len(currentFrames) > 0 {
