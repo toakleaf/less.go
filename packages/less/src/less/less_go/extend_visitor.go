@@ -490,9 +490,26 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 				// 2. The extend, selector, and ruleset are all from reference imports (all have visibility blocks)
 				// This prevents extends from reference imports from polluting non-reference rulesets
 				if isVisible || (selectorHasVisibilityBlocks && rulesetHasVisibilityBlocks) {
-					// Match JavaScript behavior: don't mark the original selectors or ruleset as visible
-					// Only the new derived selectors (created by extendSelector) will have their visibility
-					// set according to the extend's visibility (handled inside extendSelector)
+					// CRITICAL FIX: When a visible extend (from outside a reference import) matches
+					// selectors from a reference import, mark those matched selectors as visible.
+					// This ensures that the matched rulesets from reference imports appear in the output.
+					if isVisible && (selectorHasVisibilityBlocks || rulesetHasVisibilityBlocks) {
+						// The extend is visible (from non-reference) and the matched selector/ruleset
+						// is from a reference import. Mark the matched selectors AND the ruleset as visible,
+						// and set EvaldCondition to true so they pass the isOutput check in compileRulesetPaths.
+						for _, pathSelector := range selectorPath {
+							if sel, ok := pathSelector.(*Selector); ok {
+								sel.EnsureVisibility()
+								sel.EvaldCondition = true
+							}
+						}
+						// Also mark the ruleset itself as visible
+						if ruleset.Node != nil {
+							ruleset.Node.EnsureVisibility()
+							ruleset.Node.RemoveVisibilityBlock()
+						}
+					}
+
 					for _, selfSelector := range allExtends[extendIndex].SelfSelectors {
 						extendedSelectors := pev.extendSelector(matches, selectorPath, selfSelector, isVisible)
 						selectorsToAdd = append(selectorsToAdd, extendedSelectors)
