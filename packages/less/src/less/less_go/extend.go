@@ -161,6 +161,20 @@ func (e *Extend) IsVisible() bool {
     if visible != nil {
         return *visible
     }
+
+    // CRITICAL FIX for import-reference: Check if any of the SelfSelectors are visible
+    // The extend's visibility should be based on where it's DEFINED (its self selectors),
+    // not just on the extend node's visibility blocks
+    if len(e.SelfSelectors) > 0 {
+        for _, selfSel := range e.SelfSelectors {
+            if sel, ok := selfSel.(*Selector); ok {
+                if selVis := sel.IsVisible(); selVis != nil && *selVis {
+                    return true
+                }
+            }
+        }
+    }
+
     // If nodeVisible is not set, return true if there are no visibility blocks
     // This matches JavaScript behavior where undefined nodeVisible with no blocks = visible
     return !e.BlocksVisibility()
