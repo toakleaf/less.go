@@ -1,0 +1,212 @@
+================================================================================
+URL TESTS FAILURE ANALYSIS - EXECUTIVE SUMMARY
+================================================================================
+
+Created: 2025-11-10
+Tests Analyzed: 3 (main/urls, static-urls/urls, url-args/urls)
+Status: All failing with output differences
+Overall Impact: HIGH - 3 distinct bugs affecting URL processing
+
+================================================================================
+QUICK SUMMARY
+================================================================================
+
+Three URL test suites are failing due to THREE SEPARATE ISSUES:
+
+1. CRITICAL: Import statements (@import) completely disappear from output
+   - Affects: ALL 3 tests (main/urls, static-urls/urls, url-args/urls)
+   - Impact: Invalid CSS output when imports are required
+   - Lines affected: First 1-3 lines of expected output
+
+2. HIGH: Relative paths get extra "../" segments added
+   - Affects: 2 tests (main/urls, static-urls/urls)
+   - Impact: Broken resource references in CSS
+   - Lines affected: ~43-44 in each test
+
+3. HIGH: urlArgs query string option not working
+   - Affects: 1 test (url-args/urls)
+   - Impact: Cache busting feature completely broken
+   - Lines affected: Multiple throughout url-args test
+
+================================================================================
+DETAILED FINDINGS
+================================================================================
+
+ISSUE #1: MISSING IMPORT STATEMENTS
+---
+
+Current Behavior:
+  Input LESS file contains: @import "css/background.css";
+  CSS output shows: Nothing (import is lost)
+  
+Expected:
+  CSS output should start with: @import "css/background.css";
+
+Tests Failing:
+  ✗ main/urls - First 3 lines should be imports
+  ✗ static-urls/urls - First 2 lines should be imports  
+  ✗ url-args/urls - Pattern indicates same issue
+
+Problem: Imports are parsed but not included in final CSS output
+Root Cause: Unknown - likely in import collection or output ordering
+Priority: CRITICAL
+
+
+ISSUE #2: RELATIVE PATH REWRITING BUG
+---
+
+Current Behavior:
+  Input: url(../data/image.jpg)
+  Output: url(../../data/image.jpg)
+  
+Problem: One extra "../" is being added
+Expected: Path should remain unchanged: url(../data/image.jpg)
+
+Tests Failing:
+  ✗ main/urls - Lines 43-44
+  ✗ static-urls/urls - Lines 43-44
+
+This affects URLs in imported files specifically
+Pattern: ../data/ becomes ../../data/ (off-by-one in directory depth)
+
+Root Cause: Path normalization in relative URL rewriting
+Priority: HIGH (breaks CSS functionality)
+
+
+ISSUE #3: urlArgs OPTION NOT IMPLEMENTED
+---
+
+Configuration: urlArgs: "424242"
+Expected Behavior: Append query string to all non-data-URI URLs
+Current Behavior: No query strings added at all
+
+Examples:
+  url("/fonts/garamond-pro.ttf")
+  Expected: url("/fonts/garamond-pro.ttf?424242")
+  Actual: url("/fonts/garamond-pro.ttf")
+  
+  url(http://example.com/css?family=Rokkitt&variant=700)
+  Expected: url(http://example.com/css?family=Rokkitt&variant=700&424242)
+  Actual: url(http://example.com/css?family=Rokkitt&variant=700)
+
+Data URIs are correctly NOT modified (this part works!)
+
+Tests Failing:
+  ✗ url-args/urls - Multiple lines (2, 6, 19, 26, 29, etc.)
+
+Root Cause: urlArgs option not being processed/applied
+Priority: HIGH (feature completely non-functional)
+
+================================================================================
+IMPACT ASSESSMENT
+================================================================================
+
+Failing Tests: 3 out of 185 integration tests (1.6%)
+Perfect CSS Matches Lost: 0 (these are among failing tests)
+Compilation Status: All 3 tests compile successfully
+Regression Risk: LOW (only affects URL tests)
+
+Files Affected:
+  - /packages/test-data/less/_main/urls.less
+  - /packages/test-data/less/static-urls/urls.less
+  - /packages/test-data/less/url-args/urls.less
+  
+Test Configuration:
+  - main/urls: relativeUrls=true, silent=true, javascriptEnabled=true
+  - static-urls/urls: math=strict, relativeUrls=false, rootpath=folder (1)/
+  - url-args/urls: urlArgs=424242
+
+================================================================================
+INVESTIGATION ROADMAP
+================================================================================
+
+For Issue #1 (Missing Imports):
+  1. Check: ParseTree.ToCSS() method - is it outputting imports?
+  2. Check: Rule/statement collection - are imports being collected?
+  3. Check: Output ordering - are imports supposed to be first?
+  4. Search: @import handling in visitor pattern
+  5. Look at: How imports are distinguished from other rules
+
+For Issue #2 (Extra Parent Directories):
+  1. Find: Relative path rewriting functions
+  2. Check: Path normalization logic
+  3. Look for: Off-by-one errors in directory depth calculation
+  4. Examine: How imported file context paths are determined
+  5. Test: With various path combinations (../, ../../, etc.)
+
+For Issue #3 (urlArgs Not Working):
+  1. Search: "urlArgs" in codebase - find where it's referenced
+  2. Check: Options reading/storage - is urlArgs being captured?
+  3. Find: URL rendering functions - where url() values are output
+  4. Look for: Query string appending logic
+  5. Verify: Data URI detection (currently working correctly)
+
+================================================================================
+TESTING RESULTS
+================================================================================
+
+Test Execution:
+  Command: LESS_GO_DIFF=1 go test -run "TestIntegrationSuite/[suite]/urls$" -v
+  Status: All 3 tests FAIL with output differences
+  
+Test Files:
+  main/urls:
+    Input: /packages/test-data/less/_main/urls.less
+    Expected: /packages/test-data/css/_main/urls.css
+    Status: Output differs (imports missing, paths wrong)
+    
+  static-urls/urls:
+    Input: /packages/test-data/less/static-urls/urls.less
+    Expected: /packages/test-data/css/static-urls/urls.css
+    Status: Output differs (imports missing, paths wrong)
+    
+  url-args/urls:
+    Input: /packages/test-data/less/url-args/urls.less
+    Expected: /packages/test-data/css/url-args/urls.css
+    Status: Output differs (urlArgs not appended)
+
+================================================================================
+DOCUMENTATION GENERATED
+================================================================================
+
+Three detailed analysis documents have been created:
+
+1. URL_TEST_FINDINGS.md
+   - High-level summary of all three issues
+   - Common patterns in failures
+   - What's working vs. what's broken
+
+2. URL_TEST_DETAILED_DIFFS.txt
+   - Line-by-line comparison of expected vs actual output
+   - Specific examples from each failing test
+   - Exact difference patterns
+
+3. URL_TEST_FIX_GUIDE.md
+   - Detailed guide for fixing each issue
+   - Code locations to investigate
+   - Fix strategies with pseudocode
+   - Testing commands to verify fixes
+
+All files available in: /home/user/less.go/
+
+================================================================================
+NEXT STEPS
+================================================================================
+
+Priority Order:
+  1. Fix Issue #1 (Import statements) - CRITICAL
+  2. Fix Issue #2 (Relative paths) - HIGH
+  3. Fix Issue #3 (urlArgs) - HIGH
+
+Verification:
+  After fixes, run:
+    go test -run "TestIntegrationSuite/(main|static-urls|url-args)/urls$" -v
+  
+  Success: All 3 tests show "Perfect match!"
+  
+Expected Result:
+  All 3 URL tests should pass
+  Other tests should remain unaffected
+  Integration test suite: 79+3=82 perfect matches (44.3%)
+
+================================================================================
