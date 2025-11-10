@@ -203,6 +203,9 @@ func Replace(stringArg, pattern, replacement interface{}, flags ...interface{}) 
 	if len(flags) > 0 {
 		if quoted, ok := flags[0].(*Quoted); ok {
 			flagsStr = quoted.value
+		} else if keyword, ok := flags[0].(*Keyword); ok {
+			// Handle Keyword arguments (e.g., "g" in replace("007", "0", #135, g))
+			flagsStr = keyword.ToCSS(nil)
 		} else if valuer, ok := flags[0].(interface{ GetValue() interface{} }); ok {
 			if strVal, ok := valuer.GetValue().(string); ok {
 				flagsStr = strVal
