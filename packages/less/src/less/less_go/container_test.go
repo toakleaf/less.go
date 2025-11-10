@@ -191,8 +191,11 @@ func TestContainer(t *testing.T) {
 		mockVisibilityInfo := map[string]any{"visibilityBlocks": 1, "nodeVisible": true}
 		mockFeatures := []any{"min-width: 300px"}
 
+		// Create a non-empty container with a declaration so it has content
+		declaration, _ := NewDeclaration("color", NewAnonymous("blue", 0, nil, false, false, nil), false, false, 0, mockFileInfo, false, false)
+
 		container, err := NewContainer(
-			[]any{},
+			[]any{declaration},
 			mockFeatures,
 			5,
 			mockFileInfo,
