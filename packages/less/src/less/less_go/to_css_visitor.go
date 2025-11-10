@@ -688,10 +688,16 @@ func (v *ToCSSVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitArgs) any {
 				
 				if nodeRules != nil {
 					nodeRuleCnt := len(nodeRules)
+					if os.Getenv("LESS_GO_DEBUG") == "1" {
+						fmt.Fprintf(os.Stderr, "[VisitRuleset] Processing %d rules\n", nodeRuleCnt)
+					}
 					for i := 0; i < nodeRuleCnt; {
 						rule := nodeRules[i]
 						if ruleWithRules, ok := rule.(interface{ GetRules() []any }); ok {
 							if ruleWithRules.GetRules() != nil {
+								if os.Getenv("LESS_GO_DEBUG") == "1" {
+									fmt.Fprintf(os.Stderr, "[VisitRuleset] Extracting child ruleset at index %d\n", i)
+								}
 								// visit because we are moving them out from being a child
 								rulesets = append(rulesets, v.visitor.Visit(rule))
 								// Remove from nodeRules
@@ -799,7 +805,10 @@ func (v *ToCSSVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitArgs) any {
 		rulesets = append([]any{rulesetNode}, rulesets...)
 	}
 	
-	
+
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Fprintf(os.Stderr, "[VisitRuleset] Returning %d rulesets\n", len(rulesets))
+	}
 	if len(rulesets) == 1 {
 		return rulesets[0]
 	}
