@@ -600,10 +600,12 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 
 					for _, selfSelector := range allExtends[extendIndex].SelfSelectors {
 						extendedSelectors := pev.extendSelector(matches, selectorPath, selfSelector, isVisible)
-						// Add paths to the EXTEND'S ruleset, not the matched ruleset
-						targetRuleset.Paths = append(targetRuleset.Paths, extendedSelectors)
+						// CRITICAL: Add paths to the MATCHED ruleset (like JavaScript extend-visitor.js line 296)
+						// This ensures extend chaining works correctly (.c:extend(.b) + .b:extend(.a) = .a,.b,.c)
+						// The targetRuleset is only used for visibility management (reference imports)
+						ruleset.Paths = append(ruleset.Paths, extendedSelectors)
 						// Mark this ruleset as modified so we can deduplicate it later
-						modifiedRulesets[targetRuleset] = true
+						modifiedRulesets[ruleset] = true
 					}
 				}
 			}
