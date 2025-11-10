@@ -143,12 +143,16 @@ func (o *Operation) Eval(context any) (any, error) {
 			aHasOperate = true
 		} else if _, ok := a.(*Color); ok {
 			aHasOperate = true
+		} else if _, ok := a.(*Anonymous); ok {
+			aHasOperate = true
 		}
-		
+
 		// Check if b can operate
 		if _, ok := b.(*Dimension); ok {
 			bHasOperate = true
 		} else if _, ok := b.(*Color); ok {
+			bHasOperate = true
+		} else if _, ok := b.(*Anonymous); ok {
 			bHasOperate = true
 		}
 		
