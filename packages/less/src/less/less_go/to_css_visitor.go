@@ -180,6 +180,9 @@ func (u *CSSVisitorUtils) ResolveVisibility(node any) any {
 // IsVisibleRuleset checks if a ruleset is visible
 func (u *CSSVisitorUtils) IsVisibleRuleset(rulesetNode any) bool {
 	if rulesetNode == nil {
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Fprintf(os.Stderr, "[IsVisibleRuleset] Returning false - rulesetNode is nil\n")
+		}
 		return false
 	}
 
@@ -190,6 +193,11 @@ func (u *CSSVisitorUtils) IsVisibleRuleset(rulesetNode any) bool {
 	}
 
 	if u.IsEmpty(rulesetNode) {
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			if rs, ok := rulesetNode.(*Ruleset); ok && rs.MultiMedia {
+				fmt.Fprintf(os.Stderr, "[IsVisibleRuleset] MultiMedia Ruleset is empty (Rules=%d), returning false\n", len(rs.Rules))
+			}
+		}
 		return false
 	}
 
@@ -216,8 +224,23 @@ func (u *CSSVisitorUtils) IsVisibleRuleset(rulesetNode any) bool {
 		}
 	}
 
+	// Special case: MultiMedia rulesets should always be visible
+	// They contain merged media queries and don't need selectors
+	if multiMediaNode, ok := rulesetNode.(*Ruleset); ok && multiMediaNode.MultiMedia {
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Fprintf(os.Stderr, "[IsVisibleRuleset] MultiMedia Ruleset - returning true\n")
+		}
+		return true
+	}
+
 	if rootNode, ok := rulesetNode.(interface{ GetRoot() bool }); ok {
 		if !rootNode.GetRoot() && !u.HasVisibleSelector(rulesetNode) {
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				if rs, ok := rulesetNode.(*Ruleset); ok && rs.MultiMedia {
+					fmt.Fprintf(os.Stderr, "[IsVisibleRuleset] MultiMedia Ruleset - has root=%v, hasVisibleSelector=%v\n",
+						rootNode.GetRoot(), u.HasVisibleSelector(rulesetNode))
+				}
+			}
 			return false
 		}
 	}
@@ -634,6 +657,12 @@ func (v *ToCSSVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitArgs) any {
 	}
 	
 	if rootNode, ok := rulesetNode.(interface{ GetRoot() bool }); ok {
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			if rs, ok := rulesetNode.(*Ruleset); ok {
+				fmt.Fprintf(os.Stderr, "[ToCSSVisitor.VisitRuleset] Ruleset root=%v, MultiMedia=%v, Rules=%d\n",
+					rootNode.GetRoot(), rs.MultiMedia, len(rs.Rules))
+			}
+		}
 		if !rootNode.GetRoot() {
 			// remove invisible paths and clean up combinators
 			v.compileRulesetPaths(rulesetNode)
@@ -687,14 +716,35 @@ func (v *ToCSSVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitArgs) any {
 	if nodeWithRules, ok := rulesetNode.(interface{ GetRules() []any; SetRules([]any) }); ok {
 		rules := nodeWithRules.GetRules()
 		if rules != nil {
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				if rs, ok := rulesetNode.(*Ruleset); ok && rs.MultiMedia {
+					fmt.Fprintf(os.Stderr, "[ToCSSVisitor.VisitRuleset] MultiMedia before merge/dedup: Rules=%d\n", len(rules))
+				}
+			}
 			rules = v.mergeRules(rules)
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				if rs, ok := rulesetNode.(*Ruleset); ok && rs.MultiMedia {
+					fmt.Fprintf(os.Stderr, "[ToCSSVisitor.VisitRuleset] MultiMedia after mergeRules: Rules=%d\n", len(rules))
+				}
+			}
 			rules = v.removeDuplicateRules(rules)
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				if rs, ok := rulesetNode.(*Ruleset); ok && rs.MultiMedia {
+					fmt.Fprintf(os.Stderr, "[ToCSSVisitor.VisitRuleset] MultiMedia after removeDuplicateRules: Rules=%d\n", len(rules))
+				}
+			}
 			nodeWithRules.SetRules(rules)
 		}
 	}
 	
 	// now decide whether we keep the ruleset
 	keepRuleset := v.utils.IsVisibleRuleset(rulesetNode)
+
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		if rs, ok := rulesetNode.(*Ruleset); ok && rs.MultiMedia {
+			fmt.Fprintf(os.Stderr, "[ToCSSVisitor.VisitRuleset] MultiMedia Ruleset keepRuleset=%v\n", keepRuleset)
+		}
+	}
 	
 	
 	

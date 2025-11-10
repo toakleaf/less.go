@@ -104,13 +104,13 @@ func (marr *MockAtRuleRule) SetRoot(value any) {
 
 func TestJoinSelectorVisitor_Constructor(t *testing.T) {
 	visitor := NewJoinSelectorVisitor()
-	
-	// Should initialize with empty contexts array containing one empty array
+
+	// Should initialize with empty contexts array containing one contextInfo
 	if len(visitor.contexts) != 1 {
 		t.Errorf("Expected contexts length to be 1, got %d", len(visitor.contexts))
 	}
-	if len(visitor.contexts[0]) != 0 {
-		t.Errorf("Expected first context to be empty, got length %d", len(visitor.contexts[0]))
+	if len(visitor.contexts[0].paths) != 0 {
+		t.Errorf("Expected first context paths to be empty, got length %d", len(visitor.contexts[0].paths))
 	}
 	
 	// Should create a Visitor instance
@@ -184,12 +184,12 @@ func TestJoinSelectorVisitor_VisitRuleset(t *testing.T) {
 		visitArgs := &VisitArgs{}
 		
 		visitor.VisitRuleset(mockRuleset, visitArgs)
-		
+
 		if len(visitor.contexts) != 2 {
 			t.Errorf("Expected contexts length to be 2, got %d", len(visitor.contexts))
 		}
-		if len(visitor.contexts[1]) != 0 {
-			t.Errorf("Expected second context to be empty, got length %d", len(visitor.contexts[1]))
+		if len(visitor.contexts[1].paths) != 0 {
+			t.Errorf("Expected second context paths to be empty, got length %d", len(visitor.contexts[1].paths))
 		}
 	})
 	
@@ -280,9 +280,9 @@ func TestJoinSelectorVisitor_VisitRuleset(t *testing.T) {
 		if mockRuleset.paths == nil {
 			t.Error("Expected paths to be set")
 		}
-		// paths should be the same as contexts[1]
-		if len(mockRuleset.paths) != len(visitor.contexts[1]) {
-			t.Error("Expected paths to match contexts[1]")
+		// paths should be the same as contexts[1].paths
+		if len(mockRuleset.paths) != len(visitor.contexts[1].paths) {
+			t.Error("Expected paths to match contexts[1].paths")
 		}
 	})
 	
@@ -346,24 +346,24 @@ func TestJoinSelectorVisitor_VisitRuleset(t *testing.T) {
 
 func TestJoinSelectorVisitor_VisitRulesetOut(t *testing.T) {
 	visitor := NewJoinSelectorVisitor()
-	
+
 	t.Run("should reduce contexts length by 1", func(t *testing.T) {
-		visitor.contexts = [][]any{{}, {}, {}} // 3 contexts
+		visitor.contexts = []*contextInfo{{paths: []any{}}, {paths: []any{}}, {paths: []any{}}} // 3 contexts
 		mockRuleset := "ruleset_node"
-		
+
 		visitor.VisitRulesetOut(mockRuleset)
-		
+
 		if len(visitor.contexts) != 2 {
 			t.Errorf("Expected contexts length to be 2, got %d", len(visitor.contexts))
 		}
 	})
-	
+
 	t.Run("should handle single context", func(t *testing.T) {
-		visitor.contexts = [][]any{{}} // 1 context
+		visitor.contexts = []*contextInfo{{paths: []any{}}} // 1 context
 		mockRuleset := "ruleset_node"
-		
+
 		visitor.VisitRulesetOut(mockRuleset)
-		
+
 		if len(visitor.contexts) != 0 {
 			t.Errorf("Expected contexts length to be 0, got %d", len(visitor.contexts))
 		}
@@ -372,64 +372,64 @@ func TestJoinSelectorVisitor_VisitRulesetOut(t *testing.T) {
 
 func TestJoinSelectorVisitor_VisitMedia(t *testing.T) {
 	visitor := NewJoinSelectorVisitor()
-	
-	t.Run("should set root to true when context is empty", func(t *testing.T) {
-		visitor.contexts = [][]any{{}} // empty context
+
+	t.Run("should set root to true when context paths is empty", func(t *testing.T) {
+		visitor.contexts = []*contextInfo{{paths: []any{}, multiMedia: false}} // empty paths
 		mockMediaRule := &MockMediaRule{root: false}
 		mockMediaNode := &MockMedia{
 			rules: []any{mockMediaRule},
 		}
 		visitArgs := &VisitArgs{}
-		
+
 		visitor.VisitMedia(mockMediaNode, visitArgs)
-		
+
 		if !mockMediaRule.root {
 			t.Error("Expected root to be true")
 		}
 	})
-	
-	t.Run("should set root to true when first context item has multiMedia", func(t *testing.T) {
-		visitor.contexts = [][]any{{map[string]any{"multiMedia": true}}}
+
+	t.Run("should set root to true when multiMedia is true", func(t *testing.T) {
+		visitor.contexts = []*contextInfo{{paths: []any{"path"}, multiMedia: true}}
 		mockMediaRule := &MockMediaRule{root: false}
 		mockMediaNode := &MockMedia{
 			rules: []any{mockMediaRule},
 		}
 		visitArgs := &VisitArgs{}
-		
+
 		visitor.VisitMedia(mockMediaNode, visitArgs)
-		
+
 		if !mockMediaRule.root {
 			t.Error("Expected root to be true")
 		}
 	})
-	
-	t.Run("should set root to false when context has items without multiMedia", func(t *testing.T) {
-		visitor.contexts = [][]any{{map[string]any{"multiMedia": false}}}
+
+	t.Run("should set root to false when context has paths and multiMedia is false", func(t *testing.T) {
+		visitor.contexts = []*contextInfo{{paths: []any{"path"}, multiMedia: false}}
 		mockMediaRule := &MockMediaRule{root: false}
 		mockMediaNode := &MockMedia{
 			rules: []any{mockMediaRule},
 		}
 		visitArgs := &VisitArgs{}
-		
+
 		visitor.VisitMedia(mockMediaNode, visitArgs)
-		
+
 		if mockMediaRule.root {
 			t.Error("Expected root to be false")
 		}
 	})
 	
-	t.Run("should set root to false when context has items with undefined multiMedia", func(t *testing.T) {
-		visitor.contexts = [][]any{{map[string]any{"someProperty": "value"}}}
+	t.Run("should set root to false when context has paths with multiMedia false", func(t *testing.T) {
+		visitor.contexts = []*contextInfo{{paths: []any{"path"}, multiMedia: false}}
 		mockMediaRule := &MockMediaRule{root: true} // Start with true to test it gets set to false
 		mockMediaNode := &MockMedia{
 			rules: []any{mockMediaRule},
 		}
 		visitArgs := &VisitArgs{}
-		
+
 		visitor.VisitMedia(mockMediaNode, visitArgs)
-		
+
 		if mockMediaRule.root {
-			t.Error("Expected root to be false (no multiMedia property)")
+			t.Error("Expected root to be false (has paths, no multiMedia)")
 		}
 	})
 }
@@ -438,7 +438,7 @@ func TestJoinSelectorVisitor_VisitAtRule(t *testing.T) {
 	visitor := NewJoinSelectorVisitor()
 	
 	t.Run("should set root to true for rooted directives when context is empty", func(t *testing.T) {
-		visitor.contexts = [][]any{{}} // empty context
+		visitor.contexts = []*contextInfo{{paths: []any{}}} // empty context
 		mockAtRuleRule := &MockAtRuleRule{}
 		mockAtRuleNode := &MockAtRule{
 			isRooted: true,  // Rooted directive like @font-face
@@ -454,7 +454,7 @@ func TestJoinSelectorVisitor_VisitAtRule(t *testing.T) {
 	})
 
 	t.Run("should set root to false for @supports when context is empty", func(t *testing.T) {
-		visitor.contexts = [][]any{{}} // empty context
+		visitor.contexts = []*contextInfo{{paths: []any{}}} // empty context
 		mockAtRuleRule := &MockAtRuleRule{}
 		mockAtRuleNode := &MockAtRule{
 			name:     "@supports",
@@ -471,7 +471,7 @@ func TestJoinSelectorVisitor_VisitAtRule(t *testing.T) {
 	})
 
 	t.Run("should set root to false for @document when context is empty", func(t *testing.T) {
-		visitor.contexts = [][]any{{}} // empty context
+		visitor.contexts = []*contextInfo{{paths: []any{}}} // empty context
 		mockAtRuleRule := &MockAtRuleRule{}
 		mockAtRuleNode := &MockAtRule{
 			name:     "@document",
@@ -488,7 +488,7 @@ func TestJoinSelectorVisitor_VisitAtRule(t *testing.T) {
 	})
 
 	t.Run("should set root to true for other non-rooted directives when context is empty", func(t *testing.T) {
-		visitor.contexts = [][]any{{}} // empty context
+		visitor.contexts = []*contextInfo{{paths: []any{}}} // empty context
 		mockAtRuleRule := &MockAtRuleRule{}
 		mockAtRuleNode := &MockAtRule{
 			name:     "@-moz-document",  // Other directive, not @supports/@document
@@ -505,7 +505,7 @@ func TestJoinSelectorVisitor_VisitAtRule(t *testing.T) {
 	})
 	
 	t.Run("should set root to true when isRooted is true", func(t *testing.T) {
-		visitor.contexts = [][]any{{map[string]any{"someContext": true}}}
+		visitor.contexts = []*contextInfo{{paths: []any{"path"}, multiMedia: false}}
 		mockAtRuleRule := &MockAtRuleRule{}
 		mockAtRuleNode := &MockAtRule{
 			isRooted: true,
@@ -521,7 +521,7 @@ func TestJoinSelectorVisitor_VisitAtRule(t *testing.T) {
 	})
 	
 	t.Run("should set root to false for @supports when context has items", func(t *testing.T) {
-		visitor.contexts = [][]any{{map[string]any{"someContext": true}}}
+		visitor.contexts = []*contextInfo{{paths: []any{"path"}, multiMedia: false}}
 		mockAtRuleRule := &MockAtRuleRule{}
 		mockAtRuleNode := &MockAtRule{
 			name:     "@supports",
@@ -538,7 +538,7 @@ func TestJoinSelectorVisitor_VisitAtRule(t *testing.T) {
 	})
 
 	t.Run("should set root to nil for other non-rooted directives when context has items", func(t *testing.T) {
-		visitor.contexts = [][]any{{map[string]any{"someContext": true}}}
+		visitor.contexts = []*contextInfo{{paths: []any{"path"}, multiMedia: false}}
 		mockAtRuleRule := &MockAtRuleRule{}
 		mockAtRuleNode := &MockAtRule{
 			name:     "@-moz-document",
@@ -577,7 +577,7 @@ func TestJoinSelectorVisitor_VisitAtRule(t *testing.T) {
 	})
 	
 	t.Run("should only modify first rule when multiple rules exist", func(t *testing.T) {
-		visitor.contexts = [][]any{{}} // empty context
+		visitor.contexts = []*contextInfo{{paths: []any{}}} // empty context
 		mockAtRuleRule1 := &MockAtRuleRule{}
 		mockAtRuleRule2 := &MockAtRuleRule{}
 		mockAtRuleRule3 := &MockAtRuleRule{}
@@ -714,7 +714,7 @@ func TestJoinSelectorVisitor_EdgeCases(t *testing.T) {
 	})
 	
 	t.Run("should handle context stack underflow", func(t *testing.T) {
-		visitor.contexts = [][]any{} // empty contexts
+		visitor.contexts = []*contextInfo{} // empty contexts
 
 		// Should handle empty contexts gracefully without panicking
 		defer func() {

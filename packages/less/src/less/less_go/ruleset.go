@@ -221,6 +221,7 @@ func (r *Ruleset) GetRoot() bool {
 // SetRoot sets the root value for this ruleset
 func (r *Ruleset) SetRoot(value any) {
 	// Handle both bool and any types
+	oldRoot := r.Root
 	if value == nil {
 		r.Root = false
 	} else if boolVal, ok := value.(bool); ok {
@@ -228,6 +229,9 @@ func (r *Ruleset) SetRoot(value any) {
 	} else {
 		// If value is truthy (not nil), set to true
 		r.Root = true
+	}
+	if os.Getenv("LESS_GO_DEBUG") == "1" && r.MultiMedia {
+		fmt.Fprintf(os.Stderr, "[Ruleset.SetRoot] MultiMedia Ruleset: root %v -> %v\n", oldRoot, r.Root)
 	}
 }
 
