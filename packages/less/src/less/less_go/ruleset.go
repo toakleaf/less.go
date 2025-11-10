@@ -680,7 +680,34 @@ func (r *Ruleset) Eval(context any) (any, error) {
 								}
 								rules = append(rules, r)
 							}
-							
+
+							// CRITICAL: Include any new mediaBlocks created during detached ruleset evaluation
+							// When a detached ruleset containing media queries is evaluated, those media queries
+							// add themselves to context.mediaBlocks. We need to include them in the output.
+							var currentMediaBlocks []any
+							if evalCtx != nil && evalCtx.MediaBlocks != nil {
+								currentMediaBlocks = evalCtx.MediaBlocks
+							} else if mediaBlocks, ok := ctx["mediaBlocks"].([]any); ok {
+								currentMediaBlocks = mediaBlocks
+							}
+
+							if os.Getenv("LESS_GO_DEBUG") == "1" {
+								fmt.Fprintf(os.Stderr, "[RULESET.VariableCall] Before: mediaBlockCount=%d, After: len(mediaBlocks)=%d\n",
+									mediaBlockCount, len(currentMediaBlocks))
+							}
+
+							if len(currentMediaBlocks) > mediaBlockCount {
+								// There are new media blocks - append them to the rules
+								newMediaBlocks := currentMediaBlocks[mediaBlockCount:]
+								if os.Getenv("LESS_GO_DEBUG") == "1" {
+									fmt.Fprintf(os.Stderr, "[RULESET.VariableCall] Adding %d new mediaBlocks to rules\n", len(newMediaBlocks))
+									for idx, mb := range newMediaBlocks {
+										fmt.Fprintf(os.Stderr, "[RULESET.VariableCall]   mediaBlock[%d]: type=%T\n", idx, mb)
+									}
+								}
+								rules = append(rules, newMediaBlocks...)
+							}
+
 							// rsRules.splice.apply(rsRules, [i, 1].concat(rules))
 							newRules := make([]any, len(rsRules)+len(rules)-1)
 							copy(newRules, rsRules[:i])
@@ -718,6 +745,14 @@ func (r *Ruleset) Eval(context any) (any, error) {
 			evaluated, err := evalRule.Eval(context)
 			if err != nil {
 				return nil, err
+			}
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				if _, isMedia := rule.(*Media); isMedia {
+					fmt.Fprintf(os.Stderr, "[RULESET.Eval] Media node evaluated to type=%T\n", evaluated)
+					if rs, ok := evaluated.(*Ruleset); ok {
+						fmt.Fprintf(os.Stderr, "[RULESET.Eval]   Ruleset MultiMedia=%v, Rules=%d\n", rs.MultiMedia, len(rs.Rules))
+					}
+				}
 			}
 			rsRules[i] = evaluated
 		case interface{ Eval(any) any }:
@@ -1473,6 +1508,14 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 		return
 	}
 
+	// Debug output for MultiMedia rulesets
+	if os.Getenv("LESS_GO_DEBUG") == "1" && r.MultiMedia {
+		fmt.Fprintf(os.Stderr, "[RULESET.GenCSS] MultiMedia ruleset with %d rules\n", len(r.Rules))
+		for i, rule := range r.Rules {
+			fmt.Fprintf(os.Stderr, "[RULESET.GenCSS]   rule[%d]: type=%T\n", i, rule)
+		}
+	}
+
 	// Don't skip rulesets with visibility blocks here - they may contain visible paths
 	// from extends. The path filtering logic below will filter out invisible paths.
 	// This matches JavaScript behavior which doesn't have an early return for visibility.
@@ -1572,6 +1615,10 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 
 	// ruleNodes = charsetRuleNodes.concat(ruleNodes);
 	ruleNodes = append(charsetRuleNodes, ruleNodes...)
+
+	if os.Getenv("LESS_GO_DEBUG") == "1" && r.MultiMedia {
+		fmt.Fprintf(os.Stderr, "[RULESET.GenCSS] MultiMedia has %d ruleNodes after organizing\n", len(ruleNodes))
+	}
 
 	// Check if this ruleset contains only extends (no actual CSS output)
 	// If so, we'll skip generating selectors/braces but still complete normally for proper spacing
