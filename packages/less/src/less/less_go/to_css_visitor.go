@@ -1,5 +1,10 @@
 package less_go
 
+import (
+	"fmt"
+	"os"
+)
+
 // CSSVisitorUtils provides utility functions for CSS visitor
 type CSSVisitorUtils struct {
 	visitor *Visitor
@@ -358,6 +363,28 @@ func (v *ToCSSVisitor) VisitMedia(mediaNode any, visitArgs *VisitArgs) any {
 	visitArgs.VisitDeeper = false
 
 	return v.utils.ResolveVisibility(mediaNode)
+}
+
+// VisitContainer visits a container node (same logic as media)
+func (v *ToCSSVisitor) VisitContainer(containerNode any, visitArgs *VisitArgs) any {
+	if os.Getenv("LESS_GO_TRACE") != "" {
+		fmt.Fprintf(os.Stderr, "[ToCSSVisitor.VisitContainer] Called\n")
+	}
+
+	if containerNode == nil {
+		return nil
+	}
+
+	if acceptor, ok := containerNode.(interface{ Accept(any) }); ok {
+		acceptor.Accept(v.visitor)
+	}
+	visitArgs.VisitDeeper = false
+
+	result := v.utils.ResolveVisibility(containerNode)
+	if os.Getenv("LESS_GO_TRACE") != "" {
+		fmt.Fprintf(os.Stderr, "[ToCSSVisitor.VisitContainer] Result: %v (type=%T)\n", result != nil, result)
+	}
+	return result
 }
 
 // VisitImport visits an import node
