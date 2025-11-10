@@ -2,6 +2,7 @@ package less_go
 
 import (
 	"fmt"
+	"os"
 	"strings"
 )
 
@@ -342,6 +343,40 @@ func (pev *ProcessExtendsVisitor) doExtendChaining(extendsList []*Extend, extend
 						extendsToAdd = append(extendsToAdd, newExtend)
 						newExtend.Ruleset = targetExtend.Ruleset
 
+						// Detailed logging for investigation
+						if os.Getenv("LESS_GO_TRACE") == "1" {
+							extendStr := "?"
+							if len(extend.SelfSelectors) > 0 {
+								if sel, ok := extend.SelfSelectors[0].(*Selector); ok {
+									extendStr = sel.ToCSS(nil)
+								}
+							}
+							targetStr := "?"
+							if targetExtend.Selector != nil {
+								if sel, ok := targetExtend.Selector.(*Selector); ok {
+									targetStr = sel.ToCSS(nil)
+								}
+							}
+							rulesetFirstSel := "?"
+							rulesetPtr := "nil"
+							rulesetHasVisibility := false
+							if targetExtend.Ruleset != nil {
+								rulesetPtr = fmt.Sprintf("%p", targetExtend.Ruleset)
+								if targetExtend.Ruleset.Node != nil {
+									rulesetHasVisibility = targetExtend.Ruleset.Node.BlocksVisibility()
+								}
+								if len(targetExtend.Ruleset.Paths) > 0 {
+									if len(targetExtend.Ruleset.Paths[0]) > 0 {
+										if sel, ok := targetExtend.Ruleset.Paths[0][0].(*Selector); ok {
+											rulesetFirstSel = sel.ToCSS(nil)
+										}
+									}
+								}
+							}
+							fmt.Printf("[CHAIN] %s extends %s → new chained extend points to ruleset %s (selector=%s, hasVisibilityBlock=%v)\n",
+								extendStr, targetStr, rulesetPtr, rulesetFirstSel, rulesetHasVisibility)
+						}
+
 						// remember its parents for circular references
 						newExtend.ParentIds = append(newExtend.ParentIds, targetExtend.ParentIds...)
 						newExtend.ParentIds = append(newExtend.ParentIds, extend.ParentIds...)
@@ -432,15 +467,14 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 	var matches []any
 	var pathIndex, extendIndex int
 	allExtends := pev.allExtendsStack[len(pev.allExtendsStack)-1]
-	selectorsToAdd := make([][]any, 0)
 	var selectorPath []any
 
 	// Cache the original paths length to avoid processing paths added during extend chaining
 	// Paths added during chaining have extends and should not be extended again
 	originalPathsLength := len(ruleset.Paths)
 
-
-	// Track which rulesets have matches so we can mark all their paths as visible
+	// Track which rulesets were modified so we can deduplicate their paths
+	modifiedRulesets := make(map[*Ruleset]bool)
 
 	// look at each selector path in the ruleset, find any extend matches and then copy, find and replace
 	for extendIndex = 0; extendIndex < len(allExtends); extendIndex++ {
@@ -448,34 +482,20 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 			selectorPath = ruleset.Paths[pathIndex]
 
 			// extending extends happens initially, before the main pass
-			// CRITICAL FIX: Don't skip rulesets with ExtendOnEveryPath if they're from reference imports
-			// These rulesets need to be matchable by extends from the main file
-			rulesetHasVisibilityBlocks := ruleset.Node != nil && ruleset.Node.BlocksVisibility()
-			if ruleset.ExtendOnEveryPath && !rulesetHasVisibilityBlocks {
+			// Match JavaScript: unconditionally skip rulesets with extendOnEveryPath (line 279)
+			if ruleset.ExtendOnEveryPath {
 				continue
 			}
 
-			// Match JavaScript: only check if the LAST element in the path has extends
-			// Line 280-281 in extend-visitor.js: const extendList = selectorPath[selectorPath.length - 1].extendList;
-			//
-			// IMPORTANT: The JavaScript skips selectors with extends because "extending extends happens initially,
-			// before the main pass" via doExtendChaining. However, this causes issues with import-reference in Go.
-			//
-			// The issue is that doExtendChaining may not properly handle all cases with import-reference,
-			// so we need to allow the main loop to process selectors-with-extends as well.
-			//
-			// This causes a different problem: when .test-rule-c extends .test-rule-b which extends .test-rule-a,
-			// .test-rule-c might get properties from .test-rule-a instead of .test-rule-b.
-			//
-			// We check for extends but don't skip them unconditionally:
+			// Match JavaScript: unconditionally skip selectors with extends (line 280-281)
+			// The JavaScript code skips selectors with extends because doExtendChaining
+			// already processed them and added new selector paths (without extends) to the rulesets.
+			// Only these NEW paths should be processed in visitRuleset.
 			if len(selectorPath) > 0 {
 				lastElement := selectorPath[len(selectorPath)-1]
 				if selectorWithExtends, ok := lastElement.(interface{ GetExtendList() []*Extend }); ok {
 					if extendList := selectorWithExtends.GetExtendList(); extendList != nil && len(extendList) > 0 {
-						// TODO: We should skip this like JavaScript does, but that breaks import-reference.
-						// The root cause is likely in doExtendChaining not handling reference imports correctly.
-						_ = extendList // prevent unused variable error
-						// continue  // <- Commented out to prevent major regressions
+						continue
 					}
 				}
 			}
@@ -491,6 +511,33 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 				// Note: Extend.IsVisible() returns bool (not *bool), taking visibility blocks into account
 				isVisible := allExtends[extendIndex].IsVisible()
 
+				if os.Getenv("LESS_GO_TRACE") == "1" {
+					var extendSel string = "?"
+					if len(allExtends[extendIndex].SelfSelectors) > 0 {
+						if sel, ok := allExtends[extendIndex].SelfSelectors[0].(*Selector); ok {
+							extendSel = sel.ToCSS(nil)
+						}
+					}
+					var targetSel string = "?"
+					if allExtends[extendIndex].Selector != nil {
+						if sel, ok := allExtends[extendIndex].Selector.(*Selector); ok {
+							targetSel = sel.ToCSS(nil)
+						}
+					}
+					var pathSel string = "?"
+					if len(selectorPath) > 0 {
+						if sel, ok := selectorPath[0].(*Selector); ok {
+							pathSel = sel.ToCSS(nil)
+						}
+					}
+					var extendRulesetPtr string = "nil"
+					if allExtends[extendIndex].Ruleset != nil {
+						extendRulesetPtr = fmt.Sprintf("%p", allExtends[extendIndex].Ruleset)
+					}
+					fmt.Printf("[MATCH] Extend %s (%s) matched path %s, isVisible=%v, extendRuleset=%s, numParents=%d\n",
+						extendSel, targetSel, pathSel, isVisible, extendRulesetPtr, len(allExtends[extendIndex].ParentIds))
+				}
+
 				// Check if the matched selector path has visibility blocks (is from a reference import)
 				// Also check if the ruleset itself has visibility blocks
 				// This determines if an invisible extend should match this selector/ruleset
@@ -505,39 +552,44 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 				}
 				rulesetHasVisibilityBlocks := ruleset.Node != nil && ruleset.Node.BlocksVisibility()
 
-				// CRITICAL FIX: Don't process deeply chained extends that target reference import rulesets
-				// A deeply chained extend (one with 2+ parent IDs) should not create output from reference import rulesets
-				// because the properties should come from the intermediate ruleset, not the final target
-				//
-				// Example: .c extends .b (1 parent), .b extends .a (1 parent)
-				// When chained: .c extends .a (3 parents: .c, .b, .a)
-				// The direct extend (.c extends .b) has 1 parent and should be processed
-				// The chained extend (.c extends .a) has 3 parents and should be skipped for reference rulesets
-				numParents := len(allExtends[extendIndex].ParentIds)
-				isDeeplyChainedExtend := numParents > 1
-
 				// Only process the match if:
 				// 1. The extend is visible (from a non-reference import), OR
 				// 2. The extend, selector, and ruleset are all from reference imports (all have visibility blocks)
-				// BUT: Skip deeply chained extends that target reference import rulesets
-				shouldSkipDeeplyChainedRefExtend := isDeeplyChainedExtend && rulesetHasVisibilityBlocks && isVisible
-
-				if (isVisible || (selectorHasVisibilityBlocks && rulesetHasVisibilityBlocks)) && !shouldSkipDeeplyChainedRefExtend {
+				if isVisible || (selectorHasVisibilityBlocks && rulesetHasVisibilityBlocks) {
 					// CRITICAL FIX: When a visible extend (from outside a reference import) matches
-					// selectors from a reference import, mark the RULESET as visible (but NOT the original selectors).
-					// The newly created selector (from extendSelector) will be marked as visible via EvaldCondition.
-					// This ensures that the matched rulesets from reference imports appear in the output,
-					// but only the NEW selector paths are visible, not the original ones from the reference import.
+					// selectors from a reference import, mark the EXTEND'S RULESET as visible (not the matched ruleset).
+					// For chained extends, the extend's Ruleset field points to the intermediate ruleset,
+					// ensuring properties come from the correct ruleset in the chain.
+					//
+					// Example: .c extends .b, .b extends .a (reference import)
+					// - Direct extend: .c extends .b → extend.Ruleset points to .b's ruleset
+					// - Chained extend: .c extends .a → extend.Ruleset points to .b's ruleset (NOT .a's ruleset)
+					// - When chained extend matches .a, we mark .b's ruleset visible, not .a's ruleset
+					targetRuleset := allExtends[extendIndex].Ruleset
+					if targetRuleset == nil {
+						targetRuleset = ruleset // Fallback to matched ruleset if extend has no ruleset
+					}
+
 					if isVisible && (selectorHasVisibilityBlocks || rulesetHasVisibilityBlocks) {
-						// Mark the ruleset itself as visible so it's not filtered out entirely
-						if ruleset.Node != nil {
-							ruleset.Node.EnsureVisibility()
+						// Mark the EXTEND'S ruleset as visible (not the matched ruleset)
+						if targetRuleset.Node != nil {
+							if os.Getenv("LESS_GO_TRACE") == "1" {
+								var targetSel string = "?"
+								if len(targetRuleset.Paths) > 0 && len(targetRuleset.Paths[0]) > 0 {
+									if sel, ok := targetRuleset.Paths[0][0].(*Selector); ok {
+										targetSel = sel.ToCSS(nil)
+									}
+								}
+								fmt.Printf("[VISIBILITY] Marking extend's ruleset %p (selector=%s) as visible due to extend match\n",
+									targetRuleset, targetSel)
+							}
+							targetRuleset.Node.EnsureVisibility()
 						// IMPORTANT: Keep the visibility block for proper filtering in ToCSSVisitor
 						// Do NOT call RemoveVisibilityBlock() here
 
 							// CRITICAL: Walk up the parent chain and make all parent Media/AtRule nodes visible
 							// This ensures that @media and @supports blocks containing extended selectors are output
-							pev.makeParentNodesVisible(ruleset.Node)
+							pev.makeParentNodesVisible(targetRuleset.Node)
 						}
 						// NOTE: We do NOT mark the original selector path as visible here,
 						// because that would cause the reference-imported selector to appear in the output.
@@ -546,16 +598,20 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 
 					for _, selfSelector := range allExtends[extendIndex].SelfSelectors {
 						extendedSelectors := pev.extendSelector(matches, selectorPath, selfSelector, isVisible)
-						selectorsToAdd = append(selectorsToAdd, extendedSelectors)
+						// Add paths to the EXTEND'S ruleset, not the matched ruleset
+						targetRuleset.Paths = append(targetRuleset.Paths, extendedSelectors)
+						// Mark this ruleset as modified so we can deduplicate it later
+						modifiedRulesets[targetRuleset] = true
 					}
 				}
 			}
 		}
 	}
-	ruleset.Paths = append(ruleset.Paths, selectorsToAdd...)
 
-	// Deduplicate paths based on CSS output
-	ruleset.Paths = pev.deduplicatePaths(ruleset.Paths)
+	// Deduplicate paths in all modified rulesets
+	for modifiedRuleset := range modifiedRulesets {
+		modifiedRuleset.Paths = pev.deduplicatePaths(modifiedRuleset.Paths)
+	}
 }
 
 // selectorExists checks if a selector path already exists in the paths list
