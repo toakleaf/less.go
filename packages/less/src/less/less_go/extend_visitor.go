@@ -2,7 +2,6 @@ package less_go
 
 import (
 	"fmt"
-	"os"
 	"strings"
 )
 
@@ -353,23 +352,6 @@ func (pev *ProcessExtendsVisitor) doExtendChaining(extendsList []*Extend, extend
 							// Check if this selector already exists before adding it
 							if !pev.selectorExists(targetExtend.Ruleset.Paths, newSelector) {
 								targetExtend.Ruleset.Paths = append(targetExtend.Ruleset.Paths, newSelector)
-
-								// Debug output
-								if os.Getenv("LESS_GO_TRACE") == "1" {
-									rulesetSel := "<unknown>"
-									if targetExtend.Ruleset != nil && len(targetExtend.Ruleset.Paths) > 0 && len(targetExtend.Ruleset.Paths[0]) > 0 {
-										if sel, ok := targetExtend.Ruleset.Paths[0][0].(*Selector); ok {
-											rulesetSel = sel.ToCSS(make(map[string]any))
-										}
-									}
-									newSel := "<unknown>"
-									if len(newSelector) > 0 {
-										if sel, ok := newSelector[0].(*Selector); ok {
-											newSel = sel.ToCSS(make(map[string]any))
-										}
-									}
-									fmt.Printf("[EXTEND CHAIN] Adding selector '%s' to ruleset '%s'\n", newSel, rulesetSel)
-								}
 							}
 						}
 					}
@@ -457,37 +439,13 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 
 	// Track which rulesets have matches so we can mark all their paths as visible
 
-	// Debug output to track ruleset processing
-	if os.Getenv("LESS_GO_TRACE") == "1" {
-		rulesetSelector := "<unknown>"
-		if len(ruleset.Paths) > 0 && len(ruleset.Paths[0]) > 0 {
-			if sel, ok := ruleset.Paths[0][0].(*Selector); ok {
-				rulesetSelector = sel.ToCSS(make(map[string]any))
-			}
-		}
-		fmt.Printf("[EXTEND] Visiting ruleset: %s (paths=%d, extends=%d)\n", rulesetSelector, originalPathsLength, len(allExtends))
-	}
-
 	// look at each selector path in the ruleset, find any extend matches and then copy, find and replace
 	for extendIndex = 0; extendIndex < len(allExtends); extendIndex++ {
-		if os.Getenv("LESS_GO_TRACE") == "1" {
-			extendSelector := "<unknown>"
-			if allExtends[extendIndex].Selector != nil {
-				if sel, ok := allExtends[extendIndex].Selector.(*Selector); ok {
-					extendSelector = sel.ToCSS(make(map[string]any))
-				}
-			}
-			fmt.Printf("[EXTEND]   Checking extend: %s\n", extendSelector)
-		}
-
 		for pathIndex = 0; pathIndex < originalPathsLength; pathIndex++ {
 			selectorPath = ruleset.Paths[pathIndex]
 
 			// extending extends happens initially, before the main pass
 			if ruleset.ExtendOnEveryPath {
-				if os.Getenv("LESS_GO_TRACE") == "1" {
-					fmt.Printf("[EXTEND]     Skipping path %d: ExtendOnEveryPath=true\n", pathIndex)
-				}
 				continue
 			}
 
@@ -497,9 +455,6 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 				lastElement := selectorPath[len(selectorPath)-1]
 				if selectorWithExtends, ok := lastElement.(interface{ GetExtendList() []*Extend }); ok {
 					if extendList := selectorWithExtends.GetExtendList(); extendList != nil && len(extendList) > 0 {
-						if os.Getenv("LESS_GO_TRACE") == "1" {
-							fmt.Printf("[EXTEND]     Skipping path %d: has extendList\n", pathIndex)
-						}
 						continue
 					}
 				}
@@ -510,73 +465,63 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 			if len(matches) > 0 {
 				allExtends[extendIndex].HasFoundMatches = true
 
-				// Debug output for matches
-				if os.Getenv("LESS_GO_TRACE") == "1" {
-					extendSelector := "<unknown>"
-					if allExtends[extendIndex].Selector != nil {
-						if sel, ok := allExtends[extendIndex].Selector.(*Selector); ok {
-							extendSelector = sel.ToCSS(make(map[string]any))
-						}
-					}
-					pathSelector := "<unknown>"
-					if len(selectorPath) > 0 {
-						if sel, ok := selectorPath[0].(*Selector); ok {
-							pathSelector = sel.ToCSS(make(map[string]any))
-						}
-					}
-					fmt.Printf("[EXTEND] MATCH FOUND: extend=%s found in path=%s (matches=%d)\n", extendSelector, pathSelector, len(matches))
-				}
-
 				// Match JavaScript: use the extend's visibility to determine if created selectors should be visible
 				// This ensures that extends from reference imports don't create visible selectors
 				// unless they've been explicitly made visible by being used/extended from outside the reference
 				// Note: Extend.IsVisible() returns bool (not *bool), taking visibility blocks into account
 				isVisible := allExtends[extendIndex].IsVisible()
 
-				// Debug visibility
-				if os.Getenv("LESS_GO_TRACE") == "1" {
-					fmt.Printf("[EXTEND]   Extend visibility: %v\n", isVisible)
+				// Check if the matched selector path has visibility blocks (is from a reference import)
+				// Also check if the ruleset itself has visibility blocks
+				// This determines if an invisible extend should match this selector/ruleset
+				selectorHasVisibilityBlocks := false
+				for _, pathSelector := range selectorPath {
+					if sel, ok := pathSelector.(*Selector); ok {
+						if sel.Node != nil && sel.Node.BlocksVisibility() {
+							selectorHasVisibilityBlocks = true
+							break
+						}
+					}
 				}
+				rulesetHasVisibilityBlocks := ruleset.Node != nil && ruleset.Node.BlocksVisibility()
 
-				// Match JavaScript behavior: always process matches, regardless of visibility blocks
-				// The visibility filtering happens during CSS generation (in ruleset.go GenCSS method)
-				// where paths with invisible selectors are filtered out.
-				// This allows extends from reference imports to work correctly:
-				// - When .visible extends .from-reference, the new path gets marked visible by extendSelector
-				// - When .from-reference-1 extends .from-reference-2, both paths stay invisible until used
-				for _, selfSelector := range allExtends[extendIndex].SelfSelectors {
-					extendedSelectors := pev.extendSelector(matches, selectorPath, selfSelector, isVisible)
-					selectorsToAdd = append(selectorsToAdd, extendedSelectors)
-
-					// Debug output for extended selectors
-					if os.Getenv("LESS_GO_TRACE") == "1" {
-						extendedSelector := "<unknown>"
-						if len(extendedSelectors) > 0 {
-							if sel, ok := extendedSelectors[0].(*Selector); ok {
-								extendedSelector = sel.ToCSS(make(map[string]any))
+				// Only process the match if:
+				// 1. The extend is visible (from a non-reference import), OR
+				// 2. The extend, selector, and ruleset are all from reference imports (all have visibility blocks)
+				// This prevents extends from reference imports from polluting non-reference rulesets
+				if isVisible || (selectorHasVisibilityBlocks && rulesetHasVisibilityBlocks) {
+					// CRITICAL FIX: When a visible extend (from outside a reference import) matches
+					// selectors from a reference import, mark those matched selectors as visible.
+					// This ensures that the matched rulesets from reference imports appear in the output.
+					if isVisible && (selectorHasVisibilityBlocks || rulesetHasVisibilityBlocks) {
+						// The extend is visible (from non-reference) and the matched selector/ruleset
+						// is from a reference import. Mark the matched selectors AND the ruleset as visible,
+						// and set EvaldCondition to true so they pass the isOutput check in compileRulesetPaths.
+						for _, pathSelector := range selectorPath {
+							if sel, ok := pathSelector.(*Selector); ok {
+								sel.EnsureVisibility()
+								sel.EvaldCondition = true
 							}
 						}
-						fmt.Printf("[EXTEND]   Created selector: %s (visible=%v)\n", extendedSelector, isVisible)
+						// Also mark the ruleset itself as visible
+						if ruleset.Node != nil {
+							ruleset.Node.EnsureVisibility()
+							ruleset.Node.RemoveVisibilityBlock()
+						}
+					}
+
+					for _, selfSelector := range allExtends[extendIndex].SelfSelectors {
+						extendedSelectors := pev.extendSelector(matches, selectorPath, selfSelector, isVisible)
+						selectorsToAdd = append(selectorsToAdd, extendedSelectors)
 					}
 				}
 			}
 		}
 	}
-
-	// Debug output before adding selectors
-	if os.Getenv("LESS_GO_TRACE") == "1" && len(selectorsToAdd) > 0 {
-		fmt.Printf("[EXTEND] Adding %d new selectors to ruleset\n", len(selectorsToAdd))
-	}
-
 	ruleset.Paths = append(ruleset.Paths, selectorsToAdd...)
 
 	// Deduplicate paths based on CSS output
 	ruleset.Paths = pev.deduplicatePaths(ruleset.Paths)
-
-	// Debug output after adding
-	if os.Getenv("LESS_GO_TRACE") == "1" {
-		fmt.Printf("[EXTEND] Ruleset now has %d total paths\n", len(ruleset.Paths))
-	}
 }
 
 // selectorExists checks if a selector path already exists in the paths list
