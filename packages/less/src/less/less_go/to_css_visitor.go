@@ -94,15 +94,30 @@ func (u *CSSVisitorUtils) IsEmpty(owner any) bool {
 		rules := ownerWithRules.GetRules()
 		isEmpty := rules == nil || len(rules) == 0
 		if !isEmpty {
-			// Check if all rules are nil or invisible
-			allNil := true
+			// Check if all rules are nil, block visibility, or are variable declarations
+			// A ruleset is considered empty if it contains only invisible content
+			allInsignificant := true
 			for _, r := range rules {
-				if r != nil {
-					allNil = false
-					break
+				if r == nil {
+					continue
 				}
+				// Check if rule blocks visibility (reference imports)
+				if blocksNode, ok := r.(interface{ BlocksVisibility() bool }); ok {
+					if blocksNode.BlocksVisibility() {
+						continue
+					}
+				}
+				// Check if rule is a variable declaration
+				if declNode, ok := r.(interface{ GetVariable() bool }); ok {
+					if declNode.GetVariable() {
+						continue
+					}
+				}
+				// Found a significant rule (non-nil, visible, non-variable)
+				allInsignificant = false
+				break
 			}
-			if allNil {
+			if allInsignificant {
 				isEmpty = true
 			}
 		}
