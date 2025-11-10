@@ -508,10 +508,8 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 						// Mark the ruleset itself as visible so it's not filtered out entirely
 						if ruleset.Node != nil {
 							ruleset.Node.EnsureVisibility()
-							// CRITICAL: Clear ALL visibility blocks, not just one.
-							// Nested reference imports can create multiple blocks, and we need to clear all of them
-							// for the ruleset to be considered visible.
-							ruleset.Node.ClearVisibilityBlocks()
+						// IMPORTANT: Keep the visibility block for proper filtering in ToCSSVisitor
+						// Do NOT call RemoveVisibilityBlock() here
 
 							// CRITICAL: Walk up the parent chain and make all parent Media/AtRule nodes visible
 							// This ensures that @media and @supports blocks containing extended selectors are output
@@ -1057,38 +1055,26 @@ func (pev *ProcessExtendsVisitor) VisitAtRuleOut(atRuleNode any) {
 func (pev *ProcessExtendsVisitor) makeParentNodesVisible(node *Node) {
 
 	// Mark all Media/AtRule containers in the stack as visible
+	// NOTE: The specific ruleset containing the extended selector has already been marked
+	// visible by the caller, so we don't need to mark child rulesets here.
+	// We only need to ensure the parent Media/AtRule containers are visible so they output.
 	for _, containerNode := range pev.mediaAtRuleStack {
 		switch v := containerNode.(type) {
 		case *Media:
 			// Make the Media node visible
 			v.Node.EnsureVisibility()
-			v.Node.RemoveVisibilityBlock()
+			// IMPORTANT: DO NOT call RemoveVisibilityBlock() here!
+			// The Media node needs to keep BlocksVisibility() == true so that
+			// ToCSSVisitor.ResolveVisibility() takes the correct code path that
+			// filters children with KeepOnlyVisibleChilds() before checking if empty.
 
-			// CRITICAL: Also make all Rules inside the Media block visible
-			// Media.GenCSS filters based on whether rules have content,
-			// and KeepOnlyVisibleChilds only keeps rules where IsVisible() returns true
-			for _, rule := range v.Rules {
-				if ruleset, ok := rule.(*Ruleset); ok {
-					trueVal := true
-					ruleset.Node.NodeVisible = &trueVal
-					ruleset.Node.EnsureVisibility()
-					ruleset.Node.RemoveVisibilityBlock()
-				}
-			}
 		case *AtRule:
 			// Make the AtRule node visible (this covers @supports, @keyframes, etc.)
 			v.Node.EnsureVisibility()
-			v.Node.RemoveVisibilityBlock()
+			// IMPORTANT: DO NOT call RemoveVisibilityBlock() here!
+			// The AtRule node needs to keep BlocksVisibility() == true so that
+			// ToCSSVisitor.ResolveVisibility() takes the correct code path.
 
-			// CRITICAL: Also make all Rules inside the AtRule visible
-			for _, rule := range v.Rules {
-				if ruleset, ok := rule.(*Ruleset); ok {
-					trueVal := true
-					ruleset.Node.NodeVisible = &trueVal
-					ruleset.Node.EnsureVisibility()
-					ruleset.Node.RemoveVisibilityBlock()
-				}
-			}
 		default:
 		}
 	}
