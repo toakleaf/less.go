@@ -4,14 +4,19 @@
 
 Branch: `claude/fix-import-reference-tests-011CUzCPSHawpUCUx5m92Ur9`
 
+**Last Updated:** After merging origin/master (commit 0cab374 - "WIP: Partial fix for import reference flag visibility")
+
 ### ✅ What's Working
-- All 78 perfect matches still passing (no regressions)
+- **79 perfect matches** (gained 1 from master merge) ⬆️
 - All extend tests passing perfectly (7/7)
 - All unit tests passing (2,290+ tests)
+- Partial fix from master: Some reference import selectors (`.z` from import/import-reference.less) ARE appearing
 
 ### ❌ What's Broken
 - **import-reference** test (main suite) - Output differs
 - **import-reference-issues** test (main suite) - Output differs
+- `.test-rule-c` still missing from output (main issue)
+- Some selectors from css-3.less and media.less not appearing
 
 ## The Problem
 
@@ -51,26 +56,25 @@ Through debugging, we found:
 
 The extend from `.test-rule-c` (which is in the main file, NOT in a reference import) has `visibility=false`. This is wrong - extends in the main file should have `visibility=true` after `SetTreeVisibilityVisitor(true)` runs.
 
-## What Was Already Fixed
+## What Was Already Fixed (via master merge)
 
-### 1. extend_visitor.go (lines 465-484)
-**Problem:** Had an extra conditional check that doesn't exist in JavaScript:
-```go
-if isVisible || (selectorHasVisibilityBlocks && rulesetHasVisibilityBlocks) {
-    // Only process extends if conditions met
-}
-```
+### 1. extend_visitor.go - Partial Fix from Master (commit 0cab374)
 
-**Fix:** Removed the conditional - now always processes matches like JavaScript does:
-```go
-// Always process matches, regardless of visibility blocks
-for _, selfSelector := range allExtends[extendIndex].SelfSelectors {
-    extendedSelectors := pev.extendSelector(matches, selectorPath, selfSelector, isVisible)
-    selectorsToAdd = append(selectorsToAdd, extendedSelectors)
-}
-```
+**Problem:** Selectors from reference imports that are extended by visible selectors weren't appearing in output.
 
-This was necessary but not sufficient to fix the issue.
+**Fix Applied:** The master branch has a partial fix that:
+1. Keeps the conditional check for visibility blocks (different from our initial approach)
+2. When a visible extend matches selectors from reference imports, it:
+   - Calls `EnsureVisibility()` on matched selectors
+   - Sets `EvaldCondition = true` on matched selectors (for isOutput check)
+   - Calls `EnsureVisibility()` and `RemoveVisibilityBlock()` on the matched ruleset
+
+**Result:** Works for SOME cases (`.z` selectors appear) but NOT all (`.test-rule-c` still missing).
+
+### 2. Other improvements from master
+- Fixed detached-rulesets formatting
+- Fixed number formatting (no scientific notation)
+- Added task documentation
 
 ## What Still Needs Investigation
 
