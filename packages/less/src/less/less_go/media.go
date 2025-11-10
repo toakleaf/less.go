@@ -124,6 +124,9 @@ func (m *Media) EvalTop(context any) any {
 			fmt.Fprintf(os.Stderr, "[MEDIA.EvalTop] mediaBlocks count: %d\n", len(mediaBlocks))
 			for i, mb := range mediaBlocks {
 				fmt.Fprintf(os.Stderr, "[MEDIA.EvalTop]   mediaBlock[%d]: type=%T\n", i, mb)
+				if media, ok := mb.(*Media); ok {
+					fmt.Fprintf(os.Stderr, "[MEDIA.EvalTop]     Rules count: %d\n", len(media.Rules))
+				}
 			}
 		}
 
@@ -593,10 +596,19 @@ func (m *Media) Eval(context any) (any, error) {
 
 	// Match JavaScript: return context.mediaPath.length === 0 ? media.evalTop(context) : media.evalNested(context);
 	if len(evalCtx.MediaPath) == 0 {
-		if os.Getenv("LESS_GO_TRACE") != "" {
-			fmt.Fprintf(os.Stderr, "[MEDIA.Eval] Calling evalTop, mediaBlocks count: %d\n", len(evalCtx.MediaBlocks))
+		if os.Getenv("LESS_GO_TRACE") != "" || os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Fprintf(os.Stderr, "[MEDIA.Eval] Calling evalTop, mediaBlocks count: %d, mediaPath length: %d\n",
+				len(evalCtx.MediaBlocks), len(evalCtx.MediaPath))
 		}
-		return media.EvalTop(evalCtx), nil
+		result := media.EvalTop(evalCtx)
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			if rs, ok := result.(*Ruleset); ok {
+				fmt.Fprintf(os.Stderr, "[MEDIA.Eval] evalTop returned Ruleset (MultiMedia=%v, Rules=%d)\n", rs.MultiMedia, len(rs.Rules))
+			} else if _, ok := result.(*Media); ok {
+				fmt.Fprintf(os.Stderr, "[MEDIA.Eval] evalTop returned Media node (Rules=%d)\n", len(media.Rules))
+			}
+		}
+		return result, nil
 	} else {
 		if os.Getenv("LESS_GO_TRACE") != "" {
 			fmt.Fprintf(os.Stderr, "[MEDIA.Eval] Calling evalNested, mediaPath length: %d\n", len(evalCtx.MediaPath))

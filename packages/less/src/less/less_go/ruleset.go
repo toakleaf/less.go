@@ -218,6 +218,11 @@ func (r *Ruleset) GetRoot() bool {
 	return r.Root
 }
 
+// GetMultiMedia returns whether this is a MultiMedia ruleset
+func (r *Ruleset) GetMultiMedia() bool {
+	return r.MultiMedia
+}
+
 // SetRoot sets the root value for this ruleset
 func (r *Ruleset) SetRoot(value any) {
 	// Handle both bool and any types
@@ -855,7 +860,7 @@ func (r *Ruleset) Eval(context any) (any, error) {
 	}
 
 	if ruleset.Root && len(mediaPath) == 0 && mediaBlocks != nil && len(mediaBlocks) > 0 {
-		if os.Getenv("LESS_GO_TRACE") != "" {
+		if os.Getenv("LESS_GO_TRACE") != "" || os.Getenv("LESS_GO_DEBUG") == "1" {
 			fmt.Fprintf(os.Stderr, "[RULESET.Eval] Processing %d mediaBlocks for root Rules\n", len(mediaBlocks))
 		}
 
@@ -865,10 +870,19 @@ func (r *Ruleset) Eval(context any) (any, error) {
 		newRules := make([]any, 0, len(ruleset.Rules))
 
 		for _, rule := range ruleset.Rules {
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				if rs, ok := rule.(*Ruleset); ok {
+					fmt.Fprintf(os.Stderr, "[RULESET.Eval] Checking rule: Ruleset MultiMedia=%v, Selectors=%d, Rules=%d\n",
+						rs.MultiMedia, len(rs.Selectors), len(rs.Rules))
+				}
+			}
 			// Check if this is an empty placeholder ruleset from a bubbling directive
 			if rs, ok := rule.(*Ruleset); ok {
 				if len(rs.Selectors) == 0 && len(rs.Rules) == 0 && mediaBlockIndex < len(mediaBlocks) {
 					// Replace the empty placeholder with the corresponding mediaBlock
+					if os.Getenv("LESS_GO_DEBUG") == "1" {
+						fmt.Fprintf(os.Stderr, "[RULESET.Eval] Replacing empty placeholder with mediaBlock[%d]\n", mediaBlockIndex)
+					}
 					newRules = append(newRules, mediaBlocks[mediaBlockIndex])
 					mediaBlockIndex++
 					continue
@@ -1508,12 +1522,35 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 		return
 	}
 
-	// Debug output for MultiMedia rulesets
-	if os.Getenv("LESS_GO_DEBUG") == "1" && r.MultiMedia {
-		fmt.Fprintf(os.Stderr, "[RULESET.GenCSS] MultiMedia ruleset with %d rules\n", len(r.Rules))
-		for i, rule := range r.Rules {
-			fmt.Fprintf(os.Stderr, "[RULESET.GenCSS]   rule[%d]: type=%T\n", i, rule)
+	// Debug output for all rulesets in debug mode
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Fprintf(os.Stderr, "[RULESET.GenCSS] Starting (Root=%v, MultiMedia=%v, Rules=%d)\n", r.Root, r.MultiMedia, len(r.Rules))
+		if r.Root && r.Rules != nil {
+			for i, rule := range r.Rules {
+				if rs, ok := rule.(*Ruleset); ok {
+					fmt.Fprintf(os.Stderr, "[RULESET.GenCSS]   Root rule[%d]: Ruleset (MultiMedia=%v, Rules=%d)\n", i, rs.MultiMedia, len(rs.Rules))
+				} else if m, ok := rule.(*Media); ok {
+					fmt.Fprintf(os.Stderr, "[RULESET.GenCSS]   Root rule[%d]: Media (Rules=%d)\n", i, len(m.Rules))
+				}
+			}
 		}
+	}
+
+	// MultiMedia rulesets are special - they don't render selectors, just their Media node children
+	if r.MultiMedia {
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Fprintf(os.Stderr, "[RULESET.GenCSS] MultiMedia ruleset - rendering %d media nodes directly\n", len(r.Rules))
+		}
+		ctx, ok := context.(map[string]any)
+		if !ok {
+			ctx = make(map[string]any)
+		}
+		for _, rule := range r.Rules {
+			if gen, ok := rule.(interface{ GenCSS(any, *CSSOutput) }); ok {
+				gen.GenCSS(ctx, output)
+			}
+		}
+		return
 	}
 
 	// Don't skip rulesets with visibility blocks here - they may contain visible paths
@@ -1574,6 +1611,12 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 
 	if r.Rules != nil {
 		for i, rule := range r.Rules {
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				if rs, ok := rule.(*Ruleset); ok && rs.MultiMedia {
+					fmt.Fprintf(os.Stderr, "[RULESET.GenCSS] Processing MultiMedia Ruleset rule in %s ruleset (Root=%v)\n",
+						func() string { if r.MultiMedia { return "MultiMedia" } else { return "normal" } }(), r.Root)
+				}
+			}
 			// Skip silent comments entirely - they don't generate output
 			// This prevents extra blank lines from being added after the last visible rule
 			if comment, ok := rule.(*Comment); ok {
@@ -1608,6 +1651,11 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 				ruleNodes = newRules
 				importNodeIndex++
 			} else {
+				if os.Getenv("LESS_GO_DEBUG") == "1" {
+					if rs, ok := rule.(*Ruleset); ok && rs.MultiMedia {
+						fmt.Fprintf(os.Stderr, "[RULESET.GenCSS] Adding MultiMedia Ruleset to ruleNodes (Root=%v)\n", r.Root)
+					}
+				}
 				ruleNodes = append(ruleNodes, rule)
 			}
 		}

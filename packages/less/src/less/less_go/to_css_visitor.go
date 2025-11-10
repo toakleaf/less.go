@@ -634,14 +634,23 @@ func (v *ToCSSVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitArgs) any {
 	}
 	
 	if rootNode, ok := rulesetNode.(interface{ GetRoot() bool }); ok {
-		if !rootNode.GetRoot() {
+		// Check if this is a MultiMedia ruleset - if so, don't extract nested media blocks
+		isMultiMedia := false
+		if mmNode, ok := rulesetNode.(interface{ GetMultiMedia() bool }); ok {
+			isMultiMedia = mmNode.GetMultiMedia()
+			if os.Getenv("LESS_GO_DEBUG") == "1" && isMultiMedia {
+				fmt.Fprintf(os.Stderr, "[ToCSSVisitor] Found MultiMedia ruleset, skipping extraction\n")
+			}
+		}
+
+		if !rootNode.GetRoot() && !isMultiMedia {
 			// remove invisible paths and clean up combinators
 			v.compileRulesetPaths(rulesetNode)
-			
+
 			// remove rulesets from this ruleset body and compile them separately
 			if nodeWithRules, ok := rulesetNode.(interface{ GetRules() []any; SetRules([]any) }); ok {
 				nodeRules := nodeWithRules.GetRules()
-				
+
 				if nodeRules != nil {
 					nodeRuleCnt := len(nodeRules)
 					for i := 0; i < nodeRuleCnt; {
@@ -658,7 +667,7 @@ func (v *ToCSSVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitArgs) any {
 						}
 						i++
 					}
-					
+
 					// accept the visitor to remove rules and refactor itself
 					// then we can decide now whether we want it or not
 					// compile body
@@ -671,6 +680,13 @@ func (v *ToCSSVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitArgs) any {
 						nodeWithRules.SetRules(nil)
 					}
 				}
+			}
+			visitArgs.VisitDeeper = false
+		} else if isMultiMedia {
+			// For MultiMedia rulesets, don't visit children at all
+			// The Media nodes inside should be kept as-is and rendered during GenCSS
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Fprintf(os.Stderr, "[ToCSSVisitor] MultiMedia ruleset - skipping child visitation\n")
 			}
 			visitArgs.VisitDeeper = false
 		} else {
@@ -695,6 +711,18 @@ func (v *ToCSSVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitArgs) any {
 	
 	// now decide whether we keep the ruleset
 	keepRuleset := v.utils.IsVisibleRuleset(rulesetNode)
+
+	// MultiMedia rulesets should always be kept, even if they have empty selectors
+	if !keepRuleset {
+		if mmNode, ok := rulesetNode.(interface{ GetMultiMedia() bool }); ok {
+			if mmNode.GetMultiMedia() {
+				keepRuleset = true
+				if os.Getenv("LESS_GO_DEBUG") == "1" {
+					fmt.Fprintf(os.Stderr, "[ToCSSVisitor] Keeping MultiMedia ruleset despite visibility\n")
+				}
+			}
+		}
+	}
 	
 	
 	
