@@ -485,58 +485,20 @@ func (md *MixinDefinition) EvalParams(context any, mixinEnv any, args []any, eva
 			} else {
 				// Handle ... syntax without a parameter name
 				if variadic, ok := paramMap["variadic"].(bool); ok && variadic {
-					// Process varargs even without a parameter name
-					// This handles the ... syntax where there's no named parameter
-					varargs := []any{}
-					for j := argIndex; j < argsLength; j++ {
-						if argMap, ok := args[j].(map[string]any); ok {
-							argValue := argMap["value"]
-							// Evaluate the value
-							if evalMethod, ok := argValue.(interface{ Eval(any) (any, error) }); ok {
-								evaluated, err := evalMethod.Eval(context)
-								if err == nil {
-									argValue = evaluated
-								}
-							} else if evalMethod, ok := argValue.(interface{ Eval(any) any }); ok {
-								argValue = evalMethod.Eval(context)
-							}
-
-							// Flatten Expression/Value types only if single argument
-							if argsLength == 1 {
-								if exprValue, ok := argValue.(*Expression); ok && len(exprValue.Value) > 0 {
-									varargs = append(varargs, exprValue.Value...)
-								} else if valueValue, ok := argValue.(*Value); ok && len(valueValue.Value) > 0 {
-									varargs = append(varargs, valueValue.Value...)
-								} else {
-									varargs = append(varargs, argValue)
-								}
-							} else {
-								// Multiple arguments - don't flatten
-								varargs = append(varargs, argValue)
-							}
-						}
-					}
-					// Create Expression from flattened varargs and store in evaldArguments[0]
-					expr, err := NewExpression(varargs, false)
-					if err == nil {
-						evalExpr, err := expr.Eval(context)
-						if err == nil && i < len(evaldArguments) {
-							evaldArguments[i] = evalExpr
-						}
-					}
+					// For anonymous variadic parameters, do NOT populate evaldArguments[i]
+					// The individual arguments will be populated later in the variadic handling block (lines 537-561)
+					// This matches JavaScript behavior where anonymous variadic params don't set evaldArguments[i]
 					// Note: Don't create a parameter declaration since there's no name
 					// The @arguments variable will be created later in EvalCall
 				}
 			}
 
-			// Always increment argIndex to match JavaScript behavior (line 135)
-			if arg != nil {
-				argIndex++
-			}
-
+			// Handle variadic parameter arguments BEFORE incrementing argIndex
+			// This matches JavaScript behavior where the variadic handling (lines 130-134)
+			// happens before argIndex++ (line 135)
 			if variadic, ok := paramMap["variadic"].(bool); ok && variadic && args != nil {
 				// For variadic parameters, populate evaldArguments with evaluated args
-				// This is a fallback/secondary location
+				// This matches JavaScript lines 130-134
 				for j := argIndex; j < argsLength; j++ {
 					if j < len(evaldArguments) {
 						if argMap, ok := args[j].(map[string]any); ok {
@@ -560,6 +522,10 @@ func (md *MixinDefinition) EvalParams(context any, mixinEnv any, args []any, eva
 				}
 				argIndex = argsLength // Set to end since variadic consumes all remaining
 			}
+
+			// Always increment argIndex to match JavaScript behavior (line 135)
+			// This happens AFTER variadic handling
+			argIndex++
 		}
 	}
 
@@ -615,9 +581,13 @@ func (md *MixinDefinition) Eval(context any) (*MixinDefinition, error) {
 // EvalCall evaluates a mixin call
 func (md *MixinDefinition) EvalCall(context any, args []any, important bool) (*Ruleset, error) {
 	// Arguments array will be populated by EvalParams
-	// Pre-allocate with parameter count (not arg count) to handle default values
-	// This matches JavaScript behavior where _arguments[] can be indexed by parameter position
-	arguments := make([]any, len(md.Params))
+	// For variadic mixins, we need to allocate space for all arguments
+	// For non-variadic, allocate space for parameters only
+	argumentsSize := len(md.Params)
+	if md.Variadic && args != nil && len(args) > len(md.Params) {
+		argumentsSize = len(args)
+	}
+	arguments := make([]any, argumentsSize)
 	// fmt.Printf("DEBUG EvalCall: mixin=%s, args=%d, arguments pre-allocated=%d\n", md.Name, len(args), len(arguments))
 	
 	// Determine mixin frames
