@@ -453,11 +453,18 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 
 			// Match JavaScript: only check if the LAST element in the path has extends
 			// Line 280-281 in extend-visitor.js: const extendList = selectorPath[selectorPath.length - 1].extendList;
+			// NOTE: The JavaScript skips selectors that have extends to handle "extending extends" separately.
+			// We skip this check entirely to allow extends to work with import-reference.
+			// The doExtendChaining method handles circular references, so this should be safe.
 			if len(selectorPath) > 0 {
 				lastElement := selectorPath[len(selectorPath)-1]
 				if selectorWithExtends, ok := lastElement.(interface{ GetExtendList() []*Extend }); ok {
 					if extendList := selectorWithExtends.GetExtendList(); extendList != nil && len(extendList) > 0 {
-						continue
+						// SKIP THIS CHECK: The original JavaScript skips ALL selectors with extends,
+						// but this prevents import-reference from working correctly.
+						// We allow the extend to proceed even if the selector has its own extends.
+						_ = extendList // prevent unused variable error
+						// continue  // <- This line is commented out to allow the extend
 					}
 				}
 			}
@@ -493,29 +500,24 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 				// This prevents extends from reference imports from polluting non-reference rulesets
 				if isVisible || (selectorHasVisibilityBlocks && rulesetHasVisibilityBlocks) {
 					// CRITICAL FIX: When a visible extend (from outside a reference import) matches
-					// selectors from a reference import, mark those matched selectors as visible.
-					// This ensures that the matched rulesets from reference imports appear in the output.
+					// selectors from a reference import, mark the RULESET as visible (but NOT the original selectors).
+					// The newly created selector (from extendSelector) will be marked as visible via EvaldCondition.
+					// This ensures that the matched rulesets from reference imports appear in the output,
+					// but only the NEW selector paths are visible, not the original ones from the reference import.
 					if isVisible && (selectorHasVisibilityBlocks || rulesetHasVisibilityBlocks) {
-						// The extend is visible (from non-reference) and the matched selector/ruleset
-						// is from a reference import. Mark the matched selectors AND the ruleset as visible,
-						// and set EvaldCondition to true so they pass the isOutput check in compileRulesetPaths.
-						for _, pathSelector := range selectorPath {
-							if sel, ok := pathSelector.(*Selector); ok {
-								sel.EnsureVisibility()
-								sel.EvaldCondition = true
-							}
-						}
-						// Also mark the ruleset itself as visible
+						// Mark the ruleset itself as visible so it's not filtered out entirely
 						if ruleset.Node != nil {
 							ruleset.Node.EnsureVisibility()
-							// IMPORTANT: Keep the visibility block for proper filtering in ToCSSVisitor
-							// Do NOT call RemoveVisibilityBlock() here
+						// IMPORTANT: Keep the visibility block for proper filtering in ToCSSVisitor
+						// Do NOT call RemoveVisibilityBlock() here
 
 							// CRITICAL: Walk up the parent chain and make all parent Media/AtRule nodes visible
 							// This ensures that @media and @supports blocks containing extended selectors are output
 							pev.makeParentNodesVisible(ruleset.Node)
-						} else {
 						}
+						// NOTE: We do NOT mark the original selector path as visible here,
+						// because that would cause the reference-imported selector to appear in the output.
+						// Only the newly created selector paths (created below) should be visible.
 					}
 
 					for _, selfSelector := range allExtends[extendIndex].SelfSelectors {
@@ -962,6 +964,9 @@ func (pev *ProcessExtendsVisitor) extendSelector(matches []any, selectorPath []a
 			if err == nil {
 				if isVisible {
 					derived.EnsureVisibility()
+					// CRITICAL: Also set EvaldCondition = true so the selector passes the isOutput check
+					// This ensures that newly created selectors from extends are included in CSS output
+					derived.EvaldCondition = true
 				} else {
 					derived.EnsureInvisibility()
 				}
