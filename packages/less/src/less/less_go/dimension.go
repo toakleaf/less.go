@@ -140,18 +140,25 @@ func (d *Dimension) GenCSS(context any, output *CSSOutput) {
 	var strValue string
 	if roundedValue == 0 {
 		strValue = "0"
-	} else if math.Abs(roundedValue) >= 1e-6 && math.Abs(roundedValue) < 1e21 {
-		// Use fmt.Sprintf("%v") to match JavaScript's String() behavior
-		// This preserves full float64 precision similar to JavaScript
-		strValue = fmt.Sprintf("%v", roundedValue)
-	} else {
-		// For very small or very large numbers, use default formatting
-		strValue = fmt.Sprintf("%v", roundedValue)
-	}
-	if roundedValue != 0 && math.Abs(roundedValue) < 0.000001 {
+	} else if roundedValue != 0 && math.Abs(roundedValue) < 0.000001 {
+		// Very small numbers: would be output as 1e-6 etc. in JavaScript
 		// Mimic JavaScript's toFixed(20) and trim trailing zeros
 		strValue = strings.TrimRight(fmt.Sprintf("%.20f", roundedValue), "0")
 		strValue = strings.TrimRight(strValue, ".")
+	} else {
+		// For normal numbers, match JavaScript's String() behavior
+		// JavaScript doesn't use scientific notation for reasonable numbers
+		// Check if the number is close to an integer
+		if math.Abs(roundedValue-math.Round(roundedValue)) < 1e-10 {
+			// Integer or very close to it - format without decimal places
+			strValue = fmt.Sprintf("%.0f", roundedValue)
+		} else {
+			// Has decimal places - use %f and trim trailing zeros
+			// Use sufficient precision to match JavaScript
+			strValue = fmt.Sprintf("%.10f", roundedValue)
+			strValue = strings.TrimRight(strValue, "0")
+			strValue = strings.TrimRight(strValue, ".")
+		}
 	}
 	if compress {
 		if roundedValue == 0 && d.Unit.IsLength() {
