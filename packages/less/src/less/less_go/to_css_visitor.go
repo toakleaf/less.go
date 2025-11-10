@@ -764,13 +764,23 @@ func (v *ToCSSVisitor) compileRulesetPaths(rulesetNode any) {
 					// Check if path has any visible and output selectors
 					// In JavaScript: p[i].isVisible() && p[i].getIsOutput()
 					// where p is a path array and p[i] is a selector
+					//
+					// After SetTreeVisibilityVisitor(true) runs, all selectors should have visibility set:
+					// - Non-reference selectors: nodeVisible = true
+					// - Reference selectors: nodeVisible remains nil/undefined (skipped by SetTreeVisibilityVisitor)
+					//
+					// When extend creates a new selector from a visible extend:
+					// - The new selector gets nodeVisible = true (via ensureVisibility())
+					//
+					// So: isVisible() returning nil means the selector is from a reference import and hasn't been explicitly made visible
 					hasVisibleOutput := false
 					for _, selector := range pathSlice {
 						// Check if it's a selector with the required methods
 						if sel, ok := selector.(*Selector); ok {
 							// Check visibility - handle that IsVisible returns *bool
-							// When visibility is undefined (nil), it's falsy in JavaScript
-							// So we default to false to match JavaScript's behavior
+							// nil = from reference import and not explicitly made visible
+							// true = explicitly visible (either from non-reference or made visible by extend)
+							// false = explicitly invisible
 							isVisible := false
 							if vis := sel.IsVisible(); vis != nil {
 								isVisible = *vis
