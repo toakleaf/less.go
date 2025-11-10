@@ -762,9 +762,17 @@ func (r *Ruleset) Eval(context any) (any, error) {
 		mediaBlocks = mb
 	}
 
+	if os.Getenv("LESS_GO_TRACE") != "" && mediaBlocks != nil {
+		fmt.Fprintf(os.Stderr, "[RULESET.Eval] BubbleSelectors section: mediaBlockCount=%d, len(mediaBlocks)=%d, selectors=%v\n",
+			mediaBlockCount, len(mediaBlocks), selectors)
+	}
+
 	if mediaBlocks != nil {
 		for i := mediaBlockCount; i < len(mediaBlocks); i++ {
 			if mb, ok := mediaBlocks[i].(interface{ BubbleSelectors(any) }); ok {
+				if os.Getenv("LESS_GO_TRACE") != "" {
+					fmt.Fprintf(os.Stderr, "[RULESET.Eval] Calling BubbleSelectors on mediaBlock %d (type=%T)\n", i, mb)
+				}
 				mb.BubbleSelectors(selectors)
 			}
 		}
@@ -783,7 +791,16 @@ func (r *Ruleset) Eval(context any) (any, error) {
 		}
 	}
 
+	if os.Getenv("LESS_GO_TRACE") != "" {
+		fmt.Fprintf(os.Stderr, "[RULESET.Eval] Root check: Root=%v, len(mediaPath)=%d, len(mediaBlocks)=%d\n",
+			ruleset.Root, len(mediaPath), func() int { if mediaBlocks != nil { return len(mediaBlocks) } else { return 0 } }())
+	}
+
 	if ruleset.Root && len(mediaPath) == 0 && mediaBlocks != nil && len(mediaBlocks) > 0 {
+		if os.Getenv("LESS_GO_TRACE") != "" {
+			fmt.Fprintf(os.Stderr, "[RULESET.Eval] Appending %d mediaBlocks to root Rules\n", len(mediaBlocks))
+		}
+
 		// Append all mediaBlocks to the ruleset's Rules array
 		ruleset.Rules = append(ruleset.Rules, mediaBlocks...)
 

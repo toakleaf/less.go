@@ -2,6 +2,7 @@ package less_go
 
 import (
 	"fmt"
+	"os"
 )
 
 // Container represents a CSS container at-rule node
@@ -53,25 +54,25 @@ func NewContainer(value any, features any, index int, currentFileInfo map[string
 			rulesetRules = []any{value}
 		}
 	}
-	ruleset := NewRuleset(selectors, rulesetRules, false, nil)
+	ruleset := NewRuleset(selectors, rulesetRules, false, visibilityInfo)
 	ruleset.AllowImports = true
-	rules := []any{ruleset}
 
-	// Create the base AtRule
-	atRule := NewAtRule("@container", nil, rules, index, currentFileInfo, nil, false, visibilityInfo)
+	// Create the base AtRule - pass nil for rules like Media does
+	// This prevents NewAtRule from setting Root=true on the inner ruleset
+	atRule := NewAtRule("@container", nil, nil, index, currentFileInfo, nil, false, visibilityInfo)
 	atRule.AllowRoot = true
 
 	// Create Container instance
 	container := &Container{
 		AtRule:   atRule,
 		Features: containerFeatures,
-		Rules:    rules,
+		Rules:    []any{ruleset},  // Set rules directly, not through NewAtRule
 	}
 
 	// Set parent relationships
 	container.SetParent(selectors, container.Node)
 	container.SetParent(containerFeatures.Node, container.Node)
-	container.SetParent(rules, container.Node)
+	container.SetParent(container.Rules, container.Node)
 
 	return container, nil
 }
@@ -89,6 +90,11 @@ func (c *Container) GetType() string {
 // GetTypeIndex returns the type index for visitor pattern
 func (c *Container) GetTypeIndex() int {
 	return GetTypeIndexForNodeType("Container")
+}
+
+// GetRules returns the rules for this container query
+func (c *Container) GetRules() []any {
+	return c.Rules
 }
 
 // GenCSS generates CSS representation
@@ -118,6 +124,10 @@ func (c *Container) GenCSS(context any, output *CSSOutput) {
 func (c *Container) Eval(context any) (any, error) {
 	if context == nil {
 		return nil, fmt.Errorf("context is required for Container.Eval")
+	}
+
+	if os.Getenv("LESS_GO_TRACE") != "" {
+		fmt.Fprintf(os.Stderr, "[CONTAINER.Eval] Starting eval\n")
 	}
 
 	// Convert to *Eval context if needed
@@ -214,8 +224,14 @@ func (c *Container) Eval(context any) (any, error) {
 
 	// Match JavaScript: return context.mediaPath.length === 0 ? media.evalTop(context) : media.evalNested(context);
 	if len(evalCtx.MediaPath) == 0 {
+		if os.Getenv("LESS_GO_TRACE") != "" {
+			fmt.Fprintf(os.Stderr, "[CONTAINER.Eval] Calling evalTop, mediaBlocks count: %d\n", len(evalCtx.MediaBlocks))
+		}
 		return media.EvalTop(evalCtx), nil
 	} else {
+		if os.Getenv("LESS_GO_TRACE") != "" {
+			fmt.Fprintf(os.Stderr, "[CONTAINER.Eval] Calling evalNested, mediaPath length: %d\n", len(evalCtx.MediaPath))
+		}
 		return media.EvalNested(evalCtx), nil
 	}
 }
@@ -327,6 +343,10 @@ func (c *Container) evalWithMapContext(ctx map[string]any) (any, error) {
 
 // EvalTop evaluates the container at the top level (implementing NestableAtRulePrototype)
 func (c *Container) EvalTop(context any) any {
+	if os.Getenv("LESS_GO_TRACE") != "" {
+		fmt.Fprintf(os.Stderr, "[CONTAINER.EvalTop] Starting\n")
+	}
+
 	var result any = c
 
 	// Handle both *Eval and map[string]any contexts
@@ -336,6 +356,10 @@ func (c *Container) EvalTop(context any) any {
 	if evalCtx, ok := context.(*Eval); ok {
 		mediaBlocks = evalCtx.MediaBlocks
 		hasMediaBlocks = len(mediaBlocks) > 0
+
+		if os.Getenv("LESS_GO_TRACE") != "" {
+			fmt.Fprintf(os.Stderr, "[CONTAINER.EvalTop] mediaBlocks count: %d\n", len(mediaBlocks))
+		}
 
 		// Render all dependent Container blocks
 		if hasMediaBlocks && len(mediaBlocks) > 1 {
@@ -572,6 +596,10 @@ func (c *Container) Permute(arr []any) any {
 
 // BubbleSelectors bubbles selectors up the tree (implementing NestableAtRulePrototype)
 func (c *Container) BubbleSelectors(selectors any) {
+	if os.Getenv("LESS_GO_TRACE") != "" {
+		fmt.Fprintf(os.Stderr, "[CONTAINER.BubbleSelectors] Called with selectors: %v\n", selectors)
+	}
+
 	if selectors == nil {
 		return
 	}

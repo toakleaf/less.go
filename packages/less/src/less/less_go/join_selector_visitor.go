@@ -1,5 +1,10 @@
 package less_go
 
+import (
+	"fmt"
+	"os"
+)
+
 // flattenPath flattens nested arrays in selector paths to ensure correct CSS generation
 func flattenPath(path []any) []any {
 	result := make([]any, 0, len(path))
@@ -266,11 +271,22 @@ func (jsv *JoinSelectorVisitor) VisitMedia(mediaNode any, visitArgs *VisitArgs) 
 
 // VisitContainer processes container nodes (same logic as media for bubbling)
 func (jsv *JoinSelectorVisitor) VisitContainer(containerNode any, visitArgs *VisitArgs) any {
+	if os.Getenv("LESS_GO_TRACE") != "" {
+		fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor.VisitContainer] Called\n")
+	}
+
 	// Guard against empty contexts
 	if len(jsv.contexts) == 0 {
+		if os.Getenv("LESS_GO_TRACE") != "" {
+			fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor.VisitContainer] Empty contexts, returning nil\n")
+		}
 		return nil
 	}
 	context := jsv.contexts[len(jsv.contexts)-1]
+
+	if os.Getenv("LESS_GO_TRACE") != "" {
+		fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor.VisitContainer] Context length: %d\n", len(context))
+	}
 
 	// Try interface-based approach first
 	if containerInterface, ok := containerNode.(interface{ GetRules() []any }); ok {

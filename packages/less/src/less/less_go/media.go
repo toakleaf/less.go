@@ -2,6 +2,7 @@ package less_go
 
 import (
 	"fmt"
+	"os"
 )
 
 // Media represents a media query node in the Less AST
@@ -105,6 +106,10 @@ func (m *Media) Accept(visitor any) {
 
 // EvalTop evaluates the media rule at the top level (implementing NestableAtRulePrototype)
 func (m *Media) EvalTop(context any) any {
+	if os.Getenv("LESS_GO_TRACE") != "" {
+		fmt.Fprintf(os.Stderr, "[MEDIA.EvalTop] Starting\n")
+	}
+
 	var result any = m
 
 	// Handle both *Eval and map[string]any contexts
@@ -114,6 +119,10 @@ func (m *Media) EvalTop(context any) any {
 	if evalCtx, ok := context.(*Eval); ok {
 		mediaBlocks = evalCtx.MediaBlocks
 		hasMediaBlocks = len(mediaBlocks) > 0
+
+		if os.Getenv("LESS_GO_TRACE") != "" {
+			fmt.Fprintf(os.Stderr, "[MEDIA.EvalTop] mediaBlocks count: %d\n", len(mediaBlocks))
+		}
 
 		// Render all dependent Media blocks
 		if hasMediaBlocks && len(mediaBlocks) > 1 {
@@ -403,6 +412,10 @@ func hasOnlyEmptyContent(rules []any) bool {
 
 // BubbleSelectors bubbles selectors up the tree (implementing NestableAtRulePrototype)
 func (m *Media) BubbleSelectors(selectors any) {
+	if os.Getenv("LESS_GO_TRACE") != "" {
+		fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors] Called with selectors: %v\n", selectors)
+	}
+
 	if selectors == nil {
 		return
 	}
@@ -473,6 +486,10 @@ func (m *Media) GenCSS(context any, output *CSSOutput) {
 func (m *Media) Eval(context any) (any, error) {
 	if context == nil {
 		return nil, fmt.Errorf("context is required for Media.Eval")
+	}
+
+	if os.Getenv("LESS_GO_TRACE") != "" {
+		fmt.Fprintf(os.Stderr, "[MEDIA.Eval] Starting eval\n")
 	}
 
 	// Convert to *Eval context if needed
@@ -566,8 +583,14 @@ func (m *Media) Eval(context any) (any, error) {
 
 	// Match JavaScript: return context.mediaPath.length === 0 ? media.evalTop(context) : media.evalNested(context);
 	if len(evalCtx.MediaPath) == 0 {
+		if os.Getenv("LESS_GO_TRACE") != "" {
+			fmt.Fprintf(os.Stderr, "[MEDIA.Eval] Calling evalTop, mediaBlocks count: %d\n", len(evalCtx.MediaBlocks))
+		}
 		return media.EvalTop(evalCtx), nil
 	} else {
+		if os.Getenv("LESS_GO_TRACE") != "" {
+			fmt.Fprintf(os.Stderr, "[MEDIA.Eval] Calling evalNested, mediaPath length: %d\n", len(evalCtx.MediaPath))
+		}
 		return media.EvalNested(evalCtx), nil
 	}
 }
