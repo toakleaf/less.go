@@ -110,6 +110,11 @@ func (a *AtRule) GetDebugInfo() any {
 	return a.DebugInfo
 }
 
+// GetIsRooted returns whether the at-rule is rooted
+func (a *AtRule) GetIsRooted() bool {
+	return a.IsRooted
+}
+
 // ToCSS converts the at-rule to CSS string
 func (a *AtRule) ToCSS(context any) string {
 	var strs []string
