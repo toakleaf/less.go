@@ -1410,16 +1410,9 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 		return
 	}
 
-	// Check visibility - skip if node blocks visibility and is not explicitly visible
-	// This implements the reference import functionality where nodes from referenced
-	// imports are hidden unless explicitly used (via extend or mixin call)
-	if r.Node != nil && r.Node.BlocksVisibility() {
-		nodeVisible := r.Node.IsVisible()
-		if nodeVisible == nil || !*nodeVisible {
-			// Node blocks visibility and is not explicitly visible, skip output
-			return
-		}
-	}
+	// Don't skip rulesets with visibility blocks here - they may contain visible paths
+	// from extends. The path filtering logic below will filter out invisible paths.
+	// This matches JavaScript behavior which doesn't have an early return for visibility.
 
 	ctx, ok := context.(map[string]any)
 	if !ok {
