@@ -784,8 +784,31 @@ func (r *Ruleset) Eval(context any) (any, error) {
 	}
 
 	if ruleset.Root && len(mediaPath) == 0 && mediaBlocks != nil && len(mediaBlocks) > 0 {
-		// Append all mediaBlocks to the ruleset's Rules array
-		ruleset.Rules = append(ruleset.Rules, mediaBlocks...)
+		// Replace empty rulesets (placeholders from bubbling directives) with actual mediaBlocks
+		// This maintains the original order of all directives
+		mediaBlockIndex := 0
+		newRules := make([]any, 0, len(ruleset.Rules))
+
+		for _, rule := range ruleset.Rules {
+			// Check if this is an empty placeholder ruleset from a bubbling directive
+			if rs, ok := rule.(*Ruleset); ok {
+				if len(rs.Selectors) == 0 && len(rs.Rules) == 0 && mediaBlockIndex < len(mediaBlocks) {
+					// Replace the empty placeholder with the corresponding mediaBlock
+					newRules = append(newRules, mediaBlocks[mediaBlockIndex])
+					mediaBlockIndex++
+					continue
+				}
+			}
+			newRules = append(newRules, rule)
+		}
+
+		// If there are any remaining mediaBlocks (shouldn't happen in normal cases), append them
+		for mediaBlockIndex < len(mediaBlocks) {
+			newRules = append(newRules, mediaBlocks[mediaBlockIndex])
+			mediaBlockIndex++
+		}
+
+		ruleset.Rules = newRules
 
 		// Clear mediaBlocks from context (they've been consumed)
 		if evalCtx != nil {
