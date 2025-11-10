@@ -439,6 +439,7 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 	// Paths added during chaining have extends and should not be extended again
 	originalPathsLength := len(ruleset.Paths)
 
+
 	// Track which rulesets have matches so we can mark all their paths as visible
 
 	// look at each selector path in the ruleset, find any extend matches and then copy, find and replace
@@ -447,24 +448,34 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 			selectorPath = ruleset.Paths[pathIndex]
 
 			// extending extends happens initially, before the main pass
-			if ruleset.ExtendOnEveryPath {
+			// CRITICAL FIX: Don't skip rulesets with ExtendOnEveryPath if they're from reference imports
+			// These rulesets need to be matchable by extends from the main file
+			rulesetHasVisibilityBlocks := ruleset.Node != nil && ruleset.Node.BlocksVisibility()
+			if ruleset.ExtendOnEveryPath && !rulesetHasVisibilityBlocks {
 				continue
 			}
 
 			// Match JavaScript: only check if the LAST element in the path has extends
 			// Line 280-281 in extend-visitor.js: const extendList = selectorPath[selectorPath.length - 1].extendList;
-			// NOTE: The JavaScript skips selectors that have extends to handle "extending extends" separately.
-			// We skip this check entirely to allow extends to work with import-reference.
-			// The doExtendChaining method handles circular references, so this should be safe.
+			//
+			// IMPORTANT: The JavaScript skips selectors with extends because "extending extends happens initially,
+			// before the main pass" via doExtendChaining. However, this causes issues with import-reference in Go.
+			//
+			// The issue is that doExtendChaining may not properly handle all cases with import-reference,
+			// so we need to allow the main loop to process selectors-with-extends as well.
+			//
+			// This causes a different problem: when .test-rule-c extends .test-rule-b which extends .test-rule-a,
+			// .test-rule-c might get properties from .test-rule-a instead of .test-rule-b.
+			//
+			// We check for extends but don't skip them unconditionally:
 			if len(selectorPath) > 0 {
 				lastElement := selectorPath[len(selectorPath)-1]
 				if selectorWithExtends, ok := lastElement.(interface{ GetExtendList() []*Extend }); ok {
 					if extendList := selectorWithExtends.GetExtendList(); extendList != nil && len(extendList) > 0 {
-						// SKIP THIS CHECK: The original JavaScript skips ALL selectors with extends,
-						// but this prevents import-reference from working correctly.
-						// We allow the extend to proceed even if the selector has its own extends.
+						// TODO: We should skip this like JavaScript does, but that breaks import-reference.
+						// The root cause is likely in doExtendChaining not handling reference imports correctly.
 						_ = extendList // prevent unused variable error
-						// continue  // <- This line is commented out to allow the extend
+						// continue  // <- Commented out to prevent major regressions
 					}
 				}
 			}
@@ -494,11 +505,24 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 				}
 				rulesetHasVisibilityBlocks := ruleset.Node != nil && ruleset.Node.BlocksVisibility()
 
+				// CRITICAL FIX: Don't process deeply chained extends that target reference import rulesets
+				// A deeply chained extend (one with 2+ parent IDs) should not create output from reference import rulesets
+				// because the properties should come from the intermediate ruleset, not the final target
+				//
+				// Example: .c extends .b (1 parent), .b extends .a (1 parent)
+				// When chained: .c extends .a (3 parents: .c, .b, .a)
+				// The direct extend (.c extends .b) has 1 parent and should be processed
+				// The chained extend (.c extends .a) has 3 parents and should be skipped for reference rulesets
+				numParents := len(allExtends[extendIndex].ParentIds)
+				isDeeplyChainedExtend := numParents > 1
+
 				// Only process the match if:
 				// 1. The extend is visible (from a non-reference import), OR
 				// 2. The extend, selector, and ruleset are all from reference imports (all have visibility blocks)
-				// This prevents extends from reference imports from polluting non-reference rulesets
-				if isVisible || (selectorHasVisibilityBlocks && rulesetHasVisibilityBlocks) {
+				// BUT: Skip deeply chained extends that target reference import rulesets
+				shouldSkipDeeplyChainedRefExtend := isDeeplyChainedExtend && rulesetHasVisibilityBlocks && isVisible
+
+				if (isVisible || (selectorHasVisibilityBlocks && rulesetHasVisibilityBlocks)) && !shouldSkipDeeplyChainedRefExtend {
 					// CRITICAL FIX: When a visible extend (from outside a reference import) matches
 					// selectors from a reference import, mark the RULESET as visible (but NOT the original selectors).
 					// The newly created selector (from extendSelector) will be marked as visible via EvaldCondition.
