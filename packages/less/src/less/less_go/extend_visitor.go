@@ -319,7 +319,9 @@ func (pev *ProcessExtendsVisitor) doExtendChaining(extendsList []*Extend, extend
 
 						// process the extend as usual
 						// Match JavaScript: use extend.isVisible() to preserve visibility in chaining
-						newSelector = pev.extendSelector(matches, selectorPath, selfSelector, extend.IsVisible())
+						// In chaining, we're not extending from a reference import's ruleset,
+						// we're extending another extend, so matchesReferenceImport = false
+						newSelector = pev.extendSelector(matches, selectorPath, selfSelector, extend.IsVisible(), false)
 
 						// but now we create a new extend from it
 						var infoMap map[string]any
@@ -511,7 +513,9 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 					}
 
 					for _, selfSelector := range allExtends[extendIndex].SelfSelectors {
-						extendedSelectors := pev.extendSelector(matches, selectorPath, selfSelector, isVisible)
+						// Pass whether we're matching a reference import so EvaldCondition is set appropriately
+						matchesReferenceImport := selectorHasVisibilityBlocks || rulesetHasVisibilityBlocks
+						extendedSelectors := pev.extendSelector(matches, selectorPath, selfSelector, isVisible, matchesReferenceImport)
 						selectorsToAdd = append(selectorsToAdd, extendedSelectors)
 					}
 				}
@@ -823,7 +827,7 @@ func (pev *ProcessExtendsVisitor) isElementValuesEqual(elementValue1, elementVal
 	return false
 }
 
-func (pev *ProcessExtendsVisitor) extendSelector(matches []any, selectorPath []any, replacementSelector any, isVisible bool) []any {
+func (pev *ProcessExtendsVisitor) extendSelector(matches []any, selectorPath []any, replacementSelector any, isVisible bool, matchesReferenceImport bool) []any {
 	// This matches the JavaScript extendSelector method exactly (lines 417-482)
 	currentSelectorPathIndex := 0
 	currentSelectorPathElementIndex := 0
@@ -954,9 +958,12 @@ func (pev *ProcessExtendsVisitor) extendSelector(matches []any, selectorPath []a
 			if err == nil {
 				if isVisible {
 					derived.EnsureVisibility()
-					// If the extend is visible, also set EvaldCondition so it passes the isOutput check
-					// This is necessary when extending selectors from reference imports
-					derived.EvaldCondition = true
+					// If the extend is visible AND it matches a reference import,
+					// set EvaldCondition so it passes the isOutput check.
+					// This is necessary when extending selectors from reference imports.
+					if matchesReferenceImport {
+						derived.EvaldCondition = true
+					}
 				} else {
 					derived.EnsureInvisibility()
 				}

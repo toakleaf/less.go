@@ -331,29 +331,6 @@ func (r *Ruleset) Accept(visitor any) {
 		if len(r.Rules) > 0 {
 			r.Rules = v.VisitArray(r.Rules)
 		}
-	} else if v, ok := visitor.(interface{ VisitArray(any) any }); ok {
-		// Support visitors with generic any parameters (like SetTreeVisibilityVisitor)
-		if r.Paths != nil {
-			newPaths := make([][]any, len(r.Paths))
-			for i, path := range r.Paths {
-				result := v.VisitArray(path)
-				if pathSlice, ok := result.([]any); ok {
-					newPaths[i] = pathSlice
-				}
-			}
-			r.Paths = newPaths
-		} else if r.Selectors != nil {
-			result := v.VisitArray(r.Selectors)
-			if selectors, ok := result.([]any); ok {
-				r.Selectors = selectors
-			}
-		}
-		if len(r.Rules) > 0 {
-			result := v.VisitArray(r.Rules)
-			if rules, ok := result.([]any); ok {
-				r.Rules = rules
-			}
-		}
 	}
 }
 

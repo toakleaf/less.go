@@ -135,9 +135,9 @@ func TestProcessExtendsVisitor_IsElementValuesEqual_Strings(t *testing.T) {
 
 func TestProcessExtendsVisitor_ExtendSelector_EmptyMatches(t *testing.T) {
 	visitor := NewProcessExtendsVisitor()
-	
-	result := visitor.extendSelector([]any{}, []any{}, &Selector{}, true)
-	
+
+	result := visitor.extendSelector([]any{}, []any{}, &Selector{}, true, false)
+
 	if len(result) != 0 {
 		t.Error("Expected empty result for empty matches")
 	}
