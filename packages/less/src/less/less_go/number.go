@@ -48,11 +48,26 @@ func wrapConvert(fn func(val *Dimension, unit *Dimension) (*Dimension, error)) f
 			return nil, fmt.Errorf("convert expects 2 arguments, got %d", len(args))
 		}
 		val, ok1 := args[0].(*Dimension)
-		unit, ok2 := args[1].(*Dimension)
-		if !ok1 || !ok2 {
-			return nil, fmt.Errorf("convert expects dimension arguments")
+		if !ok1 {
+			return nil, fmt.Errorf("convert expects first argument to be a dimension")
 		}
-		return fn(val, unit)
+
+		// Second argument can be a Dimension or a Keyword representing the unit
+		var unitArg *Dimension
+		if dim, ok := args[1].(*Dimension); ok {
+			unitArg = dim
+		} else if kw, ok := args[1].(*Keyword); ok {
+			// Create a dimension with value 1 and the keyword's unit
+			// The convert function will extract the unit from this
+			unitArg = &Dimension{Value: 1.0, Unit: NewUnit([]string{kw.value}, nil, kw.value)}
+		} else if quoted, ok := args[1].(*Quoted); ok {
+			// Handle quoted strings like "deg"
+			unitArg = &Dimension{Value: 1.0, Unit: NewUnit([]string{quoted.value}, nil, quoted.value)}
+		} else {
+			return nil, fmt.Errorf("convert expects second argument to be a dimension, keyword, or string")
+		}
+
+		return fn(val, unitArg)
 	}
 }
 

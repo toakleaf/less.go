@@ -220,24 +220,23 @@ func Replace(stringArg, pattern, replacement interface{}, flags ...interface{}) 
 	if err != nil {
 		return NewQuoted(quote, stringVal, escaped, 0, nil), nil // Return original on error
 	}
-	
+
 	var result string
 	if strings.Contains(flagsStr, "g") {
+		// Replace all occurrences with capture group expansion
 		result = regex.ReplaceAllString(stringVal, replacementStr)
 	} else {
 		// Replace only the first occurrence, with capture group expansion
-		// Go doesn't have ReplaceString, so use ReplaceAllStringFunc with a counter
-		replaced := false
-		result = regex.ReplaceAllStringFunc(stringVal, func(match string) string {
-			if replaced {
-				return match // Keep subsequent matches unchanged
-			}
-			replaced = true
-			// Expand capture groups manually
-			return regex.ReplaceAllString(match, replacementStr)
-		})
+		matches := regex.FindStringSubmatchIndex(stringVal)
+		if matches != nil {
+			// Use ExpandString to properly expand capture groups like $1, $2, etc.
+			expanded := regex.ExpandString([]byte{}, replacementStr, stringVal, matches)
+			result = stringVal[:matches[0]] + string(expanded) + stringVal[matches[1]:]
+		} else {
+			result = stringVal
+		}
 	}
-	
+
 	return NewQuoted(quote, result, escaped, 0, nil), nil
 }
 
