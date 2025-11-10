@@ -596,9 +596,82 @@ func (a *AtRule) BubbleSelectors(selectors any) {
 		return
 	}
 
-	newRuleset := NewRuleset(anySelectors, []any{a.Rules[0]}, false, nil)
-	a.Rules = []any{newRuleset}
+	// Join parent selectors with nested selectors during bubbling
+	// This avoids the need for JoinSelectorVisitor to handle bubbled directives
+	a.joinSelectorsRecursive(a.Rules[0], anySelectors)
+
+	// Don't create wrapper - selectors are already joined in nested rulesets
 	a.SetParent(a.Rules, a.Node)
+}
+
+// joinSelectorsRecursive joins parent selectors with all nested rulesets
+func (a *AtRule) joinSelectorsRecursive(node any, parentSelectors []any) {
+	if node == nil {
+		return
+	}
+
+	switch n := node.(type) {
+	case *Ruleset:
+		// If this ruleset has selectors, join them with parent selectors
+		if len(n.Selectors) > 0 && len(parentSelectors) > 0 {
+			// Use the proper JoinSelectors method which handles & references
+			joinedPaths := make([][]any, 0)
+			n.JoinSelectors(&joinedPaths, [][]any{parentSelectors}, n.Selectors)
+
+			// Convert paths to selectors
+			// Each path is a []any that may contain either:
+			// 1. A single Selector with multiple elements (properly joined)
+			// 2. Multiple Selectors that need to be combined
+			joined := make([]any, 0)
+			for _, path := range joinedPaths {
+				if len(path) == 0 {
+					continue
+				}
+
+				// If path has only 1 selector, use it directly
+				if len(path) == 1 {
+					joined = append(joined, path[0])
+				} else {
+					// Path has multiple selectors - combine them into one
+					// This happens when selectors are not properly joined (no & handling)
+					allElements := make([]*Element, 0)
+					for _, sel := range path {
+						if selector, ok := sel.(*Selector); ok {
+							allElements = append(allElements, selector.Elements...)
+						}
+					}
+					if len(allElements) > 0 {
+						newSel, _ := NewSelector(allElements, nil, nil, 0, make(map[string]any), nil)
+						joined = append(joined, newSel)
+					}
+				}
+			}
+
+			if len(joined) > 0 {
+				n.Selectors = joined
+			}
+		}
+
+		// Recursively process nested rules
+		if n.Rules != nil {
+			for _, rule := range n.Rules {
+				// Use this ruleset's selectors as parent for nested rules
+				childParent := n.Selectors
+				if len(childParent) == 0 {
+					childParent = parentSelectors
+				}
+				a.joinSelectorsRecursive(rule, childParent)
+			}
+		}
+
+	case *AtRule:
+		// For nested at-rules, recurse with same parent selectors
+		if n.Rules != nil {
+			for _, rule := range n.Rules {
+				a.joinSelectorsRecursive(rule, parentSelectors)
+			}
+		}
+	}
 }
 
 // Permute creates permutations of the given array (implementing NestableAtRulePrototype pattern)
