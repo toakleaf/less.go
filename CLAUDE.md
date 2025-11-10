@@ -44,14 +44,14 @@ When working on this project, please be aware of the following:
    - Go tests should verify ported functionality matches JavaScript behavior
 
 4. **Current Integration Test Status** (as of 2025-11-10 - Latest Update):
-   - **78 perfect CSS matches (42.2%)** - EXCELLENT PROGRESS! ✅ (+9 new!)
+   - **79 perfect CSS matches (42.7%)** - EXCELLENT PROGRESS! ✅ (+10 new!)
    - **✅ ZERO REGRESSIONS** - All previously passing tests still passing!
-   - **4 compilation failures (2.2%)** - 3 external (network/packages), 1 import-reference issue
-   - **62 correct error handling (33.6%)** - tests that should fail, do fail correctly
-   - **41 tests with CSS output differences (22.2%)** - compiles but CSS doesn't match
-   - **Overall Success Rate: 75.7%** ⬆️ (140/185 tests passing or correctly erroring)
+   - **4 compilation failures (2.2%)** - 3 external (network/packages), 1 import-module
+   - **62 correct error handling (33.5%)** - tests that should fail, do fail correctly
+   - **40 tests with CSS output differences (21.6%)** - compiles but CSS doesn't match
+   - **Overall Success Rate: 76.2%** ⬆️ (141/185 tests passing or correctly erroring)
    - **Compilation Rate: 97.8%** (181/185 tests compile successfully)
-   - **Perfect CSS Match Rate: 42.2%** (up from 37.5%)
+   - **Perfect CSS Match Rate: 42.7%** (up from 37.5%)
 
    **🎉 Parser Status: ALL BUGS FIXED!**
    - Parser correctly handles full LESS syntax

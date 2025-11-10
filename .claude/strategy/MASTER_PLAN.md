@@ -4,12 +4,11 @@
 
 ### Test Results Summary
 - **Total Active Tests**: 185 (no quarantines in count)
-- **Perfect CSS Matches**: 78 tests (42.2%) ⬆️ +9 since last report (69 → 78)!
-- **Correct Error Handling**: 62 tests (33.6%)
-- **Output Differs**: 41 tests (22.2%) - Compiles but CSS output differs
-- **Real Compilation Failures**: 4 tests (2.2%) - 3 external, 1 import reference issue
-- **Expected Compilation Failures**: 3 tests (1.6%) - Network/path issues (bootstrap4, google, import-module)
-- **Overall Success Rate**: 75.7% (140/185) ⬆️
+- **Perfect CSS Matches**: 79 tests (42.7%) ⬆️ +10 since Week 3 report (69 → 79)!
+- **Correct Error Handling**: 62 tests (33.5%)
+- **Output Differs**: 40 tests (21.6%) - Compiles but CSS output differs
+- **Real Compilation Failures**: 4 tests (2.2%) - 3 external (network/packages), 1 import-module
+- **Overall Success Rate**: 76.2% (141/185) ⬆️
 - **Compilation Rate**: 97.8% (181/185) ⬆️
 
 ### Parser Status
