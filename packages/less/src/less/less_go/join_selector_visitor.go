@@ -56,7 +56,7 @@ func (jsv *JoinSelectorVisitor) VisitMixinDefinition(mixinDefinitionNode any, vi
 func (jsv *JoinSelectorVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitArgs) any {
 	context := jsv.contexts[len(jsv.contexts)-1]
 	paths := make([]any, 0)
-	
+
 	// Push paths to context stack BEFORE JoinSelectors (matches JavaScript)
 	jsv.contexts = append(jsv.contexts, paths)
 	
@@ -276,7 +276,7 @@ func (jsv *JoinSelectorVisitor) VisitAtRule(atRuleNode any, visitArgs *VisitArgs
 		return nil
 	}
 	context := jsv.contexts[len(jsv.contexts)-1]
-	
+
 	// Try interface-based approach first
 	if atRuleInterface, ok := atRuleNode.(interface{ GetRules() []any }); ok {
 		rules := atRuleInterface.GetRules()

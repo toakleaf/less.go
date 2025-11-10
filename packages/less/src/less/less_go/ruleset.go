@@ -195,6 +195,19 @@ func (r *Ruleset) GetRoot() bool {
 	return r.Root
 }
 
+// SetRoot sets the root value for this ruleset
+func (r *Ruleset) SetRoot(value any) {
+	// Handle both bool and any types
+	if value == nil {
+		r.Root = false
+	} else if boolVal, ok := value.(bool); ok {
+		r.Root = boolVal
+	} else {
+		// If value is truthy (not nil), set to true
+		r.Root = true
+	}
+}
+
 // GetSelectors returns the selectors array
 func (r *Ruleset) GetSelectors() []any {
 	return r.Selectors
