@@ -86,6 +86,11 @@ func (c *Container) GetType() string {
 	return "Container"
 }
 
+// GetTypeIndex returns the type index for visitor pattern
+func (c *Container) GetTypeIndex() int {
+	return GetTypeIndexForNodeType("Container")
+}
+
 // GenCSS generates CSS representation
 func (c *Container) GenCSS(context any, output *CSSOutput) {
 	// Skip container queries with empty rulesets (happens when nested container queries are merged)
