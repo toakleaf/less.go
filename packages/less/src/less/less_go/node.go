@@ -141,14 +141,7 @@ func (n *Node) FileInfo() map[string]any {
 
 // SetFileInfo sets the node's file information
 func (n *Node) SetFileInfo(info map[string]any) {
-	if n.fileInfo == nil && info != nil {
-		n.fileInfo = make(map[string]any, len(info))
-	}
-	if info != nil {
-		for k, v := range info {
-			n.fileInfo[k] = v
-		}
-	}
+	n.fileInfo = info
 }
 
 // IsRulesetLike returns false for base Node
