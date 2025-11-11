@@ -423,7 +423,7 @@ func (r *Ruleset) Eval(context any) (any, error) {
 		}
 		if hasVariable && r.SelectorsParseFunc != nil {
 			// Convert selectors to CSS strings for parsing (like JavaScript toParseSelectors)
-			var toParseSelectors []string
+			toParseSelectors := make([]string, 0, len(selectors))
 			var startingIndex int
 			var selectorFileInfo map[string]any
 			
@@ -631,7 +631,7 @@ func (r *Ruleset) Eval(context any) (any, error) {
 							return nil, err
 						}
 						// Match JavaScript filter logic: !(ruleset.variable(r.name))
-						filtered := make([]any, 0)
+						filtered := make([]any, 0, len(rules))
 						for _, r := range rules {
 							if decl, ok := r.(*Declaration); ok && decl.variable {
 								// Match JavaScript: return !(ruleset.variable(r.name))
@@ -676,7 +676,7 @@ func (r *Ruleset) Eval(context any) (any, error) {
 
 						if evalRules != nil {
 							// Match JavaScript: filter out all variable declarations
-							rules := make([]any, 0)
+							rules := make([]any, 0, len(evalRules))
 							for _, r := range evalRules {
 								if decl, ok := r.(*Declaration); ok && decl.variable {
 									// do not pollute the scope at all
@@ -1416,13 +1416,13 @@ func (r *Ruleset) Find(selector any, self any, filter func(any) bool) []any {
 		return cached
 	}
 
-	rules := []any{}
+	rulesets := r.Rulesets()
+	rules := make([]any, 0, len(rulesets))
 	var match int
 	var foundMixins []any
 
 
 	// this.rulesets().forEach(function (rule) { ... }) pattern
-	rulesets := r.Rulesets()
 
 	for _, rule := range rulesets {
 		if rule == self {

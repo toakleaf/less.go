@@ -83,7 +83,7 @@ func NewMixinDefinition(name string, params []any, rules []any, condition any, v
 
 	// Calculate required parameters and collect optional ones
 	required := 0
-	optionalParameters := []string{}
+	optionalParameters := make([]string, 0, len(params))
 	
 	for _, p := range params {
 		if param, ok := p.(map[string]any); ok {
@@ -118,7 +118,7 @@ func NewMixinDefinition(name string, params []any, rules []any, condition any, v
 		Condition:          condition,
 		Variadic:           variadic,
 		Arity:              arity,
-		Lookups:            make(map[string][]any),
+		Lookups:            make(map[string][]any, 4),
 		Required:           required,
 		OptionalParameters: optionalParameters,
 		Frames:             frames,
@@ -168,11 +168,10 @@ func (md *MixinDefinition) Accept(visitor any) {
 // EvalParams evaluates mixin parameters and creates parameter frame
 func (md *MixinDefinition) EvalParams(context any, mixinEnv any, args []any, evaldArguments []any) (*Ruleset, error) {
 	frame := NewRuleset(nil, nil, false, nil)
-	
-	
+
+	params := CopyArray(md.Params)
 	var varargs []any
 	var arg any
-	params := CopyArray(md.Params)
 	var val any
 	var name string
 	var isNamedFound bool
@@ -191,16 +190,19 @@ func (md *MixinDefinition) EvalParams(context any, mixinEnv any, args []any, eva
 	}
 
 	// Create new evaluation context
-	newFrames := []any{frame}
+	var envFrames []any
 	if env, ok := mixinEnv.(map[string]any); ok {
 		if frames, ok := env["frames"].([]any); ok {
-			newFrames = append(newFrames, frames...)
+			envFrames = frames
 		}
 	}
-	
-	evalContext := map[string]any{
-		"frames": newFrames,
-	}
+	newFrames := make([]any, 1, 1+len(envFrames))
+	newFrames[0] = frame
+	newFrames = append(newFrames, envFrames...)
+
+	// Pre-allocate map with estimated size
+	evalContext := make(map[string]any, 8)
+	evalContext["frames"] = newFrames
 	if env, ok := mixinEnv.(map[string]any); ok {
 		for k, v := range env {
 			if k != "frames" {
@@ -330,9 +332,9 @@ func (md *MixinDefinition) EvalParams(context any, mixinEnv any, args []any, eva
 				name = paramNameStr
 				// Debug: check if name has @ prefix
 				// fmt.Printf("DEBUG: Parameter name: %s\n", name)
-				
+
 				if variadic, ok := paramMap["variadic"].(bool); ok && variadic {
-					varargs = []any{}
+					varargs = make([]any, 0, argsLength-argIndex)
 					for j := argIndex; j < argsLength; j++ {
 						if argMap, ok := args[j].(map[string]any); ok {
 							argValue := argMap["value"]
@@ -595,7 +597,9 @@ func (md *MixinDefinition) EvalCall(context any, args []any, important bool) (*R
 	if md.Frames != nil {
 		if ctx, ok := context.(map[string]any); ok {
 			if ctxFrames, ok := ctx["frames"].([]any); ok {
-				mixinFrames = append(md.Frames, ctxFrames...)
+				mixinFrames = make([]any, len(md.Frames), len(md.Frames)+len(ctxFrames))
+				copy(mixinFrames, md.Frames)
+				mixinFrames = append(mixinFrames, ctxFrames...)
 			} else {
 				mixinFrames = md.Frames
 			}
@@ -610,10 +614,9 @@ func (md *MixinDefinition) EvalCall(context any, args []any, important bool) (*R
 		}
 	}
 
-	// Create mixin environment
-	mixinEnv := map[string]any{
-		"frames": mixinFrames,
-	}
+	// Create mixin environment with pre-allocated map
+	mixinEnv := make(map[string]any, 8)
+	mixinEnv["frames"] = mixinFrames
 	if ctx, ok := context.(map[string]any); ok {
 		for k, v := range ctx {
 			if k != "frames" {
@@ -662,12 +665,13 @@ func (md *MixinDefinition) EvalCall(context any, args []any, important bool) (*R
 	}
 
 	// Evaluate ruleset with proper context
-	evalFrames := []any{md, frame}
+	evalFrames := make([]any, 2, 2+len(mixinFrames))
+	evalFrames[0] = md
+	evalFrames[1] = frame
 	evalFrames = append(evalFrames, mixinFrames...)
-	
-	evalContext := map[string]any{
-		"frames": evalFrames,
-	}
+
+	evalContext := make(map[string]any, 8)
+	evalContext["frames"] = evalFrames
 	if ctx, ok := context.(map[string]any); ok {
 		for k, v := range ctx {
 			if k != "frames" {
@@ -723,7 +727,9 @@ func (md *MixinDefinition) MatchCondition(args []any, context any) bool {
 	if md.Frames != nil {
 		if ctx, ok := context.(map[string]any); ok {
 			if ctxFrames, ok := ctx["frames"].([]any); ok {
-				mixinFrames = append(md.Frames, ctxFrames...)
+				mixinFrames = make([]any, len(md.Frames), len(md.Frames)+len(ctxFrames))
+				copy(mixinFrames, md.Frames)
+				mixinFrames = append(mixinFrames, ctxFrames...)
 			} else {
 				mixinFrames = md.Frames
 			}
@@ -751,8 +757,8 @@ func (md *MixinDefinition) MatchCondition(args []any, context any) bool {
 			fmt.Printf("[TRACE] MixinDefinition.Eval: cloned Eval context, MathOn=%v\n", newEvalCtx.MathOn)
 		}
 	} else {
-		// Map context - copy properties
-		mixinEnvMap := make(map[string]any)
+		// Map context - copy properties with pre-allocated map
+		mixinEnvMap := make(map[string]any, 8)
 		if ctx, ok := context.(map[string]any); ok {
 			for k, v := range ctx {
 				mixinEnvMap[k] = v
@@ -767,7 +773,23 @@ func (md *MixinDefinition) MatchCondition(args []any, context any) bool {
 		return false
 	}
 
-	evalFrames := []any{paramFrame}
+	// Calculate total frames size for pre-allocation
+	totalFrames := 1
+	if md.Frames != nil {
+		totalFrames += len(md.Frames)
+	}
+	if evalCtx, ok := context.(*Eval); ok {
+		if evalCtx.Frames != nil {
+			totalFrames += len(evalCtx.Frames)
+		}
+	} else if ctx, ok := context.(map[string]any); ok {
+		if ctxFrames, ok := ctx["frames"].([]any); ok {
+			totalFrames += len(ctxFrames)
+		}
+	}
+
+	evalFrames := make([]any, 1, totalFrames)
+	evalFrames[0] = paramFrame
 	if md.Frames != nil {
 		evalFrames = append(evalFrames, md.Frames...)
 	}
@@ -792,10 +814,9 @@ func (md *MixinDefinition) MatchCondition(args []any, context any) bool {
 		newEvalCtx.Frames = evalFrames
 		evalContext = newEvalCtx
 	} else {
-		// Map context
-		evalContextMap := map[string]any{
-			"frames": evalFrames,
-		}
+		// Map context with pre-allocated map
+		evalContextMap := make(map[string]any, 8)
+		evalContextMap["frames"] = evalFrames
 		if ctx, ok := context.(map[string]any); ok {
 			for k, v := range ctx {
 				if k != "frames" {
