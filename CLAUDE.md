@@ -43,7 +43,38 @@ When working on this project, please be aware of the following:
    - JavaScript tests use Vitest framework
    - Go tests should verify ported functionality matches JavaScript behavior
 
-4. **How to Use Integration Tests Effectively**:
+4. **Performance Benchmarking**:
+
+   Comprehensive benchmark suites are available to compare the Go port performance against the original JavaScript implementation.
+
+   **Quick Start:**
+   ```bash
+   # Compare both implementations
+   pnpm bench:compare
+
+   # JavaScript only
+   pnpm bench:js
+
+   # Go only (comparable to JS)
+   pnpm bench:go:suite
+   ```
+
+   **What's Tested:**
+   - 80+ passing integration test files
+   - Same files, same options for fair comparison
+   - Covers all major LESS features
+   - All files produce identical CSS output
+
+   **Documentation:**
+   - Main guide: `BENCHMARKS.md`
+   - Detailed guide: `.claude/benchmarks/BENCHMARKING_GUIDE.md`
+   - Quick reference: `.claude/benchmarks/QUICK_REFERENCE.md`
+
+   **Benchmark Files:**
+   - Go: `packages/less/src/less/less_go/benchmark_test.go`
+   - JavaScript: `packages/less/benchmark/suite.js`
+
+5. **How to Use Integration Tests Effectively**:
 
    The integration test suite (`packages/less/src/less/less_go/integration_suite_test.go`) provides comprehensive coverage
    of LESS compilation with structured, LLM-friendly output.
@@ -109,7 +140,7 @@ When working on this project, please be aware of the following:
    - `LESS_GO_STRICT=1` - Fail tests on any output difference (useful for CI)
    - `LESS_GO_TRACE=1` - Show evaluation trace (for debugging specific issues)
 
-5. **Current Integration Test Status** (as of 2025-11-10 - Latest Verified Measurement):
+6. **Current Integration Test Status** (as of 2025-11-10 - Latest Verified Measurement):
    - **80 perfect CSS matches (43.5%)** - EXCELLENT PROGRESS! ✅
    - **3 compilation failures (1.6%)** - All external (network/packages) - expected
    - **62 correct error handling (33.7%)** - tests that should fail, do fail correctly
@@ -159,7 +190,7 @@ When working on this project, please be aware of the following:
    - ✅ Compilation failures reduced from 12 → 3 tests (75% reduction!)
    - ✅ **ALL DOCUMENTED REGRESSIONS FIXED**: mixins, mixins-interpolated, mixins-guards (main) - all now perfect matches!
 
-5. **Organized Task System**:
+7. **Organized Task System**:
    All project coordination and task management is now organized in the `.claude/` directory:
 
    - **`.claude/strategy/MASTER_PLAN.md`** - Overall strategy and current status
@@ -174,7 +205,7 @@ When working on this project, please be aware of the following:
 
    **If you're a new agent**: Start with `.claude/AGENT_WORK_QUEUE.md` for ready-to-assign tasks.
 
-6. **Current Focus: Runtime & Evaluation Issues**:
+8. **Current Focus: Runtime & Evaluation Issues**:
    - **Runtime tracing available**: Use `LESS_GO_TRACE=1` to debug evaluation flow
    - Compare with JavaScript implementation when fixing issues
    - See `.claude/tasks/` for specific task specifications
@@ -205,7 +236,7 @@ When working on this project, please be aware of the following:
    - ✅ **Parser fully fixed**: All real compilation failures resolved!
    - ✅ **ZERO REGRESSIONS**: All previously passing tests continue to pass
 
-7. **Quarantined Features** (for future implementation):
+9. **Quarantined Features** (for future implementation):
    - Plugin system tests (`plugin`, `plugin-module`, `plugin-preeval`)
    - JavaScript execution tests (`javascript`, `js-type-errors/*`, `no-js-errors/*`)
    - Import test that depends on plugins (`import`)
