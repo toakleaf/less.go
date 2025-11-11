@@ -218,7 +218,8 @@ async function benchmarkTest(test, runCount) {
 	const times = {
 		total: [],
 		parse: [],
-		eval: []
+		eval: [],
+		coldStart: null // Track the very first iteration
 	};
 
 	for (let i = 0; i < runCount; i++) {
@@ -240,6 +241,12 @@ async function benchmarkTest(test, runCount) {
 
 			const totalTime = endTotal - startTotal;
 			times.total.push(totalTime);
+
+			// Capture cold-start time (first iteration before any warmup)
+			if (i === 0) {
+				times.coldStart = totalTime;
+			}
+
 			// For now, we can't easily separate parse/eval without using internal APIs
 			// So we'll just record the total time
 			times.parse.push(0);
@@ -308,20 +315,35 @@ function printResults(results, runCount, showIndividual = false) {
 	const allTotalTimes = results.flatMap(r => r.times.total.slice(WARMUP_RUNS));
 	const allParseTimes = results.flatMap(r => r.times.parse.slice(WARMUP_RUNS));
 	const allEvalTimes = results.flatMap(r => r.times.eval.slice(WARMUP_RUNS));
+	const allColdStarts = results.map(r => r.times.coldStart).filter(t => t != null);
 
 	const totalStats = calculateStats(allTotalTimes, 0);
 	const parseStats = calculateStats(allParseTimes, 0);
 	const evalStats = calculateStats(allEvalTimes, 0);
+	const coldStartStats = calculateStats(allColdStarts, 0);
 
 	console.log('\n📊 OVERALL STATISTICS (all tests combined)');
 	console.log('-'.repeat(80));
 
+	if (coldStartStats) {
+		console.log('\n🥶 Cold Start (1st iteration, no warmup):');
+		console.log(`   Average: ${formatTime(coldStartStats.avg)} ± ${coldStartStats.variationPerc.toFixed(1)}%`);
+		console.log(`   Median:  ${formatTime(coldStartStats.median)}`);
+		console.log(`   Min:     ${formatTime(coldStartStats.min)}`);
+		console.log(`   Max:     ${formatTime(coldStartStats.max)}`);
+	}
+
 	if (totalStats) {
-		console.log('\n🔄 Total Time (Parse + Eval):');
+		console.log('\n🔥 Warm Performance (after warmup):');
 		console.log(`   Average: ${formatTime(totalStats.avg)} ± ${totalStats.variationPerc.toFixed(1)}%`);
 		console.log(`   Median:  ${formatTime(totalStats.median)}`);
 		console.log(`   Min:     ${formatTime(totalStats.min)}`);
 		console.log(`   Max:     ${formatTime(totalStats.max)}`);
+	}
+
+	if (coldStartStats && totalStats) {
+		const warmupEffect = ((coldStartStats.avg - totalStats.avg) / coldStartStats.avg * 100);
+		console.log(`\n📈 Warmup Effect: ${warmupEffect.toFixed(1)}% faster after warmup`);
 	}
 
 	if (parseStats) {
@@ -348,7 +370,7 @@ function printResults(results, runCount, showIndividual = false) {
 			const stats = calculateStats(result.times.total, WARMUP_RUNS);
 			if (stats) {
 				console.log(`\n${result.name}:`);
-				console.log(`   Avg: ${formatTime(stats.avg)}, Med: ${formatTime(stats.median)}, Min: ${formatTime(stats.min)}, Max: ${formatTime(stats.max)}`);
+				console.log(`   Cold: ${formatTime(result.times.coldStart)}, Warm Avg: ${formatTime(stats.avg)}, Med: ${formatTime(stats.median)}`);
 			}
 		}
 	}
@@ -393,6 +415,7 @@ async function main() {
 			warmupRuns: WARMUP_RUNS,
 			tests: results.map(r => ({
 				name: r.name,
+				coldStart: r.times.coldStart,
 				total: calculateStats(r.times.total, WARMUP_RUNS),
 				parse: calculateStats(r.times.parse, WARMUP_RUNS),
 				eval: calculateStats(r.times.eval, WARMUP_RUNS)

@@ -23,7 +23,16 @@ This runs both JavaScript and Go benchmarks and displays a clear side-by-side co
 ╚══════════════════════════════════════════════════════════════════════════════╝
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ COMPILATION TIME                                                            │
+│ 🥶 COLD START PERFORMANCE (1st iteration, no warmup)                        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                    │  JavaScript  │      Go      │   Difference             │
+├────────────────────┼──────────────┼──────────────┼──────────────────────────┤
+│ Per File (avg)     │ 502.15µs     │ 4.12ms       │ Go 8.2x slower           │
+│ All Files (total)  │ 36.66ms      │ 300.76ms     │ Go 8.2x slower           │
+└────────────────────┴──────────────┴──────────────┴──────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 🔥 WARM PERFORMANCE (after 5 warmup runs)                                   │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                    │  JavaScript  │      Go      │   Difference             │
 ├────────────────────┼──────────────┼──────────────┼──────────────────────────┤
@@ -31,7 +40,12 @@ This runs both JavaScript and Go benchmarks and displays a clear side-by-side co
 │ All Files (total)  │ 32.58ms      │ 264.06ms     │ Go 8.1x slower           │
 └────────────────────┴──────────────┴──────────────┴──────────────────────────┘
 
-🐌 Go is 8.1x SLOWER than JavaScript
+🔥 WARM PERFORMANCE (primary comparison metric):
+   🐌 Go is 8.1x SLOWER than JavaScript (warm)
+
+📈 WARMUP EFFECT:
+   JavaScript: 11.1% faster after warmup
+   Go:         12.1% faster after warmup
 ```
 
 ### Run Individual Benchmarks
@@ -48,14 +62,13 @@ pnpm bench:go:suite
 
 | Command | Description |
 |---------|-------------|
-| `pnpm bench:compare` | Run both JS and Go benchmarks for comparison |
-| `pnpm bench:js` | Run JavaScript benchmark suite |
+| `pnpm bench:compare` | Run both JS and Go benchmarks for comparison (warm + cold) |
+| `pnpm bench:js` | Run JavaScript benchmark suite (warm + cold metrics) |
 | `pnpm bench:js:detailed` | Run JavaScript benchmarks with per-test results |
 | `pnpm bench:js:json` | Output JavaScript results as JSON |
-| `pnpm bench:go` | Run Go benchmarks on individual files |
-| `pnpm bench:go:parse` | Benchmark only the parsing phase (Go) |
-| `pnpm bench:go:eval` | Benchmark only the evaluation phase (Go) |
-| `pnpm bench:go:suite` | Run Go benchmarks as a suite (comparable to JS) |
+| `pnpm bench:go` | Run Go warm benchmarks (with 5 warmup runs) |
+| `pnpm bench:go:cold` | Run Go cold-start benchmarks (no warmup) |
+| `pnpm bench:go:suite` | Run Go benchmarks as a suite (warm, faster execution) |
 
 ## What's Being Tested?
 
@@ -159,25 +172,46 @@ go test -bench=BenchmarkLessCompilation/main/colors ./packages/less/src/less/les
 
 ### Fair Comparison Methodology
 
-Both benchmarks use **identical methodology**:
+Both benchmarks use **identical methodology** with proper warmup for fair JIT vs AOT comparison:
+
+**Warmup & Measurement:**
+- ✅ JavaScript: 5 warmup runs + 25 measured runs per file
+- ✅ Go: 5 warmup runs + 25 measured runs per file
+- ✅ Identical methodology ensures fair comparison between JIT-compiled (JS) and AOT-compiled (Go) code
+
+**Test Coverage:**
 - ✅ Each of the 73 test files is benchmarked individually
-- ✅ Same number of iterations: 30 per file
 - ✅ Same files, same options, same measurement granularity
 - ✅ Statistics calculated from individual file results
 - ✅ Both produce identical CSS output
 
-The comparison script (`pnpm bench:compare`) runs:
-- JavaScript: 30 iterations per file (5 warmup + 25 measured)
-- Go: 30 iterations per file via `-benchtime=30x`
+**Metrics Reported:**
+- 🥶 **Cold-start performance**: First iteration (no warmup) - important for CLI usage
+- 🔥 **Warm performance**: After warmup - PRIMARY metric for fair comparison
+- 📈 **Warmup effect**: Shows performance improvement from cold to warm
 
-This ensures an apples-to-apples comparison with minimal execution time (~1-2 minutes total).
+The comparison script (`pnpm bench:compare`) runs both warm and cold-start benchmarks, ensuring you get the complete performance picture for different use cases (~2-3 minutes total).
 
 ## Performance Analysis
 
 **Q: Is Go compilation time included in the benchmark?**
 **A: No.** The Go benchmark uses `b.ResetTimer()` which excludes all compilation and setup time.
 
-**Q: Why is Go 8-10x slower?**
+**Q: Are the benchmarks fair now?**
+**A: Yes!** Both JavaScript and Go now use identical warmup methodology:
+- JavaScript gets 5 warmup runs to allow V8 JIT optimization
+- Go gets 5 warmup runs to warm up caches and stabilize performance
+- The PRIMARY comparison metric is warm performance (after warmup)
+- Cold-start metrics are also reported for real-world CLI usage scenarios
+
+**Q: Why compare warm performance vs cold-start?**
+**A: Different use cases:**
+- **Warm performance**: Fair comparison of optimized JIT (JS) vs AOT (Go) code
+- **Cold-start**: Real-world CLI usage where process starts fresh each time
+- JavaScript's JIT needs warmup to reach peak performance, Go doesn't
+- Both metrics matter: warm for long-running processes, cold for CLI tools
+
+**Q: Why is Go currently 8-10x slower (warm)?**
 **A: Primarily excessive allocations (~47,000 per file).** The port is unoptimized and uses reflection heavily. See detailed analysis:
 - 📄 [`.claude/benchmarks/PERFORMANCE_ANALYSIS.md`](./.claude/benchmarks/PERFORMANCE_ANALYSIS.md)
 
@@ -190,7 +224,7 @@ pnpm bench:profile
 This will show CPU hot spots, memory allocations, and allocation hotspots.
 
 **Q: Is this performance acceptable?**
-**A: Yes, for an unoptimized port.** Focus is on correctness first (✅ 80+ tests passing), then optimization. With targeted optimization, Go can match or exceed JavaScript performance.
+**A: Yes, for an unoptimized port.** Focus is on correctness first (✅ 80+ tests passing), then optimization. With targeted optimization, Go can match or exceed JavaScript performance, especially for cold-start scenarios where Go's AOT compilation is advantageous.
 
 ## Contributing
 

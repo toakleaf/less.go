@@ -31,12 +31,12 @@ try {
     process.exit(1);
 }
 
-// Run Go benchmark (individual file benchmarks for fair comparison)
+// Run Go benchmarks (individual file benchmarks for fair comparison)
 // Using benchtime=30x to match JavaScript's 30 iterations per file
-console.log('Running Go benchmarks (30 iterations per file)...\n');
-let goOutput;
+console.log('Running Go warm benchmarks (30 iterations per file, with 5 warmup runs)...');
+let goWarmOutput;
 try {
-    goOutput = execSync('go test -bench=BenchmarkLessCompilation -benchmem -benchtime=30x ./packages/less/src/less/less_go', {
+    goWarmOutput = execSync('go test -bench="^BenchmarkLessCompilation$" -benchmem -benchtime=30x ./packages/less/src/less/less_go', {
         encoding: 'utf8',
         cwd: path.join(__dirname, '..'),
         maxBuffer: 10 * 1024 * 1024 // 10MB buffer for all the output
@@ -44,23 +44,43 @@ try {
 } catch (error) {
     // Benchmark may fail on some tests, but we can still parse the successful results
     if (error.stdout) {
-        goOutput = error.stdout;
-        console.log('⚠️  Some Go benchmarks failed, but continuing with successful results...\n');
+        goWarmOutput = error.stdout;
+        console.log('⚠️  Some Go warm benchmarks failed, but continuing with successful results...');
     } else {
-        console.error('Failed to run Go benchmarks');
+        console.error('Failed to run Go warm benchmarks');
         console.error(error.message);
         process.exit(1);
     }
 }
 
-// Parse Go benchmark output - now we have one result per file
+console.log('Running Go cold-start benchmarks (30 iterations per file, no warmup)...\n');
+let goColdOutput;
+try {
+    goColdOutput = execSync('go test -bench=BenchmarkLessCompilationColdStart -benchmem -benchtime=30x ./packages/less/src/less/less_go', {
+        encoding: 'utf8',
+        cwd: path.join(__dirname, '..'),
+        maxBuffer: 10 * 1024 * 1024 // 10MB buffer for all the output
+    });
+} catch (error) {
+    // Benchmark may fail on some tests, but we can still parse the successful results
+    if (error.stdout) {
+        goColdOutput = error.stdout;
+        console.log('⚠️  Some Go cold-start benchmarks failed, but continuing with successful results...\n');
+    } else {
+        console.error('Failed to run Go cold-start benchmarks');
+        console.error(error.message);
+        process.exit(1);
+    }
+}
+
+// Parse Go warm benchmark output
 // Format: BenchmarkLessCompilation/main/colors-10    123    12345678 ns/op    234567 B/op    5678 allocs/op
-const goResults = [];
-const goLines = goOutput.split('\n');
-for (const line of goLines) {
+const goWarmResults = [];
+const goWarmLines = goWarmOutput.split('\n');
+for (const line of goWarmLines) {
     const match = line.match(/BenchmarkLessCompilation\/(.+?)-\d+\s+(\d+)\s+(\d+)\s+ns\/op\s+(\d+)\s+B\/op\s+(\d+)\s+allocs\/op/);
     if (match) {
-        goResults.push({
+        goWarmResults.push({
             name: match[1],
             iterations: parseInt(match[2]),
             nsPerOp: parseInt(match[3]),
@@ -70,61 +90,102 @@ for (const line of goLines) {
     }
 }
 
-if (goResults.length === 0) {
+// Parse Go cold-start benchmark output
+const goColdResults = [];
+const goColdLines = goColdOutput.split('\n');
+for (const line of goColdLines) {
+    const match = line.match(/BenchmarkLessCompilationColdStart\/(.+?)-\d+\s+(\d+)\s+(\d+)\s+ns\/op\s+(\d+)\s+B\/op\s+(\d+)\s+allocs\/op/);
+    if (match) {
+        goColdResults.push({
+            name: match[1],
+            iterations: parseInt(match[2]),
+            nsPerOp: parseInt(match[3]),
+            bytesPerOp: parseInt(match[4]),
+            allocsPerOp: parseInt(match[5])
+        });
+    }
+}
+
+if (goWarmResults.length === 0 && goColdResults.length === 0) {
     console.error('Failed to parse Go benchmark output - no results found');
-    console.error('Output:', goOutput);
+    console.error('Warm output:', goWarmOutput);
+    console.error('Cold output:', goColdOutput);
     process.exit(1);
 }
 
 // Check for skipped tests
 const failedTests = [];
-const failLines = goOutput.split('\n').filter(line => line.includes('--- FAIL:'));
+const allGoOutput = goWarmOutput + '\n' + goColdOutput;
+const failLines = allGoOutput.split('\n').filter(line => line.includes('--- FAIL:'));
 for (const line of failLines) {
-    const match = line.match(/--- FAIL: BenchmarkLessCompilation\/(.+)/);
+    const match = line.match(/--- FAIL: Benchmark\w+\/(.+)/);
     if (match) {
         failedTests.push(match[1]);
     }
 }
 
-// Calculate statistics from individual Go results
+// Calculate statistics from JavaScript results
 const jsTestCount = jsData.tests.length;
-const jsTotalAvg = jsData.tests.reduce((sum, t) => sum + (t.total?.avg || 0), 0);
-const jsAvgPerFile = jsTotalAvg / jsTestCount;
-const jsMedianPerFile = calculateMedian(jsData.tests.map(t => t.total?.median || 0));
-const jsTotalTime = jsTotalAvg; // Sum of all averages
 
-// Calculate Go statistics from individual file results
-const goTimesMs = goResults.map(r => r.nsPerOp / 1_000_000);
-const goAvgPerFileMs = goTimesMs.reduce((sum, t) => sum + t, 0) / goTimesMs.length;
-const goMedianPerFileMs = calculateMedian(goTimesMs);
-const goTotalTimeMs = goTimesMs.reduce((sum, t) => sum + t, 0);
-const goAvgIterations = Math.round(goResults.reduce((sum, r) => sum + r.iterations, 0) / goResults.length);
+// JavaScript warm stats (after warmup)
+const jsWarmAvg = jsData.tests.reduce((sum, t) => sum + (t.total?.avg || 0), 0) / jsTestCount;
+const jsWarmMedian = calculateMedian(jsData.tests.map(t => t.total?.median || 0));
+const jsWarmTotal = jsData.tests.reduce((sum, t) => sum + (t.total?.avg || 0), 0);
 
-// Calculate average memory/allocations per file
-const goAvgBytesPerOp = goResults.reduce((sum, r) => sum + r.bytesPerOp, 0) / goResults.length;
-const goAvgAllocsPerOp = Math.round(goResults.reduce((sum, r) => sum + r.allocsPerOp, 0) / goResults.length);
+// JavaScript cold-start stats
+const jsColdStarts = jsData.tests.map(t => t.coldStart).filter(t => t != null);
+const jsColdAvg = jsColdStarts.reduce((sum, t) => sum + t, 0) / jsColdStarts.length;
+const jsColdMedian = calculateMedian(jsColdStarts);
+const jsColdTotal = jsColdStarts.reduce((sum, t) => sum + t, 0);
+
+// Calculate Go warm statistics from individual file results
+const goWarmTimesMs = goWarmResults.map(r => r.nsPerOp / 1_000_000);
+const goWarmAvgMs = goWarmTimesMs.length > 0 ? goWarmTimesMs.reduce((sum, t) => sum + t, 0) / goWarmTimesMs.length : 0;
+const goWarmMedianMs = goWarmTimesMs.length > 0 ? calculateMedian(goWarmTimesMs) : 0;
+const goWarmTotalMs = goWarmTimesMs.reduce((sum, t) => sum + t, 0);
+
+// Calculate Go cold-start statistics
+const goColdTimesMs = goColdResults.map(r => r.nsPerOp / 1_000_000);
+const goColdAvgMs = goColdTimesMs.length > 0 ? goColdTimesMs.reduce((sum, t) => sum + t, 0) / goColdTimesMs.length : 0;
+const goColdMedianMs = goColdTimesMs.length > 0 ? calculateMedian(goColdTimesMs) : 0;
+const goColdTotalMs = goColdTimesMs.reduce((sum, t) => sum + t, 0);
+
+// Use warm results for memory stats (cold-start allocates more, not representative)
+const goAvgBytesPerOp = goWarmResults.length > 0 ? goWarmResults.reduce((sum, r) => sum + r.bytesPerOp, 0) / goWarmResults.length : 0;
+const goAvgAllocsPerOp = goWarmResults.length > 0 ? Math.round(goWarmResults.reduce((sum, r) => sum + r.allocsPerOp, 0) / goWarmResults.length) : 0;
 const goMemoryMB = goAvgBytesPerOp / (1024 * 1024);
 
 // Display results
 console.log('═'.repeat(80));
 console.log('RESULTS SUMMARY');
 console.log('═'.repeat(80));
-console.log(`Test Files: ${jsTestCount} (Go benchmarked: ${goResults.length})`);
-console.log(`Iterations per file: JS=30 (25 measured + 5 warmup), Go=30`);
-console.log(`Methodology: Both benchmark each file individually`);
+console.log(`Test Files: ${jsTestCount}`);
+console.log(`Go warm benchmarked: ${goWarmResults.length}, Go cold benchmarked: ${goColdResults.length}`);
+console.log(`Methodology: Both benchmark each file individually with identical iterations`);
 if (failedTests.length > 0) {
     console.log(`⚠️  Skipped Go tests: ${failedTests.join(', ')}`);
 }
 console.log('');
 
 console.log('┌─────────────────────────────────────────────────────────────────────────────┐');
-console.log('│ COMPILATION TIME                                                            │');
+console.log('│ 🥶 COLD START PERFORMANCE (1st iteration, no warmup)                        │');
 console.log('├─────────────────────────────────────────────────────────────────────────────┤');
 console.log('│                    │  JavaScript  │      Go      │   Difference             │');
 console.log('├────────────────────┼──────────────┼──────────────┼──────────────────────────┤');
-console.log(`│ Per File (avg)     │ ${formatTime(jsAvgPerFile).padEnd(12)} │ ${formatTime(goAvgPerFileMs).padEnd(12)} │ ${formatDiff(jsAvgPerFile, goAvgPerFileMs).padEnd(24)} │`);
-console.log(`│ Per File (median)  │ ${formatTime(jsMedianPerFile).padEnd(12)} │ ${formatTime(goMedianPerFileMs).padEnd(12)} │ ${formatDiff(jsMedianPerFile, goMedianPerFileMs).padEnd(24)} │`);
-console.log(`│ All Files (total)  │ ${formatTime(jsTotalTime).padEnd(12)} │ ${formatTime(goTotalTimeMs).padEnd(12)} │ ${formatDiff(jsTotalTime, goTotalTimeMs).padEnd(24)} │`);
+console.log(`│ Per File (avg)     │ ${formatTime(jsColdAvg).padEnd(12)} │ ${formatTime(goColdAvgMs).padEnd(12)} │ ${formatDiff(jsColdAvg, goColdAvgMs).padEnd(24)} │`);
+console.log(`│ Per File (median)  │ ${formatTime(jsColdMedian).padEnd(12)} │ ${formatTime(goColdMedianMs).padEnd(12)} │ ${formatDiff(jsColdMedian, goColdMedianMs).padEnd(24)} │`);
+console.log(`│ All Files (total)  │ ${formatTime(jsColdTotal).padEnd(12)} │ ${formatTime(goColdTotalMs).padEnd(12)} │ ${formatDiff(jsColdTotal, goColdTotalMs).padEnd(24)} │`);
+console.log('└────────────────────┴──────────────┴──────────────┴──────────────────────────┘');
+console.log('');
+
+console.log('┌─────────────────────────────────────────────────────────────────────────────┐');
+console.log('│ 🔥 WARM PERFORMANCE (after 5 warmup runs)                                   │');
+console.log('├─────────────────────────────────────────────────────────────────────────────┤');
+console.log('│                    │  JavaScript  │      Go      │   Difference             │');
+console.log('├────────────────────┼──────────────┼──────────────┼──────────────────────────┤');
+console.log(`│ Per File (avg)     │ ${formatTime(jsWarmAvg).padEnd(12)} │ ${formatTime(goWarmAvgMs).padEnd(12)} │ ${formatDiff(jsWarmAvg, goWarmAvgMs).padEnd(24)} │`);
+console.log(`│ Per File (median)  │ ${formatTime(jsWarmMedian).padEnd(12)} │ ${formatTime(goWarmMedianMs).padEnd(12)} │ ${formatDiff(jsWarmMedian, goWarmMedianMs).padEnd(24)} │`);
+console.log(`│ All Files (total)  │ ${formatTime(jsWarmTotal).padEnd(12)} │ ${formatTime(goWarmTotalMs).padEnd(12)} │ ${formatDiff(jsWarmTotal, goWarmTotalMs).padEnd(24)} │`);
 console.log('└────────────────────┴──────────────┴──────────────┴──────────────────────────┘');
 console.log('');
 
@@ -141,42 +202,67 @@ console.log('═'.repeat(80));
 console.log('PERFORMANCE ANALYSIS');
 console.log('═'.repeat(80));
 
-const speedRatio = goAvgPerFileMs / jsAvgPerFile;
-let verdict;
-if (speedRatio < 0.8) {
-    verdict = `🚀 Go is ${(1/speedRatio).toFixed(1)}x FASTER than JavaScript`;
-} else if (speedRatio < 1.2) {
-    verdict = `⚖️  Performance is SIMILAR (within 20%)`;
-} else if (speedRatio < 2) {
-    verdict = `🐌 Go is ${speedRatio.toFixed(1)}x slower than JavaScript`;
+// Warm performance analysis (primary metric for fair comparison)
+const warmSpeedRatio = goWarmAvgMs / jsWarmAvg;
+let warmVerdict;
+if (warmSpeedRatio < 0.8) {
+    warmVerdict = `🚀 Go is ${(1/warmSpeedRatio).toFixed(1)}x FASTER than JavaScript (warm)`;
+} else if (warmSpeedRatio < 1.2) {
+    warmVerdict = `⚖️  Warm performance is SIMILAR (within 20%)`;
+} else if (warmSpeedRatio < 2) {
+    warmVerdict = `🐌 Go is ${warmSpeedRatio.toFixed(1)}x slower than JavaScript (warm)`;
 } else {
-    verdict = `🐌 Go is ${speedRatio.toFixed(1)}x SLOWER than JavaScript`;
+    warmVerdict = `🐌 Go is ${warmSpeedRatio.toFixed(1)}x SLOWER than JavaScript (warm)`;
 }
 
-console.log(verdict);
+// Cold-start performance analysis
+const coldSpeedRatio = goColdAvgMs / jsColdAvg;
+let coldVerdict;
+if (coldSpeedRatio < 0.8) {
+    coldVerdict = `🚀 Go is ${(1/coldSpeedRatio).toFixed(1)}x FASTER than JavaScript (cold start)`;
+} else if (coldSpeedRatio < 1.2) {
+    coldVerdict = `⚖️  Cold-start performance is SIMILAR (within 20%)`;
+} else if (coldSpeedRatio < 2) {
+    coldVerdict = `🐌 Go is ${coldSpeedRatio.toFixed(1)}x slower than JavaScript (cold start)`;
+} else {
+    coldVerdict = `🐌 Go is ${coldSpeedRatio.toFixed(1)}x SLOWER than JavaScript (cold start)`;
+}
+
+console.log('🔥 WARM PERFORMANCE (primary comparison metric):');
+console.log(`   ${warmVerdict}`);
+console.log(`   Per-file average: JS ${formatTime(jsWarmAvg)} vs Go ${formatTime(goWarmAvgMs)} (${warmSpeedRatio.toFixed(2)}x)`);
 console.log('');
 
-// Detailed breakdown
-console.log('Per-file average:');
-console.log(`  • JavaScript: ${formatTime(jsAvgPerFile)}`);
-console.log(`  • Go:         ${formatTime(goAvgPerFileMs)}`);
-console.log(`  • Ratio:      ${speedRatio.toFixed(2)}x`);
+console.log('🥶 COLD START PERFORMANCE:');
+console.log(`   ${coldVerdict}`);
+console.log(`   Per-file average: JS ${formatTime(jsColdAvg)} vs Go ${formatTime(goColdAvgMs)} (${coldSpeedRatio.toFixed(2)}x)`);
+console.log('');
+
+// Warmup effect analysis
+const jsWarmupEffect = ((jsColdAvg - jsWarmAvg) / jsColdAvg * 100);
+const goWarmupEffect = ((goColdAvgMs - goWarmAvgMs) / goColdAvgMs * 100);
+console.log('📈 WARMUP EFFECT:');
+console.log(`   JavaScript: ${jsWarmupEffect.toFixed(1)}% faster after warmup`);
+console.log(`   Go:         ${goWarmupEffect.toFixed(1)}% faster after warmup`);
 console.log('');
 
 // Context
-console.log('Notes:');
-console.log('  • Both benchmarks use identical methodology: individual file benchmarking');
-console.log('  • JavaScript is a mature, highly optimized JIT-compiled implementation');
-console.log('  • Go port is still under active development');
+console.log('📝 NOTES:');
+console.log('  • Both benchmarks now use IDENTICAL methodology with warmup runs');
+console.log('  • JavaScript: 5 warmup runs + 25 measured runs per file');
+console.log('  • Go: 5 warmup runs + 25 measured runs per file');
+console.log('  • Warm performance is the PRIMARY metric for fair JIT vs AOT comparison');
+console.log('  • Cold-start shows real-world CLI performance (first run)');
 console.log('  • Both implementations produce identical CSS output');
 console.log('');
 
 // Recommendations
-if (speedRatio > 1.5) {
-    console.log('💡 Optimization Opportunities:');
-    console.log('  • Profile with: go test -bench=BenchmarkLargeSuite -cpuprofile=cpu.prof');
+if (warmSpeedRatio > 1.5) {
+    console.log('💡 OPTIMIZATION OPPORTUNITIES:');
+    console.log('  • Profile with: pnpm bench:profile');
+    console.log('  • Or manually: go test -bench=BenchmarkLargeSuite -cpuprofile=cpu.prof');
     console.log('  • Analyze with: go tool pprof cpu.prof');
-    console.log('  • Check for: excessive allocations, string operations, reflection');
+    console.log('  • Common hotspots: excessive allocations, string operations, reflection');
 }
 
 console.log('═'.repeat(80));
