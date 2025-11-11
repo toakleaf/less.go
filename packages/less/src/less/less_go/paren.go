@@ -2,6 +2,7 @@ package less_go
 
 import (
 	"fmt"
+	"strings"
 )
 
 // Paren represents a parenthesized value in the Less AST
@@ -80,11 +81,11 @@ func (p *Paren) ToCSS(context any) string {
 		},
 	}
 	p.GenCSS(context, output)
-	
-	// Join all the strings to create the CSS representation
-	result := ""
+
+	// Join all the strings to create the CSS representation using strings.Builder for efficiency
+	var builder strings.Builder
 	for _, s := range strs {
-		result += s
+		builder.WriteString(s)
 	}
-	return result
+	return builder.String()
 } 

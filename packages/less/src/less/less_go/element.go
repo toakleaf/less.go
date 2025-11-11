@@ -303,26 +303,26 @@ func (e *Element) ToCSS(context any) string {
 	}
 
 	// Get combinator CSS using the same pattern as JavaScript Node.toCSS
-	combinatorCSS := ""
+	// Use strings.Builder for efficient string concatenation
+	var builder strings.Builder
 	if e.Combinator != nil {
-		var strs []string
 		output := &CSSOutput{
 			Add: func(chunk any, fileInfo any, index any) {
 				if chunk != nil {
 					if strChunk, ok := chunk.(string); ok {
-						strs = append(strs, strChunk)
+						builder.WriteString(strChunk)
 					} else {
-						strs = append(strs, fmt.Sprintf("%v", chunk))
+						builder.WriteString(fmt.Sprintf("%v", chunk))
 					}
 				}
 			},
 			IsEmpty: func() bool {
-				return len(strs) == 0
+				return builder.Len() == 0
 			},
 		}
 		e.Combinator.GenCSS(ctx, output)
-		combinatorCSS = strings.Join(strs, "")
 	}
+	builder.WriteString(valueCSS)
 
-	return combinatorCSS + valueCSS
+	return builder.String()
 } 

@@ -2,6 +2,7 @@ package less_go
 
 import (
 	"fmt"
+	"strings"
 )
 
 // Attribute represents a CSS attribute selector node
@@ -84,33 +85,37 @@ func (a *Attribute) ToCSS(context any) string {
 		return "[]"
 	}
 
-	var value string
+	// Use strings.Builder for efficient string concatenation
+	var builder strings.Builder
+	builder.WriteString("[")
 
 	// Match JavaScript: this.key.toCSS ? this.key.toCSS(context) : this.key
 	if cssable, ok := a.Key.(CSSable); ok {
-		value = cssable.ToCSS(context)
+		builder.WriteString(cssable.ToCSS(context))
 	} else {
-		value = fmt.Sprintf("%v", a.Key)
+		builder.WriteString(fmt.Sprintf("%v", a.Key))
 	}
 
 	if a.Op != "" {
-		value += a.Op
+		builder.WriteString(a.Op)
 		// Match JavaScript: this.value.toCSS ? this.value.toCSS(context) : this.value
 		// Note: JavaScript doesn't check if value is nil before accessing toCSS
 		if a.Value == nil {
-			value += ""
+			// No-op: value += "" is not needed
 		} else if cssable, ok := a.Value.(CSSable); ok {
-			value += cssable.ToCSS(context)
+			builder.WriteString(cssable.ToCSS(context))
 		} else {
-			value += fmt.Sprintf("%v", a.Value)
+			builder.WriteString(fmt.Sprintf("%v", a.Value))
 		}
 	}
 
 	if a.Cif != "" {
-		value = value + " " + a.Cif
+		builder.WriteString(" ")
+		builder.WriteString(a.Cif)
 	}
 
-	return "[" + value + "]"
+	builder.WriteString("]")
+	return builder.String()
 }
 
 // ParserEvaluable interface defines the Eval method
