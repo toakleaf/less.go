@@ -6,6 +6,18 @@ import (
 	"strings"
 )
 
+// PotentialMatch represents a potential match during extend processing.
+// This struct replaces map[string]any to reduce allocations.
+type PotentialMatch struct {
+	pathIndex            int
+	index                int
+	matched              int
+	initialCombinator    string
+	finished             bool
+	length               int
+	endPathIndex         int
+	endPathElementIndex  int
+}
 
 type ExtendFinderVisitor struct {
 	visitor          *Visitor
@@ -283,7 +295,7 @@ func (pev *ProcessExtendsVisitor) checkExtendsForNonMatched(extendList []*Extend
 
 func (pev *ProcessExtendsVisitor) doExtendChaining(extendsList []*Extend, extendsListTarget []*Extend, iterationCount int) []*Extend {
 	var extendIndex, targetExtendIndex int
-	var matches []any
+	var matches []*PotentialMatch
 	extendsToAdd := make([]*Extend, 0)
 	var newSelector []any
 	var selectorPath []any
@@ -464,7 +476,7 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 		return
 	}
 
-	var matches []any
+	var matches []*PotentialMatch
 	var pathIndex, extendIndex int
 	allExtends := pev.allExtendsStack[len(pev.allExtendsStack)-1]
 	var selectorPath []any
@@ -688,16 +700,17 @@ func (pev *ProcessExtendsVisitor) pathToCSS(path []any) string {
 	return strings.Join(chunks, "")
 }
 
-func (pev *ProcessExtendsVisitor) findMatch(extend *Extend, haystackSelectorPath []any) []any {
+func (pev *ProcessExtendsVisitor) findMatch(extend *Extend, haystackSelectorPath []any) []*PotentialMatch {
 	// This matches the JavaScript findMatch method exactly
 	var haystackSelectorIndex, hackstackElementIndex int
 	var hackstackSelector, haystackElement any
 	var targetCombinator string
 	var i int
 	needleElements := extend.Selector.(*Selector).Elements
-	potentialMatches := make([]any, 0)
-	var potentialMatch map[string]any
-	matches := make([]any, 0)
+	// Pre-allocate with reasonable capacity based on typical usage patterns
+	potentialMatches := make([]*PotentialMatch, 0, 8)
+	var potentialMatch *PotentialMatch
+	matches := make([]*PotentialMatch, 0, 4)
 
 	// loop through the haystack elements
 	for haystackSelectorIndex = 0; haystackSelectorIndex < len(haystackSelectorPath); haystackSelectorIndex++ {
@@ -722,17 +735,17 @@ func (pev *ProcessExtendsVisitor) findMatch(extend *Extend, haystackSelectorPath
 						initialCombinator = element.Combinator.Value
 					}
 				}
-				
-				potentialMatches = append(potentialMatches, map[string]any{
-					"pathIndex":         haystackSelectorIndex,
-					"index":            hackstackElementIndex,
-					"matched":          0,
-					"initialCombinator": initialCombinator,
+
+				potentialMatches = append(potentialMatches, &PotentialMatch{
+					pathIndex:         haystackSelectorIndex,
+					index:            hackstackElementIndex,
+					matched:          0,
+					initialCombinator: initialCombinator,
 				})
 			}
 
 			for i = 0; i < len(potentialMatches); i++ {
-				potentialMatch = potentialMatches[i].(map[string]any)
+				potentialMatch = potentialMatches[i]
 
 				// selectors add " " onto the first element. When we use & it joins the selectors together, but if we don't
 				// then each selector in haystackSelectorPath has a space before it added in the toCSS phase. so we need to
@@ -745,7 +758,7 @@ func (pev *ProcessExtendsVisitor) findMatch(extend *Extend, haystackSelectorPath
 					targetCombinator = " "
 				}
 
-				matched := potentialMatch["matched"].(int)
+				matched := potentialMatch.matched
 				
 				// if we don't match, null our match to indicate failure
 				if !pev.isElementValuesEqual(needleElements[matched].Value, haystackElement.(*Element).Value) {
@@ -761,13 +774,13 @@ func (pev *ProcessExtendsVisitor) findMatch(extend *Extend, haystackSelectorPath
 				}
 				
 				if potentialMatch != nil {
-					potentialMatch["matched"] = matched + 1
+					potentialMatch.matched = matched + 1
 				}
 
 				// if we are still valid and have finished, test whether we have elements after and whether these are allowed
 				if potentialMatch != nil {
-					finished := potentialMatch["matched"].(int) == len(needleElements)
-					potentialMatch["finished"] = finished
+					finished := potentialMatch.matched == len(needleElements)
+					potentialMatch.finished = finished
 					
 					if finished && !extend.AllowAfter {
 						if hackstackElementIndex+1 < len(hackstackElements) || haystackSelectorIndex+1 < len(haystackSelectorPath) {
@@ -778,11 +791,11 @@ func (pev *ProcessExtendsVisitor) findMatch(extend *Extend, haystackSelectorPath
 				
 				// if null we remove, if not, we are still valid, so either push as a valid match or continue
 				if potentialMatch != nil {
-					if potentialMatch["finished"].(bool) {
-						potentialMatch["length"] = len(needleElements)
-						potentialMatch["endPathIndex"] = haystackSelectorIndex
-						potentialMatch["endPathElementIndex"] = hackstackElementIndex + 1 // index after end of match
-						potentialMatches = make([]any, 0) // we don't allow matches to overlap, so start matching again
+					if potentialMatch.finished {
+						potentialMatch.length = len(needleElements)
+						potentialMatch.endPathIndex = haystackSelectorIndex
+						potentialMatch.endPathElementIndex = hackstackElementIndex + 1 // index after end of match
+						potentialMatches = potentialMatches[:0] // we don't allow matches to overlap, so start matching again
 						matches = append(matches, potentialMatch)
 					} else {
 						potentialMatches[i] = potentialMatch
@@ -917,7 +930,7 @@ func (pev *ProcessExtendsVisitor) isElementValuesEqual(elementValue1, elementVal
 	return false
 }
 
-func (pev *ProcessExtendsVisitor) extendSelector(matches []any, selectorPath []any, replacementSelector any, isVisible bool) []any {
+func (pev *ProcessExtendsVisitor) extendSelector(matches []*PotentialMatch, selectorPath []any, replacementSelector any, isVisible bool) []any {
 	// This matches the JavaScript extendSelector method exactly (lines 417-482)
 	currentSelectorPathIndex := 0
 	currentSelectorPathElementIndex := 0
@@ -925,12 +938,12 @@ func (pev *ProcessExtendsVisitor) extendSelector(matches []any, selectorPath []a
 	var matchIndex int
 	var selector *Selector
 	var firstElement *Element
-	var match map[string]any
+	var match *PotentialMatch
 	var newElements []*Element
 
 	for matchIndex = 0; matchIndex < len(matches); matchIndex++ {
-		match = matches[matchIndex].(map[string]any)
-		pathIndex := match["pathIndex"].(int)
+		match = matches[matchIndex]
+		pathIndex := match.pathIndex
 		if pathIndex < 0 || pathIndex >= len(selectorPath) {
 			panic(fmt.Sprintf("Invalid pathIndex %d for selectorPath length %d", pathIndex, len(selectorPath)))
 		}
@@ -940,7 +953,7 @@ func (pev *ProcessExtendsVisitor) extendSelector(matches []any, selectorPath []a
 		replacementSel := replacementSelector.(*Selector)
 		
 		firstElement = NewElement(
-			match["initialCombinator"].(string),
+			match.initialCombinator,
 			replacementSel.Elements[0].Value,
 			replacementSel.Elements[0].IsVariable,
 			replacementSel.Elements[0].GetIndex(),
@@ -948,7 +961,7 @@ func (pev *ProcessExtendsVisitor) extendSelector(matches []any, selectorPath []a
 			replacementSel.Elements[0].VisibilityInfo(),
 		)
 
-		if match["pathIndex"].(int) > currentSelectorPathIndex && currentSelectorPathElementIndex > 0 {
+		if match.pathIndex > currentSelectorPathIndex && currentSelectorPathElementIndex > 0 {
 			// Equivalent to JS: path[path.length - 1].elements = path[path.length - 1].elements.concat(...)
 			if len(path) > 0 {
 				if pathSel, ok := path[len(path)-1].(*Selector); ok {
@@ -967,7 +980,7 @@ func (pev *ProcessExtendsVisitor) extendSelector(matches []any, selectorPath []a
 		newElements = make([]*Element, 0)
 		
 		// Add elements before the match (equivalent to selector.elements.slice(currentSelectorPathElementIndex, match.index))
-		sliceEnd := match["index"].(int)
+		sliceEnd := match.index
 		if sliceEnd > currentSelectorPathElementIndex && currentSelectorPathElementIndex < len(selector.Elements) {
 			if sliceEnd > len(selector.Elements) {
 				sliceEnd = len(selector.Elements)
@@ -983,7 +996,7 @@ func (pev *ProcessExtendsVisitor) extendSelector(matches []any, selectorPath []a
 			newElements = append(newElements, replacementSel.Elements[1:]...)
 		}
 
-		if currentSelectorPathIndex == match["pathIndex"].(int) && matchIndex > 0 {
+		if currentSelectorPathIndex == match.pathIndex && matchIndex > 0 {
 			// Equivalent to JS: path[path.length - 1].elements = path[path.length - 1].elements.concat(newElements)
 			if len(path) > 0 {
 				if pathSel, ok := path[len(path)-1].(*Selector); ok {
@@ -992,8 +1005,8 @@ func (pev *ProcessExtendsVisitor) extendSelector(matches []any, selectorPath []a
 			}
 		} else {
 			// Equivalent to JS: path = path.concat(selectorPath.slice(currentSelectorPathIndex, match.pathIndex))
-			if match["pathIndex"].(int) > currentSelectorPathIndex {
-				path = append(path, selectorPath[currentSelectorPathIndex:match["pathIndex"].(int)]...)
+			if match.pathIndex > currentSelectorPathIndex {
+				path = append(path, selectorPath[currentSelectorPathIndex:match.pathIndex]...)
 			}
 
 			// Inherit visibility info from the matched selector (selector from selectorPath)
@@ -1011,8 +1024,8 @@ func (pev *ProcessExtendsVisitor) extendSelector(matches []any, selectorPath []a
 			}
 		}
 		
-		currentSelectorPathIndex = match["endPathIndex"].(int)
-		currentSelectorPathElementIndex = match["endPathElementIndex"].(int)
+		currentSelectorPathIndex = match.endPathIndex
+		currentSelectorPathElementIndex = match.endPathElementIndex
 		
 		// Handle element index overflow (equivalent to JS lines 458-462)
 		if currentSelectorPathIndex < len(selectorPath) {
