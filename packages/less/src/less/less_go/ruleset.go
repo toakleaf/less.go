@@ -85,7 +85,7 @@ func NewRuleset(selectors []any, rules []any, strictImports bool, visibilityInfo
 		Rules:         rules,
 		StrictImports: strictImports,
 		AllowRoot:     true,
-		lookups:       make(map[string][]any),
+		lookups:       make(map[string][]any, 4),
 		variables:     nil,
 		properties:    nil,
 		rulesets:      nil,
@@ -1051,7 +1051,7 @@ func (r *Ruleset) ResetCache() {
 	r.rulesets = nil
 	r.variables = nil
 	r.properties = nil
-	r.lookups = make(map[string][]any)
+	r.lookups = make(map[string][]any, 4)
 }
 
 // Variables returns a map of all variables in the ruleset
@@ -1061,12 +1061,12 @@ func (r *Ruleset) Variables() map[string]any {
 	}
 
 	if r.Rules == nil {
-		r.variables = make(map[string]any)
+		r.variables = make(map[string]any, 8)
 		return r.variables
 	}
 
 	// Use reduce-like pattern from JavaScript version
-	r.variables = make(map[string]any)
+	r.variables = make(map[string]any, 8)
 	for _, rule := range r.Rules {
 		if decl, ok := rule.(*Declaration); ok && decl.variable {
 			if name, ok := decl.name.(string); ok {
@@ -1101,14 +1101,14 @@ func (r *Ruleset) Properties() map[string][]any {
 	if r.properties != nil {
 		return r.properties
 	}
-	
+
 	if r.Rules == nil {
-		r.properties = make(map[string][]any)
+		r.properties = make(map[string][]any, 4)
 		return r.properties
 	}
-	
+
 	// Use reduce-like pattern from JavaScript version
-	r.properties = make(map[string][]any)
+	r.properties = make(map[string][]any, 4)
 	for _, rule := range r.Rules {
 		if decl, ok := rule.(*Declaration); ok && !decl.variable {
 			var name string
