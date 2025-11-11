@@ -10,7 +10,6 @@ import (
 	_ "image/png"
 	"net/url"
 	"path/filepath"
-	"regexp"
 	"strings"
 )
 
@@ -112,8 +111,7 @@ func DataURI(context map[string]any, mimetypeNode, filePathNode any) any {
 		}
 	} else {
 		// Check if base64 is explicitly specified
-		base64Regex := regexp.MustCompile(`;base64$`)
-		useBase64 = base64Regex.MatchString(mimetype)
+		useBase64 = reBase64Suffix.MatchString(mimetype)
 	}
 	
 	// Load file contents
