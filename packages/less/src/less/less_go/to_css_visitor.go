@@ -294,6 +294,41 @@ func (v *ToCSSVisitor) IsReplacing() bool {
 	return true
 }
 
+// VisitNode implements direct dispatch without reflection for better performance
+func (v *ToCSSVisitor) VisitNode(node any, visitArgs *VisitArgs) (any, bool) {
+	switch n := node.(type) {
+	case *Declaration:
+		return v.VisitDeclaration(n, visitArgs), true
+	case *MixinDefinition:
+		return v.VisitMixinDefinition(n, visitArgs), true
+	case *Extend:
+		return v.VisitExtend(n, visitArgs), true
+	case *Comment:
+		return v.VisitComment(n, visitArgs), true
+	case *Media:
+		return v.VisitMedia(n, visitArgs), true
+	case *Container:
+		return v.VisitContainer(n, visitArgs), true
+	case *Import:
+		return v.VisitImport(n, visitArgs), true
+	case *Anonymous:
+		return v.VisitAnonymous(n, visitArgs), true
+	case *Ruleset:
+		return v.VisitRuleset(n, visitArgs), true
+	case *AtRule:
+		// AtRule dispatch depends on whether it has a body
+		return v.VisitAtRule(n, visitArgs), true
+	default:
+		return node, false
+	}
+}
+
+// VisitNodeOut implements direct dispatch for visitOut methods
+func (v *ToCSSVisitor) VisitNodeOut(node any) bool {
+	// ToCSSVisitor doesn't have any VisitXOut methods, so just return false
+	return false
+}
+
 // isRulesetAtRoot checks if a ruleset is at the root level (has no parent selectors)
 func (v *ToCSSVisitor) isRulesetAtRoot(rulesetNode any) bool {
 	// For now, we'll check if it's the first level ruleset

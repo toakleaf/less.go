@@ -52,6 +52,37 @@ func (jsv *JoinSelectorVisitor) IsReplacing() bool {
 	return false
 }
 
+// VisitNode implements direct dispatch without reflection for better performance
+func (jsv *JoinSelectorVisitor) VisitNode(node any, visitArgs *VisitArgs) (any, bool) {
+	switch n := node.(type) {
+	case *Declaration:
+		return jsv.VisitDeclaration(n, visitArgs), true
+	case *MixinDefinition:
+		return jsv.VisitMixinDefinition(n, visitArgs), true
+	case *Ruleset:
+		return jsv.VisitRuleset(n, visitArgs), true
+	case *Media:
+		return jsv.VisitMedia(n, visitArgs), true
+	case *Container:
+		return jsv.VisitContainer(n, visitArgs), true
+	case *AtRule:
+		return jsv.VisitAtRule(n, visitArgs), true
+	default:
+		return node, false
+	}
+}
+
+// VisitNodeOut implements direct dispatch for visitOut methods
+func (jsv *JoinSelectorVisitor) VisitNodeOut(node any) bool {
+	switch n := node.(type) {
+	case *Ruleset:
+		jsv.VisitRulesetOut(n)
+		return true
+	default:
+		return false
+	}
+}
+
 // VisitDeclaration prevents deeper visiting of declaration nodes
 func (jsv *JoinSelectorVisitor) VisitDeclaration(declNode any, visitArgs *VisitArgs) any {
 	visitArgs.VisitDeeper = false

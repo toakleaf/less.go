@@ -48,6 +48,13 @@ type Implementation interface {
 	IsReplacing() bool
 }
 
+// DirectDispatchVisitor interface for direct dispatch without reflection
+// Implementations can optionally implement this for better performance
+type DirectDispatchVisitor interface {
+	VisitNode(node any, visitArgs *VisitArgs) (result any, handled bool)
+	VisitNodeOut(node any) bool
+}
+
 // noop function that returns the node unchanged
 func _noop(node any) any {
 	return node
@@ -146,62 +153,74 @@ func (v *Visitor) Visit(node any) any {
 		return node
 	}
 
-	var visitFunc VisitFunc
-	var visitOutFunc VisitOutFunc
 	visitArgs := &VisitArgs{VisitDeeper: true}
 
-	// Check cache first
-	if cachedFunc, exists := v.visitInCache[nodeTypeIndex]; exists {
-		visitFunc = cachedFunc
-		visitOutFunc = v.visitOutCache[nodeTypeIndex]
+	// Fast path: Check if implementation supports direct dispatch (no reflection)
+	if directDispatcher, ok := v.implementation.(DirectDispatchVisitor); ok {
+		newNode, handled := directDispatcher.VisitNode(node, visitArgs)
+		if handled {
+			if v.isReplacing() {
+				node = newNode
+			}
+		}
 	} else {
-		// Build function name like JS: `visit${node.type}`
-		// Use string concatenation instead of fmt.Sprintf for performance
-		fnName := "Visit" + nodeType
+		// Slow path: Use reflection-based dispatch (backward compatibility)
+		var visitFunc VisitFunc
+		var visitOutFunc VisitOutFunc
 
-		// Use pre-built method lookup map instead of MethodByName
-		visitMethod, visitMethodExists := v.methodLookup[fnName]
-		visitOutMethod, visitOutMethodExists := v.methodLookup[fnName+"Out"]
+		// Check cache first
+		if cachedFunc, exists := v.visitInCache[nodeTypeIndex]; exists {
+			visitFunc = cachedFunc
+			visitOutFunc = v.visitOutCache[nodeTypeIndex]
+		} else {
+			// Build function name like JS: `visit${node.type}`
+			// Use string concatenation instead of fmt.Sprintf for performance
+			fnName := "Visit" + nodeType
 
-		// Create visit function (use _noop if method doesn't exist)
-		if visitMethodExists && visitMethod.IsValid() {
-			visitFunc = func(n any, args *VisitArgs) any {
-				results := visitMethod.Call([]reflect.Value{
-					reflect.ValueOf(n),
-					reflect.ValueOf(args),
-				})
-				if len(results) > 0 {
-					return results[0].Interface()
+			// Use pre-built method lookup map instead of MethodByName
+			visitMethod, visitMethodExists := v.methodLookup[fnName]
+			visitOutMethod, visitOutMethodExists := v.methodLookup[fnName+"Out"]
+
+			// Create visit function (use _noop if method doesn't exist)
+			if visitMethodExists && visitMethod.IsValid() {
+				visitFunc = func(n any, args *VisitArgs) any {
+					results := visitMethod.Call([]reflect.Value{
+						reflect.ValueOf(n),
+						reflect.ValueOf(args),
+					})
+					if len(results) > 0 {
+						return results[0].Interface()
+					}
+					return n
 				}
-				return n
+			} else {
+				visitFunc = func(n any, args *VisitArgs) any {
+					return _noop(n)
+				}
 			}
-		} else {
-			visitFunc = func(n any, args *VisitArgs) any {
-				return _noop(n)
+
+			// Create visitOut function (_noop if method doesn't exist)
+			if visitOutMethodExists && visitOutMethod.IsValid() {
+				visitOutFunc = func(n any) {
+					visitOutMethod.Call([]reflect.Value{reflect.ValueOf(n)})
+				}
+			} else {
+				visitOutFunc = func(n any) {
+					// _noop for visitOut
+				}
 			}
+
+			// Cache the functions
+			v.visitInCache[nodeTypeIndex] = visitFunc
+			v.visitOutCache[nodeTypeIndex] = visitOutFunc
 		}
 
-		// Create visitOut function (_noop if method doesn't exist)
-		if visitOutMethodExists && visitOutMethod.IsValid() {
-			visitOutFunc = func(n any) {
-				visitOutMethod.Call([]reflect.Value{reflect.ValueOf(n)})
+		// Call visit function (if not _noop)
+		if visitFunc != nil {
+			newNode := visitFunc(node, visitArgs)
+			if v.isReplacing() {
+				node = newNode
 			}
-		} else {
-			visitOutFunc = func(n any) {
-				// _noop for visitOut
-			}
-		}
-
-		// Cache the functions
-		v.visitInCache[nodeTypeIndex] = visitFunc
-		v.visitOutCache[nodeTypeIndex] = visitOutFunc
-	}
-
-	// Call visit function (if not _noop)
-	if visitFunc != nil {
-		newNode := visitFunc(node, visitArgs)
-		if v.isReplacing() {
-			node = newNode
 		}
 	}
 
@@ -217,11 +236,11 @@ func (v *Visitor) Visit(node any) any {
 		if nodeVal.Kind() == reflect.Struct {
 			lengthField := nodeVal.FieldByName("length")
 			elementsField := nodeVal.FieldByName("Elements")
-			
+
 			if lengthField.IsValid() && lengthField.Kind() == reflect.Int && lengthField.Int() > 0 {
 				// Array-like node processing
 				length := int(lengthField.Int())
-				
+
 				// First try Elements field (Go-style array-like nodes)
 				if elementsField.IsValid() && elementsField.Kind() == reflect.Slice {
 					elementsSlice := elementsField
@@ -254,9 +273,15 @@ func (v *Visitor) Visit(node any) any {
 		}
 	}
 
-	// Call visitOut function (if not _noop)
-	if visitOutFunc != nil {
-		visitOutFunc(node)
+	// Call visitOut function
+	if directDispatcher, ok := v.implementation.(DirectDispatchVisitor); ok {
+		// Fast path: direct dispatch
+		directDispatcher.VisitNodeOut(node)
+	} else {
+		// Slow path: reflection-based dispatch (visitOutFunc was cached in the else block above)
+		if visitOutFunc, exists := v.visitOutCache[nodeTypeIndex]; exists && visitOutFunc != nil {
+			visitOutFunc(node)
+		}
 	}
 
 	return node
