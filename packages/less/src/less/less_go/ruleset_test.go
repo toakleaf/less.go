@@ -252,8 +252,9 @@ func TestNewRuleset(t *testing.T) {
 		if !ruleset.AllowRoot {
 			t.Errorf("Expected AllowRoot to be true")
 		}
-		if ruleset.lookups == nil {
-			t.Errorf("Expected lookups to be initialized")
+		// lookups is lazily initialized, so it starts as nil
+		if ruleset.lookups != nil {
+			t.Errorf("Expected lookups to be nil (lazily initialized)")
 		}
 	})
 
@@ -265,8 +266,9 @@ func TestNewRuleset(t *testing.T) {
 		if ruleset.Rules != nil {
 			t.Errorf("Expected rules to be nil")
 		}
-		if ruleset.lookups == nil {
-			t.Errorf("Expected lookups to be initialized")
+		// lookups is lazily initialized, so it starts as nil
+		if ruleset.lookups != nil {
+			t.Errorf("Expected lookups to be nil (lazily initialized)")
 		}
 	})
 
@@ -744,6 +746,8 @@ func TestResetCache(t *testing.T) {
 		ruleset.rulesets = []any{"cached"}
 		ruleset.variables = map[string]any{"cached": true}
 		ruleset.properties = map[string][]any{"cached": {"true"}}
+		// Initialize lookups map before use (it's lazily initialized)
+		ruleset.lookups = make(map[string][]any)
 		ruleset.lookups["cached"] = []any{"true"}
 
 		ruleset.ResetCache()
@@ -1271,6 +1275,8 @@ func TestFind(t *testing.T) {
 		selector := &RulesetMockSelector{}
 		cached := []any{map[string]any{"rule": "cached", "path": []any{}}}
 		ruleset := NewRuleset(nil, nil, false, nil)
+		// Initialize lookups map before use (it's lazily initialized)
+		ruleset.lookups = make(map[string][]any)
 		ruleset.lookups[".mock-selector"] = cached
 
 		result := ruleset.Find(selector, nil, nil)

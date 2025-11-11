@@ -85,7 +85,7 @@ func NewRuleset(selectors []any, rules []any, strictImports bool, visibilityInfo
 		Rules:         rules,
 		StrictImports: strictImports,
 		AllowRoot:     true,
-		lookups:       make(map[string][]any, 4),
+		lookups:       nil, // Lazily initialized when first used
 		variables:     nil,
 		properties:    nil,
 		rulesets:      nil,
@@ -1501,6 +1501,10 @@ func (r *Ruleset) Find(selector any, self any, filter func(any) bool) []any {
 		}
 	}
 	
+	// Lazily initialize lookups map
+	if r.lookups == nil {
+		r.lookups = make(map[string][]any, 4)
+	}
 	r.lookups[key] = rules
 	return rules
 }
@@ -1588,7 +1592,8 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 	
 	// Organize rules by type like JavaScript version
 	var charsetRuleNodes []any
-	var ruleNodes []any
+	// Pre-allocate ruleNodes with capacity of Rules length to avoid reallocation
+	ruleNodes := make([]any, 0, len(r.Rules))
 
 	var charsetNodeIndex int = 0
 	var importNodeIndex int = 0
