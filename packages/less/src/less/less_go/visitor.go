@@ -1,8 +1,8 @@
 package less_go
 
 import (
-	"fmt"
 	"reflect"
+	"strconv"
 )
 
 var _visitArgs = map[string]bool{"visitDeeper": true}
@@ -65,6 +65,7 @@ type Visitor struct {
 	implementation any
 	visitInCache   map[int]VisitFunc
 	visitOutCache  map[int]VisitOutFunc
+	methodLookup   map[string]reflect.Value // Pre-built method lookup map
 }
 
 // NewVisitor creates a new visitor with the given implementation
@@ -73,6 +74,7 @@ func NewVisitor(implementation any) *Visitor {
 		implementation: implementation,
 		visitInCache:   make(map[int]VisitFunc),
 		visitOutCache:  make(map[int]VisitOutFunc),
+		methodLookup:   make(map[string]reflect.Value),
 	}
 
 	if !_hasIndexed {
@@ -87,6 +89,19 @@ func NewVisitor(implementation any) *Visitor {
 			}
 		}
 		_hasIndexed = true
+	}
+
+	// Pre-build method lookup map to avoid MethodByName calls
+	if implementation != nil {
+		implValue := reflect.ValueOf(implementation)
+		implType := implValue.Type()
+		numMethods := implType.NumMethod()
+
+		for i := 0; i < numMethods; i++ {
+			method := implType.Method(i)
+			// Store method by name for fast lookup
+			v.methodLookup[method.Name] = implValue.Method(i)
+		}
 	}
 
 	return v
@@ -131,7 +146,6 @@ func (v *Visitor) Visit(node any) any {
 		return node
 	}
 
-	impl := v.implementation
 	var visitFunc VisitFunc
 	var visitOutFunc VisitOutFunc
 	visitArgs := &VisitArgs{VisitDeeper: true}
@@ -142,15 +156,15 @@ func (v *Visitor) Visit(node any) any {
 		visitOutFunc = v.visitOutCache[nodeTypeIndex]
 	} else {
 		// Build function name like JS: `visit${node.type}`
-		fnName := fmt.Sprintf("Visit%s", nodeType)
-		
-		// Use reflection to find methods on implementation
-		implValue := reflect.ValueOf(impl)
-		visitMethod := implValue.MethodByName(fnName)
-		visitOutMethod := implValue.MethodByName(fnName + "Out")
-		
+		// Use string concatenation instead of fmt.Sprintf for performance
+		fnName := "Visit" + nodeType
+
+		// Use pre-built method lookup map instead of MethodByName
+		visitMethod, visitMethodExists := v.methodLookup[fnName]
+		visitOutMethod, visitOutMethodExists := v.methodLookup[fnName+"Out"]
+
 		// Create visit function (use _noop if method doesn't exist)
-		if visitMethod.IsValid() {
+		if visitMethodExists && visitMethod.IsValid() {
 			visitFunc = func(n any, args *VisitArgs) any {
 				results := visitMethod.Call([]reflect.Value{
 					reflect.ValueOf(n),
@@ -168,7 +182,7 @@ func (v *Visitor) Visit(node any) any {
 		}
 
 		// Create visitOut function (_noop if method doesn't exist)
-		if visitOutMethod.IsValid() {
+		if visitOutMethodExists && visitOutMethod.IsValid() {
 			visitOutFunc = func(n any) {
 				visitOutMethod.Call([]reflect.Value{reflect.ValueOf(n)})
 			}
@@ -220,7 +234,7 @@ func (v *Visitor) Visit(node any) any {
 				} else {
 					// Fallback: try to get element at index i (like node[i] in JS)
 					for i := 0; i < length; i++ {
-						indexField := nodeVal.FieldByName(fmt.Sprintf("%d", i))
+						indexField := nodeVal.FieldByName(strconv.Itoa(i))
 						if indexField.IsValid() && indexField.CanInterface() {
 							item := indexField.Interface()
 							if accepter, ok := item.(interface{ Accept(any) }); ok {
@@ -412,7 +426,7 @@ func (v *Visitor) convertToSlice(obj any) []any {
 			length := int(lengthField.Int())
 			result := make([]any, 0, length)
 			for i := 0; i < length; i++ {
-				indexField := objValue.FieldByName(fmt.Sprintf("%d", i))
+				indexField := objValue.FieldByName(strconv.Itoa(i))
 				if indexField.IsValid() && indexField.CanInterface() {
 					result = append(result, indexField.Interface())
 				}
