@@ -48,6 +48,13 @@ type Implementation interface {
 	IsReplacing() bool
 }
 
+// DirectDispatchVisitor interface for direct dispatch without reflection
+// Implementations can optionally implement this for better performance
+type DirectDispatchVisitor interface {
+	VisitNode(node any, visitArgs *VisitArgs) (result any, handled bool)
+	VisitNodeOut(node any) bool
+}
+
 // noop function that returns the node unchanged
 func _noop(node any) any {
 	return node
@@ -107,189 +114,12 @@ func NewVisitor(implementation any) *Visitor {
 	return v
 }
 
-// buildVisitFunctions creates visit functions using type switches instead of reflection
-func (v *Visitor) buildVisitFunctions(nodeType string) (VisitFunc, VisitOutFunc) {
-	// Type switch on implementation to avoid reflection
-	switch impl := v.implementation.(type) {
-	case *ToCSSVisitor:
-		return v.buildToCSSVisitorFunctions(impl, nodeType)
-	case *ImportVisitor:
-		return v.buildImportVisitorFunctions(impl, nodeType)
-	case *JoinSelectorVisitor:
-		return v.buildJoinSelectorVisitorFunctions(impl, nodeType)
-	case *ExtendFinderVisitor:
-		return v.buildExtendFinderVisitorFunctions(impl, nodeType)
-	case *ProcessExtendsVisitor:
-		return v.buildProcessExtendsVisitorFunctions(impl, nodeType)
-	case *SetTreeVisibilityVisitor:
-		// SetTreeVisibilityVisitor doesn't use the standard Visit pattern
-		// It has custom Visit/VisitArray methods
-		return v.buildReflectionBasedFunctions(nodeType)
-	default:
-		// Fallback to reflection for unknown types (test mocks, etc.)
-		return v.buildReflectionBasedFunctions(nodeType)
-	}
-}
-
-// buildToCSSVisitorFunctions creates functions for ToCSSVisitor
-func (v *Visitor) buildToCSSVisitorFunctions(impl *ToCSSVisitor, nodeType string) (VisitFunc, VisitOutFunc) {
-	switch nodeType {
-	case "Declaration":
-		return func(n any, args *VisitArgs) any { return impl.VisitDeclaration(n, args) }, nil
-	case "MixinDefinition":
-		return func(n any, args *VisitArgs) any { return impl.VisitMixinDefinition(n, args) }, nil
-	case "Extend":
-		return func(n any, args *VisitArgs) any { return impl.VisitExtend(n, args) }, nil
-	case "Comment":
-		return func(n any, args *VisitArgs) any { return impl.VisitComment(n, args) }, nil
-	case "Media":
-		return func(n any, args *VisitArgs) any { return impl.VisitMedia(n, args) }, nil
-	case "Container":
-		return func(n any, args *VisitArgs) any { return impl.VisitContainer(n, args) }, nil
-	case "Import":
-		return func(n any, args *VisitArgs) any { return impl.VisitImport(n, args) }, nil
-	case "AtRule":
-		return func(n any, args *VisitArgs) any { return impl.VisitAtRule(n, args) }, nil
-	case "Anonymous":
-		return func(n any, args *VisitArgs) any { return impl.VisitAnonymous(n, args) }, nil
-	case "Ruleset":
-		return func(n any, args *VisitArgs) any { return impl.VisitRuleset(n, args) }, nil
-	default:
-		return func(n any, args *VisitArgs) any { return _noop(n) }, nil
-	}
-}
-
-// buildImportVisitorFunctions creates functions for ImportVisitor
-func (v *Visitor) buildImportVisitorFunctions(impl *ImportVisitor, nodeType string) (VisitFunc, VisitOutFunc) {
-	switch nodeType {
-	case "Import":
-		return func(n any, args *VisitArgs) any { impl.VisitImport(n, args); return n }, nil
-	case "Media":
-		return func(n any, args *VisitArgs) any { impl.VisitMedia(n, args); return n },
-			func(n any) { impl.VisitMediaOut(n) }
-	case "AtRule":
-		return func(n any, args *VisitArgs) any { impl.VisitAtRule(n, args); return n },
-			func(n any) { impl.VisitAtRuleOut(n) }
-	case "Declaration":
-		return func(n any, args *VisitArgs) any { impl.VisitDeclaration(n, args); return n },
-			func(n any) { impl.VisitDeclarationOut(n) }
-	case "MixinDefinition":
-		return func(n any, args *VisitArgs) any { impl.VisitMixinDefinition(n, args); return n },
-			func(n any) { impl.VisitMixinDefinitionOut(n) }
-	case "Ruleset":
-		return func(n any, args *VisitArgs) any { impl.VisitRuleset(n, args); return n },
-			func(n any) { impl.VisitRulesetOut(n) }
-	default:
-		return func(n any, args *VisitArgs) any { return _noop(n) }, nil
-	}
-}
-
-// buildJoinSelectorVisitorFunctions creates functions for JoinSelectorVisitor
-func (v *Visitor) buildJoinSelectorVisitorFunctions(impl *JoinSelectorVisitor, nodeType string) (VisitFunc, VisitOutFunc) {
-	switch nodeType {
-	case "Ruleset":
-		return func(n any, args *VisitArgs) any { return impl.VisitRuleset(n, args) },
-			func(n any) { impl.VisitRulesetOut(n) }
-	case "Media":
-		return func(n any, args *VisitArgs) any { return impl.VisitMedia(n, args) }, nil
-	case "Container":
-		return func(n any, args *VisitArgs) any { return impl.VisitContainer(n, args) }, nil
-	case "AtRule":
-		return func(n any, args *VisitArgs) any { return impl.VisitAtRule(n, args) }, nil
-	case "Declaration":
-		return func(n any, args *VisitArgs) any { return impl.VisitDeclaration(n, args) }, nil
-	case "MixinDefinition":
-		return func(n any, args *VisitArgs) any { return impl.VisitMixinDefinition(n, args) }, nil
-	default:
-		return func(n any, args *VisitArgs) any { return _noop(n) }, nil
-	}
-}
-
-// buildExtendFinderVisitorFunctions creates functions for ExtendFinderVisitor
-func (v *Visitor) buildExtendFinderVisitorFunctions(impl *ExtendFinderVisitor, nodeType string) (VisitFunc, VisitOutFunc) {
-	switch nodeType {
-	case "Ruleset":
-		return func(n any, args *VisitArgs) any { impl.VisitRuleset(n, args); return n },
-			func(n any) { impl.VisitRulesetOut(n) }
-	case "Media":
-		return func(n any, args *VisitArgs) any { impl.VisitMedia(n, args); return n },
-			func(n any) { impl.VisitMediaOut(n) }
-	case "AtRule":
-		return func(n any, args *VisitArgs) any { impl.VisitAtRule(n, args); return n },
-			func(n any) { impl.VisitAtRuleOut(n) }
-	case "Declaration":
-		return func(n any, args *VisitArgs) any { impl.VisitDeclaration(n, args); return n }, nil
-	case "MixinDefinition":
-		return func(n any, args *VisitArgs) any { impl.VisitMixinDefinition(n, args); return n }, nil
-	default:
-		return func(n any, args *VisitArgs) any { return _noop(n) }, nil
-	}
-}
-
-// buildProcessExtendsVisitorFunctions creates functions for ProcessExtendsVisitor
-func (v *Visitor) buildProcessExtendsVisitorFunctions(impl *ProcessExtendsVisitor, nodeType string) (VisitFunc, VisitOutFunc) {
-	switch nodeType {
-	case "Ruleset":
-		return func(n any, args *VisitArgs) any { impl.VisitRuleset(n, args); return n }, nil
-	case "Media":
-		return func(n any, args *VisitArgs) any { impl.VisitMedia(n, args); return n },
-			func(n any) { impl.VisitMediaOut(n) }
-	case "AtRule":
-		return func(n any, args *VisitArgs) any { impl.VisitAtRule(n, args); return n },
-			func(n any) { impl.VisitAtRuleOut(n) }
-	case "Declaration":
-		return func(n any, args *VisitArgs) any { impl.VisitDeclaration(n, args); return n }, nil
-	case "MixinDefinition":
-		return func(n any, args *VisitArgs) any { impl.VisitMixinDefinition(n, args); return n }, nil
-	case "Selector":
-		return func(n any, args *VisitArgs) any { impl.VisitSelector(n, args); return n }, nil
-	default:
-		return func(n any, args *VisitArgs) any { return _noop(n) }, nil
-	}
-}
-
-// buildReflectionBasedFunctions creates functions using reflection (fallback for unknown types)
-func (v *Visitor) buildReflectionBasedFunctions(nodeType string) (VisitFunc, VisitOutFunc) {
-	// Build function name like JS: `visit${node.type}`
-	fnName := "Visit" + nodeType
-
-	// Use pre-built method lookup map instead of MethodByName
-	visitMethod, visitMethodExists := v.methodLookup[fnName]
-	visitOutMethod, visitOutMethodExists := v.methodLookup[fnName+"Out"]
-
-	var visitFunc VisitFunc
-	var visitOutFunc VisitOutFunc
-
-	// Create visit function (use _noop if method doesn't exist)
-	if visitMethodExists && visitMethod.IsValid() {
-		visitFunc = func(n any, args *VisitArgs) any {
-			results := visitMethod.Call([]reflect.Value{
-				reflect.ValueOf(n),
-				reflect.ValueOf(args),
-			})
-			if len(results) > 0 {
-				return results[0].Interface()
-			}
-			return n
-		}
-	} else {
-		visitFunc = func(n any, args *VisitArgs) any {
-			return _noop(n)
-		}
-	}
-
-	// Create visitOut function (_noop if method doesn't exist)
-	if visitOutMethodExists && visitOutMethod.IsValid() {
-		visitOutFunc = func(n any) {
-			visitOutMethod.Call([]reflect.Value{reflect.ValueOf(n)})
-		}
-	} else {
-		visitOutFunc = func(n any) {
-			// _noop for visitOut
-		}
-	}
-
-	return visitFunc, visitOutFunc
+// DirectDispatchVisitor is an interface for visitors that want to use direct dispatch
+// instead of reflection for better performance. Visitors implementing this interface
+// can handle node visiting using type switches, avoiding the overhead of reflect.Call.
+type DirectDispatchVisitor interface {
+	VisitNode(node any, visitArgs *VisitArgs) (result any, handled bool)
+	VisitNodeOut(node any) bool
 }
 
 // Visit visits a node using the visitor pattern
@@ -331,30 +161,74 @@ func (v *Visitor) Visit(node any) any {
 		return node
 	}
 
-	var visitFunc VisitFunc
-	var visitOutFunc VisitOutFunc
 	visitArgs := &VisitArgs{VisitDeeper: true}
 
-	// Check cache first
-	if cachedFunc, exists := v.visitInCache[nodeTypeIndex]; exists {
-		visitFunc = cachedFunc
-		visitOutFunc = v.visitOutCache[nodeTypeIndex]
+	// Fast path: Check if implementation supports direct dispatch (no reflection)
+	if directDispatcher, ok := v.implementation.(DirectDispatchVisitor); ok {
+		newNode, handled := directDispatcher.VisitNode(node, visitArgs)
+		if handled {
+			if v.isReplacing() {
+				node = newNode
+			}
+		}
 	} else {
-		// Build visit functions without reflection for known visitor types
-		// This is a more comprehensive optimization than the previous approach which only
-		// optimized 4 hot-path node types. We now optimize all visitor types and all their methods.
-		visitFunc, visitOutFunc = v.buildVisitFunctions(nodeType)
+		// Slow path: Use reflection-based dispatch (backward compatibility)
+		var visitFunc VisitFunc
+		var visitOutFunc VisitOutFunc
 
-		// Cache the functions
-		v.visitInCache[nodeTypeIndex] = visitFunc
-		v.visitOutCache[nodeTypeIndex] = visitOutFunc
-	}
+		// Check cache first
+		if cachedFunc, exists := v.visitInCache[nodeTypeIndex]; exists {
+			visitFunc = cachedFunc
+			visitOutFunc = v.visitOutCache[nodeTypeIndex]
+		} else {
+			// Build function name like JS: `visit${node.type}`
+			// Use string concatenation instead of fmt.Sprintf for performance
+			fnName := "Visit" + nodeType
 
-	// Call visit function (if not _noop)
-	if visitFunc != nil {
-		newNode := visitFunc(node, visitArgs)
-		if v.isReplacing() {
-			node = newNode
+			// Use pre-built method lookup map instead of MethodByName
+			visitMethod, visitMethodExists := v.methodLookup[fnName]
+			visitOutMethod, visitOutMethodExists := v.methodLookup[fnName+"Out"]
+
+			// Create visit function (use _noop if method doesn't exist)
+			if visitMethodExists && visitMethod.IsValid() {
+				visitFunc = func(n any, args *VisitArgs) any {
+					results := visitMethod.Call([]reflect.Value{
+						reflect.ValueOf(n),
+						reflect.ValueOf(args),
+					})
+					if len(results) > 0 {
+						return results[0].Interface()
+					}
+					return n
+				}
+			} else {
+				visitFunc = func(n any, args *VisitArgs) any {
+					return _noop(n)
+				}
+			}
+
+			// Create visitOut function (_noop if method doesn't exist)
+			if visitOutMethodExists && visitOutMethod.IsValid() {
+				visitOutFunc = func(n any) {
+					visitOutMethod.Call([]reflect.Value{reflect.ValueOf(n)})
+				}
+			} else {
+				visitOutFunc = func(n any) {
+					// _noop for visitOut
+				}
+			}
+
+			// Cache the functions
+			v.visitInCache[nodeTypeIndex] = visitFunc
+			v.visitOutCache[nodeTypeIndex] = visitOutFunc
+		}
+
+		// Call visit function (if not _noop)
+		if visitFunc != nil {
+			newNode := visitFunc(node, visitArgs)
+			if v.isReplacing() {
+				node = newNode
+			}
 		}
 	}
 
@@ -370,11 +244,11 @@ func (v *Visitor) Visit(node any) any {
 		if nodeVal.Kind() == reflect.Struct {
 			lengthField := nodeVal.FieldByName("length")
 			elementsField := nodeVal.FieldByName("Elements")
-			
+
 			if lengthField.IsValid() && lengthField.Kind() == reflect.Int && lengthField.Int() > 0 {
 				// Array-like node processing
 				length := int(lengthField.Int())
-				
+
 				// First try Elements field (Go-style array-like nodes)
 				if elementsField.IsValid() && elementsField.Kind() == reflect.Slice {
 					elementsSlice := elementsField
@@ -407,9 +281,15 @@ func (v *Visitor) Visit(node any) any {
 		}
 	}
 
-	// Call visitOut function (if not _noop)
-	if visitOutFunc != nil {
-		visitOutFunc(node)
+	// Call visitOut function
+	if directDispatcher, ok := v.implementation.(DirectDispatchVisitor); ok {
+		// Fast path: direct dispatch
+		directDispatcher.VisitNodeOut(node)
+	} else {
+		// Slow path: reflection-based dispatch (visitOutFunc was cached in the else block above)
+		if visitOutFunc, exists := v.visitOutCache[nodeTypeIndex]; exists && visitOutFunc != nil {
+			visitOutFunc(node)
+		}
 	}
 
 	return node
