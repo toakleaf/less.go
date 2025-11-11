@@ -1,33 +1,13 @@
-# Performance Analysis: CRITICAL BUG FOUND
+# Performance Analysis: Why is Go 8-10x Slower?
 
-## TL;DR - ACTIONABLE
+## TL;DR
 
-**ROOT CAUSE IDENTIFIED**: 81% of memory and 76% of allocations are from **REGEX COMPILATION**.
+**The Go benchmark is measuring correctly** - compilation time is NOT included. The Go port is genuinely slower right now, primarily due to:
 
-We are compiling regexes on every parse instead of pre-compiling them once. **This is NOT "unoptimized" - it's a critical bug.**
-
-**Fix**: Move 99 regex compilations to package-level variables.
-**Expected improvement**: 5-10x faster, 80% less memory.
-**Priority**: IMMEDIATE
-
-## Profiling Evidence (From Real Run)
-
-```
-TOP MEMORY ALLOCATIONS:
-  1.40GB (30.80%) - regexp/syntax.(*compiler).inst
-  1.10GB (24.21%) - regexp/syntax.(*parser).newRegexp
-  3.71GB (81.73%) - regexp.compile (CUMULATIVE)
-
-ALLOCATION COUNTS:
-  10,542,240 allocs (19.69%) - regexp/syntax.(*parser).newRegexp
-   5,315,351 allocs (9.93%) - regexp/syntax.(*compiler).inst
-  40,664,606 allocs (75.96%) - regexp.compile (CUMULATIVE)
-```
-
-**Dynamic Regex Compilations Found:**
-- **99 total occurrences** across codebase
-- **60 in parser.go alone**
-- Every one compiles the regex from scratch on every call
+1. **3.4 MILLION allocations** per benchmark run (~47k per file)
+2. Heavy use of reflection (462 occurrences across codebase)
+3. String operations and conversions
+4. Port is still under active development, not optimized yet
 
 ## Is Compilation Time Included?
 
