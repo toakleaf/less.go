@@ -3,7 +3,6 @@ package less_go
 import (
 	"fmt"
 	"os"
-	"regexp"
 	"runtime"
 	"strings"
 )
@@ -149,8 +148,7 @@ func performParse(lessContext *LessContext, input string, options map[string]any
 		}
 		
 		// Extract directory path using regex (equivalent to filename.replace(/[^/\\]*$/, ''))
-		re := regexp.MustCompile(`[^/\\]*$`)
-		entryPath := re.ReplaceAllString(filename, "")
+		entryPath := reFilenameOnly.ReplaceAllString(filename, "")
 		
 		rootFileInfo = map[string]any{
 			"filename":         filename,

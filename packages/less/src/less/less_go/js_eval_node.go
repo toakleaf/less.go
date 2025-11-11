@@ -3,7 +3,6 @@ package less_go
 import (
 	"fmt"
 	"math"
-	"regexp"
 	"strconv"
 	"strings"
 )
@@ -131,8 +130,7 @@ func (j *JsEvalNode) EvaluateJavaScript(expression string, context any) (any, er
 	}
 
 	// Replace Less variables with their values for better error messages
-	varRegex := regexp.MustCompile(`@\{([\w-]+)\}`)
-	expressionForError := varRegex.ReplaceAllStringFunc(expression, func(match string) string {
+	expressionForError := reVariableAtBrace.ReplaceAllStringFunc(expression, func(match string) string {
 		// Extract variable name without @ and {}
 		varName := match[2 : len(match)-1]
 		// Create a Variable node
