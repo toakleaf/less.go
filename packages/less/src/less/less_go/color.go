@@ -14,11 +14,11 @@ func formatNumber(n float64) string {
 
 	// If the number is effectively an integer, return it without decimals
 	if rounded == math.Floor(rounded) {
-		return fmt.Sprintf("%.0f", rounded)
+		return strconv.FormatFloat(rounded, 'f', 0, 64)
 	}
 
 	// Otherwise, format with up to 8 decimal places, trimming trailing zeros
-	s := fmt.Sprintf("%.8f", rounded)
+	s := strconv.FormatFloat(rounded, 'f', 8, 64)
 	s = strings.TrimRight(s, "0")
 	s = strings.TrimRight(s, ".")
 	return s
@@ -34,12 +34,12 @@ func formatNumberForCSS(n float64) string {
 
 	// If the number is effectively an integer, return it without decimals
 	if rounded == math.Floor(rounded) {
-		return fmt.Sprintf("%.0f", rounded)
+		return strconv.FormatFloat(rounded, 'f', 0, 64)
 	}
 
-	// Convert to string using %g which automatically removes trailing zeros
+	// Convert to string using 'g' which automatically removes trailing zeros
 	// but doesn't use scientific notation for reasonable values
-	s := fmt.Sprintf("%g", rounded)
+	s := strconv.FormatFloat(rounded, 'g', -1, 64)
 	return s
 }
 
@@ -292,16 +292,23 @@ func (c *Color) ToCSS(context any) string {
 		}
 		var strArgs []string
 		for _, arg := range args {
-			strArgs = append(strArgs, fmt.Sprintf("%v", arg))
+			// Convert arg to string efficiently
+			if s, ok := arg.(string); ok {
+				strArgs = append(strArgs, s)
+			} else if stringer, ok := arg.(fmt.Stringer); ok {
+				strArgs = append(strArgs, stringer.String())
+			} else {
+				strArgs = append(strArgs, fmt.Sprint(arg))
+			}
 		}
-		return fmt.Sprintf("%s(%s)", colorFunction, strings.Join(strArgs, separator))
+		return colorFunction + "(" + strings.Join(strArgs, separator) + ")"
 	}
 
 	color := c.ToRGB()
 	if compress {
 		splitColor := strings.Split(color, "")
 		if len(splitColor) >= 7 && splitColor[1] == splitColor[2] && splitColor[3] == splitColor[4] && splitColor[5] == splitColor[6] {
-			color = fmt.Sprintf("#%s%s%s", splitColor[1], splitColor[3], splitColor[5])
+			color = "#" + splitColor[1] + splitColor[3] + splitColor[5]
 		}
 	}
 
@@ -571,7 +578,11 @@ func toHex(v []float64) string {
 	// Handle ARGB format (4 values) or RGB format (3 values)
 	for i := 0; i < len(v); i++ {
 		c := clamp(math.Round(v[i]), 255)
-		hex = append(hex, fmt.Sprintf("%02x", int(c)))
+		hexStr := strconv.FormatInt(int64(c), 16)
+		if len(hexStr) == 1 {
+			hexStr = "0" + hexStr
+		}
+		hex = append(hex, hexStr)
 	}
 	return "#" + strings.Join(hex, "")
 } 

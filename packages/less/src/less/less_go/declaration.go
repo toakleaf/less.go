@@ -128,8 +128,10 @@ func (d *Declaration) GetVariable() bool {
 func (d *Declaration) GetName() string {
 	if nameStr, ok := d.name.(string); ok {
 		return nameStr
+	} else if stringer, ok := d.name.(fmt.Stringer); ok {
+		return stringer.String()
 	}
-	return fmt.Sprintf("%v", d.name)
+	return fmt.Sprint(d.name)
 }
 
 // GetMerge returns the merge flag
@@ -188,8 +190,10 @@ func evalName(context any, name []any) string {
 					value += v
 				case *Keyword:
 					value += v.value
+				case fmt.Stringer:
+					value += v.String()
 				default:
-					value += fmt.Sprintf("%v", v)
+					value += fmt.Sprint(v)
 				}
 			}
 		},
@@ -396,11 +400,19 @@ func (d *Declaration) GenCSS(context any, output *CSSOutput) {
 	case *Keyword:
 		nameStr = n.value
 	case *Anonymous:
-		nameStr = fmt.Sprintf("%v", n.Value)
+		if s, ok := n.Value.(string); ok {
+			nameStr = s
+		} else if stringer, ok := n.Value.(fmt.Stringer); ok {
+			nameStr = stringer.String()
+		} else {
+			nameStr = fmt.Sprint(n.Value)
+		}
 	case []any:
 		nameStr = evalName(context, n)
+	case fmt.Stringer:
+		nameStr = n.String()
 	default:
-		nameStr = fmt.Sprintf("%v", n)
+		nameStr = fmt.Sprint(n)
 	}
 
 	// Add name
@@ -421,8 +433,10 @@ func (d *Declaration) GenCSS(context any, output *CSSOutput) {
 			switch e := r.(type) {
 			case error:
 				errMsg = e.Error()
+			case fmt.Stringer:
+				errMsg = e.String()
 			default:
-				errMsg = fmt.Sprintf("%v", e)
+				errMsg = fmt.Sprint(e)
 			}
 			
 			// Create an error with index and filename similar to JavaScript
@@ -446,8 +460,12 @@ func (d *Declaration) GenCSS(context any, output *CSSOutput) {
 			// Use the evaluated value instead
 			if gen, ok := evaluated.(interface{ GenCSS(any, *CSSOutput) }); ok {
 				gen.GenCSS(context, output)
+			} else if s, ok := evaluated.(string); ok {
+				output.Add(s, d.FileInfo(), d.GetIndex())
+			} else if stringer, ok := evaluated.(fmt.Stringer); ok {
+				output.Add(stringer.String(), d.FileInfo(), d.GetIndex())
 			} else {
-				output.Add(fmt.Sprintf("%v", evaluated), d.FileInfo(), d.GetIndex())
+				output.Add(fmt.Sprint(evaluated), d.FileInfo(), d.GetIndex())
 			}
 		} else {
 			// Fall back to normal GenCSS if evaluation fails
@@ -506,7 +524,13 @@ func (d *Declaration) ToCSS(context any) string {
 	var strs []string
 	output := &CSSOutput{
 		Add: func(chunk any, fileInfo any, index any) {
-			strs = append(strs, fmt.Sprintf("%v", chunk))
+			if s, ok := chunk.(string); ok {
+				strs = append(strs, s)
+			} else if stringer, ok := chunk.(fmt.Stringer); ok {
+				strs = append(strs, stringer.String())
+			} else {
+				strs = append(strs, fmt.Sprint(chunk))
+			}
 		},
 		IsEmpty: func() bool {
 			return len(strs) == 0

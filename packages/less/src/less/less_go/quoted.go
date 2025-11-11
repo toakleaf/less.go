@@ -14,6 +14,16 @@ var (
 	propRegex     = regexp.MustCompile(`\$\{([\w-]+)\}|\$([\w-]+)`)
 )
 
+// toString converts any value to a string efficiently
+func toString(v any) string {
+	if s, ok := v.(string); ok {
+		return s
+	} else if stringer, ok := v.(fmt.Stringer); ok {
+		return stringer.String()
+	}
+	return fmt.Sprint(v)
+}
+
 // Quoted represents a quoted string in the Less AST
 type Quoted struct {
 	*Node
@@ -108,7 +118,13 @@ func (q *Quoted) ToCSS(context any) string {
 	var strs []string
 	output := &CSSOutput{
 		Add: func(chunk any, fileInfo any, index any) {
-			strs = append(strs, fmt.Sprintf("%v", chunk))
+			if s, ok := chunk.(string); ok {
+				strs = append(strs, s)
+			} else if stringer, ok := chunk.(fmt.Stringer); ok {
+				strs = append(strs, stringer.String())
+			} else {
+				strs = append(strs, fmt.Sprint(chunk))
+			}
 		},
 		IsEmpty: func() bool {
 			return len(strs) == 0
@@ -200,13 +216,13 @@ func (q *Quoted) Eval(context any) (any, error) {
 						} else if cssable, ok := anon.Value.(interface{ ToCSS(any) string }); ok {
 							result = cssable.ToCSS(make(map[string]any))
 						} else {
-							result = fmt.Sprintf("%v", anon.Value)
+							result = toString(anon.Value)
 						}
 					} else if value, ok := val.(*Value); ok {
 						// Handle Value objects by evaluating them
 						evaluated, err := value.Eval(context)
 						if err != nil {
-							result = fmt.Sprintf("%v", val)
+							result = toString(val)
 						} else if anon, ok := evaluated.(*Anonymous); ok {
 							// Handle Anonymous results from Value eval
 							if str, ok := anon.Value.(string); ok {
@@ -214,7 +230,7 @@ func (q *Quoted) Eval(context any) (any, error) {
 							} else if cssable, ok := anon.Value.(interface{ ToCSS(any) string }); ok {
 								result = cssable.ToCSS(make(map[string]any))
 							} else {
-								result = fmt.Sprintf("%v", anon.Value)
+								result = toString(anon.Value)
 							}
 						} else if quoted, ok := evaluated.(*Quoted); ok {
 							// Handle Quoted results from Value eval
@@ -230,12 +246,12 @@ func (q *Quoted) Eval(context any) (any, error) {
 						} else if cssable, ok := evaluated.(interface{ ToCSS(any) string }); ok {
 							result = cssable.ToCSS(make(map[string]any))
 						} else {
-							result = fmt.Sprintf("%v", evaluated)
+							result = toString(evaluated)
 						}
 					} else if cssable, ok := val.(interface{ ToCSS(any) string }); ok {
 						result = cssable.ToCSS(make(map[string]any))
 					} else {
-						result = fmt.Sprintf("%v", val)
+						result = toString(val)
 					}
 					return result, nil
 				}
@@ -256,8 +272,8 @@ func (q *Quoted) Eval(context any) (any, error) {
 		if cssable, ok := result.(interface{ ToCSS(any) string }); ok {
 			return cssable.ToCSS(make(map[string]any)), nil
 		}
-		
-		return fmt.Sprintf("%v", result), nil
+
+		return toString(result), nil
 	}
 
 	// propertyReplacement handles ${name} syntax
@@ -278,7 +294,7 @@ func (q *Quoted) Eval(context any) (any, error) {
 			return cssable.ToCSS(make(map[string]any)), nil
 		}
 
-		return fmt.Sprintf("%v", result), nil
+		return toString(result), nil
 	}
 
 	// Process variable and property replacements

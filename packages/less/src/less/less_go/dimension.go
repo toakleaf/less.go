@@ -54,7 +54,13 @@ func NewDimension(value any, unit any) (*Dimension, error) {
 		case *Unit:
 			u = t
 		default:
-			str := fmt.Sprintf("%v", t)
+			// Convert to string without fmt.Sprintf
+			var str string
+			if stringer, ok := t.(fmt.Stringer); ok {
+				str = stringer.String()
+			} else {
+				str = fmt.Sprint(t)
+			}
 			if str != "" {
 				u = NewUnit([]string{str}, nil, str)
 			} else {
@@ -124,7 +130,7 @@ func (d *Dimension) GenCSS(context any, output *CSSOutput) {
 	}
 	if strictUnits && !d.Unit.IsSingular() {
 		// Instead of panicking, output an error comment in CSS
-		output.Add(fmt.Sprintf("/* Error: Multiple units in dimension. Bad unit: %s */", d.Unit.ToString()), nil, nil)
+		output.Add("/* Error: Multiple units in dimension. Bad unit: "+d.Unit.ToString()+" */", nil, nil)
 		return
 	}
 
@@ -143,7 +149,7 @@ func (d *Dimension) GenCSS(context any, output *CSSOutput) {
 	} else if roundedValue != 0 && math.Abs(roundedValue) < 0.000001 {
 		// Very small numbers: would be output as 1e-6 etc. in JavaScript
 		// Mimic JavaScript's toFixed(20) and trim trailing zeros
-		strValue = strings.TrimRight(fmt.Sprintf("%.20f", roundedValue), "0")
+		strValue = strings.TrimRight(strconv.FormatFloat(roundedValue, 'f', 20, 64), "0")
 		strValue = strings.TrimRight(strValue, ".")
 	} else {
 		// For normal numbers, match JavaScript's String() behavior
@@ -151,11 +157,11 @@ func (d *Dimension) GenCSS(context any, output *CSSOutput) {
 		// Check if the number is close to an integer
 		if math.Abs(roundedValue-math.Round(roundedValue)) < 1e-10 {
 			// Integer or very close to it - format without decimal places
-			strValue = fmt.Sprintf("%.0f", roundedValue)
+			strValue = strconv.FormatFloat(roundedValue, 'f', 0, 64)
 		} else {
 			// Has decimal places - use %f and trim trailing zeros
 			// Use sufficient precision to match JavaScript
-			strValue = fmt.Sprintf("%.10f", roundedValue)
+			strValue = strconv.FormatFloat(roundedValue, 'f', 10, 64)
 			strValue = strings.TrimRight(strValue, "0")
 			strValue = strings.TrimRight(strValue, ".")
 		}
@@ -178,7 +184,14 @@ func (d *Dimension) ToCSS(context any) string {
 	var strs []string
 	output := &CSSOutput{
 		Add: func(chunk any, fileInfo any, index any) {
-			strs = append(strs, fmt.Sprintf("%v", chunk))
+			// Convert chunk to string efficiently
+			if s, ok := chunk.(string); ok {
+				strs = append(strs, s)
+			} else if stringer, ok := chunk.(fmt.Stringer); ok {
+				strs = append(strs, stringer.String())
+			} else {
+				strs = append(strs, fmt.Sprint(chunk))
+			}
 		},
 		IsEmpty: func() bool {
 			return len(strs) == 0
@@ -217,7 +230,8 @@ func (d *Dimension) Operate(context any, op string, other *Dimension) *Dimension
 						if otherConverted.Unit.ToString() != unit.ToString() {
 							// Instead of panicking, return a dimension with error information
 							// This maintains compatibility while avoiding panics
-							return NewDimensionFrom(0, NewUnit(nil, nil, fmt.Sprintf("error-incompatible-units-%s-%s", unit.ToString(), otherConverted.Unit.ToString())))
+							errorUnit := "error-incompatible-units-" + unit.ToString() + "-" + otherConverted.Unit.ToString()
+							return NewDimensionFrom(0, NewUnit(nil, nil, errorUnit))
 						}
 					}
 				}

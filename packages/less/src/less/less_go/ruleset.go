@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
 )
 
@@ -12,11 +13,18 @@ func elementToString(el *Element) string {
 	if el == nil {
 		return "nil"
 	}
-	combStr := ""
+	var b strings.Builder
 	if el.Combinator != nil {
-		combStr = fmt.Sprintf("[comb:%q]", el.Combinator.Value)
+		b.WriteString("[comb:")
+		b.WriteString(strconv.Quote(el.Combinator.Value))
+		b.WriteString("]")
 	}
-	return fmt.Sprintf("%s%v", combStr, el.Value)
+	if stringer, ok := el.Value.(fmt.Stringer); ok {
+		b.WriteString(stringer.String())
+	} else {
+		b.WriteString(fmt.Sprint(el.Value))
+	}
+	return b.String()
 }
 
 func elementSliceToString(els []*Element) string {
@@ -182,7 +190,13 @@ func (r *Ruleset) ToCSS(options map[string]any) (string, error) {
 	cssOutput := &CSSOutput{
 		Add: func(chunk, fileInfo, index any) {
 			if chunk != nil {
-				output.WriteString(fmt.Sprintf("%v", chunk))
+				if s, ok := chunk.(string); ok {
+					output.WriteString(s)
+				} else if stringer, ok := chunk.(fmt.Stringer); ok {
+					output.WriteString(stringer.String())
+				} else {
+					output.WriteString(fmt.Sprint(chunk))
+				}
 			}
 		},
 		IsEmpty: func() bool {
@@ -1118,8 +1132,10 @@ func (r *Ruleset) Properties() map[string][]any {
 					// Single element - extract value from it
 					if kw, ok := nameSlice[0].(*Keyword); ok {
 						name = kw.value
+					} else if stringer, ok := nameSlice[0].(fmt.Stringer); ok {
+						name = stringer.String()
 					} else {
-						name = fmt.Sprintf("%v", nameSlice[0])
+						name = fmt.Sprint(nameSlice[0])
 					}
 				} else if len(nameSlice) > 1 {
 					// Multiple elements - concatenate their values
@@ -1133,19 +1149,25 @@ func (r *Ruleset) Properties() map[string][]any {
 						} else if anon, ok := elem.(*Anonymous); ok {
 							if val, ok := anon.Value.(string); ok {
 								parts = append(parts, val)
+							} else if stringer, ok := anon.Value.(fmt.Stringer); ok {
+								parts = append(parts, stringer.String())
 							} else {
-								parts = append(parts, fmt.Sprintf("%v", anon.Value))
+								parts = append(parts, fmt.Sprint(anon.Value))
 							}
+						} else if stringer, ok := elem.(fmt.Stringer); ok {
+							parts = append(parts, stringer.String())
 						} else {
-							parts = append(parts, fmt.Sprintf("%v", elem))
+							parts = append(parts, fmt.Sprint(elem))
 						}
 					}
 					name = strings.Join(parts, "")
 				}
 			} else if nameStr, ok := decl.name.(string); ok {
 				name = nameStr
+			} else if stringer, ok := decl.name.(fmt.Stringer); ok {
+				name = stringer.String()
 			} else {
-				name = fmt.Sprintf("%v", decl.name)
+				name = fmt.Sprint(decl.name)
 			}
 			
 			key := "$" + name
@@ -1408,8 +1430,10 @@ func (r *Ruleset) Find(selector any, self any, filter func(any) bool) []any {
 		key = sel.ToCSS()
 	} else if sel, ok := selector.(interface{ ToCSS(any) string }); ok {
 		key = sel.ToCSS(nil)
+	} else if stringer, ok := selector.(fmt.Stringer); ok {
+		key = stringer.String()
 	} else {
-		key = fmt.Sprintf("%v", selector)
+		key = fmt.Sprint(selector)
 	}
 
 	if cached, exists := r.lookups[key]; exists {
@@ -1809,7 +1833,14 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 		if gen, ok := rule.(interface{ GenCSS(any, *CSSOutput) }); ok {
 			gen.GenCSS(childContext, output)
 		} else if val, ok := rule.(interface{ GetValue() any }); ok {
-			output.Add(fmt.Sprintf("%v", val.GetValue()), nil, nil)
+			value := val.GetValue()
+			if s, ok := value.(string); ok {
+				output.Add(s, nil, nil)
+			} else if stringer, ok := value.(fmt.Stringer); ok {
+				output.Add(stringer.String(), nil, nil)
+			} else {
+				output.Add(fmt.Sprint(value), nil, nil)
+			}
 		}
 
 		ctx["lastRule"] = currentLastRule
@@ -2269,13 +2300,14 @@ func GetDebugInfo(context map[string]any, ruleset *Ruleset, separator string) st
 
 // asComment formats debug info as a CSS comment
 func asComment(lineNumber int, fileName string) string {
-	return fmt.Sprintf("/* line %d, %s */", lineNumber, fileName)
+	return "/* line " + strconv.Itoa(lineNumber) + ", " + fileName + " */"
 }
 
 // asMediaQuery formats debug info as a media query
 func asMediaQuery(lineNumber int, fileName string) string {
-	return fmt.Sprintf("@media -sass-debug-info{filename{font-family:file\\:\\/\\/%s}line{font-family:\\00003%d}}", 
-		strings.ReplaceAll(fileName, "/", "\\/"), lineNumber)
+	escapedFileName := strings.ReplaceAll(fileName, "/", "\\/")
+	return "@media -sass-debug-info{filename{font-family:file\\:\\/\\/" + escapedFileName +
+		"}line{font-family:\\00003" + strconv.Itoa(lineNumber) + "}}"
 }
 
 // Helper function to create debug context from ruleset

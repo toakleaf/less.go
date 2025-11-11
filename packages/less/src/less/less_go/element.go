@@ -290,8 +290,10 @@ func (e *Element) ToCSS(context any) string {
 		valueCSS = cssValue.ToCSS(ctx)
 	} else if strValue, ok := value.(string); ok {
 		valueCSS = strValue
+	} else if stringer, ok := value.(fmt.Stringer); ok {
+		valueCSS = stringer.String()
 	} else {
-		valueCSS = fmt.Sprintf("%v", value)
+		valueCSS = fmt.Sprint(value)
 	}
 
 	// Restore firstSelector
@@ -311,8 +313,10 @@ func (e *Element) ToCSS(context any) string {
 				if chunk != nil {
 					if strChunk, ok := chunk.(string); ok {
 						builder.WriteString(strChunk)
+					} else if stringer, ok := chunk.(fmt.Stringer); ok {
+						builder.WriteString(stringer.String())
 					} else {
-						builder.WriteString(fmt.Sprintf("%v", chunk))
+						builder.WriteString(fmt.Sprint(chunk))
 					}
 				}
 			},
