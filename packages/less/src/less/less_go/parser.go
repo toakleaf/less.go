@@ -444,7 +444,7 @@ func (p *Parser) parseInternal(str string, callback func(*LessError, *Ruleset), 
 	// Optionally disable @plugin parsing
 	if data.DisablePluginRule {
 		p.parsers.plugin = func() any {
-			dir := p.parserInput.Re(regexp.MustCompile(`^@plugin?\s+`))
+			dir := p.parserInput.Re(rePluginDirective)
 			if dir != nil {
 				p.error("@plugin statements are not allowed when disablePluginRule is set to true", "")
 			}
@@ -862,7 +862,7 @@ func (p *Parsers) Declaration() any {
 						if p.parser.parserInput.Char(';') != nil {
 							value = NewAnonymous("", 0, nil, false, false, nil)
 						} else {
-							value = p.PermissiveValue(regexp.MustCompile(`[;}]`), true)
+							value = p.PermissiveValue(reTermSemicolon, true)
 						}
 					}
 				}
@@ -957,7 +957,7 @@ func (e *EntityParsers) Variable() any {
 
 	e.parsers.parser.parserInput.Save()
 	if e.parsers.parser.parserInput.CurrentChar() == '@' {
-		nameMatch := e.parsers.parser.parserInput.Re(regexp.MustCompile(`^@@?[\w-]+`))
+		nameMatch := e.parsers.parser.parserInput.Re(reVariableAt)
 		if nameMatch != nil {
 			// Handle both string and []string cases
 			if matches, ok := nameMatch.([]string); ok {
@@ -980,7 +980,7 @@ func (e *EntityParsers) Variable() any {
 				e.parsers.parser.parserInput.Restore("")
 				e.parsers.parser.parserInput.Save()
 				// Re-parse the variable name
-				nameMatch = e.parsers.parser.parserInput.Re(regexp.MustCompile(`^@@?[\w-]+`))
+				nameMatch = e.parsers.parser.parserInput.Re(reVariableAt)
 				if nameMatch != nil {
 					// Handle both string and []string cases
 					if matches, ok := nameMatch.([]string); ok {
@@ -1011,7 +1011,7 @@ func (p *Parsers) RuleProperty() any {
 	p.parser.parserInput.Save()
 
 	// Simple property match first
-	simpleProperty := p.parser.parserInput.Re(regexp.MustCompile(`^([_a-zA-Z0-9-]+)\s*:`))
+	simpleProperty := p.parser.parserInput.Re(rePropertyName)
 	if simpleProperty != nil {
 		if matches, ok := simpleProperty.([]string); ok && len(matches) > 1 {
 			name = append(name, NewKeyword(matches[1]))
@@ -1035,17 +1035,17 @@ func (p *Parsers) RuleProperty() any {
 	}
 
 	// Match initial wildcard
-	match(regexp.MustCompile(`^(\*?)`))
+	match(reSelectorNamespace)
 
 	// Match property parts
 	for {
-		if !match(regexp.MustCompile(`^((?:[\w-]+)|(?:[@$]\{[\w-]+\}))`)) {
+		if !match(reSelectorNamePart) {
 			break
 		}
 	}
 
 	// Match merge indicator and colon
-	if len(name) > 1 && match(regexp.MustCompile(`^((?:\+_|\+)?)\s*:`)) {
+	if len(name) > 1 && match(reSelectorCombinator) {
 		p.parser.parserInput.Forget()
 
 		// Remove empty first element if present
@@ -1092,7 +1092,7 @@ func (p *Parsers) RuleProperty() any {
 // AnonymousValue parses anonymous values for performance
 func (p *Parsers) AnonymousValue() any {
 	index := p.parser.parserInput.GetIndex()
-	match := p.parser.parserInput.Re(regexp.MustCompile(`^([^.#@$+/'"*` + "`" + `(;{}-]*);`))
+	match := p.parser.parserInput.Re(reAnonymous)
 	if match != nil {
 		if matches, ok := match.([]string); ok && len(matches) > 1 {
 			return NewAnonymous(matches[1], index+p.parser.currentIndex, p.parser.fileInfo, false, false, nil)
@@ -1119,7 +1119,7 @@ func (p *Parsers) DetachedRuleset() any {
 
 	// Check for anonymous mixin syntax: .(@args) or #(@args)
 	// DR args currently only implemented for each() function
-	mixinMatch := p.parser.parserInput.Re(regexp.MustCompile(`^[.#]\(`))
+	mixinMatch := p.parser.parserInput.Re(reMixinCall)
 	if tracer.IsEnabled() {
 		tracer.TraceRegex("DetachedRuleset", "^[.#]\\(", mixinMatch != nil, mixinMatch)
 	}
@@ -1435,7 +1435,7 @@ func (p *Parsers) End() bool {
 // Variable parses variable declarations (@var:)
 func (p *Parsers) Variable() any {
 	if p.parser.parserInput.CurrentChar() == '@' {
-		name := p.parser.parserInput.Re(regexp.MustCompile(`^(@[\w-]+)\s*:`))
+		name := p.parser.parserInput.Re(reVariableAtName)
 		if name != nil {
 			if matches, ok := name.([]string); ok && len(matches) > 1 {
 				return matches[1] // Return just the variable name (e.g., "@my-color")
@@ -1482,7 +1482,7 @@ func (e *EntityParsers) Keyword() any {
 
 	k := e.parsers.parser.parserInput.Char('%')
 	if k == nil {
-		k = e.parsers.parser.parserInput.Re(regexp.MustCompile(`^\[?(?:[\w-]|\\(?:[A-Fa-f0-9]{1,6} ?|[^A-Fa-f0-9]))+\]?`))
+		k = e.parsers.parser.parserInput.Re(reEntityName)
 		tracer.TraceMode("Keyword: after regex", fmt.Sprintf("matched=%v, value=%v", k != nil, k), e.parsers.parser)
 	}
 
@@ -1510,7 +1510,7 @@ func (e *EntityParsers) VariableCurly() any {
 	index := e.parsers.parser.parserInput.GetIndex()
 
 	if e.parsers.parser.parserInput.CurrentChar() == '@' {
-		curly := e.parsers.parser.parserInput.Re(regexp.MustCompile(`^@\{([\w-]+)\}`))
+		curly := e.parsers.parser.parserInput.Re(reVariableAtCurly)
 		if curly != nil {
 			matches := curly.([]string)
 			if len(matches) > 1 {
@@ -1526,7 +1526,7 @@ func (e *EntityParsers) Property() any {
 	index := e.parsers.parser.parserInput.GetIndex()
 
 	if e.parsers.parser.parserInput.CurrentChar() == '$' {
-		name := e.parsers.parser.parserInput.Re(regexp.MustCompile(`^\$[\w-]+`))
+		name := e.parsers.parser.parserInput.Re(reVariableDollar)
 		if name != nil {
 			var nameStr string
 			if matches, ok := name.([]string); ok {
@@ -1545,7 +1545,7 @@ func (e *EntityParsers) PropertyCurly() any {
 	index := e.parsers.parser.parserInput.GetIndex()
 
 	if e.parsers.parser.parserInput.CurrentChar() == '$' {
-		curly := e.parsers.parser.parserInput.Re(regexp.MustCompile(`^\$\{([\w-]+)\}`))
+		curly := e.parsers.parser.parserInput.Re(reVariableDollarCurly)
 		if curly != nil {
 			matches := curly.([]string)
 			if len(matches) > 1 {
@@ -1561,7 +1561,7 @@ func (e *EntityParsers) Color() any {
 	e.parsers.parser.parserInput.Save()
 
 	if e.parsers.parser.parserInput.CurrentChar() == '#' {
-		rgb := e.parsers.parser.parserInput.Re(regexp.MustCompile(`^#([A-Fa-f0-9]{8}|[A-Fa-f0-9]{6}|[A-Fa-f0-9]{3,4})`))
+		rgb := e.parsers.parser.parserInput.Re(reColorHex)
 		if rgb != nil {
 			matches := rgb.([]string)
 			if len(matches) > 1 {
@@ -1585,7 +1585,7 @@ func (e *EntityParsers) Color() any {
 func (e *EntityParsers) ColorKeyword() any {
 	e.parsers.parser.parserInput.Save()
 	// Note: autoCommentAbsorb access would need to be implemented in ParserInput
-	k := e.parsers.parser.parserInput.Re(regexp.MustCompile(`^[_A-Za-z-][_A-Za-z0-9-]+`))
+	k := e.parsers.parser.parserInput.Re(reIdentifier)
 
 	if k == nil {
 		e.parsers.parser.parserInput.Forget()
@@ -1614,7 +1614,7 @@ func (e *EntityParsers) Dimension() any {
 		return nil
 	}
 
-	value := e.parsers.parser.parserInput.Re(regexp.MustCompile(`^([+-]?\d*\.?\d+)(%|[a-zA-Z_]+)?`))
+	value := e.parsers.parser.parserInput.Re(reDimension)
 	if value != nil {
 		matches := value.([]string)
 		var unit string
@@ -1629,7 +1629,7 @@ func (e *EntityParsers) Dimension() any {
 
 // UnicodeDescriptor parses unicode descriptors - U+0?? or U+00A1-00A9
 func (e *EntityParsers) UnicodeDescriptor() any {
-	ud := e.parsers.parser.parserInput.Re(regexp.MustCompile(`^U\+[0-9a-fA-F?]+(-[0-9a-fA-F?]+)?`))
+	ud := e.parsers.parser.parserInput.Re(reUnicodeRange)
 	if ud != nil {
 		var udStr string
 		if matches, ok := ud.([]string); ok {
@@ -1656,7 +1656,7 @@ func (e *EntityParsers) JavaScript() any {
 		return nil
 	}
 
-	js := e.parsers.parser.parserInput.Re(regexp.MustCompile("^[^`]*`"))
+	js := e.parsers.parser.parserInput.Re(reJavaScript)
 	if js != nil {
 		var jsStr string
 		if matches, ok := js.([]string); ok {
@@ -1736,7 +1736,7 @@ func (p *Parsers) VariableCall() any {
 	p.parser.parserInput.Save()
 
 	if p.parser.parserInput.CurrentChar() == '@' {
-		nameMatch := p.parser.parserInput.Re(regexp.MustCompile(`^(@[\w-]+)(\(\s*\))?`))
+		nameMatch := p.parser.parserInput.Re(reVariableCall)
 		if nameMatch != nil {
 			matches, ok := nameMatch.([]string)
 			if ok && len(matches) > 1 {
@@ -1799,7 +1799,7 @@ func (p *Parsers) AtRule() any {
 
 	p.parser.parserInput.Save()
 
-	nameMatch := p.parser.parserInput.Re(regexp.MustCompile(`^@[a-z-]+`))
+	nameMatch := p.parser.parserInput.Re(reVariableAtNameSimple)
 	if nameMatch == nil {
 		return nil
 	}
@@ -1847,7 +1847,7 @@ func (p *Parsers) AtRule() any {
 			p.parser.error(fmt.Sprintf("expected %s expression", name), "")
 		}
 	} else if hasUnknown {
-		value = p.PermissiveValue(regexp.MustCompile(`^[{;]`), false)
+		value = p.PermissiveValue(reTermBrace, false)
 		hasBlock = (p.parser.parserInput.CurrentChar() == '{')
 		if value == nil {
 			if !hasBlock && p.parser.parserInput.CurrentChar() != ';' {
@@ -1877,7 +1877,7 @@ func (p *Parsers) AtRule() any {
 // Important parses !important
 func (p *Parsers) Important() any {
 	if p.parser.parserInput.CurrentChar() == '!' {
-		result := p.parser.parserInput.Re(regexp.MustCompile(`^! *important`))
+		result := p.parser.parserInput.Re(reImportant)
 		if result != nil {
 			if matches, ok := result.([]string); ok {
 				return matches[0]
@@ -2038,11 +2038,11 @@ func (p *Parsers) Extend() []any {
 		for {
 			// Check for option (all or !all) followed by whitespace and closing paren or comma
 			p.parser.parserInput.Save()
-			optionMatch := p.parser.parserInput.Re(regexp.MustCompile(`^(!?all)`))
+			optionMatch := p.parser.parserInput.Re(reMediaAll)
 			if optionMatch != nil {
 				if matches, ok := optionMatch.([]string); ok && len(matches) > 1 {
 					// Check if followed by whitespace and ) or ,
-					p.parser.parserInput.Re(regexp.MustCompile(`^\s*`)) // Skip whitespace
+					p.parser.parserInput.Re(reWhitespace) // Skip whitespace
 					nextChar := p.parser.parserInput.CurrentChar()
 					if nextChar == ')' || nextChar == ',' {
 						option = matches[1]
@@ -2103,7 +2103,7 @@ func (p *Parsers) Extend() []any {
 		}
 	}
 
-	p.parser.expect(regexp.MustCompile(`^\)`), "")
+	p.parser.expect(reCloseParen, "")
 	return extendList
 }
 
@@ -2139,7 +2139,7 @@ func (p *Parsers) MediaFeature(syntaxOptions map[string]any) any {
 			conditionMatched := false
 			if prop == nil && syntaxOptions != nil {
 				if queryInParens, ok := syntaxOptions["queryInParens"].(bool); ok && queryInParens {
-					if p.parser.parserInput.Re(regexp.MustCompile(`^[0-9a-z-]*\s*([<>]=|<=|>=|[<>]|=)`)) != nil {
+					if p.parser.parserInput.Re(reOperatorCompare) != nil {
 						p.parser.parserInput.Restore("")
 						prop = p.Condition(false)
 
@@ -2251,7 +2251,7 @@ func (p *Parsers) Plugin() any {
 	var options map[string]any
 	index := p.parser.parserInput.GetIndex()
 
-	dir := p.parser.parserInput.Re(regexp.MustCompile(`^@plugin\s+`))
+	dir := p.parser.parserInput.Re(rePluginDirectiveStrict)
 	if dir == nil {
 		return nil
 	}
@@ -2292,7 +2292,7 @@ func (p *Parsers) PluginArgs() string {
 		return ""
 	}
 
-	args := p.parser.parserInput.Re(regexp.MustCompile(`^\s*([^);]+)\)\s*`))
+	args := p.parser.parserInput.Re(rePluginArgs)
 	if args != nil {
 		if matches, ok := args.([]string); ok && len(matches) > 1 {
 			p.parser.parserInput.Forget()
@@ -2393,7 +2393,7 @@ func (p *Parsers) Multiplication() any {
 	isSpaced = p.parser.parserInput.IsWhitespace(-1)
 
 	for {
-		if p.parser.parserInput.Peek(regexp.MustCompile(`^\/[*/]`)) {
+		if p.parser.parserInput.Peek(reCommentStart) {
 			break
 		}
 
@@ -2471,7 +2471,7 @@ func (p *Parsers) Addition() any {
 		// The regex requires at least one space AFTER the operator
 		// If there was space before (isSpaced), we need space after too
 		// If no space before, we can match bare operator
-		opMatch := p.parser.parserInput.Re(regexp.MustCompile(`^[-+]\s+`))
+		opMatch := p.parser.parserInput.Re(reOperatorSpaced)
 		if opMatch != nil {
 			// Handle both string and []string return types from parserInput.Re()
 			if matches, ok := opMatch.([]string); ok && len(matches) > 0 {
@@ -2526,7 +2526,7 @@ func (p *Parsers) Operand() any {
 	var negate bool
 	var o any
 
-	if p.parser.parserInput.Peek(regexp.MustCompile(`^-[@$(]`)) {
+	if p.parser.parserInput.Peek(reNegativeLookup) {
 		negate = p.parser.parserInput.Char('-') != nil
 	}
 
@@ -2579,7 +2579,7 @@ func (p *Parsers) Conditions() any {
 	}
 
 	for {
-		if !p.parser.parserInput.Peek(regexp.MustCompile(`^,\s*(not\s*)?\(`)) || p.parser.parserInput.Char(',') == nil {
+		if !p.parser.parserInput.Peek(reGuardCondition) || p.parser.parserInput.Char(',') == nil {
 			break
 		}
 		b = p.Condition(true)
@@ -2790,7 +2790,7 @@ func (p *Parsers) AtomicCondition(needsParens bool, preparsedCond any) any {
 
 // Property parses property names
 func (p *Parsers) Property() any {
-	name := p.parser.parserInput.Re(regexp.MustCompile(`^(\*?-?[_a-zA-Z0-9-]+)\s*:`))
+	name := p.parser.parserInput.Re(rePropertyNameFull)
 	if name != nil {
 		if matches, ok := name.([]string); ok && len(matches) > 1 {
 			return matches[1]
@@ -2879,7 +2879,7 @@ func (m *MixinParsers) Elements() []*Element {
 	var c byte
 	var elem *Element
 	var elemIndex int
-	re := regexp.MustCompile(`^[#.](?:[\w-]|\\(?:[A-Fa-f0-9]{1,6} ?|[^A-Fa-f0-9]))+`)
+	re := reSelector
 
 	for {
 		elemIndex = m.parsers.parser.parserInput.GetIndex()
@@ -2945,7 +2945,7 @@ func (p *Parsers) Expression() any {
 			entities = append(entities, e)
 
 			// Check for slash delimiter (for operations like font: 12px/1.5)
-			if !p.parser.parserInput.Peek(regexp.MustCompile(`^\/[*/]`)) {
+			if !p.parser.parserInput.Peek(reCommentStart) {
 				if p.parser.parserInput.Char('/') != nil {
 					entities = append(entities, NewAnonymous("/", index+p.parser.currentIndex, p.parser.fileInfo, false, false, nil))
 				}
@@ -2984,7 +2984,7 @@ func (p *Parsers) Import() any {
 	var features any
 	index := p.parser.parserInput.GetIndex()
 
-	dir := p.parser.parserInput.Re(regexp.MustCompile(`^@import\s+`))
+	dir := p.parser.parserInput.Re(reImportDirective)
 	if dir == nil {
 		return nil
 	}
@@ -3054,11 +3054,11 @@ func (p *Parsers) Element() any {
 	c = p.Combinator()
 
 	// Parse element value using patterns from JavaScript parser
-	e = p.parser.parserInput.Re(regexp.MustCompile(`^(?:\d+\.\d+|\d+)%`))
+	e = p.parser.parserInput.Re(rePercentage)
 	if e == nil {
 		// Match the JavaScript regex pattern, including @{} for variable interpolation
 		// IMPORTANT: [^\x00-\x9f] should NOT match & (0x26), but add @{} pattern to capture variable interpolation
-		e = p.parser.parserInput.Re(regexp.MustCompile(`^(?:[.#]?|:*)(?:[\w-]|@\{[\w-]+\}|[^\x00-\x9f]|\\(?:[A-Fa-f0-9]{1,6} ?|[^A-Fa-f0-9]))+`))
+		e = p.parser.parserInput.Re(reSelectorElement)
 		if e != nil && os.Getenv("LESS_GO_DEBUG_SELECTOR") == "1" {
 			fmt.Fprintf(os.Stderr, "DEBUG Element regex matched: %q\n", e)
 		}
@@ -3076,7 +3076,7 @@ func (p *Parsers) Element() any {
 		e = p.Attribute()
 	}
 	if e == nil {
-		e = p.parser.parserInput.Re(regexp.MustCompile(`^\([^&()@]+\)`))
+		e = p.parser.parserInput.Re(reSelectorParens)
 	}
 	if e == nil {
 		// Handle [.#:] followed by @ (for variable interpolation)
@@ -3084,7 +3084,7 @@ func (p *Parsers) Element() any {
 		if p.parser.parserInput.CurrentChar() == '.' || p.parser.parserInput.CurrentChar() == '#' || p.parser.parserInput.CurrentChar() == ':' {
 			nextChar := p.parser.parserInput.PeekChar(1)
 			if nextChar == '@' {
-				e = p.parser.parserInput.Re(regexp.MustCompile(`^[.#:]`))
+				e = p.parser.parserInput.Re(reSelectorPrefixes)
 			}
 		}
 	}
@@ -3156,13 +3156,13 @@ func (m *MixinParsers) Definition() any {
 	variadic := false
 
 	if (m.parsers.parser.parserInput.CurrentChar() != '.' && m.parsers.parser.parserInput.CurrentChar() != '#') ||
-		m.parsers.parser.parserInput.Peek(regexp.MustCompile(`^[^{]*\}`)) {
+		m.parsers.parser.parserInput.Peek(reMixinNamespace) {
 		return nil
 	}
 
 	m.parsers.parser.parserInput.Save()
 
-	match = m.parsers.parser.parserInput.Re(regexp.MustCompile(`^([#.](?:[\w-]|\\(?:[A-Fa-f0-9]{1,6} ?|[^A-Fa-f0-9]))+)\s*\(`))
+	match = m.parsers.parser.parserInput.Re(reSelectorMixin)
 	if match != nil {
 		if matches, ok := match.([]string); ok && len(matches) > 1 {
 			name = matches[1]
@@ -3269,7 +3269,7 @@ func (e *EntityParsers) Call() any {
 	index := e.parsers.parser.parserInput.GetIndex()
 
 	// Skip url() calls as they are handled separately - case insensitive
-	if e.parsers.parser.parserInput.Peek(regexp.MustCompile(`(?i)^url\(`)) {
+	if e.parsers.parser.parserInput.Peek(reFunctionURL) {
 		if tracer.IsEnabled() {
 			tracer.TraceResult("Call", nil, "skipped url()")
 		}
@@ -3281,7 +3281,7 @@ func (e *EntityParsers) Call() any {
 		tracer.TraceSaveRestore("Save", "Call", e.parsers.parser)
 	}
 
-	nameMatch := e.parsers.parser.parserInput.Re(regexp.MustCompile(`^([\w-]+|%|~|progid:[\w.]+)\(`))
+	nameMatch := e.parsers.parser.parserInput.Re(reFunctionName)
 	if tracer.IsEnabled() {
 		tracer.TraceRegex("Call", "^([\\w-]+|%|~|progid:[\\w.]+)\\(", nameMatch != nil, nameMatch)
 	}
@@ -3353,7 +3353,7 @@ func (e *EntityParsers) DeclarationCall() any {
 
 	e.parsers.parser.parserInput.Save()
 
-	validCallMatch := e.parsers.parser.parserInput.Re(regexp.MustCompile(`^[\w]+\(`))
+	validCallMatch := e.parsers.parser.parserInput.Re(reCallValid)
 	if validCallMatch == nil {
 		e.parsers.parser.parserInput.Forget()
 		return nil
@@ -3418,7 +3418,7 @@ func (e *EntityParsers) URL() any {
 		value = e.Property()
 	}
 	if value == nil {
-		urlMatch := e.parsers.parser.parserInput.Re(regexp.MustCompile(`^(?:(?:\\[()'""])|[^()'""])+`))
+		urlMatch := e.parsers.parser.parserInput.Re(reURLContent)
 		if urlMatch != nil {
 			if matches, ok := urlMatch.([]string); ok {
 				value = matches[0]
@@ -3462,7 +3462,7 @@ func (p *Parsers) ImportOptions() map[string]any {
 	options := make(map[string]any)
 
 	for {
-		opt := p.parser.parserInput.Re(regexp.MustCompile(`^(less|css|multiple|once|inline|reference|optional)`))
+		opt := p.parser.parserInput.Re(reImportOptions)
 		if opt != nil {
 			optionName := ""
 			value := true
@@ -3539,7 +3539,7 @@ func (p *Parsers) Combinator() *Combinator {
 
 	if c == '/' {
 		p.parser.parserInput.Save()
-		slashedCombinator := p.parser.parserInput.Re(regexp.MustCompile(`^\/[a-z]+\/`))
+		slashedCombinator := p.parser.parserInput.Re(reCombinatorSlashed)
 		if slashedCombinator != nil {
 			p.parser.parserInput.Forget()
 			if matches, ok := slashedCombinator.([]string); ok {
@@ -3589,7 +3589,7 @@ func (p *Parsers) Attribute() any {
 
 	key = entities.VariableCurly()
 	if key == nil {
-		keyMatch := p.parser.parserInput.Re(regexp.MustCompile(`^(?:[_A-Za-z0-9-*]*\|)?(?:[_A-Za-z0-9-]|\\.)+`))
+		keyMatch := p.parser.parserInput.Re(reSelectorAttribute)
 		if keyMatch != nil {
 			if matches, ok := keyMatch.([]string); ok && len(matches) > 0 {
 				key = matches[0]
@@ -3599,7 +3599,7 @@ func (p *Parsers) Attribute() any {
 		}
 	}
 
-	opMatch := p.parser.parserInput.Re(regexp.MustCompile(`^[|~*$^]?=`))
+	opMatch := p.parser.parserInput.Re(reOperatorAttr)
 	if opMatch != nil {
 		if matches, ok := opMatch.([]string); ok && len(matches) > 0 {
 			op = matches[0]
@@ -3608,16 +3608,16 @@ func (p *Parsers) Attribute() any {
 		}
 		val = entities.Quoted(false)
 		if val == nil {
-			val = p.parser.parserInput.Re(regexp.MustCompile(`^[0-9]+%`))
+			val = p.parser.parserInput.Re(rePercentSimple)
 		}
 		if val == nil {
-			val = p.parser.parserInput.Re(regexp.MustCompile(`^[\w-]+`))
+			val = p.parser.parserInput.Re(reWordIdent)
 		}
 		if val == nil {
 			val = entities.VariableCurly()
 		}
 		if val != nil {
-			cifMatch := p.parser.parserInput.Re(regexp.MustCompile(`^[iIsS]`))
+			cifMatch := p.parser.parserInput.Re(reCaseFlag)
 			if cifMatch != nil {
 				if matches, ok := cifMatch.([]string); ok && len(matches) > 0 {
 					cif = matches[0]
@@ -3863,7 +3863,7 @@ func (m *MixinParsers) LookupValue() *string {
 		return nil
 	}
 
-	nameMatch := m.parsers.parser.parserInput.Re(regexp.MustCompile(`^(?:[@$]{0,2})[_a-zA-Z0-9-]*`))
+	nameMatch := m.parsers.parser.parserInput.Re(reNamePrefix)
 	name := ""
 	if nameMatch != nil {
 		// Re() returns a string when there's only one match (no capture groups)
@@ -3987,14 +3987,14 @@ func (e *EntityParsers) Assignment() any {
 	e.parsers.parser.parserInput.Save()
 
 	// Instead of using positive lookahead (?=\s?=), parse the word and check for = separately
-	key := e.parsers.parser.parserInput.Re(regexp.MustCompile(`^\w+`))
+	key := e.parsers.parser.parserInput.Re(reKeyword)
 	if key == nil {
 		e.parsers.parser.parserInput.Restore("")
 		return nil
 	}
 
 	// Skip optional whitespace and check for equals sign
-	e.parsers.parser.parserInput.Re(regexp.MustCompile(`^\s*`)) // Skip whitespace
+	e.parsers.parser.parserInput.Re(reWhitespace) // Skip whitespace
 	if e.parsers.parser.parserInput.Char('=') == nil {
 		e.parsers.parser.parserInput.Restore("")
 		return nil
@@ -4016,12 +4016,12 @@ func (e *EntityParsers) Assignment() any {
 
 // IeAlpha parses IE alpha function
 func (p *Parsers) IeAlpha() []any {
-	if p.parser.parserInput.Re(regexp.MustCompile(`^opacity=`)) == nil {
+	if p.parser.parserInput.Re(reAlphaOpacity) == nil {
 		return nil
 	}
 	
 	// First try to parse a number
-	value := p.parser.parserInput.Re(regexp.MustCompile(`^\d+`))
+	value := p.parser.parserInput.Re(reNumber)
 	var valueStr string
 	
 	if value != nil {

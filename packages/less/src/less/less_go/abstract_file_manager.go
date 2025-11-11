@@ -3,7 +3,6 @@ package less_go
 import (
 	"fmt"
 	"os"
-	"regexp"
 	"strings"
 )
 
@@ -39,8 +38,7 @@ func (afm *AbstractFileManager) GetPath(filename string) string {
 }
 
 func (afm *AbstractFileManager) TryAppendExtension(path, ext string) string {
-	re := regexp.MustCompile(`(\.[a-z]*$)|([?;].*)$`)
-	if re.MatchString(path) {
+	if reFileExtension.MatchString(path) {
 		return path
 	}
 	return path + ext
@@ -59,8 +57,7 @@ func (afm *AbstractFileManager) AlwaysMakePathsAbsolute() bool {
 }
 
 func (afm *AbstractFileManager) IsPathAbsolute(filename string) bool {
-	re := regexp.MustCompile(`(?i)^(?:[a-z-]+:|\/|\\|#)`)
-	return re.MatchString(filename)
+	return reAbsolutePath.MatchString(filename)
 }
 
 func (afm *AbstractFileManager) Join(basePath, laterPath string) string {
@@ -137,9 +134,7 @@ func (afm *AbstractFileManager) PathDiff(url, baseURL string) string {
 }
 
 func (afm *AbstractFileManager) ExtractURLParts(url, baseURL string) (*URLParts, error) {
-	urlPartsRegex := regexp.MustCompile(`(?i)^((?:[a-z-]+:)?\/{2}(?:[^/?#]*\/)|([/\\]))?((?:[^/\\?#]*[/\\])*)([^/\\?#]*)([#?].*)?$`)
-
-	urlParts := urlPartsRegex.FindStringSubmatch(url)
+	urlParts := reURLParts.FindStringSubmatch(url)
 	if urlParts == nil {
 		return nil, &URLParseError{URL: url}
 	}
@@ -151,7 +146,7 @@ func (afm *AbstractFileManager) ExtractURLParts(url, baseURL string) (*URLParts,
 
 	// Stylesheets in IE don't always return the full path
 	if baseURL != "" && (urlParts[1] == "" || urlParts[2] != "") {
-		baseURLParts = urlPartsRegex.FindStringSubmatch(baseURL)
+		baseURLParts = reURLParts.FindStringSubmatch(baseURL)
 		if baseURLParts == nil {
 			return nil, &BaseURLParseError{BaseURL: baseURL}
 		}

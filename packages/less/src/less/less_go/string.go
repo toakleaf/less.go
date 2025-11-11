@@ -271,7 +271,7 @@ func Format(stringArg interface{}, args ...interface{}) (*Quoted, error) {
 	result := stringVal
 	
 	// Replace placeholders sequentially, matching JavaScript behavior exactly
-	re := regexp.MustCompile(`%[sdaSDA]`)
+	re := reStringFormat
 	argIndex := 0
 	
 	result = re.ReplaceAllStringFunc(result, func(match string) string {
