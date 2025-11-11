@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // Node represents a base node in the Less AST
@@ -26,18 +27,29 @@ func (n *Node) GenCSSSourceMap(context map[string]any, output *SourceMapOutput) 
 	// Default implementation for source map generation - most nodes will override this
 }
 
-// NewNode creates a new Node instance
+// nodePool is a sync.Pool for reusing Node instances to reduce allocations
+var nodePool = sync.Pool{
+	New: func() interface{} {
+		return &Node{}
+	},
+}
+
+// NewNode creates a new Node instance, potentially reusing from pool
 func NewNode() *Node {
-	return &Node{
-		Parent:          nil,
-		VisibilityBlocks: nil,
-		NodeVisible:     nil,
-		RootNode:        nil,
-		Parsed:          nil,
-		Value:           nil,
-		Index:           0,
-		fileInfo:        nil, // Lazily initialized only when needed
-	}
+	n := nodePool.Get().(*Node)
+	// Reset all fields to zero values
+	n.Parent = nil
+	n.VisibilityBlocks = nil
+	n.NodeVisible = nil
+	n.RootNode = nil
+	n.Parsed = nil
+	n.Value = nil
+	n.Index = 0
+	n.fileInfo = nil
+	n.Parens = false
+	n.ParensInOp = false
+	n.TypeIndex = 0
+	return n
 }
 
 // SetParent sets the parent for one or more nodes

@@ -116,7 +116,7 @@ func (iv *ImportVisitor) VisitImport(importNode any, visitArgs *VisitArgs) {
 		// Create context with copied frames - matches JavaScript
 		// Pass parent context properties (including importMultiple) to child
 		frames := CopyArray(iv.context.Frames)
-		context := NewEval(iv.context.ToMap(), frames)
+		context := NewEvalFromEval(iv.context, frames)
 		
 		var importParent any
 		if len(context.Frames) > 0 {
