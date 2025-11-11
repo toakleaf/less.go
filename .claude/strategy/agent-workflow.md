@@ -83,12 +83,25 @@ pnpm -w test:go:filter -- "import-reference"
 Use the debugging tools:
 
 ```bash
-# Trace execution to understand the flow
-LESS_GO_TRACE=1 pnpm -w test:go:filter -- "import-reference"
+# Run the specific failing test with verbose output
+go test -v -run TestIntegrationSuite/main/import-reference
 
-# Enhanced debugging
-LESS_GO_DEBUG=1 LESS_GO_DIFF=1 pnpm -w test:go:filter -- "import-reference"
+# Trace execution to understand the flow
+LESS_GO_TRACE=1 go test -v -run TestIntegrationSuite/main/import-reference
+
+# Enhanced debugging with diffs
+LESS_GO_DEBUG=1 LESS_GO_DIFF=1 go test -v -run TestIntegrationSuite/main/import-reference
+
+# Get summary to see categorization
+LESS_GO_QUIET=1 pnpm -w test:go 2>&1 | tail -100
 ```
+
+**Available Debug Environment Variables:**
+- `LESS_GO_QUIET=1` - Suppress individual test output, show only summary
+- `LESS_GO_DEBUG=1` - Show enhanced debugging info
+- `LESS_GO_DIFF=1` - Show side-by-side CSS diffs
+- `LESS_GO_TRACE=1` - Show evaluation trace (for runtime debugging)
+- `LESS_GO_JSON=1` - Output results as JSON
 
 Compare with JavaScript implementation:
 1. Find the relevant JS file in `packages/less/src/less/`
@@ -118,33 +131,46 @@ Make focused changes:
 Run tests in this exact order:
 
 ```bash
-# 1. Verify the specific test now passes
-pnpm -w test:go:filter -- "import-reference"
+# 1. Verify the specific test now passes (run individual test)
+go test -v -run TestIntegrationSuite/main/import-reference
 # Expected: ✅ Test passes or shows significant improvement
 
 # 2. Run ALL unit tests (catch regressions) - REQUIRED
 pnpm -w test:go:unit
 # Expected: ✅ All unit tests pass (no failures)
 
-# 3. Run FULL integration test suite - REQUIRED
-pnpm -w test:go
+# 3. Run FULL integration test suite with summary - REQUIRED
+LESS_GO_QUIET=1 pnpm -w test:go 2>&1 | tail -100
 # Expected: No new failures, ideally improved results
 
-# 4. Check overall integration test summary
-pnpm -w test:go:summary
-# Expected: Success rate improved or stayed same
+# 4. Review the categorized test summary
+# Look for these key metrics:
+# - Perfect CSS Matches should increase (or stay same)
+# - Compilation Failures should decrease (or stay same)
+# - Overall Success Rate should improve (or stay same)
 ```
 
+**Reading the Test Summary:**
+
+The summary shows categorized results:
+- ✅ **Perfect CSS Matches** - Your fix should increase this count
+- ❌ **Compilation Failures** - Should not increase
+- ⚠️ **Output Differences** - May decrease if your fix improved CSS output
+- ✅ **Correctly Failed** - Error tests working correctly
+- ⚠️ **Expected Error** - Error tests that need fixing
+
 **Success Criteria** (ALL must be met):
-- ✅ Target test(s) now pass or show improvement
+- ✅ Target test(s) now show in "Perfect CSS Matches" category
 - ✅ **ALL unit tests still pass (zero failures)**
-- ✅ **ALL integration tests run without new failures**
-- ✅ No previously passing integration tests now fail
+- ✅ **Perfect CSS Matches count increased or stayed same**
+- ✅ **Compilation Failures count did not increase**
 - ✅ Overall success rate increased (or at minimum, stayed same)
 
-**IMPORTANT**: If ANY unit test fails or ANY previously passing integration test now fails, you MUST fix the regression before proceeding. Do NOT create a PR with regressions.
+**IMPORTANT**: If ANY unit test fails or the "Perfect CSS Matches" count decreased, you MUST fix the regression before proceeding. Do NOT create a PR with regressions.
 
 If validation fails, iterate on Steps 6-8 until all criteria are met.
+
+**Pro tip**: Use `LESS_GO_DIFF=1 pnpm -w test:go` to see detailed diffs for any remaining failures.
 
 ### Step 9: Commit Changes
 
@@ -216,18 +242,31 @@ The `reference` option wasn't being properly preserved during import processing.
 ## Validation
 ```bash
 # Specific tests now pass
-pnpm -w test:go:filter -- "import-reference"
+go test -v -run TestIntegrationSuite/main/import-reference
 ✅ import-reference: Perfect match!
+go test -v -run TestIntegrationSuite/main/import-reference-issues
 ✅ import-reference-issues: Perfect match!
 
 # All unit tests pass
 pnpm -w test:go:unit
 ✅ All tests pass
 
-# Overall improvement
-pnpm -w test:go:summary
-📈 Success rate: 38.4% → 39.5% (+1.1%)
-📈 Perfect matches: 14 → 16 (+2)
+# Integration test summary shows improvement
+LESS_GO_QUIET=1 pnpm -w test:go 2>&1 | tail -100
+
+📊 INTEGRATION TEST SUMMARY - Quick Stats
+================================================================================
+
+OVERALL SUCCESS: 144/184 tests (78.3%)
+
+✅ Perfect CSS Matches:       82  (44.6% of active tests) ⬆️ +2
+❌ Compilation Failures:       3  (1.6% of active tests)
+⚠️  Output Differences:        10  (5.4% of active tests) ⬇️ -2
+✅ Correctly Failed (Error):  62  (33.7% of active tests)
+⚠️  Expected Error:            27  (14.7% of active tests)
+
+📈 Success rate improved: 77.2% → 78.3% (+1.1%)
+📈 Perfect matches increased: 80 → 82 (+2)
 ```
 
 ## JavaScript Comparison

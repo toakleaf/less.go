@@ -43,15 +43,81 @@ When working on this project, please be aware of the following:
    - JavaScript tests use Vitest framework
    - Go tests should verify ported functionality matches JavaScript behavior
 
-4. **Current Integration Test Status** (as of 2025-11-10 - Latest Verified Measurement):
-   - **79 perfect CSS matches (42.9%)** - EXCELLENT PROGRESS! ✅
+4. **How to Use Integration Tests Effectively**:
+
+   The integration test suite (`packages/less/src/less/less_go/integration_suite_test.go`) provides comprehensive coverage
+   of LESS compilation with structured, LLM-friendly output.
+
+   **Quick Start Commands:**
+   ```bash
+   # Get summary with minimal output (recommended for LLMs)
+   LESS_GO_QUIET=1 pnpm -w test:go 2>&1 | tail -100
+
+   # Get full verbose output with individual test results
+   pnpm -w test:go
+
+   # Get JSON output for programmatic analysis
+   LESS_GO_JSON=1 LESS_GO_QUIET=1 pnpm -w test:go
+
+   # Debug a specific test with detailed information
+   LESS_GO_DEBUG=1 go test -v -run TestIntegrationSuite/<suite>/<testname>
+
+   # See CSS diffs for failing tests
+   LESS_GO_DIFF=1 pnpm -w test:go
+   ```
+
+   **Understanding Test Categories:**
+
+   The tests are automatically categorized into:
+
+   - ✅ **Perfect CSS Matches** - Tests that compile and produce identical CSS to less.js (GOAL!)
+   - ❌ **Compilation Failures** - Tests that fail to compile (parser/runtime errors) [HIGHEST PRIORITY]
+   - ⚠️ **Output Differences** - Tests that compile but produce different CSS [MEDIUM PRIORITY]
+   - ✅ **Correctly Failed** - Error tests that properly fail as expected (working correctly)
+   - ⚠️ **Expected Error** - Error tests that should fail but succeed [LOW PRIORITY]
+   - ⏸️ **Quarantined** - Plugin/JS features not yet implemented (not counted in totals)
+
+   **Reading Test Output:**
+
+   The test summary provides:
+   1. **Quick Stats** - Overall success rate, compilation rate, percentages for each category
+   2. **Detailed Results** - Tests grouped by suite, easy to identify which areas need work
+   3. **Next Steps** - Prioritized action items with test counts per suite
+   4. **Quick Commands** - Copy-paste commands for further analysis
+
+   **How to Update Test Status Documentation:**
+
+   When test results change significantly (e.g., fixing tests, regressions):
+   1. Run `LESS_GO_QUIET=1 pnpm -w test:go 2>&1 | tail -100` to get the summary
+   2. Update the "Current Integration Test Status" section below with new numbers
+   3. Add/update bullet points in "Recent Progress" for any newly fixed tests
+   4. Verify "NO REGRESSIONS" by checking that perfect match count hasn't decreased
+   5. Update the date in the section header to today's date
+
+   **Detecting Regressions:**
+
+   Compare the current "Perfect CSS Matches" count with the documented count below.
+   - If count decreases: REGRESSION - investigate immediately
+   - If count increases: PROGRESS - update documentation
+   - If compilation failures increase: REGRESSION - investigate immediately
+
+   **Environment Variables Reference:**
+   - `LESS_GO_QUIET=1` - Suppress individual test output, show only summary
+   - `LESS_GO_DEBUG=1` - Show enhanced debugging info and full test lists
+   - `LESS_GO_DIFF=1` - Show side-by-side CSS diffs for failing tests
+   - `LESS_GO_JSON=1` - Output results as JSON for programmatic parsing
+   - `LESS_GO_STRICT=1` - Fail tests on any output difference (useful for CI)
+   - `LESS_GO_TRACE=1` - Show evaluation trace (for debugging specific issues)
+
+5. **Current Integration Test Status** (as of 2025-11-10 - Latest Verified Measurement):
+   - **80 perfect CSS matches (43.5%)** - EXCELLENT PROGRESS! ✅
    - **3 compilation failures (1.6%)** - All external (network/packages) - expected
-   - **26 correct error handling (26 tests)** - tests that should fail, do fail correctly
-   - **13 tests with CSS output differences (7.1%)** - compiles but CSS doesn't match
-   - **20 incorrect error handling (10.9%)** - tests that should error but succeed
-   - **Overall Success Rate: 57.1%** ✅ (105/184 tests perfect matches or correctly erroring)
+   - **62 correct error handling (33.7%)** - tests that should fail, do fail correctly
+   - **12 tests with CSS output differences (6.5%)** - compiles but CSS doesn't match
+   - **27 incorrect error handling (14.7%)** - tests that should error but succeed
+   - **Overall Success Rate: 77.2%** ✅ (142/184 tests perfect matches or correctly erroring)
    - **Compilation Rate: 98.4%** (181/184 tests compile successfully)
-   - **Perfect CSS Match Rate: 42.9%**
+   - **Perfect CSS Match Rate: 43.5%**
    - **✅ NO REGRESSIONS** - All previously passing tests still passing (including extend-chaining)
 
    **🎉 Parser Status: ALL BUGS FIXED!**
