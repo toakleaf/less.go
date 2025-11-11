@@ -341,6 +341,8 @@ func (v *Visitor) Visit(node any) any {
 		visitOutFunc = v.visitOutCache[nodeTypeIndex]
 	} else {
 		// Build visit functions without reflection for known visitor types
+		// This is a more comprehensive optimization than the previous approach which only
+		// optimized 4 hot-path node types. We now optimize all visitor types and all their methods.
 		visitFunc, visitOutFunc = v.buildVisitFunctions(nodeType)
 
 		// Cache the functions
