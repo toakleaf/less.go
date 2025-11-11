@@ -85,7 +85,7 @@ func NewRuleset(selectors []any, rules []any, strictImports bool, visibilityInfo
 		Rules:         rules,
 		StrictImports: strictImports,
 		AllowRoot:     true,
-		lookups:       make(map[string][]any, 4),
+		lookups:       nil, // Lazily initialized when first used
 		variables:     nil,
 		properties:    nil,
 		rulesets:      nil,
@@ -1500,7 +1500,11 @@ func (r *Ruleset) Find(selector any, self any, filter func(any) bool) []any {
 			}
 		}
 	}
-	
+
+	// Lazily initialize lookups map
+	if r.lookups == nil {
+		r.lookups = make(map[string][]any, 4)
+	}
 	r.lookups[key] = rules
 	return rules
 }
