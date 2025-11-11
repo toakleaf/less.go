@@ -1592,7 +1592,8 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 	
 	// Organize rules by type like JavaScript version
 	var charsetRuleNodes []any
-	var ruleNodes []any
+	// Pre-allocate ruleNodes with capacity of Rules length to avoid reallocation
+	ruleNodes := make([]any, 0, len(r.Rules))
 
 	var charsetNodeIndex int = 0
 	var importNodeIndex int = 0
