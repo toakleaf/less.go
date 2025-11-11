@@ -46,14 +46,28 @@ pnpm bench:go:eval           # Skipped - can't separate phases
 ## Quick Comparison
 
 1. Run: `pnpm bench:compare`
-2. Note the JavaScript average time
-3. Note the Go ns/op time (convert to ms)
-4. Compare!
+2. Look at the comparison table
+3. Check the performance verdict
+4. If Go is significantly slower, run profiling
 
-Example:
-- JS: 1.34ms average
-- Go: 549,660,616 ns/op = ~550ms for all 73 files = ~7.5ms per file
-- Result: JS faster for small files, Go might be faster for large batches
+## Profiling (Find Bottlenecks)
+
+```bash
+pnpm bench:profile
+```
+
+This shows:
+- Top functions by CPU time
+- Top functions by memory allocation
+- Allocation hotspots
+
+Use this to identify optimization opportunities.
+
+## Why is Go Slower?
+
+**Short answer**: Excessive allocations (~47k per file)
+
+**See**: `.claude/benchmarks/PERFORMANCE_ANALYSIS.md` for detailed analysis
 
 ## Files
 

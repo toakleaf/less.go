@@ -159,6 +159,26 @@ go test -bench=BenchmarkLessCompilation/main/colors ./packages/less/src/less/les
 
 Both benchmarks test the **exact same files** with the **exact same options** for fair comparison.
 
+## Performance Analysis
+
+**Q: Is Go compilation time included in the benchmark?**
+**A: No.** The Go benchmark uses `b.ResetTimer()` which excludes all compilation and setup time.
+
+**Q: Why is Go 8-10x slower?**
+**A: Primarily excessive allocations (~47,000 per file).** The port is unoptimized and uses reflection heavily. See detailed analysis:
+- 📄 [`.claude/benchmarks/PERFORMANCE_ANALYSIS.md`](./.claude/benchmarks/PERFORMANCE_ANALYSIS.md)
+
+**Q: How can I find the bottlenecks?**
+**A: Use profiling:**
+```bash
+pnpm bench:profile
+```
+
+This will show CPU hot spots, memory allocations, and allocation hotspots.
+
+**Q: Is this performance acceptable?**
+**A: Yes, for an unoptimized port.** Focus is on correctness first (✅ 80+ tests passing), then optimization. With targeted optimization, Go can match or exceed JavaScript performance.
+
 ## Contributing
 
 When sharing benchmark results, please include:
