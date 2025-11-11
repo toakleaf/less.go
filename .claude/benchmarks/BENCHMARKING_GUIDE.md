@@ -25,7 +25,7 @@ This runs both JavaScript and Go benchmarks and displays a comprehensive compari
 - **Memory statistics**: Go's memory usage and allocation counts
 - **Recommendations**: Actionable optimization suggestions if performance gaps are significant
 
-The comparison tool automatically normalizes the metrics (JS measures per-file, Go measures batches) so you get apples-to-apples comparison.
+**Fair Comparison Methodology**: Both implementations benchmark each test file individually using identical methodology, ensuring true apples-to-apples comparison.
 
 ### Run Individual Benchmarks
 
@@ -43,11 +43,11 @@ pnpm bench:js:json
 
 **Go benchmarks:**
 ```bash
-# Full compilation (parse + eval) - recommended for comparison
-pnpm bench:go:suite
-
-# Individual test benchmarks (more detailed, slower)
+# Individual file benchmarks - used by pnpm bench:compare for fair comparison
 pnpm bench:go
+
+# Batch suite benchmark (all files in one run, faster but less granular)
+pnpm bench:go:suite
 
 # Parse-only benchmarks
 pnpm bench:go:parse
@@ -58,28 +58,33 @@ pnpm bench:go:eval
 
 ## Benchmark Types
 
-### 1. Full Suite Benchmark (Recommended for Overall Comparison)
+### 1. Individual File Benchmarks (Recommended for Fair Comparison)
 
 **JavaScript:** `pnpm bench:js`
-**Go:** `pnpm bench:go:suite`
+**Go:** `pnpm bench:go`
+**Comparison:** `pnpm bench:compare` (uses both of the above)
 
-Runs all test files in a batch, providing overall statistics:
-- Average, median, min, max times
-- Variation and standard deviation
-- Separate timing for parse and eval phases
-
-**Best for:** Getting an overall sense of performance differences.
-
-### 2. Individual Test Benchmarks (Detailed Analysis)
-
-**Go only:** `pnpm bench:go`
-
-Runs benchmarks on each test file individually using Go's built-in benchmark framework.
+Runs benchmarks on each test file individually:
+- JavaScript: 30 iterations per file (5 warmup + 25 measured)
+- Go: Auto-determined iterations per file via `testing.B` framework
+- Provides per-file statistics and overall averages
 
 **Best for:**
+- Fair apples-to-apples comparison between JS and Go
 - Identifying specific files that are slower/faster
 - Memory profiling with `-benchmem`
 - CPU profiling with `-cpuprofile`
+
+### 2. Batch Suite Benchmark (Faster, Less Granular)
+
+**Go only:** `pnpm bench:go:suite`
+
+Runs all test files as one large batch, providing overall statistics:
+- Lower benchmark framework overhead
+- Faster execution
+- Good for quick performance checks
+
+**Best for:** Quick overall performance snapshots (not used for JS/Go comparison)
 
 ### 3. Phase-Specific Benchmarks
 
