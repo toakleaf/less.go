@@ -22,13 +22,17 @@ This runs both JavaScript and Go benchmarks and displays a clear side-by-side co
 ║              LESS.JS vs LESS.GO PERFORMANCE COMPARISON                       ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 
+Test Files: 73
+Go warm benchmarked: 72, Go cold benchmarked: 72
+
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ 🥶 COLD START PERFORMANCE (1st iteration, no warmup)                        │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                    │  JavaScript  │      Go      │   Difference             │
 ├────────────────────┼──────────────┼──────────────┼──────────────────────────┤
-│ Per File (avg)     │ 502.15µs     │ 4.12ms       │ Go 8.2x slower           │
-│ All Files (total)  │ 36.66ms      │ 300.76ms     │ Go 8.2x slower           │
+│ Per File (avg)     │ 993.37µs     │ 930.77µs     │ Similar (~6.3%)          │
+│ Per File (median)  │ 546.48µs     │ 484.29µs     │ Similar (~11.4%)         │
+│ All Files (total)  │ 71.52ms      │ 67.02ms      │ Similar (~6.3%)          │
 └────────────────────┴──────────────┴──────────────┴──────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -36,16 +40,27 @@ This runs both JavaScript and Go benchmarks and displays a clear side-by-side co
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                    │  JavaScript  │      Go      │   Difference             │
 ├────────────────────┼──────────────┼──────────────┼──────────────────────────┤
-│ Per File (avg)     │ 446.32µs     │ 3.62ms       │ Go 8.1x slower           │
-│ All Files (total)  │ 32.58ms      │ 264.06ms     │ Go 8.1x slower           │
+│ Per File (avg)     │ 428.03µs     │ 882.52µs     │ Go 2.1x slower           │
+│ Per File (median)  │ 232.29µs     │ 441.15µs     │ Go 1.9x slower           │
+│ All Files (total)  │ 31.25ms      │ 63.54ms      │ Go 2.0x slower           │
 └────────────────────┴──────────────┴──────────────┴──────────────────────────┘
 
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ MEMORY & ALLOCATIONS (Go only, averaged per file)                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Memory per file:         0.56 MB                                              │
+│ Allocations per file:    10,296 allocations                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
 🔥 WARM PERFORMANCE (primary comparison metric):
-   🐌 Go is 8.1x SLOWER than JavaScript (warm)
+   🐌 Go is 2.1x SLOWER than JavaScript (warm)
+
+🥶 COLD START PERFORMANCE:
+   ⚖️  Cold-start performance is SIMILAR (within 20%)
 
 📈 WARMUP EFFECT:
-   JavaScript: 11.1% faster after warmup
-   Go:         12.1% faster after warmup
+   JavaScript: 56.9% faster after warmup
+   Go:         5.2% faster after warmup
 ```
 
 ### Run Individual Benchmarks
@@ -211,8 +226,8 @@ The comparison script (`pnpm bench:compare`) runs both warm and cold-start bench
 - JavaScript's JIT needs warmup to reach peak performance, Go doesn't
 - Both metrics matter: warm for long-running processes, cold for CLI tools
 
-**Q: Why is Go currently 8-10x slower (warm)?**
-**A: Primarily excessive allocations (~47,000 per file).** The port is unoptimized and uses reflection heavily. See detailed analysis:
+**Q: Why is Go currently 2.1x slower (warm)?**
+**A: Primarily allocations (~10,300 per file) and reflection usage.** The port has been significantly optimized but still has room for improvement. Recent optimizations have reduced allocations by ~78% and improved speed by ~4x. See detailed analysis:
 - 📄 [`.claude/benchmarks/PERFORMANCE_ANALYSIS.md`](./.claude/benchmarks/PERFORMANCE_ANALYSIS.md)
 
 **Q: How can I find the bottlenecks?**
@@ -224,7 +239,13 @@ pnpm bench:profile
 This will show CPU hot spots, memory allocations, and allocation hotspots.
 
 **Q: Is this performance acceptable?**
-**A: Yes, for an unoptimized port.** Focus is on correctness first (✅ 80+ tests passing), then optimization. With targeted optimization, Go can match or exceed JavaScript performance, especially for cold-start scenarios where Go's AOT compilation is advantageous.
+**A: Yes, and improving rapidly!** Recent optimizations (#229-#233) have achieved:
+- ✅ **78% reduction** in memory allocations (47k → 10.3k per file)
+- ✅ **4x performance improvement** (8.1x slower → 2.1x slower warm)
+- ✅ **Cold-start parity** with JavaScript (actually slightly faster!)
+- ✅ **80+ tests passing** with identical CSS output
+
+With continued targeted optimization, Go can match or exceed JavaScript warm performance while maintaining its cold-start advantage.
 
 ## Contributing
 
