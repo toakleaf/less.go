@@ -25,6 +25,7 @@
     "bench:js:json": "node packages/less/benchmark/suite.js --json",
     "bench:compare": "node scripts/bench-compare.js",
     "bench:profile": "bash scripts/profile-benchmark.sh",
+    "bench:find-regex": "bash scripts/find-regex-hotspots.sh",
     "postinstall": "npx only-allow pnpm"
   },
   "author": "Alexis Sellier <self@cloudhead.net>",
