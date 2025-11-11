@@ -3,7 +3,6 @@ package less_go
 import (
 	"fmt"
 	"os"
-	"regexp"
 	"strings"
 )
 
@@ -59,8 +58,7 @@ func (u *URL) fileInfo() map[string]any {
 
 // escapePath escapes special characters in a path
 func escapePath(path string) string {
-	re := regexp.MustCompile(`[()'"\s]`)
-	return re.ReplaceAllStringFunc(path, func(match string) string {
+	return reURLEscapeChars.ReplaceAllStringFunc(path, func(match string) string {
 		return "\\" + match
 	})
 }
@@ -183,7 +181,7 @@ func (u *URL) Eval(context any) (any, error) {
 				// Match JavaScript: Add url args if enabled
 				if evalCtx.UrlArgs != "" {
 					// Match JavaScript: if (!val.value.match(/^\s*data:/))
-					if !regexp.MustCompile(`^\s*data:`).MatchString(value) {
+					if !reDataURI.MatchString(value) {
 						// Match JavaScript: const delimiter = val.value.indexOf('?') === -1 ? '?' : '&';
 						delimiter := "?"
 						if strings.Contains(value, "?") {
@@ -268,7 +266,7 @@ func (u *URL) Eval(context any) (any, error) {
 					if evalCtx.UrlArgs != "" {
 						if value, ok := valMap["value"].(string); ok {
 							// Match JavaScript: if (!val.value.match(/^\s*data:/))
-							if !regexp.MustCompile(`^\s*data:`).MatchString(value) {
+							if !reDataURI.MatchString(value) {
 								// Match JavaScript: const delimiter = val.value.indexOf('?') === -1 ? '?' : '&';
 								delimiter := "?"
 								if strings.Contains(value, "?") {
@@ -310,7 +308,7 @@ func (u *URL) Eval(context any) (any, error) {
 					if urlArgs, ok := ctx["urlArgs"].(string); ok && urlArgs != "" {
 						if value, ok := valMap["value"].(string); ok {
 							// Match JavaScript: if (!val.value.match(/^\s*data:/))
-							if !regexp.MustCompile(`^\s*data:`).MatchString(value) {
+							if !reDataURI.MatchString(value) {
 								// Match JavaScript: const delimiter = val.value.indexOf('?') === -1 ? '?' : '&';
 								delimiter := "?"
 								if strings.Contains(value, "?") {

@@ -4,13 +4,35 @@ This document provides a quick guide to running performance benchmarks comparing
 
 ## Quick Start
 
-### Run Both Benchmarks (Recommended)
+### Run Comparison (Recommended)
 
 ```bash
 pnpm bench:compare
 ```
 
-This runs both JavaScript and Go benchmarks on the same test files, making it easy to compare performance.
+This runs both JavaScript and Go benchmarks and displays a clear side-by-side comparison with:
+- ✅ Per-file and total compilation times
+- ✅ Performance ratio (which is faster and by how much)
+- ✅ Memory usage and allocation statistics (Go)
+- ✅ Actionable optimization recommendations
+
+**Example output:**
+```
+╔══════════════════════════════════════════════════════════════════════════════╗
+║              LESS.JS vs LESS.GO PERFORMANCE COMPARISON                       ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ COMPILATION TIME                                                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                    │  JavaScript  │      Go      │   Difference             │
+├────────────────────┼──────────────┼──────────────┼──────────────────────────┤
+│ Per File (avg)     │ 446.32µs     │ 3.62ms       │ Go 8.1x slower           │
+│ All Files (total)  │ 32.58ms      │ 264.06ms     │ Go 8.1x slower           │
+└────────────────────┴──────────────┴──────────────┴──────────────────────────┘
+
+🐌 Go is 8.1x SLOWER than JavaScript
+```
 
 ### Run Individual Benchmarks
 
@@ -136,6 +158,26 @@ go test -bench=BenchmarkLessCompilation/main/colors ./packages/less/src/less/les
 - **Output:** ns/op, memory allocations, and alloc count
 
 Both benchmarks test the **exact same files** with the **exact same options** for fair comparison.
+
+## Performance Analysis
+
+**Q: Is Go compilation time included in the benchmark?**
+**A: No.** The Go benchmark uses `b.ResetTimer()` which excludes all compilation and setup time.
+
+**Q: Why is Go 8-10x slower?**
+**A: Primarily excessive allocations (~47,000 per file).** The port is unoptimized and uses reflection heavily. See detailed analysis:
+- 📄 [`.claude/benchmarks/PERFORMANCE_ANALYSIS.md`](./.claude/benchmarks/PERFORMANCE_ANALYSIS.md)
+
+**Q: How can I find the bottlenecks?**
+**A: Use profiling:**
+```bash
+pnpm bench:profile
+```
+
+This will show CPU hot spots, memory allocations, and allocation hotspots.
+
+**Q: Is this performance acceptable?**
+**A: Yes, for an unoptimized port.** Focus is on correctness first (✅ 80+ tests passing), then optimization. With targeted optimization, Go can match or exceed JavaScript performance.
 
 ## Contributing
 

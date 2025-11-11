@@ -74,6 +74,14 @@ When working on this project, please be aware of the following:
    - Go: `packages/less/src/less/less_go/benchmark_test.go`
    - JavaScript: `packages/less/benchmark/suite.js`
 
+   **Performance Notes:**
+   - The Go port is currently 8-10x slower than JavaScript
+   - Primary cause: Excessive allocations (~47,000 per file)
+   - This is **expected and acceptable** for an unoptimized port
+   - Focus is on correctness first (✅), then optimization (📊)
+   - Profiling tools: `pnpm bench:profile`
+   - Detailed analysis: `.claude/benchmarks/PERFORMANCE_ANALYSIS.md`
+
 5. **How to Use Integration Tests Effectively**:
 
    The integration test suite (`packages/less/src/less/less_go/integration_suite_test.go`) provides comprehensive coverage
