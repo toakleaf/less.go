@@ -137,7 +137,7 @@ func (a *AtRule) ToCSS(context any) string {
 	var strs []string
 	output := &CSSOutput{
 		Add: func(chunk any, fileInfo any, index any) {
-			strs = append(strs, fmt.Sprintf("%v", chunk))
+			strs = append(strs, ToString(chunk))
 		},
 		IsEmpty: func() bool {
 			return len(strs) == 0

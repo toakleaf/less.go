@@ -1,7 +1,6 @@
 package less_go
 
 import (
-	"fmt"
 	"strings"
 )
 
@@ -93,7 +92,7 @@ func (a *Attribute) ToCSS(context any) string {
 	if cssable, ok := a.Key.(CSSable); ok {
 		builder.WriteString(cssable.ToCSS(context))
 	} else {
-		builder.WriteString(fmt.Sprintf("%v", a.Key))
+		builder.WriteString(ToString(a.Key))
 	}
 
 	if a.Op != "" {
@@ -105,7 +104,7 @@ func (a *Attribute) ToCSS(context any) string {
 		} else if cssable, ok := a.Value.(CSSable); ok {
 			builder.WriteString(cssable.ToCSS(context))
 		} else {
-			builder.WriteString(fmt.Sprintf("%v", a.Value))
+			builder.WriteString(ToString(a.Value))
 		}
 	}
 

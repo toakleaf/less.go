@@ -6,6 +6,26 @@ import (
 	"strings"
 )
 
+// ToString converts a value to string efficiently, avoiding fmt.Sprintf where possible
+func ToString(v any) string {
+	switch val := v.(type) {
+	case string:
+		return val
+	case int:
+		return strconv.Itoa(val)
+	case int64:
+		return strconv.FormatInt(val, 10)
+	case float64:
+		return strconv.FormatFloat(val, 'f', -1, 64)
+	case bool:
+		return strconv.FormatBool(val)
+	case nil:
+		return ""
+	default:
+		return fmt.Sprintf("%v", val)
+	}
+}
+
 // Node represents a base node in the Less AST
 type Node struct {
 	Parent          *Node
@@ -27,17 +47,9 @@ func (n *Node) GenCSSSourceMap(context map[string]any, output *SourceMapOutput) 
 }
 
 // NewNode creates a new Node instance
+// Using zero value initialization for efficiency
 func NewNode() *Node {
-	return &Node{
-		Parent:          nil,
-		VisibilityBlocks: nil,
-		NodeVisible:     nil,
-		RootNode:        nil,
-		Parsed:          nil,
-		Value:           nil,
-		Index:           0,
-		fileInfo:        nil, // Lazily initialized only when needed
-	}
+	return &Node{}
 }
 
 // SetParent sets the parent for one or more nodes

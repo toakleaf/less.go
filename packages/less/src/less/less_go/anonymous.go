@@ -1,7 +1,6 @@
 package less_go
 
 import (
-	"fmt"
 	"strings"
 )
 
@@ -153,7 +152,7 @@ func (a *Anonymous) ToCSS(context any) string {
 	output := &CSSOutput{
 		Add: func(chunk any, fileInfo any, index any) {
 			if chunk != nil {
-				chunks = append(chunks, fmt.Sprintf("%v", chunk))
+				chunks = append(chunks, ToString(chunk))
 			}
 		},
 		IsEmpty: func() bool {

@@ -1,9 +1,5 @@
 package less_go
 
-import (
-	"fmt"
-)
-
 // Assignment represents a key-value assignment in the Less AST
 type Assignment struct {
 	*Node
@@ -54,7 +50,7 @@ func (a *Assignment) Eval(context any) (any, error) {
 
 // GenCSS generates CSS representation
 func (a *Assignment) GenCSS(context any, output *CSSOutput) {
-	output.Add(fmt.Sprintf("%v=", a.Key), nil, nil)
+	output.Add(ToString(a.Key)+"=", nil, nil)
 	if genCSS, ok := a.Value.(interface{ GenCSS(any, *CSSOutput) }); ok {
 		genCSS.GenCSS(context, output)
 	} else {

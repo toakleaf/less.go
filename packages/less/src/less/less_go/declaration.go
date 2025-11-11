@@ -129,7 +129,7 @@ func (d *Declaration) GetName() string {
 	if nameStr, ok := d.name.(string); ok {
 		return nameStr
 	}
-	return fmt.Sprintf("%v", d.name)
+	return ToString(d.name)
 }
 
 // GetMerge returns the merge flag
@@ -189,7 +189,7 @@ func evalName(context any, name []any) string {
 				case *Keyword:
 					value += v.value
 				default:
-					value += fmt.Sprintf("%v", v)
+					value += ToString(v)
 				}
 			}
 		},
@@ -396,11 +396,11 @@ func (d *Declaration) GenCSS(context any, output *CSSOutput) {
 	case *Keyword:
 		nameStr = n.value
 	case *Anonymous:
-		nameStr = fmt.Sprintf("%v", n.Value)
+		nameStr = ToString(n.Value)
 	case []any:
 		nameStr = evalName(context, n)
 	default:
-		nameStr = fmt.Sprintf("%v", n)
+		nameStr = ToString(n)
 	}
 
 	// Add name
@@ -422,7 +422,7 @@ func (d *Declaration) GenCSS(context any, output *CSSOutput) {
 			case error:
 				errMsg = e.Error()
 			default:
-				errMsg = fmt.Sprintf("%v", e)
+				errMsg = ToString(e)
 			}
 			
 			// Create an error with index and filename similar to JavaScript
@@ -506,7 +506,7 @@ func (d *Declaration) ToCSS(context any) string {
 	var strs []string
 	output := &CSSOutput{
 		Add: func(chunk any, fileInfo any, index any) {
-			strs = append(strs, fmt.Sprintf("%v", chunk))
+			strs = append(strs, ToString(chunk))
 		},
 		IsEmpty: func() bool {
 			return len(strs) == 0
