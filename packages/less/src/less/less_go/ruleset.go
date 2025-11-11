@@ -1500,7 +1500,7 @@ func (r *Ruleset) Find(selector any, self any, filter func(any) bool) []any {
 			}
 		}
 	}
-	
+
 	// Lazily initialize lookups map
 	if r.lookups == nil {
 		r.lookups = make(map[string][]any, 4)
