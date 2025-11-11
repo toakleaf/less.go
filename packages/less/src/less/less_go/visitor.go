@@ -114,14 +114,6 @@ func NewVisitor(implementation any) *Visitor {
 	return v
 }
 
-// DirectDispatchVisitor is an interface for visitors that want to use direct dispatch
-// instead of reflection for better performance. Visitors implementing this interface
-// can handle node visiting using type switches, avoiding the overhead of reflect.Call.
-type DirectDispatchVisitor interface {
-	VisitNode(node any, visitArgs *VisitArgs) (result any, handled bool)
-	VisitNodeOut(node any) bool
-}
-
 // Visit visits a node using the visitor pattern
 func (v *Visitor) Visit(node any) any {
 	if node == nil {
