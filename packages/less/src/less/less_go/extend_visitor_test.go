@@ -135,9 +135,9 @@ func TestProcessExtendsVisitor_IsElementValuesEqual_Strings(t *testing.T) {
 
 func TestProcessExtendsVisitor_ExtendSelector_EmptyMatches(t *testing.T) {
 	visitor := NewProcessExtendsVisitor()
-	
-	result := visitor.extendSelector([]any{}, []any{}, &Selector{}, true)
-	
+
+	result := visitor.extendSelector([]*PotentialMatch{}, []any{}, &Selector{}, true)
+
 	if len(result) != 0 {
 		t.Error("Expected empty result for empty matches")
 	}
@@ -272,9 +272,9 @@ func TestProcessExtendsVisitor_FindMatch_AllowBefore(t *testing.T) {
 	}
 	
 	if len(result) > 0 {
-		match := result[0].(map[string]any)
-		if match["index"].(int) != 1 {
-			t.Errorf("Expected match index 1, got %d", match["index"].(int))
+		match := result[0]
+		if match.index != 1 {
+			t.Errorf("Expected match index 1, got %d", match.index)
 		}
 	}
 }
