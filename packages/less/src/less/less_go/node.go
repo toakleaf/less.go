@@ -36,7 +36,7 @@ func NewNode() *Node {
 		Parsed:          nil,
 		Value:           nil,
 		Index:           0,
-		fileInfo:        make(map[string]any, 4),
+		fileInfo:        nil, // Lazily initialized only when needed
 	}
 }
 
@@ -141,7 +141,14 @@ func (n *Node) FileInfo() map[string]any {
 
 // SetFileInfo sets the node's file information
 func (n *Node) SetFileInfo(info map[string]any) {
-	n.fileInfo = info
+	if n.fileInfo == nil && info != nil {
+		n.fileInfo = make(map[string]any, len(info))
+	}
+	if info != nil {
+		for k, v := range info {
+			n.fileInfo[k] = v
+		}
+	}
 }
 
 // IsRulesetLike returns false for base Node
@@ -176,7 +183,23 @@ func (n *Node) ToCSS(context any) string {
 	var strs []string
 	output := &CSSOutput{
 		Add: func(chunk any, fileInfo any, index any) {
-			strs = append(strs, fmt.Sprintf("%v", chunk))
+			// Optimize: Use direct type assertions instead of fmt.Sprintf
+			switch v := chunk.(type) {
+			case string:
+				strs = append(strs, v)
+			case int:
+				strs = append(strs, strconv.Itoa(v))
+			case float64:
+				strs = append(strs, strconv.FormatFloat(v, 'f', -1, 64))
+			case bool:
+				if v {
+					strs = append(strs, "true")
+				} else {
+					strs = append(strs, "false")
+				}
+			default:
+				strs = append(strs, fmt.Sprintf("%v", v))
+			}
 		},
 		IsEmpty: func() bool {
 			return len(strs) == 0
@@ -202,6 +225,9 @@ func (n *Node) Operate(context any, op string, a, b float64) float64 {
 	}
 }
 
+// precisionFormats caches format strings for common precision values
+var precisionFormats = make(map[int]string)
+
 // Fround rounds a float value based on context precision
 func (n *Node) Fround(context any, value float64) float64 {
 	var precision int
@@ -220,7 +246,14 @@ func (n *Node) Fround(context any, value float64) float64 {
 		// Number((value + 2e-16).toFixed(precision))
 		epsilon := 2e-16
 		rounded := value + epsilon
-		format := fmt.Sprintf("%%.%df", precision)
+
+		// Use cached format string or create and cache it
+		format, ok := precisionFormats[precision]
+		if !ok {
+			format = fmt.Sprintf("%%.%df", precision)
+			precisionFormats[precision] = format
+		}
+
 		formatted := fmt.Sprintf(format, rounded)
 		result, _ := strconv.ParseFloat(formatted, 64)
 		return result
