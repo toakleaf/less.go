@@ -25,7 +25,7 @@ This runs both JavaScript and Go benchmarks and displays a comprehensive compari
 - **Memory statistics**: Go's memory usage and allocation counts
 - **Recommendations**: Actionable optimization suggestions if performance gaps are significant
 
-**Fair Comparison Methodology**: Both implementations benchmark each test file individually using identical methodology, ensuring true apples-to-apples comparison.
+**Fair Comparison Methodology**: Both implementations benchmark each test file individually with 30 iterations per file, ensuring true apples-to-apples comparison. Typical runtime: ~1-2 minutes.
 
 ### Run Individual Benchmarks
 

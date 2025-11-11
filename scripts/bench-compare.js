@@ -32,10 +32,12 @@ try {
 }
 
 // Run Go benchmark (individual file benchmarks for fair comparison)
-console.log('Running Go benchmarks...\n');
-const goOutput = execSync('go test -bench=BenchmarkLessCompilation -benchmem -benchtime=5s ./packages/less/src/less/less_go', {
+// Using benchtime=30x to match JavaScript's 30 iterations per file
+console.log('Running Go benchmarks (30 iterations per file)...\n');
+const goOutput = execSync('go test -bench=BenchmarkLessCompilation -benchmem -benchtime=30x ./packages/less/src/less/less_go', {
     encoding: 'utf8',
-    cwd: path.join(__dirname, '..')
+    cwd: path.join(__dirname, '..'),
+    maxBuffer: 10 * 1024 * 1024 // 10MB buffer for all the output
 });
 
 // Parse Go benchmark output - now we have one result per file
@@ -85,7 +87,7 @@ console.log('═'.repeat(80));
 console.log('RESULTS SUMMARY');
 console.log('═'.repeat(80));
 console.log(`Test Files: ${jsTestCount} (Go benchmarked: ${goResults.length})`);
-console.log(`Runs per file: JS=${jsData.runs - jsData.warmupRuns} (after ${jsData.warmupRuns} warmup), Go=${goAvgIterations} avg`);
+console.log(`Iterations per file: JS=30 (25 measured + 5 warmup), Go=30`);
 console.log(`Methodology: Both benchmark each file individually`);
 console.log('');
 

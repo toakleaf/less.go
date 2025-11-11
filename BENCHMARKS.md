@@ -161,11 +161,16 @@ go test -bench=BenchmarkLessCompilation/main/colors ./packages/less/src/less/les
 
 Both benchmarks use **identical methodology**:
 - ✅ Each of the 73 test files is benchmarked individually
+- ✅ Same number of iterations: 30 per file
 - ✅ Same files, same options, same measurement granularity
 - ✅ Statistics calculated from individual file results
 - ✅ Both produce identical CSS output
 
-The comparison script (`pnpm bench:compare`) runs `BenchmarkLessCompilation` which benchmarks each file separately, ensuring an apples-to-apples comparison with JavaScript.
+The comparison script (`pnpm bench:compare`) runs:
+- JavaScript: 30 iterations per file (5 warmup + 25 measured)
+- Go: 30 iterations per file via `-benchtime=30x`
+
+This ensures an apples-to-apples comparison with minimal execution time (~1-2 minutes total).
 
 ## Performance Analysis
 
