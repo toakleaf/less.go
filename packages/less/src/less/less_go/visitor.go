@@ -107,6 +107,191 @@ func NewVisitor(implementation any) *Visitor {
 	return v
 }
 
+// buildVisitFunctions creates visit functions using type switches instead of reflection
+func (v *Visitor) buildVisitFunctions(nodeType string) (VisitFunc, VisitOutFunc) {
+	// Type switch on implementation to avoid reflection
+	switch impl := v.implementation.(type) {
+	case *ToCSSVisitor:
+		return v.buildToCSSVisitorFunctions(impl, nodeType)
+	case *ImportVisitor:
+		return v.buildImportVisitorFunctions(impl, nodeType)
+	case *JoinSelectorVisitor:
+		return v.buildJoinSelectorVisitorFunctions(impl, nodeType)
+	case *ExtendFinderVisitor:
+		return v.buildExtendFinderVisitorFunctions(impl, nodeType)
+	case *ProcessExtendsVisitor:
+		return v.buildProcessExtendsVisitorFunctions(impl, nodeType)
+	case *SetTreeVisibilityVisitor:
+		// SetTreeVisibilityVisitor doesn't use the standard Visit pattern
+		// It has custom Visit/VisitArray methods
+		return v.buildReflectionBasedFunctions(nodeType)
+	default:
+		// Fallback to reflection for unknown types (test mocks, etc.)
+		return v.buildReflectionBasedFunctions(nodeType)
+	}
+}
+
+// buildToCSSVisitorFunctions creates functions for ToCSSVisitor
+func (v *Visitor) buildToCSSVisitorFunctions(impl *ToCSSVisitor, nodeType string) (VisitFunc, VisitOutFunc) {
+	switch nodeType {
+	case "Declaration":
+		return func(n any, args *VisitArgs) any { return impl.VisitDeclaration(n, args) }, nil
+	case "MixinDefinition":
+		return func(n any, args *VisitArgs) any { return impl.VisitMixinDefinition(n, args) }, nil
+	case "Extend":
+		return func(n any, args *VisitArgs) any { return impl.VisitExtend(n, args) }, nil
+	case "Comment":
+		return func(n any, args *VisitArgs) any { return impl.VisitComment(n, args) }, nil
+	case "Media":
+		return func(n any, args *VisitArgs) any { return impl.VisitMedia(n, args) }, nil
+	case "Container":
+		return func(n any, args *VisitArgs) any { return impl.VisitContainer(n, args) }, nil
+	case "Import":
+		return func(n any, args *VisitArgs) any { return impl.VisitImport(n, args) }, nil
+	case "AtRule":
+		return func(n any, args *VisitArgs) any { return impl.VisitAtRule(n, args) }, nil
+	case "Anonymous":
+		return func(n any, args *VisitArgs) any { return impl.VisitAnonymous(n, args) }, nil
+	case "Ruleset":
+		return func(n any, args *VisitArgs) any { return impl.VisitRuleset(n, args) }, nil
+	default:
+		return func(n any, args *VisitArgs) any { return _noop(n) }, nil
+	}
+}
+
+// buildImportVisitorFunctions creates functions for ImportVisitor
+func (v *Visitor) buildImportVisitorFunctions(impl *ImportVisitor, nodeType string) (VisitFunc, VisitOutFunc) {
+	switch nodeType {
+	case "Import":
+		return func(n any, args *VisitArgs) any { impl.VisitImport(n, args); return n }, nil
+	case "Media":
+		return func(n any, args *VisitArgs) any { impl.VisitMedia(n, args); return n },
+			func(n any) { impl.VisitMediaOut(n) }
+	case "AtRule":
+		return func(n any, args *VisitArgs) any { impl.VisitAtRule(n, args); return n },
+			func(n any) { impl.VisitAtRuleOut(n) }
+	case "Declaration":
+		return func(n any, args *VisitArgs) any { impl.VisitDeclaration(n, args); return n },
+			func(n any) { impl.VisitDeclarationOut(n) }
+	case "MixinDefinition":
+		return func(n any, args *VisitArgs) any { impl.VisitMixinDefinition(n, args); return n },
+			func(n any) { impl.VisitMixinDefinitionOut(n) }
+	case "Ruleset":
+		return func(n any, args *VisitArgs) any { impl.VisitRuleset(n, args); return n },
+			func(n any) { impl.VisitRulesetOut(n) }
+	default:
+		return func(n any, args *VisitArgs) any { return _noop(n) }, nil
+	}
+}
+
+// buildJoinSelectorVisitorFunctions creates functions for JoinSelectorVisitor
+func (v *Visitor) buildJoinSelectorVisitorFunctions(impl *JoinSelectorVisitor, nodeType string) (VisitFunc, VisitOutFunc) {
+	switch nodeType {
+	case "Ruleset":
+		return func(n any, args *VisitArgs) any { return impl.VisitRuleset(n, args) },
+			func(n any) { impl.VisitRulesetOut(n) }
+	case "Media":
+		return func(n any, args *VisitArgs) any { return impl.VisitMedia(n, args) }, nil
+	case "Container":
+		return func(n any, args *VisitArgs) any { return impl.VisitContainer(n, args) }, nil
+	case "AtRule":
+		return func(n any, args *VisitArgs) any { return impl.VisitAtRule(n, args) }, nil
+	case "Declaration":
+		return func(n any, args *VisitArgs) any { return impl.VisitDeclaration(n, args) }, nil
+	case "MixinDefinition":
+		return func(n any, args *VisitArgs) any { return impl.VisitMixinDefinition(n, args) }, nil
+	default:
+		return func(n any, args *VisitArgs) any { return _noop(n) }, nil
+	}
+}
+
+// buildExtendFinderVisitorFunctions creates functions for ExtendFinderVisitor
+func (v *Visitor) buildExtendFinderVisitorFunctions(impl *ExtendFinderVisitor, nodeType string) (VisitFunc, VisitOutFunc) {
+	switch nodeType {
+	case "Ruleset":
+		return func(n any, args *VisitArgs) any { impl.VisitRuleset(n, args); return n },
+			func(n any) { impl.VisitRulesetOut(n) }
+	case "Media":
+		return func(n any, args *VisitArgs) any { impl.VisitMedia(n, args); return n },
+			func(n any) { impl.VisitMediaOut(n) }
+	case "AtRule":
+		return func(n any, args *VisitArgs) any { impl.VisitAtRule(n, args); return n },
+			func(n any) { impl.VisitAtRuleOut(n) }
+	case "Declaration":
+		return func(n any, args *VisitArgs) any { impl.VisitDeclaration(n, args); return n }, nil
+	case "MixinDefinition":
+		return func(n any, args *VisitArgs) any { impl.VisitMixinDefinition(n, args); return n }, nil
+	default:
+		return func(n any, args *VisitArgs) any { return _noop(n) }, nil
+	}
+}
+
+// buildProcessExtendsVisitorFunctions creates functions for ProcessExtendsVisitor
+func (v *Visitor) buildProcessExtendsVisitorFunctions(impl *ProcessExtendsVisitor, nodeType string) (VisitFunc, VisitOutFunc) {
+	switch nodeType {
+	case "Ruleset":
+		return func(n any, args *VisitArgs) any { impl.VisitRuleset(n, args); return n }, nil
+	case "Media":
+		return func(n any, args *VisitArgs) any { impl.VisitMedia(n, args); return n },
+			func(n any) { impl.VisitMediaOut(n) }
+	case "AtRule":
+		return func(n any, args *VisitArgs) any { impl.VisitAtRule(n, args); return n },
+			func(n any) { impl.VisitAtRuleOut(n) }
+	case "Declaration":
+		return func(n any, args *VisitArgs) any { impl.VisitDeclaration(n, args); return n }, nil
+	case "MixinDefinition":
+		return func(n any, args *VisitArgs) any { impl.VisitMixinDefinition(n, args); return n }, nil
+	case "Selector":
+		return func(n any, args *VisitArgs) any { impl.VisitSelector(n, args); return n }, nil
+	default:
+		return func(n any, args *VisitArgs) any { return _noop(n) }, nil
+	}
+}
+
+// buildReflectionBasedFunctions creates functions using reflection (fallback for unknown types)
+func (v *Visitor) buildReflectionBasedFunctions(nodeType string) (VisitFunc, VisitOutFunc) {
+	// Build function name like JS: `visit${node.type}`
+	fnName := "Visit" + nodeType
+
+	// Use pre-built method lookup map instead of MethodByName
+	visitMethod, visitMethodExists := v.methodLookup[fnName]
+	visitOutMethod, visitOutMethodExists := v.methodLookup[fnName+"Out"]
+
+	var visitFunc VisitFunc
+	var visitOutFunc VisitOutFunc
+
+	// Create visit function (use _noop if method doesn't exist)
+	if visitMethodExists && visitMethod.IsValid() {
+		visitFunc = func(n any, args *VisitArgs) any {
+			results := visitMethod.Call([]reflect.Value{
+				reflect.ValueOf(n),
+				reflect.ValueOf(args),
+			})
+			if len(results) > 0 {
+				return results[0].Interface()
+			}
+			return n
+		}
+	} else {
+		visitFunc = func(n any, args *VisitArgs) any {
+			return _noop(n)
+		}
+	}
+
+	// Create visitOut function (_noop if method doesn't exist)
+	if visitOutMethodExists && visitOutMethod.IsValid() {
+		visitOutFunc = func(n any) {
+			visitOutMethod.Call([]reflect.Value{reflect.ValueOf(n)})
+		}
+	} else {
+		visitOutFunc = func(n any) {
+			// _noop for visitOut
+		}
+	}
+
+	return visitFunc, visitOutFunc
+}
+
 // Visit visits a node using the visitor pattern
 func (v *Visitor) Visit(node any) any {
 	if node == nil {
@@ -155,42 +340,8 @@ func (v *Visitor) Visit(node any) any {
 		visitFunc = cachedFunc
 		visitOutFunc = v.visitOutCache[nodeTypeIndex]
 	} else {
-		// Build function name like JS: `visit${node.type}`
-		// Use string concatenation instead of fmt.Sprintf for performance
-		fnName := "Visit" + nodeType
-
-		// Use pre-built method lookup map instead of MethodByName
-		visitMethod, visitMethodExists := v.methodLookup[fnName]
-		visitOutMethod, visitOutMethodExists := v.methodLookup[fnName+"Out"]
-
-		// Create visit function (use _noop if method doesn't exist)
-		if visitMethodExists && visitMethod.IsValid() {
-			visitFunc = func(n any, args *VisitArgs) any {
-				results := visitMethod.Call([]reflect.Value{
-					reflect.ValueOf(n),
-					reflect.ValueOf(args),
-				})
-				if len(results) > 0 {
-					return results[0].Interface()
-				}
-				return n
-			}
-		} else {
-			visitFunc = func(n any, args *VisitArgs) any {
-				return _noop(n)
-			}
-		}
-
-		// Create visitOut function (_noop if method doesn't exist)
-		if visitOutMethodExists && visitOutMethod.IsValid() {
-			visitOutFunc = func(n any) {
-				visitOutMethod.Call([]reflect.Value{reflect.ValueOf(n)})
-			}
-		} else {
-			visitOutFunc = func(n any) {
-				// _noop for visitOut
-			}
-		}
+		// Build visit functions without reflection for known visitor types
+		visitFunc, visitOutFunc = v.buildVisitFunctions(nodeType)
 
 		// Cache the functions
 		v.visitInCache[nodeTypeIndex] = visitFunc
