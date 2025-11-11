@@ -115,7 +115,7 @@ var (
 var (
 	reCloseParen        = regexp.MustCompile(`^\)`)
 	reNegativeLookup    = regexp.MustCompile(`^-[@$(]`)
-	reAnonymous         = regexp.MustCompile(`^[^.#@$+/'"*` + "`" + `(;{}-]*;`)
+	reAnonymous         = regexp.MustCompile(`^([^.#@$+/'"*` + "`" + `(;{}-]*);`)
 	reJavaScript        = regexp.MustCompile("^[^`]*`")
 	reAlphaOpacity      = regexp.MustCompile(`^opacity=`)
 	rePluginArgs        = regexp.MustCompile(`^\s*([^);]+)\)\s*`)
