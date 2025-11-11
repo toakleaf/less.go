@@ -31,45 +31,62 @@ try {
     process.exit(1);
 }
 
-// Run Go benchmark
+// Run Go benchmark (individual file benchmarks for fair comparison)
 console.log('Running Go benchmarks...\n');
-const goOutput = execSync('go test -bench=BenchmarkLargeSuite -benchmem -benchtime=5s ./packages/less/src/less/less_go', {
+const goOutput = execSync('go test -bench=BenchmarkLessCompilation -benchmem -benchtime=5s ./packages/less/src/less/less_go', {
     encoding: 'utf8',
     cwd: path.join(__dirname, '..')
 });
 
-// Parse Go benchmark output
-// Format: BenchmarkLargeSuite-10    45    264059064 ns/op    299574207 B/op   3437404 allocs/op
-const goMatch = goOutput.match(/BenchmarkLargeSuite-\d+\s+(\d+)\s+(\d+)\s+ns\/op\s+(\d+)\s+B\/op\s+(\d+)\s+allocs\/op/);
-if (!goMatch) {
-    console.error('Failed to parse Go benchmark output');
+// Parse Go benchmark output - now we have one result per file
+// Format: BenchmarkLessCompilation/main/colors-10    123    12345678 ns/op    234567 B/op    5678 allocs/op
+const goResults = [];
+const goLines = goOutput.split('\n');
+for (const line of goLines) {
+    const match = line.match(/BenchmarkLessCompilation\/(.+?)-\d+\s+(\d+)\s+(\d+)\s+ns\/op\s+(\d+)\s+B\/op\s+(\d+)\s+allocs\/op/);
+    if (match) {
+        goResults.push({
+            name: match[1],
+            iterations: parseInt(match[2]),
+            nsPerOp: parseInt(match[3]),
+            bytesPerOp: parseInt(match[4]),
+            allocsPerOp: parseInt(match[5])
+        });
+    }
+}
+
+if (goResults.length === 0) {
+    console.error('Failed to parse Go benchmark output - no results found');
     console.error('Output:', goOutput);
     process.exit(1);
 }
 
-const goIterations = parseInt(goMatch[1]);
-const goNsPerOp = parseInt(goMatch[2]);
-const goBytesPerOp = parseInt(goMatch[3]);
-const goAllocsPerOp = parseInt(goMatch[4]);
-
-// Calculate statistics
+// Calculate statistics from individual Go results
 const jsTestCount = jsData.tests.length;
 const jsTotalAvg = jsData.tests.reduce((sum, t) => sum + (t.total?.avg || 0), 0);
 const jsAvgPerFile = jsTotalAvg / jsTestCount;
 const jsMedianPerFile = calculateMedian(jsData.tests.map(t => t.total?.median || 0));
 const jsTotalTime = jsTotalAvg; // Sum of all averages
 
-// Go is measuring all files in one operation
-const goTotalTimeMs = goNsPerOp / 1_000_000;
-const goAvgPerFileMs = goTotalTimeMs / jsTestCount;
-const goMemoryMB = goBytesPerOp / (1024 * 1024);
+// Calculate Go statistics from individual file results
+const goTimesMs = goResults.map(r => r.nsPerOp / 1_000_000);
+const goAvgPerFileMs = goTimesMs.reduce((sum, t) => sum + t, 0) / goTimesMs.length;
+const goMedianPerFileMs = calculateMedian(goTimesMs);
+const goTotalTimeMs = goTimesMs.reduce((sum, t) => sum + t, 0);
+const goAvgIterations = Math.round(goResults.reduce((sum, r) => sum + r.iterations, 0) / goResults.length);
+
+// Calculate average memory/allocations per file
+const goAvgBytesPerOp = goResults.reduce((sum, r) => sum + r.bytesPerOp, 0) / goResults.length;
+const goAvgAllocsPerOp = Math.round(goResults.reduce((sum, r) => sum + r.allocsPerOp, 0) / goResults.length);
+const goMemoryMB = goAvgBytesPerOp / (1024 * 1024);
 
 // Display results
 console.log('═'.repeat(80));
 console.log('RESULTS SUMMARY');
 console.log('═'.repeat(80));
-console.log(`Test Files: ${jsTestCount}`);
-console.log(`Runs: JS=${jsData.runs - jsData.warmupRuns} (after ${jsData.warmupRuns} warmup), Go=${goIterations}`);
+console.log(`Test Files: ${jsTestCount} (Go benchmarked: ${goResults.length})`);
+console.log(`Runs per file: JS=${jsData.runs - jsData.warmupRuns} (after ${jsData.warmupRuns} warmup), Go=${goAvgIterations} avg`);
+console.log(`Methodology: Both benchmark each file individually`);
 console.log('');
 
 console.log('┌─────────────────────────────────────────────────────────────────────────────┐');
@@ -78,17 +95,16 @@ console.log('├─────────────────────�
 console.log('│                    │  JavaScript  │      Go      │   Difference             │');
 console.log('├────────────────────┼──────────────┼──────────────┼──────────────────────────┤');
 console.log(`│ Per File (avg)     │ ${formatTime(jsAvgPerFile).padEnd(12)} │ ${formatTime(goAvgPerFileMs).padEnd(12)} │ ${formatDiff(jsAvgPerFile, goAvgPerFileMs).padEnd(24)} │`);
-console.log(`│ Per File (median)  │ ${formatTime(jsMedianPerFile).padEnd(12)} │ ${'N/A'.padEnd(12)} │ ${''.padEnd(24)} │`);
+console.log(`│ Per File (median)  │ ${formatTime(jsMedianPerFile).padEnd(12)} │ ${formatTime(goMedianPerFileMs).padEnd(12)} │ ${formatDiff(jsMedianPerFile, goMedianPerFileMs).padEnd(24)} │`);
 console.log(`│ All Files (total)  │ ${formatTime(jsTotalTime).padEnd(12)} │ ${formatTime(goTotalTimeMs).padEnd(12)} │ ${formatDiff(jsTotalTime, goTotalTimeMs).padEnd(24)} │`);
 console.log('└────────────────────┴──────────────┴──────────────┴──────────────────────────┘');
 console.log('');
 
 console.log('┌─────────────────────────────────────────────────────────────────────────────┐');
-console.log('│ MEMORY & ALLOCATIONS (Go only)                                              │');
+console.log('│ MEMORY & ALLOCATIONS (Go only, averaged per file)                          │');
 console.log('├─────────────────────────────────────────────────────────────────────────────┤');
-console.log(`│ Memory per operation:    ${goMemoryMB.toFixed(2)} MB                                              │`);
-console.log(`│ Allocations per op:      ${goAllocsPerOp.toLocaleString()} allocations                                   │`);
-console.log(`│ Avg per file:            ${(goMemoryMB / jsTestCount).toFixed(2)} MB / ${Math.round(goAllocsPerOp / jsTestCount).toLocaleString()} allocs                         │`);
+console.log(`│ Memory per file:         ${goMemoryMB.toFixed(2)} MB                                              │`);
+console.log(`│ Allocations per file:    ${goAvgAllocsPerOp.toLocaleString()} allocations                                   │`);
 console.log('└─────────────────────────────────────────────────────────────────────────────┘');
 console.log('');
 
@@ -121,9 +137,9 @@ console.log('');
 
 // Context
 console.log('Notes:');
+console.log('  • Both benchmarks use identical methodology: individual file benchmarking');
 console.log('  • JavaScript is a mature, highly optimized JIT-compiled implementation');
 console.log('  • Go port is still under active development');
-console.log('  • Go provides predictable performance and lower memory overhead');
 console.log('  • Both implementations produce identical CSS output');
 console.log('');
 

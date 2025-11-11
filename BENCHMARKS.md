@@ -147,17 +147,25 @@ go test -bench=BenchmarkLessCompilation/main/colors ./packages/less/src/less/les
 
 ### JavaScript
 - **Location:** `packages/less/benchmark/suite.js`
-- **Method:** Runs 30 iterations (5 warmup) per test
+- **Method:** Runs 30 iterations (5 warmup) per test file
 - **Timing:** High-resolution `process.hrtime()`
 - **Output:** Detailed statistics with parse/eval breakdown
 
 ### Go
 - **Location:** `packages/less/src/less/less_go/benchmark_test.go`
-- **Method:** Go's built-in `testing.B` framework
+- **Method:** Go's built-in `testing.B` framework (individual file benchmarks)
 - **Timing:** Automatic iteration adjustment for accuracy
-- **Output:** ns/op, memory allocations, and alloc count
+- **Output:** ns/op, memory allocations, and alloc count per file
 
-Both benchmarks test the **exact same files** with the **exact same options** for fair comparison.
+### Fair Comparison Methodology
+
+Both benchmarks use **identical methodology**:
+- ✅ Each of the 73 test files is benchmarked individually
+- ✅ Same files, same options, same measurement granularity
+- ✅ Statistics calculated from individual file results
+- ✅ Both produce identical CSS output
+
+The comparison script (`pnpm bench:compare`) runs `BenchmarkLessCompilation` which benchmarks each file separately, ensuring an apples-to-apples comparison with JavaScript.
 
 ## Performance Analysis
 
