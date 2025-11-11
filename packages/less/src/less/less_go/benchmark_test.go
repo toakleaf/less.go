@@ -185,6 +185,7 @@ var benchmarkTestFiles = []struct {
 
 // BenchmarkLessCompilation benchmarks the full compilation process (parse + eval)
 // This is the primary benchmark for comparing with less.js
+// Includes warmup runs for fair comparison with JIT-compiled JavaScript
 func BenchmarkLessCompilation(b *testing.B) {
 	testDataRoot := "../../../../test-data"
 	lessRoot := filepath.Join(testDataRoot, "less")
@@ -212,6 +213,14 @@ func BenchmarkLessCompilation(b *testing.B) {
 				// Create factory once
 				factory := Factory(nil, nil)
 
+				// Warmup runs (matching JavaScript methodology)
+				// JavaScript does 5 warmup runs before measuring to allow V8 JIT optimization
+				// We do the same for fair comparison
+				const warmupRuns = 5
+				for i := 0; i < warmupRuns; i++ {
+					_, _ = compileLessForTest(factory, string(lessData), options)
+				}
+
 				b.ResetTimer()
 				for i := 0; i < b.N; i++ {
 					// Compile (parse + eval)
@@ -219,6 +228,53 @@ func BenchmarkLessCompilation(b *testing.B) {
 					if compileErr != nil {
 						b.Fatalf("Compile error: %v", compileErr)
 					}
+				}
+			})
+		}
+	}
+}
+
+// BenchmarkLessCompilationColdStart benchmarks cold-start performance (first iteration)
+// This measures the real-world performance when the process is starting up
+// No warmup runs are performed, capturing cache misses and initial allocations
+func BenchmarkLessCompilationColdStart(b *testing.B) {
+	testDataRoot := "../../../../test-data"
+	lessRoot := filepath.Join(testDataRoot, "less")
+
+	for _, suite := range benchmarkTestFiles {
+		for _, fileName := range suite.files {
+			testName := fmt.Sprintf("%s/%s", suite.suite, fileName)
+			lessFile := filepath.Join(lessRoot, suite.folder, fileName+".less")
+
+			b.Run(testName, func(b *testing.B) {
+				// Read file once
+				lessData, err := ioutil.ReadFile(lessFile)
+				if err != nil {
+					b.Skipf("Cannot read %s: %v", lessFile, err)
+					return
+				}
+
+				// Prepare options
+				options := make(map[string]any)
+				for k, v := range suite.options {
+					options[k] = v
+				}
+				options["filename"] = lessFile
+
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					// Create factory fresh each time to measure true cold start
+					factory := Factory(nil, nil)
+
+					// Compile (parse + eval) - cold start
+					_, compileErr := compileLessForTest(factory, string(lessData), options)
+					if compileErr != nil {
+						b.Fatalf("Compile error: %v", compileErr)
+					}
+
+					b.StopTimer()
+					// Small delay to ensure clean state between iterations
+					b.StartTimer()
 				}
 			})
 		}
