@@ -621,14 +621,21 @@ func SerializeVars(vars map[string]any) string {
 			name = "@" + name
 		}
 
-		valueStr := fmt.Sprintf("%v", value)
+		// Optimize: Build string directly instead of using fmt.Sprintf
+		sb.WriteString(name)
+		sb.WriteString(": ")
 
-		// Add semicolon if not present
-		if !strings.HasSuffix(valueStr, ";") {
-			valueStr += ";"
+		// Convert value to string efficiently
+		if str, ok := value.(string); ok {
+			sb.WriteString(str)
+		} else {
+			sb.WriteString(fmt.Sprintf("%v", value))
 		}
 
-		sb.WriteString(fmt.Sprintf("%s: %s", name, valueStr))
+		// Add semicolon if not present
+		if !strings.HasSuffix(sb.String(), ";") {
+			sb.WriteString(";")
+		}
 	}
 
 	return sb.String()
