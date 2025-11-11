@@ -294,7 +294,7 @@ func BenchmarkLessEvaluation(b *testing.B) {
 }
 
 // BenchmarkLargeSuite runs a comprehensive benchmark on multiple files at once
-// This gives a better overall picture of performance
+// This gives a better overall picture of performance (SEQUENTIAL)
 func BenchmarkLargeSuite(b *testing.B) {
 	testDataRoot := "../../../../test-data"
 	lessRoot := filepath.Join(testDataRoot, "less")
@@ -340,5 +340,116 @@ func BenchmarkLargeSuite(b *testing.B) {
 			_, _ = compileLessForTest(factory, test.content, test.options)
 			// Ignore errors in batch benchmark to keep running
 		}
+	}
+}
+
+// BenchmarkLargeSuiteParallel runs the same comprehensive benchmark using parallel compilation
+// This demonstrates the potential speedup from parallelization
+func BenchmarkLargeSuiteParallel(b *testing.B) {
+	testDataRoot := "../../../../test-data"
+	lessRoot := filepath.Join(testDataRoot, "less")
+
+	// Collect all test data
+	var jobs []CompileJob
+	for _, suite := range benchmarkTestFiles {
+		for _, fileName := range suite.files {
+			lessFile := filepath.Join(lessRoot, suite.folder, fileName+".less")
+			lessData, err := ioutil.ReadFile(lessFile)
+			if err != nil {
+				continue // Skip files that can't be read
+			}
+
+			// Prepare options
+			options := make(map[string]any)
+			for k, v := range suite.options {
+				options[k] = v
+			}
+			options["filename"] = lessFile
+
+			jobs = append(jobs, CompileJob{
+				Input:   string(lessData),
+				Options: options,
+				ID:      lessFile,
+			})
+		}
+	}
+
+	// Create factory once
+	factory := Factory(nil, nil)
+
+	// Parallel compilation options
+	parallelOpts := &ParallelCompileOptions{
+		Enable:      true,
+		MaxWorkers:  0, // Use all CPUs
+		StopOnError: false,
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		// Compile all files in parallel
+		_ = BatchCompile(factory, jobs, parallelOpts)
+		// Ignore errors in batch benchmark to keep running
+	}
+}
+
+// BenchmarkParallelVsSequential compares parallel and sequential compilation with different worker counts
+func BenchmarkParallelVsSequential(b *testing.B) {
+	testDataRoot := "../../../../test-data"
+	lessRoot := filepath.Join(testDataRoot, "less")
+
+	// Collect all test data
+	var jobs []CompileJob
+	for _, suite := range benchmarkTestFiles {
+		for _, fileName := range suite.files {
+			lessFile := filepath.Join(lessRoot, suite.folder, fileName+".less")
+			lessData, err := ioutil.ReadFile(lessFile)
+			if err != nil {
+				continue // Skip files that can't be read
+			}
+
+			// Prepare options
+			options := make(map[string]any)
+			for k, v := range suite.options {
+				options[k] = v
+			}
+			options["filename"] = lessFile
+
+			jobs = append(jobs, CompileJob{
+				Input:   string(lessData),
+				Options: options,
+				ID:      lessFile,
+			})
+		}
+	}
+
+	// Create factory once
+	factory := Factory(nil, nil)
+
+	// Test sequential
+	b.Run("Sequential", func(b *testing.B) {
+		opts := &ParallelCompileOptions{Enable: false}
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_ = BatchCompile(factory, jobs, opts)
+		}
+	})
+
+	// Test parallel with different worker counts
+	workerCounts := []int{2, 4, 8, 0} // 0 = NumCPU
+	for _, workers := range workerCounts {
+		workerLabel := fmt.Sprintf("%d", workers)
+		if workers == 0 {
+			workerLabel = "NumCPU"
+		}
+		b.Run(fmt.Sprintf("Parallel-%s", workerLabel), func(b *testing.B) {
+			opts := &ParallelCompileOptions{
+				Enable:     true,
+				MaxWorkers: workers,
+			}
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_ = BatchCompile(factory, jobs, opts)
+			}
+		})
 	}
 }
