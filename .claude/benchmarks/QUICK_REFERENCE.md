@@ -6,7 +6,11 @@
 pnpm bench:compare
 ```
 
-This runs both JavaScript and Go benchmarks on the same 73+ test files for direct comparison.
+This runs both JavaScript and Go benchmarks and shows a clear side-by-side comparison table with:
+- Per-file and total compilation times
+- Performance ratio (which is faster)
+- Memory usage (Go)
+- Optimization recommendations
 
 ## All Commands
 

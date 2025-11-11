@@ -4,13 +4,35 @@ This document provides a quick guide to running performance benchmarks comparing
 
 ## Quick Start
 
-### Run Both Benchmarks (Recommended)
+### Run Comparison (Recommended)
 
 ```bash
 pnpm bench:compare
 ```
 
-This runs both JavaScript and Go benchmarks on the same test files, making it easy to compare performance.
+This runs both JavaScript and Go benchmarks and displays a clear side-by-side comparison with:
+- ✅ Per-file and total compilation times
+- ✅ Performance ratio (which is faster and by how much)
+- ✅ Memory usage and allocation statistics (Go)
+- ✅ Actionable optimization recommendations
+
+**Example output:**
+```
+╔══════════════════════════════════════════════════════════════════════════════╗
+║              LESS.JS vs LESS.GO PERFORMANCE COMPARISON                       ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ COMPILATION TIME                                                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                    │  JavaScript  │      Go      │   Difference             │
+├────────────────────┼──────────────┼──────────────┼──────────────────────────┤
+│ Per File (avg)     │ 446.32µs     │ 3.62ms       │ Go 8.1x slower           │
+│ All Files (total)  │ 32.58ms      │ 264.06ms     │ Go 8.1x slower           │
+└────────────────────┴──────────────┴──────────────┴──────────────────────────┘
+
+🐌 Go is 8.1x SLOWER than JavaScript
+```
 
 ### Run Individual Benchmarks
 

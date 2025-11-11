@@ -19,7 +19,13 @@ We've created comprehensive benchmark suites that test the same LESS files with 
 pnpm bench:compare
 ```
 
-This runs both JavaScript and Go benchmarks in sequence, making it easy to compare results.
+This runs both JavaScript and Go benchmarks and displays a comprehensive comparison table showing:
+- **Performance metrics**: Per-file and total compilation times for both implementations
+- **Direct comparison**: Clear indication of which is faster and by what ratio
+- **Memory statistics**: Go's memory usage and allocation counts
+- **Recommendations**: Actionable optimization suggestions if performance gaps are significant
+
+The comparison tool automatically normalizes the metrics (JS measures per-file, Go measures batches) so you get apples-to-apples comparison.
 
 ### Run Individual Benchmarks
 
@@ -91,7 +97,37 @@ pnpm bench:go:eval
 
 ## Understanding the Results
 
-### JavaScript Output
+### Comparison Tool Output (`pnpm bench:compare`)
+
+The comparison tool produces a formatted table that makes it easy to see relative performance:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ COMPILATION TIME                                                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                    │  JavaScript  │      Go      │   Difference             │
+├────────────────────┼──────────────┼──────────────┼──────────────────────────┤
+│ Per File (avg)     │ 446.32µs     │ 3.62ms       │ Go 8.1x slower           │
+│ Per File (median)  │ 277.04µs     │ N/A          │                          │
+│ All Files (total)  │ 32.58ms      │ 264.06ms     │ Go 8.1x slower           │
+└────────────────────┴──────────────┴──────────────┴──────────────────────────┘
+
+🐌 Go is 8.1x SLOWER than JavaScript
+
+💡 Optimization Opportunities:
+  • Profile with: go test -bench=BenchmarkLargeSuite -cpuprofile=cpu.prof
+  • Analyze with: go tool pprof cpu.prof
+  • Check for: excessive allocations, string operations, reflection
+```
+
+**What to look for:**
+- **Per File (avg)**: Average compilation time per test file - most important metric
+- **Performance verdict**: Clear emoji indicator (🚀 faster, ⚖️ similar, 🐌 slower)
+- **Optimization recommendations**: Shown automatically if there's a significant performance gap
+
+### Individual Benchmark Output
+
+**JavaScript Output** (`pnpm bench:js`):
 
 ```
 📊 OVERALL STATISTICS (all tests combined)
@@ -101,12 +137,6 @@ pnpm bench:go:eval
    Median:  2.31ms
    Min:     0.52ms
    Max:     12.34ms
-
-📝 Parse Time:
-   Average: 1.20ms ± 18.2%
-
-⚡ Eval Time:
-   Average: 1.25ms ± 14.1%
 ```
 
 - **Average:** Mean time across all runs (excluding warmup)
@@ -114,7 +144,7 @@ pnpm bench:go:eval
 - **±X%:** Variation percentage (lower is more consistent)
 - **Min/Max:** Range of times observed
 
-### Go Output
+**Go Output** (`pnpm bench:go:suite`):
 
 ```
 BenchmarkLargeSuite-8    	     100	  12345678 ns/op	  234567 B/op	    5678 allocs/op
@@ -130,38 +160,53 @@ BenchmarkLargeSuite-8    	     100	  12345678 ns/op	  234567 B/op	    5678 alloc
 - 1,000,000 ns/op = 1.0 ms
 - 10,000,000 ns/op = 10.0 ms
 
+**Note**: Don't compare these individual outputs directly - use `pnpm bench:compare` for accurate comparison!
+
 ## Fair Comparison Guidelines
 
 ### ✅ DO:
 
-1. **Run multiple times** - Performance can vary between runs
+1. **Use the comparison tool** - It handles metric normalization automatically
    ```bash
-   pnpm bench:compare  # Run several times and average the results
+   pnpm bench:compare
    ```
 
-2. **Close other applications** - Minimize background CPU usage
-
-3. **Use the suite benchmarks** - They test the same files with the same options
+2. **Run multiple times** - Performance can vary between runs
    ```bash
-   pnpm bench:js         # JavaScript suite
-   pnpm bench:go:suite   # Go suite (comparable to JS)
+   # Run 3-5 times and look for consistent results
+   pnpm bench:compare
+   pnpm bench:compare
+   pnpm bench:compare
    ```
 
-4. **Compare median times** - Less affected by outliers than averages
+3. **Close other applications** - Minimize background CPU usage
+   - Close browsers, IDEs, Slack, Docker containers, etc.
+   - Check Activity Monitor/Task Manager before running
+
+4. **Look at multiple metrics**
+   - Per-file average (most important)
+   - Total time (for batch processing)
+   - Variation/consistency
+   - Memory usage (for large-scale deployments)
 
 5. **Check consistency** - Lower variation percentages mean more reliable results
 
 ### ❌ DON'T:
 
-1. **Don't compare individual Go benchmarks to JS suite** - They use different methodologies
-   - `pnpm bench:go` runs each file separately (more detailed, higher overhead)
-   - `pnpm bench:go:suite` runs all files together (comparable to JS)
+1. **Don't manually compare raw outputs** - Use `pnpm bench:compare` instead
+   - The comparison tool normalizes metrics automatically
+   - Raw Go/JS outputs use different measurement approaches
 
-2. **Don't compare single runs** - Always run multiple times
+2. **Don't trust single runs** - Variance is normal, run multiple times
 
-3. **Don't compare during high system load** - Close browsers, IDEs, etc.
+3. **Don't compare during high system load**
+   - Close browsers, IDEs, etc.
+   - Disable automatic backups/updates
+   - Check `top`/`htop` to verify low CPU usage
 
-4. **Don't mix debug/release builds** - Always use optimized builds
+4. **Don't compare different test sets**
+   - Both benchmarks must test the same files
+   - Verify test counts match in output
 
 ## Advanced Usage
 
