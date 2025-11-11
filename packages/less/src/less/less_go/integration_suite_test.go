@@ -25,6 +25,8 @@ var (
 	showTrace   = os.Getenv("LESS_GO_TRACE") == "1"
 	showDiff    = os.Getenv("LESS_GO_DIFF") == "1"
 	strictMode  = os.Getenv("LESS_GO_STRICT") == "1"  // Fail tests on output differences
+	quietMode   = os.Getenv("LESS_GO_QUIET") == "1"   // Suppress individual test output
+	jsonOutput  = os.Getenv("LESS_GO_JSON") == "1"    // Output results as JSON
 )
 
 // addTestResult safely adds a test result to the global results slice
@@ -280,12 +282,14 @@ type TestSuite struct {
 }
 
 type TestResult struct {
-	Suite       string
-	TestName    string
-	Status      string // "pass", "fail", "skip"
-	Error       string
-	ExpectedCSS string
-	ActualCSS   string
+	Suite        string
+	TestName     string
+	Status       string // "pass", "fail", "skip"
+	Category     string // "perfect_match", "compilation_failed", "output_differs", "correctly_failed", "expected_error", "quarantined"
+	ExpectError  bool   // Whether this test should fail
+	Error        string
+	ExpectedCSS  string
+	ActualCSS    string
 }
 
 // Quarantined tests - features not yet implemented that we're punting on for now
@@ -349,16 +353,20 @@ func runTestSuite(t *testing.T, suite TestSuite, lessRoot, cssRoot string) {
 
 		t.Run(testName, func(t *testing.T) {
 			result := TestResult{
-				Suite:    suite.Name,
-				TestName: testName,
+				Suite:       suite.Name,
+				TestName:    testName,
+				ExpectError: false,
 			}
 
 			// Check if test is quarantined
 			if isQuarantined(suite.Name, testName) {
 				result.Status = "skip"
+				result.Category = "quarantined"
 				result.Error = "Quarantined: Feature not yet implemented (plugin system or JavaScript execution)"
 				addTestResult(result)
-				t.Skipf("⏸️  Quarantined: %s (feature not yet implemented)", testName)
+				if !quietMode {
+					t.Skipf("⏸️  Quarantined: %s (feature not yet implemented)", testName)
+				}
 				return
 			}
 
@@ -366,9 +374,12 @@ func runTestSuite(t *testing.T, suite TestSuite, lessRoot, cssRoot string) {
 			lessContent, err := ioutil.ReadFile(lessFile)
 			if err != nil {
 				result.Status = "skip"
+				result.Category = "skip"
 				result.Error = "Failed to read .less file: " + err.Error()
 				addTestResult(result)
-				t.Skipf("Failed to read %s: %v", lessFile, err)
+				if !quietMode {
+					t.Skipf("Failed to read %s: %v", lessFile, err)
+				}
 				return
 			}
 
@@ -377,9 +388,12 @@ func runTestSuite(t *testing.T, suite TestSuite, lessRoot, cssRoot string) {
 			expectedCSS, err := ioutil.ReadFile(cssFile)
 			if err != nil {
 				result.Status = "skip"
+				result.Category = "skip"
 				result.Error = "Expected CSS file not found: " + err.Error()
 				addTestResult(result)
-				t.Skipf("Expected CSS file %s not found: %v", cssFile, err)
+				if !quietMode {
+					t.Skipf("Expected CSS file %s not found: %v", cssFile, err)
+				}
 				return
 			}
 
@@ -436,18 +450,21 @@ func runTestSuite(t *testing.T, suite TestSuite, lessRoot, cssRoot string) {
 			actualResult, err := compileLessWithDebug(factory, string(lessContent), options)
 			if err != nil {
 				result.Status = "fail"
+				result.Category = "compilation_failed"
 				result.Error = err.Error()
 				result.ActualCSS = ""
 				addTestResult(result)
-				
+
 				if strictMode {
 					// In strict mode, fail the test on compilation errors
 					t.Errorf("❌ %s: Compilation failed: %v", testName, err)
-				} else {
+				} else if !quietMode {
 					// In normal mode, just log the error (expected during development)
 					t.Logf("❌ %s: Compilation failed: %v", testName, err)
 				}
-				enhancedErrorReport(t, err, lessFile, string(lessContent))
+				if debugMode {
+					enhancedErrorReport(t, err, lessFile, string(lessContent))
+				}
 				return
 			}
 
@@ -456,14 +473,18 @@ func runTestSuite(t *testing.T, suite TestSuite, lessRoot, cssRoot string) {
 
 			if result.ActualCSS == result.ExpectedCSS {
 				result.Status = "pass"
+				result.Category = "perfect_match"
 				addTestResult(result)
-				t.Logf("✅ %s: Perfect match!", testName)
+				if !quietMode {
+					t.Logf("✅ %s: Perfect match!", testName)
+				}
 				successCount++
 			} else {
 				result.Status = "fail"
+				result.Category = "output_differs"
 				result.Error = "Output differs from expected"
 				addTestResult(result)
-				
+
 				if strictMode {
 					// In strict mode, fail the test immediately
 					t.Errorf("❌ %s: Output differs from expected", testName)
@@ -473,7 +494,7 @@ func runTestSuite(t *testing.T, suite TestSuite, lessRoot, cssRoot string) {
 						t.Errorf("   Expected: %s", result.ExpectedCSS)
 						t.Errorf("   Actual:   %s", result.ActualCSS)
 					}
-				} else {
+				} else if !quietMode {
 					// During the Go port development, many tests will have output differences
 					// as features are still being implemented. These are marked as failures
 					// but noted as "expected during development" to distinguish them from
@@ -515,16 +536,20 @@ func runErrorTestSuite(t *testing.T, suite TestSuite, lessRoot string) {
 
 		t.Run(testName, func(t *testing.T) {
 			result := TestResult{
-				Suite:    suite.Name,
-				TestName: testName,
+				Suite:       suite.Name,
+				TestName:    testName,
+				ExpectError: true,
 			}
 
 			// Check if test is quarantined
 			if isQuarantined(suite.Name, testName) {
 				result.Status = "skip"
+				result.Category = "quarantined"
 				result.Error = "Quarantined: Feature not yet implemented (plugin system or JavaScript execution)"
 				addTestResult(result)
-				t.Skipf("⏸️  Quarantined: %s (feature not yet implemented)", testName)
+				if !quietMode {
+					t.Skipf("⏸️  Quarantined: %s (feature not yet implemented)", testName)
+				}
 				return
 			}
 
@@ -532,9 +557,12 @@ func runErrorTestSuite(t *testing.T, suite TestSuite, lessRoot string) {
 			lessContent, err := ioutil.ReadFile(lessFile)
 			if err != nil {
 				result.Status = "skip"
+				result.Category = "skip"
 				result.Error = "Failed to read .less file: " + err.Error()
 				addTestResult(result)
-				t.Skipf("Failed to read %s: %v", lessFile, err)
+				if !quietMode {
+					t.Skipf("Failed to read %s: %v", lessFile, err)
+				}
 				return
 			}
 
@@ -589,16 +617,22 @@ func runErrorTestSuite(t *testing.T, suite TestSuite, lessRoot string) {
 			actualResult, err := compileLessWithDebug(factory, string(lessContent), options)
 			if err != nil {
 				result.Status = "pass" // For error tests, failure is success
+				result.Category = "correctly_failed"
 				result.Error = err.Error()
 				addTestResult(result)
-				t.Logf("✅ %s: Correctly failed with error: %v", testName, err)
+				if !quietMode {
+					t.Logf("✅ %s: Correctly failed with error: %v", testName, err)
+				}
 			} else {
 				result.Status = "fail" // For error tests, success is failure
+				result.Category = "expected_error"
 				result.ActualCSS = actualResult
 				result.Error = "Expected error but compilation succeeded"
 				addTestResult(result)
-				t.Logf("⚠️  %s: Expected error but compilation succeeded", testName)
-				t.Logf("   Result: %s", actualResult)
+				if !quietMode {
+					t.Logf("⚠️  %s: Expected error but compilation succeeded", testName)
+					t.Logf("   Result: %s", actualResult)
+				}
 			}
 		})
 	}
@@ -737,98 +771,261 @@ func compileLessWithDebug(factory map[string]any, content string, options map[st
 	return result, err
 }
 
-// printTestSummary prints a Jest-style summary of test results
+// printTestSummary prints a comprehensive, LLM-friendly summary of test results
 func printTestSummary(t *testing.T, results []TestResult) {
-	var passed, failed, skipped, quarantined []TestResult
+	// Categorize results
+	var (
+		perfectMatches    []TestResult
+		compilationFailed []TestResult
+		outputDiffers     []TestResult
+		correctlyFailed   []TestResult
+		expectedError     []TestResult
+		quarantined       []TestResult
+		skipped           []TestResult
+	)
 
 	for _, result := range results {
-		switch result.Status {
-		case "pass":
-			passed = append(passed, result)
-		case "fail":
-			failed = append(failed, result)
+		switch result.Category {
+		case "perfect_match":
+			perfectMatches = append(perfectMatches, result)
+		case "compilation_failed":
+			compilationFailed = append(compilationFailed, result)
+		case "output_differs":
+			outputDiffers = append(outputDiffers, result)
+		case "correctly_failed":
+			correctlyFailed = append(correctlyFailed, result)
+		case "expected_error":
+			expectedError = append(expectedError, result)
+		case "quarantined":
+			quarantined = append(quarantined, result)
 		case "skip":
-			// Separate quarantined tests from other skipped tests
-			if strings.Contains(result.Error, "Quarantined") {
-				quarantined = append(quarantined, result)
-			} else {
-				skipped = append(skipped, result)
-			}
+			skipped = append(skipped, result)
 		}
 	}
 
 	total := len(results)
-	t.Logf("\n" + strings.Repeat("=", 60))
-	t.Logf("📊 INTEGRATION TEST SUMMARY")
-	t.Logf(strings.Repeat("=", 60))
-	
-	if len(passed) > 0 {
-		t.Logf("✅ PASSED (%d)", len(passed))
-		for _, result := range passed {
-			t.Logf("   %s/%s", result.Suite, result.TestName)
-		}
-		t.Logf("")
+	activeTotal := total - len(quarantined) - len(skipped)
+
+	// If JSON output is requested, print JSON and return
+	if jsonOutput {
+		printJSONSummary(t, results, perfectMatches, compilationFailed, outputDiffers,
+			correctlyFailed, expectedError, quarantined, skipped)
+		return
 	}
 
-	if len(failed) > 0 {
-		t.Logf("❌ FAILED (%d)", len(failed))
-		for _, result := range failed {
-			t.Logf("   %s/%s", result.Suite, result.TestName)
-			if result.Error != "" {
-				// Show first part of error for context
-				errorParts := strings.Split(result.Error, "\n")
-				t.Logf("     → %s", errorParts[0])
-			}
-		}
-		t.Logf("")
-	}
-
-	if len(quarantined) > 0 {
-		t.Logf("⏸️  QUARANTINED (%d) - Features not yet implemented", len(quarantined))
-		for _, result := range quarantined {
-			t.Logf("   %s/%s", result.Suite, result.TestName)
-		}
-		t.Logf("")
-	}
-
+	// Print quick stats header
+	divider := strings.Repeat("=", 80)
+	t.Logf("\n" + divider)
+	t.Logf("📊 INTEGRATION TEST SUMMARY - Quick Stats")
+	t.Logf(divider)
+	t.Logf("")
+	t.Logf("OVERALL SUCCESS: %d/%d tests (%.1f%%)",
+		len(perfectMatches)+len(correctlyFailed),
+		activeTotal,
+		float64(len(perfectMatches)+len(correctlyFailed))/float64(activeTotal)*100)
+	t.Logf("")
+	t.Logf("✅ Perfect CSS Matches:      %3d  (%.1f%% of active tests)",
+		len(perfectMatches),
+		float64(len(perfectMatches))/float64(activeTotal)*100)
+	t.Logf("❌ Compilation Failures:     %3d  (%.1f%% of active tests)",
+		len(compilationFailed),
+		float64(len(compilationFailed))/float64(activeTotal)*100)
+	t.Logf("⚠️  Output Differences:       %3d  (%.1f%% of active tests)",
+		len(outputDiffers),
+		float64(len(outputDiffers))/float64(activeTotal)*100)
+	t.Logf("✅ Correctly Failed (Error): %3d  (%.1f%% of active tests)",
+		len(correctlyFailed),
+		float64(len(correctlyFailed))/float64(activeTotal)*100)
+	t.Logf("⚠️  Expected Error:           %3d  (%.1f%% of active tests)",
+		len(expectedError),
+		float64(len(expectedError))/float64(activeTotal)*100)
+	t.Logf("⏸️  Quarantined:              %3d  (not counted - plugin/JS features)",
+		len(quarantined))
 	if len(skipped) > 0 {
-		t.Logf("⏭️  SKIPPED (%d)", len(skipped))
-		for _, result := range skipped {
-			t.Logf("   %s/%s", result.Suite, result.TestName)
+		t.Logf("⏭️  Skipped:                  %3d  (not counted - file errors)", len(skipped))
+	}
+	t.Logf("")
+	t.Logf("TOTAL ACTIVE TESTS: %d", activeTotal)
+	t.Logf("COMPILATION RATE:   %.1f%% (%d/%d tests compile successfully)",
+		float64(activeTotal-len(compilationFailed))/float64(activeTotal)*100,
+		activeTotal-len(compilationFailed),
+		activeTotal)
+	t.Logf("")
+
+	// Detailed breakdown by category
+	t.Logf(divider)
+	t.Logf("📋 DETAILED RESULTS BY CATEGORY")
+	t.Logf(divider)
+	t.Logf("")
+
+	// Perfect matches
+	if len(perfectMatches) > 0 {
+		t.Logf("✅ PERFECT CSS MATCHES (%d tests) - Fully working!", len(perfectMatches))
+		printTestList(t, perfectMatches)
+		t.Logf("")
+	}
+
+	// Compilation failures
+	if len(compilationFailed) > 0 {
+		t.Logf("❌ COMPILATION FAILURES (%d tests) - Parser/Runtime errors", len(compilationFailed))
+		printTestList(t, compilationFailed)
+		t.Logf("")
+	}
+
+	// Output differences
+	if len(outputDiffers) > 0 {
+		t.Logf("⚠️  OUTPUT DIFFERENCES (%d tests) - Compiles but CSS doesn't match", len(outputDiffers))
+		printTestList(t, outputDiffers)
+		t.Logf("")
+	}
+
+	// Correctly failed
+	if len(correctlyFailed) > 0 {
+		t.Logf("✅ CORRECTLY FAILED (%d tests) - Error tests working correctly", len(correctlyFailed))
+		if debugMode {
+			printTestList(t, correctlyFailed)
+		} else {
+			t.Logf("   (run with LESS_GO_DEBUG=1 to see full list)")
 		}
 		t.Logf("")
 	}
 
-	// Overall summary
-	activeTotal := total - len(quarantined)
-	t.Logf("📈 OVERALL: %d passed, %d failed, %d skipped, %d total",
-		len(passed), len(failed), len(skipped), activeTotal)
-	if len(quarantined) > 0 {
-		t.Logf("   (%d quarantined tests not counted in totals)", len(quarantined))
+	// Expected error but succeeded
+	if len(expectedError) > 0 {
+		t.Logf("⚠️  EXPECTED ERROR BUT SUCCEEDED (%d tests) - Should fail but doesn't", len(expectedError))
+		printTestList(t, expectedError)
+		t.Logf("")
 	}
-	
-	if len(failed) > 0 {
-		t.Logf("\n💡 NEXT STEPS: Focus on implementing these missing features:")
-		
-		// Group failures by error type
-		errorGroups := make(map[string][]TestResult)
-		for _, result := range failed {
-			if strings.Contains(result.Error, "Parse: Unrecognised input") {
-				errorGroups["Parser"] = append(errorGroups["Parser"], result)
-			} else if strings.Contains(result.Error, "is undefined") {
-				errorGroups["Variables"] = append(errorGroups["Variables"], result)
-			} else if strings.Contains(result.Error, "Output differs") {
-				errorGroups["CSS Generation"] = append(errorGroups["CSS Generation"], result)
-			} else {
-				errorGroups["Other"] = append(errorGroups["Other"], result)
+
+	// Quarantined
+	if len(quarantined) > 0 {
+		t.Logf("⏸️  QUARANTINED (%d tests) - Plugin/JS features not implemented", len(quarantined))
+		if debugMode {
+			printTestList(t, quarantined)
+		} else {
+			t.Logf("   (run with LESS_GO_DEBUG=1 to see full list)")
+		}
+		t.Logf("")
+	}
+
+	// Quick commands for LLMs
+	t.Logf(divider)
+	t.Logf("🤖 QUICK COMMANDS FOR ANALYSIS")
+	t.Logf(divider)
+	t.Logf("")
+	t.Logf("# Get just the summary (no verbose output):")
+	t.Logf("LESS_GO_QUIET=1 pnpm -w test:go 2>&1 | tail -100")
+	t.Logf("")
+	t.Logf("# Get JSON output for programmatic analysis:")
+	t.Logf("LESS_GO_JSON=1 LESS_GO_QUIET=1 pnpm -w test:go")
+	t.Logf("")
+	t.Logf("# See detailed diffs for failing tests:")
+	t.Logf("LESS_GO_DIFF=1 pnpm -w test:go")
+	t.Logf("")
+	t.Logf("# Debug a specific test:")
+	t.Logf("LESS_GO_DEBUG=1 go test -v -run TestIntegrationSuite/<suite>/<testname>")
+	t.Logf("")
+
+	// Next steps
+	if len(compilationFailed) > 0 || len(outputDiffers) > 0 || len(expectedError) > 0 {
+		t.Logf(divider)
+		t.Logf("💡 NEXT STEPS")
+		t.Logf(divider)
+		t.Logf("")
+
+		if len(compilationFailed) > 0 {
+			t.Logf("PRIORITY: Fix %d compilation failures first", len(compilationFailed))
+			groupedFailures := groupBySuite(compilationFailed)
+			for suite, tests := range groupedFailures {
+				t.Logf("  • %s: %d tests", suite, len(tests))
+			}
+			t.Logf("")
+		}
+
+		if len(outputDiffers) > 0 {
+			t.Logf("MEDIUM: Fix %d output differences", len(outputDiffers))
+			groupedDiffs := groupBySuite(outputDiffers)
+			for suite, tests := range groupedDiffs {
+				t.Logf("  • %s: %d tests", suite, len(tests))
+			}
+			t.Logf("")
+		}
+
+		if len(expectedError) > 0 {
+			t.Logf("LOW: Fix %d error handling tests", len(expectedError))
+			groupedErrors := groupBySuite(expectedError)
+			for suite, tests := range groupedErrors {
+				t.Logf("  • %s: %d tests", suite, len(tests))
+			}
+			t.Logf("")
+		}
+	}
+
+	t.Logf(divider)
+}
+
+// printTestList prints a formatted list of tests
+func printTestList(t *testing.T, tests []TestResult) {
+	grouped := groupBySuite(tests)
+	for suite, suiteTests := range grouped {
+		if len(suiteTests) == 1 {
+			t.Logf("   %s/%s", suite, suiteTests[0].TestName)
+		} else {
+			t.Logf("   %s: (%d tests)", suite, len(suiteTests))
+			for _, test := range suiteTests {
+				t.Logf("     - %s", test.TestName)
 			}
 		}
-		
-		for category, tests := range errorGroups {
-			t.Logf("   • %s (%d tests)", category, len(tests))
-		}
 	}
-	
-	t.Logf(strings.Repeat("=", 60))
+}
+
+// groupBySuite groups test results by suite name
+func groupBySuite(tests []TestResult) map[string][]TestResult {
+	grouped := make(map[string][]TestResult)
+	for _, test := range tests {
+		grouped[test.Suite] = append(grouped[test.Suite], test)
+	}
+	return grouped
+}
+
+// printJSONSummary prints results as JSON for programmatic parsing
+func printJSONSummary(t *testing.T, results []TestResult, perfectMatches, compilationFailed,
+	outputDiffers, correctlyFailed, expectedError, quarantined, skipped []TestResult) {
+
+	summary := map[string]interface{}{
+		"total_tests": len(results),
+		"active_tests": len(results) - len(quarantined) - len(skipped),
+		"categories": map[string]interface{}{
+			"perfect_match":       len(perfectMatches),
+			"compilation_failed":  len(compilationFailed),
+			"output_differs":      len(outputDiffers),
+			"correctly_failed":    len(correctlyFailed),
+			"expected_error":      len(expectedError),
+			"quarantined":         len(quarantined),
+			"skipped":             len(skipped),
+		},
+		"success_rate": float64(len(perfectMatches)+len(correctlyFailed)) / float64(len(results)-len(quarantined)-len(skipped)) * 100,
+		"compilation_rate": float64(len(results)-len(quarantined)-len(skipped)-len(compilationFailed)) / float64(len(results)-len(quarantined)-len(skipped)) * 100,
+		"perfect_match_rate": float64(len(perfectMatches)) / float64(len(results)-len(quarantined)-len(skipped)) * 100,
+		"results": results,
+	}
+
+	// Format as JSON (simple manual formatting to avoid import)
+	t.Logf("{")
+	t.Logf(`  "total_tests": %d,`, summary["total_tests"])
+	t.Logf(`  "active_tests": %d,`, summary["active_tests"])
+	t.Logf(`  "success_rate": %.2f,`, summary["success_rate"])
+	t.Logf(`  "compilation_rate": %.2f,`, summary["compilation_rate"])
+	t.Logf(`  "perfect_match_rate": %.2f,`, summary["perfect_match_rate"])
+	t.Logf(`  "categories": {`)
+	t.Logf(`    "perfect_match": %d,`, len(perfectMatches))
+	t.Logf(`    "compilation_failed": %d,`, len(compilationFailed))
+	t.Logf(`    "output_differs": %d,`, len(outputDiffers))
+	t.Logf(`    "correctly_failed": %d,`, len(correctlyFailed))
+	t.Logf(`    "expected_error": %d,`, len(expectedError))
+	t.Logf(`    "quarantined": %d,`, len(quarantined))
+	t.Logf(`    "skipped": %d`, len(skipped))
+	t.Logf(`  }`)
+	t.Logf("}")
 }
 
