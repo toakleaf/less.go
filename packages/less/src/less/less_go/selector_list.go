@@ -2,6 +2,7 @@ package less_go
 
 import (
 	"fmt"
+	"strings"
 )
 
 // SelectorList represents a list of selectors separated by commas
@@ -66,11 +67,12 @@ func (sl *SelectorList) ToCSS(context any) string {
 	}
 	sl.GenCSS(context, output)
 
-	result := ""
+	// Use strings.Builder for efficient string concatenation
+	var builder strings.Builder
 	for _, s := range strs {
-		result += s
+		builder.WriteString(s)
 	}
-	return result
+	return builder.String()
 }
 
 // Eval evaluates the selector list and returns a new list with evaluated selectors

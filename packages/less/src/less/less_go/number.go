@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"strings"
 )
 
 // NumberFunctions provides all the number-related functions
@@ -413,16 +414,17 @@ func Percentage(n *Dimension) (*Dimension, error) {
 	}, percentUnit, n)
 }
 
-// Helper function to join strings
+// Helper function to join strings using efficient string concatenation
 func joinStrings(strs []string, separator string) string {
-	result := ""
+	// Use strings.Builder for efficient string concatenation
+	var builder strings.Builder
 	for i, str := range strs {
 		if i > 0 {
-			result += separator
+			builder.WriteString(separator)
 		}
-		result += str
+		builder.WriteString(str)
 	}
-	return result
+	return builder.String()
 }
 
 // init registers number functions with the default registry

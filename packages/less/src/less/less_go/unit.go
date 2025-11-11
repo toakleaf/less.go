@@ -88,11 +88,14 @@ func (u *Unit) GenCSS(context any, output *CSSOutput) {
 
 // ToString returns the string representation of the unit
 func (u *Unit) ToString() string {
-	returnStr := strings.Join(u.Numerator, "*")
+	// Use strings.Builder for efficient string concatenation
+	var builder strings.Builder
+	builder.WriteString(strings.Join(u.Numerator, "*"))
 	for i := 0; i < len(u.Denominator); i++ {
-		returnStr += "/" + u.Denominator[i]
+		builder.WriteString("/")
+		builder.WriteString(u.Denominator[i])
 	}
-	return returnStr
+	return builder.String()
 }
 
 // Compare compares this unit with another unit.

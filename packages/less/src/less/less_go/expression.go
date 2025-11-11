@@ -3,6 +3,7 @@ package less_go
 import (
 	"fmt"
 	"os"
+	"strings"
 )
 
 // Expression represents a list of values with optional spacing in the Less AST
@@ -280,11 +281,13 @@ func (e *Expression) ToCSS(context any) string {
 		},
 	}
 	e.GenCSS(context, output)
-	result := ""
+
+	// Use strings.Builder for efficient string concatenation
+	var builder strings.Builder
 	for _, s := range strs {
-		result += s
+		builder.WriteString(s)
 	}
-	return result
+	return builder.String()
 }
 
 // ThrowAwayComments removes Comment nodes from the value array
