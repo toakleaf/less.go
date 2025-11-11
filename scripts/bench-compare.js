@@ -34,11 +34,24 @@ try {
 // Run Go benchmark (individual file benchmarks for fair comparison)
 // Using benchtime=30x to match JavaScript's 30 iterations per file
 console.log('Running Go benchmarks (30 iterations per file)...\n');
-const goOutput = execSync('go test -bench=BenchmarkLessCompilation -benchmem -benchtime=30x ./packages/less/src/less/less_go', {
-    encoding: 'utf8',
-    cwd: path.join(__dirname, '..'),
-    maxBuffer: 10 * 1024 * 1024 // 10MB buffer for all the output
-});
+let goOutput;
+try {
+    goOutput = execSync('go test -bench=BenchmarkLessCompilation -benchmem -benchtime=30x ./packages/less/src/less/less_go', {
+        encoding: 'utf8',
+        cwd: path.join(__dirname, '..'),
+        maxBuffer: 10 * 1024 * 1024 // 10MB buffer for all the output
+    });
+} catch (error) {
+    // Benchmark may fail on some tests, but we can still parse the successful results
+    if (error.stdout) {
+        goOutput = error.stdout;
+        console.log('⚠️  Some Go benchmarks failed, but continuing with successful results...\n');
+    } else {
+        console.error('Failed to run Go benchmarks');
+        console.error(error.message);
+        process.exit(1);
+    }
+}
 
 // Parse Go benchmark output - now we have one result per file
 // Format: BenchmarkLessCompilation/main/colors-10    123    12345678 ns/op    234567 B/op    5678 allocs/op
@@ -61,6 +74,16 @@ if (goResults.length === 0) {
     console.error('Failed to parse Go benchmark output - no results found');
     console.error('Output:', goOutput);
     process.exit(1);
+}
+
+// Check for skipped tests
+const failedTests = [];
+const failLines = goOutput.split('\n').filter(line => line.includes('--- FAIL:'));
+for (const line of failLines) {
+    const match = line.match(/--- FAIL: BenchmarkLessCompilation\/(.+)/);
+    if (match) {
+        failedTests.push(match[1]);
+    }
 }
 
 // Calculate statistics from individual Go results
@@ -89,6 +112,9 @@ console.log('═'.repeat(80));
 console.log(`Test Files: ${jsTestCount} (Go benchmarked: ${goResults.length})`);
 console.log(`Iterations per file: JS=30 (25 measured + 5 warmup), Go=30`);
 console.log(`Methodology: Both benchmark each file individually`);
+if (failedTests.length > 0) {
+    console.log(`⚠️  Skipped Go tests: ${failedTests.join(', ')}`);
+}
 console.log('');
 
 console.log('┌─────────────────────────────────────────────────────────────────────────────┐');
