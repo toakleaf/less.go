@@ -163,17 +163,102 @@ func (v *Visitor) Visit(node any) any {
 		visitMethod, visitMethodExists := v.methodLookup[fnName]
 		visitOutMethod, visitOutMethodExists := v.methodLookup[fnName+"Out"]
 
-		// Create visit function (use _noop if method doesn't exist)
+		// OPTIMIZATION: Create optimized functions based on node type to avoid reflection overhead
+		// For hot path node types, check once if we can use direct method calls instead of reflect.Call
 		if visitMethodExists && visitMethod.IsValid() {
-			visitFunc = func(n any, args *VisitArgs) any {
-				results := visitMethod.Call([]reflect.Value{
-					reflect.ValueOf(n),
-					reflect.ValueOf(args),
-				})
-				if len(results) > 0 {
-					return results[0].Interface()
+			// Check if we can optimize with direct calls for common types
+			// Do the type assertion ONCE here during caching, not on every call
+			switch nodeType {
+			case "Ruleset":
+				if method, ok := v.implementation.(interface {
+					VisitRuleset(any, *VisitArgs) any
+				}); ok {
+					// Capture the method in closure - no reflection overhead on calls
+					visitFunc = func(n any, args *VisitArgs) any {
+						return method.VisitRuleset(n, args)
+					}
+				} else {
+					// Fallback to reflection
+					visitFunc = func(n any, args *VisitArgs) any {
+						results := visitMethod.Call([]reflect.Value{
+							reflect.ValueOf(n),
+							reflect.ValueOf(args),
+						})
+						if len(results) > 0 {
+							return results[0].Interface()
+						}
+						return n
+					}
 				}
-				return n
+			case "Declaration":
+				if method, ok := v.implementation.(interface {
+					VisitDeclaration(any, *VisitArgs) any
+				}); ok {
+					visitFunc = func(n any, args *VisitArgs) any {
+						return method.VisitDeclaration(n, args)
+					}
+				} else {
+					visitFunc = func(n any, args *VisitArgs) any {
+						results := visitMethod.Call([]reflect.Value{
+							reflect.ValueOf(n),
+							reflect.ValueOf(args),
+						})
+						if len(results) > 0 {
+							return results[0].Interface()
+						}
+						return n
+					}
+				}
+			case "MixinCall":
+				if method, ok := v.implementation.(interface {
+					VisitMixinCall(any, *VisitArgs) any
+				}); ok {
+					visitFunc = func(n any, args *VisitArgs) any {
+						return method.VisitMixinCall(n, args)
+					}
+				} else {
+					visitFunc = func(n any, args *VisitArgs) any {
+						results := visitMethod.Call([]reflect.Value{
+							reflect.ValueOf(n),
+							reflect.ValueOf(args),
+						})
+						if len(results) > 0 {
+							return results[0].Interface()
+						}
+						return n
+					}
+				}
+			case "Expression":
+				if method, ok := v.implementation.(interface {
+					VisitExpression(any, *VisitArgs) any
+				}); ok {
+					visitFunc = func(n any, args *VisitArgs) any {
+						return method.VisitExpression(n, args)
+					}
+				} else {
+					visitFunc = func(n any, args *VisitArgs) any {
+						results := visitMethod.Call([]reflect.Value{
+							reflect.ValueOf(n),
+							reflect.ValueOf(args),
+						})
+						if len(results) > 0 {
+							return results[0].Interface()
+						}
+						return n
+					}
+				}
+			default:
+				// For other types, use reflection as before
+				visitFunc = func(n any, args *VisitArgs) any {
+					results := visitMethod.Call([]reflect.Value{
+						reflect.ValueOf(n),
+						reflect.ValueOf(args),
+					})
+					if len(results) > 0 {
+						return results[0].Interface()
+					}
+					return n
+				}
 			}
 		} else {
 			visitFunc = func(n any, args *VisitArgs) any {
