@@ -535,9 +535,9 @@ func (c *Call) Eval(context any) (any, error) {
 				errorType = typedErr.Type()
 			}
 
-			errorMsg := fmt.Sprintf("Error evaluating function `%s`", c.Name)
+			errorMsg := "Error evaluating function `" + c.Name + "`"
 			if err.Error() != "" {
-				errorMsg += fmt.Sprintf(": %s", err.Error())
+				errorMsg += ": " + err.Error()
 			}
 
 			return nil, fmt.Errorf("%s: %s (index: %d, filename: %s, line: %d, column: %d)",

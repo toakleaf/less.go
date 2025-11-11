@@ -36,7 +36,7 @@ func NewNode() *Node {
 		Parsed:          nil,
 		Value:           nil,
 		Index:           0,
-		fileInfo:        make(map[string]any),
+		fileInfo:        make(map[string]any, 8), // Pre-allocate capacity to reduce allocations
 	}
 }
 

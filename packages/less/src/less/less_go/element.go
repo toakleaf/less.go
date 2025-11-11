@@ -88,7 +88,7 @@ func NewElement(combinator any, value any, isVariable bool, index int, currentFi
 	if currentFileInfo != nil {
 		e.SetFileInfo(currentFileInfo)
 	} else {
-		e.SetFileInfo(make(map[string]any))
+		e.SetFileInfo(make(map[string]any, 8)) // Pre-allocate capacity
 	}
 	e.CopyVisibilityInfo(visibilityInfo)
 	e.SetParent(comb, e.Node)

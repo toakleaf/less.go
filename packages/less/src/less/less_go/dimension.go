@@ -151,7 +151,7 @@ func (d *Dimension) GenCSS(context any, output *CSSOutput) {
 		// Check if the number is close to an integer
 		if math.Abs(roundedValue-math.Round(roundedValue)) < 1e-10 {
 			// Integer or very close to it - format without decimal places
-			strValue = fmt.Sprintf("%.0f", roundedValue)
+			strValue = strconv.FormatFloat(roundedValue, 'f', 0, 64)
 		} else {
 			// Has decimal places - use %f and trim trailing zeros
 			// Use sufficient precision to match JavaScript

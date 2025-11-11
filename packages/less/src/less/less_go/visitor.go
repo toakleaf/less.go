@@ -1,8 +1,8 @@
 package less_go
 
 import (
-	"fmt"
 	"reflect"
+	"strconv"
 )
 
 var _visitArgs = map[string]bool{"visitDeeper": true}
@@ -142,7 +142,7 @@ func (v *Visitor) Visit(node any) any {
 		visitOutFunc = v.visitOutCache[nodeTypeIndex]
 	} else {
 		// Build function name like JS: `visit${node.type}`
-		fnName := fmt.Sprintf("Visit%s", nodeType)
+		fnName := "Visit" + nodeType
 		
 		// Use reflection to find methods on implementation
 		implValue := reflect.ValueOf(impl)
@@ -220,7 +220,7 @@ func (v *Visitor) Visit(node any) any {
 				} else {
 					// Fallback: try to get element at index i (like node[i] in JS)
 					for i := 0; i < length; i++ {
-						indexField := nodeVal.FieldByName(fmt.Sprintf("%d", i))
+						indexField := nodeVal.FieldByName(strconv.Itoa(i))
 						if indexField.IsValid() && indexField.CanInterface() {
 							item := indexField.Interface()
 							if accepter, ok := item.(interface{ Accept(any) }); ok {
@@ -412,7 +412,7 @@ func (v *Visitor) convertToSlice(obj any) []any {
 			length := int(lengthField.Int())
 			result := make([]any, 0, length)
 			for i := 0; i < length; i++ {
-				indexField := objValue.FieldByName(fmt.Sprintf("%d", i))
+				indexField := objValue.FieldByName(strconv.Itoa(i))
 				if indexField.IsValid() && indexField.CanInterface() {
 					result = append(result, indexField.Interface())
 				}

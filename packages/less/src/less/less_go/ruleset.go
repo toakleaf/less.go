@@ -85,7 +85,7 @@ func NewRuleset(selectors []any, rules []any, strictImports bool, visibilityInfo
 		Rules:         rules,
 		StrictImports: strictImports,
 		AllowRoot:     true,
-		lookups:       make(map[string][]any),
+		lookups:       make(map[string][]any, 8), // Pre-allocate capacity
 		variables:     nil,
 		properties:    nil,
 		rulesets:      nil,
@@ -111,7 +111,7 @@ func NewRuleset(selectors []any, rules []any, strictImports bool, visibilityInfo
 			r.ParseContext = parseContext
 			// Also set in Parse object for JavaScript compatibility
 			if r.Parse == nil {
-				r.Parse = make(map[string]any)
+				r.Parse = make(map[string]any, 4) // Pre-allocate capacity
 			}
 			r.Parse["context"] = parseContext
 		}
@@ -121,7 +121,7 @@ func NewRuleset(selectors []any, rules []any, strictImports bool, visibilityInfo
 			r.ParseImports = parseImports
 			// Also set in Parse object for JavaScript compatibility
 			if r.Parse == nil {
-				r.Parse = make(map[string]any)
+				r.Parse = make(map[string]any, 4) // Pre-allocate capacity
 			}
 			r.Parse["importManager"] = parseImports
 		}

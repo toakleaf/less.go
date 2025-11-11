@@ -1,0 +1,11 @@
+
+> @less/root@4.2.2 bench:go:suite /home/user/less.go
+> go test -bench=BenchmarkLargeSuite -benchmem -benchtime=10s ./packages/less/src/less/less_go
+
+goos: linux
+goarch: amd64
+pkg: github.com/toakleaf/less.go/packages/less/src/less/less_go
+cpu: Intel(R) Xeon(R) CPU @ 2.60GHz
+BenchmarkLargeSuite-16    	      74	 149872899 ns/op	45037601 B/op	  794935 allocs/op
+PASS
+ok  	github.com/toakleaf/less.go/packages/less/src/less/less_go	12.210s
