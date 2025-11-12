@@ -108,7 +108,11 @@ func wrapPercentage(fn func(n *Dimension) (*Dimension, error)) func(args ...inte
 		}
 		dim, ok := args[0].(*Dimension)
 		if !ok {
-			return nil, fmt.Errorf("percentage expects dimension argument")
+			// Return LessError with type "Argument" to match JavaScript behavior
+			return nil, &LessError{
+				Type:    "Argument",
+				Message: "argument must be a number",
+			}
 		}
 		return fn(dim)
 	}

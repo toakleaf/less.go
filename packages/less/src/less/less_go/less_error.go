@@ -126,6 +126,12 @@ func (le *LessError) GetErrorType() string {
 	return le.Type
 }
 
+// ErrorType returns the error type (e.g., "Argument", "Syntax", "Runtime")
+// Deprecated: Use GetErrorType() instead. Kept for backward compatibility.
+func (le *LessError) ErrorType() string {
+	return le.Type
+}
+
 // LineNumber returns the line number where the error occurred (1-based).
 func (le *LessError) LineNumber() int {
 	if le.Line != nil {
