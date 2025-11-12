@@ -133,7 +133,13 @@ func SafeEval(value any, context any) any {
 		}()
 		result, err := evaluable.Eval(context)
 		if err != nil {
-			return value // Return original value on error
+			// Only panic on LessError types - these are intentional LESS compilation errors
+			// Regular Go errors (like validation errors) should return the original value for safety
+			if lessErr, ok := err.(*LessError); ok {
+				panic(lessErr)
+			}
+			// For other errors, return the original value (maintains backward compatibility)
+			return value
 		}
 		return result
 	}
