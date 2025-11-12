@@ -1,8 +1,8 @@
 package less_go
 
 import (
+	"math"
 	"testing"
-
 )
 
 func TestOperationConstructor(t *testing.T) {
@@ -260,37 +260,43 @@ func TestOperationEval(t *testing.T) {
 		}
 	})
 	
-	t.Run("should return error for division by zero", func(t *testing.T) {
+	t.Run("should handle division by zero", func(t *testing.T) {
 		dim1, _ := NewDimension(10, "px")
 		dim2, _ := NewDimension(0, "px")
-		
+
 		context := map[string]any{
 			"isMathOn": func(string) bool { return true },
 		}
-		
-		// Test regular division
+
+		// Test regular division - should return Infinity, not error
+		// Match JavaScript: expect(result.value).toBe(Infinity);
 		op := NewOperation("/", []any{dim1, dim2}, false)
-		_, err := op.Eval(context)
-		if err == nil {
-			t.Error("Expected error for division by zero")
+		result, err := op.Eval(context)
+		if err != nil {
+			t.Errorf("Unexpected error for division by zero: %v", err)
 		}
-		
-		lessErr, ok := err.(*LessError)
+
+		dim, ok := result.(*Dimension)
 		if !ok {
-			t.Error("Expected LessError type")
+			t.Errorf("Expected Dimension result, got %T", result)
 		}
-		if lessErr.Type != "Operation" {
-			t.Errorf("Expected error type 'Operation', got '%s'", lessErr.Type)
+		if !math.IsInf(dim.Value, 1) {
+			t.Errorf("Expected Infinity, got %v", dim.Value)
 		}
-		if lessErr.Message != "Division by zero" {
-			t.Errorf("Expected error message 'Division by zero', got '%s'", lessErr.Message)
-		}
-		
-		// Test special ./ operator
+
+		// Test special ./ operator - should also return Infinity
 		op2 := NewOperation("./", []any{dim1, dim2}, false)
-		_, err2 := op2.Eval(context)
-		if err2 == nil {
-			t.Error("Expected error for division by zero with ./ operator")
+		result2, err2 := op2.Eval(context)
+		if err2 != nil {
+			t.Errorf("Unexpected error for division by zero with ./ operator: %v", err2)
+		}
+
+		dim2Result, ok := result2.(*Dimension)
+		if !ok {
+			t.Errorf("Expected Dimension result, got %T", result2)
+		}
+		if !math.IsInf(dim2Result.Value, 1) {
+			t.Errorf("Expected Infinity, got %v", dim2Result.Value)
 		}
 	})
 	
@@ -335,24 +341,32 @@ func TestOperationEval(t *testing.T) {
 		}
 	})
 	
-	t.Run("should handle mixed operations with division", func(t *testing.T) {
+	t.Run("should handle mixed operations with division by zero", func(t *testing.T) {
 		dim1, _ := NewDimension(10, "px")
 		dim2, _ := NewDimension(2, "px")
 		dim3, _ := NewDimension(0, "px")
-		
+
 		context := map[string]any{
 			"isMathOn": func(string) bool { return true },
 		}
-		
+
 		// Create nested operation: 10px + (2px / 0px)
+		// Match JavaScript: 10 + Infinity = Infinity
 		divOp := NewOperation("/", []any{dim2, dim3}, false)
 		addOp := NewOperation("+", []any{dim1, divOp}, false)
-		
-		// The inner division operation should fail when evaluated,
-		// so the outer operation should also fail
-		_, err := addOp.Eval(context)
-		if err == nil {
-			t.Error("Expected error for nested division by zero")
+
+		result, err := addOp.Eval(context)
+		if err != nil {
+			t.Errorf("Unexpected error for nested division by zero: %v", err)
+		}
+
+		dim, ok := result.(*Dimension)
+		if !ok {
+			t.Errorf("Expected Dimension result, got %T", result)
+		}
+		// 10 + Infinity = Infinity
+		if !math.IsInf(dim.Value, 1) {
+			t.Errorf("Expected Infinity, got %v", dim.Value)
 		}
 	})
 }
