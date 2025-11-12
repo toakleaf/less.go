@@ -121,6 +121,29 @@ func (le *LessError) Error() string {
 	return fmt.Sprintf("%s: %s", le.Type, le.Message)
 }
 
+// GetErrorType returns the error type.
+func (le *LessError) GetErrorType() string {
+	return le.Type
+}
+
+// LineNumber returns the line number where the error occurred (1-based).
+func (le *LessError) LineNumber() int {
+	if le.Line != nil {
+		return *le.Line
+	}
+	return 0
+}
+
+// ColumnNumber returns the column number where the error occurred (0-based).
+func (le *LessError) ColumnNumber() int {
+	return le.Column
+}
+
+// HasLineColumn returns true if the error has line and column information.
+func (le *LessError) HasLineColumn() bool {
+	return le.Line != nil
+}
+
 // StylizeFunc defines the signature for a function that can apply styles (e.g., colors).
 type StylizeFunc func(str string, style string) string
 

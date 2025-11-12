@@ -489,7 +489,10 @@ func ColorFunction(colorStr any) any {
 	} else if s, ok := colorStr.(string); ok {
 		str = s
 	} else {
-		return nil
+		return &LessError{
+			Type:    "Argument",
+			Message: "argument must be a color keyword or 3|4|6|8 digit hex e.g. #FFF",
+		}
 	}
 
 	// Remove quotes if present
@@ -498,6 +501,14 @@ func ColorFunction(colorStr any) any {
 	// Try to parse as hex color
 	if strings.HasPrefix(str, "#") {
 		hexStr := str[1:] // Remove the #
+		// Validate hex length
+		hexLen := len(hexStr)
+		if hexLen != 3 && hexLen != 4 && hexLen != 6 && hexLen != 8 {
+			return &LessError{
+				Type:    "Argument",
+				Message: "argument must be a color keyword or 3|4|6|8 digit hex e.g. #FFF",
+			}
+		}
 		// Pass the full hex string (with #) as the Value so it's preserved in output
 		// Use a sentinel alpha value (-1) to indicate "don't override alpha from hex"
 		c := NewColor(hexStr, -1, str)
@@ -510,7 +521,10 @@ func ColorFunction(colorStr any) any {
 		return c
 	}
 
-	return nil
+	return &LessError{
+		Type:    "Argument",
+		Message: "argument must be a color keyword or 3|4|6|8 digit hex e.g. #FFF",
+	}
 }
 
 // Color channel extraction functions
@@ -724,32 +738,37 @@ func ColorLighten(color, amount any, method ...any) any {
 
 // ColorDarken decreases lightness
 func ColorDarken(color, amount any, method ...any) any {
-	if c, ok := color.(*Color); ok {
-		amountVal, err := number(amount)
-		if err != nil {
-			return nil
+	c, ok := color.(*Color)
+	if !ok {
+		return &LessError{
+			Type:    "Runtime",
+			Message: "Argument cannot be evaluated to a color",
 		}
-		
-		// Default to relative method
-		var methodStr string
-		if len(method) > 0 {
-			if s, ok := method[0].(string); ok {
-				methodStr = s
-			}
-		}
-		
-		hsl := c.ToHSL()
-		if methodStr == "relative" {
-			hsl.L = hsl.L - hsl.L*amountVal
-		} else {
-			// Default is absolute method
-			hsl.L = hsl.L - amountVal
-		}
-		hsl.L = clampUnit(hsl.L)
-		
-		return hslaHelper(c, hsl.H, hsl.S, hsl.L, hsl.A)
 	}
-	return nil
+
+	amountVal, err := number(amount)
+	if err != nil {
+		return nil
+	}
+
+	// Default to relative method
+	var methodStr string
+	if len(method) > 0 {
+		if s, ok := method[0].(string); ok {
+			methodStr = s
+		}
+	}
+
+	hsl := c.ToHSL()
+	if methodStr == "relative" {
+		hsl.L = hsl.L - hsl.L*amountVal
+	} else {
+		// Default is absolute method
+		hsl.L = hsl.L - amountVal
+	}
+	hsl.L = clampUnit(hsl.L)
+
+	return hslaHelper(c, hsl.H, hsl.S, hsl.L, hsl.A)
 }
 
 // toColor converts various color representations to *Color
@@ -1048,6 +1067,14 @@ type ColorFunctionWrapper struct {
 	fn   interface{}
 }
 
+// checkLessError checks if a result is a LessError and returns it as an error
+func checkLessError(result any) (any, error) {
+	if lessErr, ok := result.(*LessError); ok {
+		return nil, lessErr
+	}
+	return result, nil
+}
+
 func (w *ColorFunctionWrapper) Call(args ...any) (any, error) {
 	switch w.name {
 	case "rgb":
@@ -1136,7 +1163,12 @@ func (w *ColorFunctionWrapper) Call(args ...any) (any, error) {
 	case "color":
 		if len(args) == 1 {
 			if fn, ok := w.fn.(func(any) any); ok {
-				return fn(args[0]), nil
+				result := fn(args[0])
+				// Check if result is a LessError and convert to Go error
+				if lessErr, ok := result.(*LessError); ok {
+					return nil, lessErr
+				}
+				return result, nil
 			}
 		}
 		return nil, fmt.Errorf("function %s expects 1 argument, got %d", w.name, len(args))
@@ -1258,22 +1290,22 @@ func (w *ColorFunctionWrapper) Call(args ...any) (any, error) {
 		switch fn := w.fn.(type) {
 		case func(any) any:
 			if len(args) == 1 {
-				return fn(args[0]), nil
+				return checkLessError(fn(args[0]))
 			}
 			return nil, fmt.Errorf("function %s expects 1 argument, got %d", w.name, len(args))
 		case func(any, any) any:
 			if len(args) == 2 {
-				return fn(args[0], args[1]), nil
+				return checkLessError(fn(args[0], args[1]))
 			}
 			return nil, fmt.Errorf("function %s expects 2 arguments, got %d", w.name, len(args))
 		case func(any, any, any) any:
 			if len(args) == 3 {
-				return fn(args[0], args[1], args[2]), nil
+				return checkLessError(fn(args[0], args[1], args[2]))
 			}
 			return nil, fmt.Errorf("function %s expects 3 arguments, got %d", w.name, len(args))
 		case func(any, any, ...any) any:
 			if len(args) >= 2 {
-				return fn(args[0], args[1], args[2:]...), nil
+				return checkLessError(fn(args[0], args[1], args[2:]...))
 			}
 			return nil, fmt.Errorf("function %s expects at least 2 arguments, got %d", w.name, len(args))
 		default:

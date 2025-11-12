@@ -377,6 +377,11 @@ func (c *Call) GetType() string {
 	return "Call"
 }
 
+// GetName returns the function name.
+func (c *Call) GetName() string {
+	return c.Name
+}
+
 // Accept processes the node's children with a visitor.
 func (c *Call) Accept(visitor any) {
 	if v, ok := visitor.(interface{ VisitArray([]any) []any }); ok && c.Args != nil {
@@ -531,8 +536,8 @@ func (c *Call) Eval(context any) (any, error) {
 			}
 
 			errorType := "Runtime"
-			if typedErr, ok := err.(interface{ Type() string }); ok {
-				errorType = typedErr.Type()
+			if typedErr, ok := err.(interface{ GetErrorType() string }); ok {
+				errorType = typedErr.GetErrorType()
 			}
 
 			errorMsg := fmt.Sprintf("Error evaluating function `%s`", c.Name)
