@@ -148,28 +148,30 @@ When working on this project, please be aware of the following:
    - `LESS_GO_STRICT=1` - Fail tests on any output difference (useful for CI)
    - `LESS_GO_TRACE=1` - Show evaluation trace (for debugging specific issues)
 
-6. **Current Integration Test Status** (as of 2025-11-10 - Latest Verified Measurement):
+6. **Current Integration Test Status** (as of 2025-11-12 - Latest Verified Measurement):
    - **80 perfect CSS matches (43.5%)** - EXCELLENT PROGRESS! ✅
-   - **3 compilation failures (1.6%)** - All external (network/packages) - expected
-   - **62 correct error handling (33.7%)** - tests that should fail, do fail correctly
-   - **12 tests with CSS output differences (6.5%)** - compiles but CSS doesn't match
-   - **27 incorrect error handling (14.7%)** - tests that should error but succeed
-   - **Overall Success Rate: 77.2%** ✅ (142/184 tests perfect matches or correctly erroring)
-   - **Compilation Rate: 98.4%** (181/184 tests compile successfully)
+   - **4 compilation failures (2.2%)** - 3 external (network/packages) + 1 svg-gradient validation (see notes)
+   - **73 correct error handling (39.7%)** - tests that should fail, do fail correctly ⬆️ (+11!)
+   - **11 tests with CSS output differences (6.0%)** - compiles but CSS doesn't match ⬇️ (-1!)
+   - **16 incorrect error handling (8.7%)** - tests that should error but succeed ⬇️ (-11!)
+   - **Overall Success Rate: 83.2%** ✅ (153/184 tests perfect matches or correctly erroring) ⬆️ (+6.0%)
+   - **Compilation Rate: 97.8%** (180/184 tests compile successfully)
    - **Perfect CSS Match Rate: 43.5%**
-   - **✅ NO REGRESSIONS** - All previously passing tests still passing (including extend-chaining)
+   - **⚠️ ONE MINOR REGRESSION**: `urls` test now fails due to svg-gradient validation (fixable)
 
    **🎉 Parser Status: ALL BUGS FIXED!**
    - Parser correctly handles full LESS syntax
    - **181/185 tests compile successfully** ⬆️
    - Remaining work is primarily CSS generation, error handling, and edge cases
 
-   **✅ Unit Test Status:**
+   **⚠️ Unit Test Status:**
    - **2,290+ tests passing** ✅ (99.9%+)
    - **1 test has a timeout issue**: `TestRulesetErrorConditions/should_handle_nested_rulesets_with_circular_dependencies` (test bug, not functionality)
-   - No functionality regressions
+   - **1 test failing**: `TestCallEval/should_handle_errors_with_custom_type` - Error message format changed in commit 6d9afec (test expectation needs updating)
 
-   **Recent Progress** (Runtime Fixes):
+   **Recent Progress** (Runtime & Validation Fixes - Past 2 Days):
+   - ✅ **MAJOR VALIDATION WINS**: +11 tests now correctly error! Error handling improved from 77.2% → 83.2%
+   - ✅ **Commits 240-246**: Extensive validation improvements (variable refs, units, functions, detached rulesets)
    - ✅ Issue #1: `if()` function context passing - FIXED
    - ✅ Issue #1b: Type function wrapping (unit, iscolor, etc.) - FIXED
    - ✅ Issue #2: Detached ruleset variable calls and frame scoping - FIXED

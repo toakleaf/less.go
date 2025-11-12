@@ -1,7 +1,7 @@
 # Expected Error Tests - Tests That Should Fail But Don't
 
-**Last Updated:** 2025-11-11
-**Total Count:** 27 tests (14.7% of active tests)
+**Last Updated:** 2025-11-12
+**Total Count:** 16 tests (8.7% of active tests) ⬇️ **-11 from previous count!**
 **Priority:** MEDIUM (error handling is important but doesn't affect successful compilations)
 
 ## Overview
@@ -10,93 +10,66 @@ These are tests in the `eval-errors` and `parse-errors` suites that are expected
 
 ## Current Status
 
-From the latest test run:
+**🎉 MAJOR PROGRESS!** Recent validation improvements (commits 240-246) fixed 11 error handling tests!
 
-- **eval-errors suite:** 23 tests failing to error properly
-- **parse-errors suite:** 4 tests failing to error properly
+From the latest test run (2025-11-12):
 
-**Total:** 27 tests that should error but succeed
+- **eval-errors suite:** 12 tests failing to error properly (down from 23!)
+- **parse-errors suite:** 4 tests failing to error properly (unchanged)
+
+**Total:** 16 tests that should error but succeed (down from 27!)
 
 ## Test Categories
 
-### Category 1: Strict Unit/Math Validation (6 tests)
+### Category 1: Strict Unit/Math Validation (2 tests remaining, 4 FIXED! ✅)
 **Priority:** HIGH - These are fundamental validation errors
+**Progress:** 4/6 tests now correctly error!
 
-Tests that should fail due to incompatible unit operations in strict mode:
+**✅ FIXED (now correctly error):**
+- ~~add-mixed-units~~ - FIXED in commit f8b76cb
+- ~~add-mixed-units2~~ - FIXED in commit f8b76cb
+- ~~divide-mixed-units~~ - FIXED in commit f8b76cb
+- ~~multiply-mixed-units~~ - FIXED in commit f8b76cb
 
-1. **add-mixed-units** - Adding incompatible units (px + em)
-   - File: `/home/user/less.go/packages/test-data/errors/eval/add-mixed-units.less`
-   - Expected Error: Cannot add units px and em
-   - Current Behavior: Compiles successfully
+**Still need fixing:**
 
-2. **add-mixed-units2** - Another mixed unit addition test
-   - File: `/home/user/less.go/packages/test-data/errors/eval/add-mixed-units2.less`
-   - Expected Error: Cannot add incompatible units
-   - Current Behavior: Compiles successfully
-
-3. **divide-mixed-units** - Dividing incompatible units
-   - File: `/home/user/less.go/packages/test-data/errors/eval/divide-mixed-units.less`
-   - Expected Error: Cannot divide incompatible units
-   - Current Behavior: Compiles successfully
-
-4. **multiply-mixed-units** - Multiplying incompatible units
-   - File: `/home/user/less.go/packages/test-data/errors/eval/multiply-mixed-units.less`
-   - Expected Error: Cannot multiply incompatible units
-   - Current Behavior: Compiles successfully
-
-5. **percentage-non-number-argument** - percentage() function with division in strict math
+1. **percentage-non-number-argument** - percentage() function with division in strict math
    - File: `/home/user/less.go/packages/test-data/errors/eval/percentage-non-number-argument.less`
    - Content: `percentage(16/17)` in strict math mode
    - Expected Error: percentage() expects a number, not an operation
    - Current Behavior: Compiles successfully
 
-6. **unit-function** - unit() function with division in strict math
+2. **unit-function** - unit() function with division in strict math
    - File: `/home/user/less.go/packages/test-data/errors/eval/unit-function.less`
    - Content: `unit(80/16, rem)` in strict math mode
    - Expected Error: unit() expects a number, not an operation
    - Current Behavior: Compiles successfully
 
-### Category 2: Variable/Reference Errors (5 tests)
+### Category 2: Variable/Reference Errors (0 tests remaining, 5 FIXED! ✅)
 **Priority:** HIGH - These are fundamental scoping/reference errors
+**Progress:** 5/5 tests now correctly error! **CATEGORY COMPLETE!**
 
-1. **recursive-variable** - Self-referencing variable
-   - File: `/home/user/less.go/packages/test-data/errors/eval/recursive-variable.less`
-   - Content: `@bodyColor: darken(@bodyColor, 30%);`
-   - Expected Error: Recursive variable reference detected
-   - Current Behavior: Compiles successfully (likely infinite loop or wrong value)
+**✅ ALL FIXED (now correctly error):**
+- ~~recursive-variable~~ - FIXED in commit e0e371b
+- ~~property-interp-not-defined~~ - FIXED in commit e4bb4ce
+- ~~namespacing-2~~ - FIXED in commit cb3055b
+- ~~namespacing-3~~ - FIXED in commit cb3055b
+- ~~namespacing-4~~ - FIXED in commit cb3055b
 
-2. **property-interp-not-defined** - Undefined variable in interpolation
-   - File: `/home/user/less.go/packages/test-data/errors/eval/property-interp-not-defined.less`
-   - Content: `outline-@{color}: green` where @color is undefined
-   - Expected Error: Variable @color is undefined
-   - Current Behavior: Compiles successfully
-
-3. **namespacing-2** - Accessing non-existent property in detached ruleset
-   - File: `/home/user/less.go/packages/test-data/errors/eval/namespacing-2.less`
-   - Content: `@dr[not-found]` where property doesn't exist
-   - Expected Error: Property 'not-found' not found in detached ruleset
-   - Current Behavior: Compiles successfully
-
-4. **namespacing-3** - Another namespacing access error
-   - File: `/home/user/less.go/packages/test-data/errors/eval/namespacing-3.less`
-   - Expected Error: Invalid namespacing access
-   - Current Behavior: Compiles successfully
-
-5. **namespacing-4** - Another namespacing access error
-   - File: `/home/user/less.go/packages/test-data/errors/eval/namespacing-4.less`
-   - Expected Error: Invalid namespacing access
-   - Current Behavior: Compiles successfully
-
-### Category 3: Invalid Function Calls (13 tests)
+### Category 3: Invalid Function Calls (8 tests remaining, 5 FIXED! ✅)
 **Priority:** MEDIUM - Function validation errors
+**Progress:** 5/13 tests now correctly error!
 
-1. **root-func-undefined-1** - Calling undefined function at root level
-   - File: `/home/user/less.go/packages/test-data/errors/eval/root-func-undefined-1.less`
-   - Content: `func();` where func is undefined
-   - Expected Error: Function 'func' is undefined
-   - Current Behavior: Compiles successfully
+**✅ FIXED (now correctly error):**
+- ~~root-func-undefined-1~~ - FIXED in commit 6d9afec
+- ~~root-func-undefined-2~~ - FIXED in commit 6d9afec
+- ~~at-rules-undefined-var~~ - FIXED in commits 240-246
+- ~~css-guard-default-func~~ - FIXED in commits 240-246
+- ~~javascript-undefined-var~~ - FIXED in commits 240-246
 
-2. **color-func-invalid-color** - color() with invalid color string
+**Still need fixing:**
+
+1. **color-func-invalid-color** - color() with invalid color string
    - File: `/home/user/less.go/packages/test-data/errors/eval/color-func-invalid-color.less`
    - Content: `color("NOT A COLOR")`
    - Expected Error: Invalid color string
