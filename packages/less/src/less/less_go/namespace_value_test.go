@@ -1,6 +1,7 @@
 package less_go
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -748,13 +749,17 @@ func TestNamespaceValueAdvancedCases(t *testing.T) {
 		namespaceValue := NewNamespaceValue(mockRuleCall, []string{"width"}, 1, mockFileInfo)
 		result, err := namespaceValue.Eval(mockContext)
 
-		if err != nil {
-			t.Errorf("Expected no error, got %v", err)
+		// Empty array is treated as "property not found" and should error
+		// This is consistent with namespace_value.go line 263-273
+		if err == nil {
+			t.Errorf("Expected error for empty properties array (property not found), got nil")
 		}
-		// Empty array means no properties found, but Go handles this gracefully
-		// by returning the empty array itself, unlike JavaScript which would cause TypeError
-		if resultArray, ok := result.([]any); !ok || len(resultArray) != 0 {
-			t.Errorf("Expected result to be empty array")
+		if err != nil && !strings.Contains(err.Error(), "not found") {
+			t.Errorf("Expected 'not found' error, got %v", err)
+		}
+		// Result should be nil when there's an error
+		if result != nil {
+			t.Errorf("Expected nil result when error occurs, got %v", result)
 		}
 	})
 

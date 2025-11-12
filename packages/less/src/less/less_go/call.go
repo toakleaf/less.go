@@ -549,11 +549,28 @@ func (c *Call) Eval(context any) (any, error) {
 				errorMsg += fmt.Sprintf(": %s", err.Error())
 			}
 
-			return nil, fmt.Errorf("%s: %s (index: %d, filename: %s, line: %d, column: %d)",
-				errorType, errorMsg, c.GetIndex(), c.FileInfo()["filename"], lineNumber, columnNumber)
+			// Return a *LessError to preserve type for proper error propagation
+			lessErr := &LessError{
+				Type:     errorType,
+				Message:  errorMsg,
+				Index:    c.GetIndex(),
+				Filename: c.FileInfo()["filename"].(string),
+				Column:   columnNumber,
+			}
+			if lineNumber > 0 {
+				lessErr.Line = &lineNumber
+			}
+			return nil, lessErr
 		}
 		exitCalc()
 		
+		// Check if result is a LessError and return it as an error
+		if result != nil {
+			if lessErr, ok := result.(*LessError); ok {
+				return nil, lessErr
+			}
+		}
+
 		if result != nil {
 			// Results that are not nodes are cast as Anonymous nodes
 			// Falsy values or booleans are returned as empty nodes
