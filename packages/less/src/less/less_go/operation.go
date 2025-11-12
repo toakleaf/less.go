@@ -175,9 +175,17 @@ func (o *Operation) Eval(context any) (any, error) {
 		if aDim, aOk := a.(*Dimension); aOk {
 			if bDim, bOk := b.(*Dimension); bOk {
 				// Match JavaScript: return a.operate(context, op, b);
-				// Note: Division by zero naturally returns NaN/Inf in both JavaScript and Go
-				// This is valid behavior for CSS calc() and other contexts
-				return aDim.Operate(context, op, bDim), nil
+				result := aDim.Operate(context, op, bDim)
+				// If operation produced NaN (e.g., 0/0), Operate returns nil
+				// Return error so SafeEval preserves the original Operation node
+				// This makes "0/0" output as "0/0" instead of "NaN"
+				if result == nil {
+					return nil, &LessError{
+						Type:    "Operation",
+						Message: "Operation produced invalid result (NaN)",
+					}
+				}
+				return result, nil
 			}
 		}
 		
