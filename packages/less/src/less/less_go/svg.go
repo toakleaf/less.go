@@ -11,9 +11,89 @@ var SvgFunctions = map[string]interface{}{
 	"svg-gradient": SvgGradient,
 }
 
-// GetWrappedSvgFunctions returns svg functions for registry
+// RegisterSvgFunctions registers svg functions with the given registry
+func RegisterSvgFunctions(registry *Registry) {
+	for name, fn := range GetWrappedSvgFunctions() {
+		if regFn, ok := fn.(FunctionDefinition); ok {
+			registry.Add(name, regFn)
+		}
+	}
+}
+
+// init registers svg functions with the default registry
+func init() {
+	RegisterSvgFunctions(DefaultRegistry)
+}
+
+// SvgFunctionWrapper wraps svg functions to implement FunctionDefinition interface
+type SvgFunctionWrapper struct {
+	name string
+}
+
+func (w *SvgFunctionWrapper) Call(args ...any) (any, error) {
+	return nil, fmt.Errorf("svg-gradient function requires context - use CallCtx instead")
+}
+
+func (w *SvgFunctionWrapper) CallCtx(ctx *Context, args ...any) (any, error) {
+	switch w.name {
+	case "svg-gradient":
+		// Evaluate arguments first
+		evaluatedArgs := make([]any, len(args))
+		for i, arg := range args {
+			if evaluatable, ok := arg.(Evaluable); ok {
+				evalResult, err := evaluatable.Eval(ctx)
+				if err != nil {
+					return nil, fmt.Errorf("error evaluating argument %d: %w", i, err)
+				}
+				evaluatedArgs[i] = evalResult
+			} else {
+				evaluatedArgs[i] = arg
+			}
+		}
+
+		svgCtx := buildSvgContext(ctx)
+		result, err := SvgGradient(svgCtx, evaluatedArgs...)
+		if err != nil {
+			return nil, err
+		}
+		return result, nil
+	default:
+		return nil, fmt.Errorf("unknown svg function: %s", w.name)
+	}
+}
+
+func (w *SvgFunctionWrapper) NeedsEvalArgs() bool {
+	// SVG functions need context for error handling
+	return false
+}
+
+// buildSvgContext builds an SvgContext from the Context
+func buildSvgContext(ctx *Context) SvgContext {
+	svgCtx := SvgContext{
+		Index:           0,
+		CurrentFileInfo: make(map[string]any),
+	}
+
+	if ctx != nil && len(ctx.Frames) > 0 && ctx.Frames[0] != nil {
+		frame := ctx.Frames[0]
+		if frame.CurrentFileInfo != nil {
+			svgCtx.CurrentFileInfo = frame.CurrentFileInfo
+		}
+		if evalCtx, ok := frame.EvalContext.(EvalContext); ok {
+			svgCtx.Context = evalCtx
+		}
+	}
+
+	return svgCtx
+}
+
+// GetWrappedSvgFunctions returns svg functions wrapped with FunctionDefinition interface
 func GetWrappedSvgFunctions() map[string]interface{} {
-	return SvgFunctions
+	wrappedFunctions := make(map[string]interface{})
+	for name := range SvgFunctions {
+		wrappedFunctions[name] = &SvgFunctionWrapper{name: name}
+	}
+	return wrappedFunctions
 }
 
 // SvgContext represents the context needed for svg function execution
@@ -29,12 +109,34 @@ func SvgGradient(ctx SvgContext, args ...interface{}) (*URL, error) {
 		return nil, fmt.Errorf("svg-gradient expects direction, start_color [start_position], [color position,]..., end_color [end_position] or direction, color list")
 	}
 
-	direction, ok := args[0].(*Quoted)
-	if !ok {
-		return nil, fmt.Errorf("svg-gradient first argument must be a direction")
-	}
+	// Get direction value - can be any node type that can be converted to string
+	var directionValue string
 
-	directionValue := direction.value // Access private field directly since we're in same package
+	// Try different node types
+	switch dir := args[0].(type) {
+	case *Quoted:
+		directionValue = dir.value
+	case *Keyword:
+		directionValue = dir.value
+	case *Anonymous:
+		if str, ok := dir.Value.(string); ok {
+			directionValue = str
+		} else {
+			directionValue = fmt.Sprintf("%v", dir.Value)
+		}
+	default:
+		// Try ToCSS as last resort
+		if node, ok := args[0].(interface{ ToCSS(bool, *Eval) (string, error) }); ok {
+			css, err := node.ToCSS(false, nil)
+			if err == nil {
+				directionValue = css
+			} else {
+				return nil, fmt.Errorf("svg-gradient first argument must be a direction (got %T)", args[0])
+			}
+		} else {
+			return nil, fmt.Errorf("svg-gradient first argument must be a direction (got %T)", args[0])
+		}
+	}
 
 	var stops []interface{}
 
