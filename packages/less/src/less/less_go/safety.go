@@ -120,8 +120,15 @@ func SafeEval(value any, context any) any {
 		// Add defer/recover to catch any panics in Eval implementations
 		defer func() {
 			if r := recover(); r != nil {
-				// Log the panic but don't re-panic
-				// Original value will be returned by the fallback at the end
+				// Re-panic LessError panics - these are intentional errors that should propagate
+				if _, isLessError := r.(*LessError); isLessError {
+					panic(r)
+				}
+				if _, isError := r.(error); isError {
+					// Also re-panic regular errors
+					panic(r)
+				}
+				// Other panics are swallowed for safety
 			}
 		}()
 		result, err := evaluable.Eval(context)
@@ -130,14 +137,21 @@ func SafeEval(value any, context any) any {
 		}
 		return result
 	}
-	
+
 	// Check for the old (any) signature for backward compatibility
 	if evaluable, ok := SafeTypeAssertion[interface{ Eval(any) any }](value); ok {
 		// Add defer/recover to catch any panics in Eval implementations
 		defer func() {
 			if r := recover(); r != nil {
-				// Log the panic but don't re-panic
-				// Original value will be returned by the fallback at the end
+				// Re-panic LessError panics - these are intentional errors that should propagate
+				if _, isLessError := r.(*LessError); isLessError {
+					panic(r)
+				}
+				if _, isError := r.(error); isError {
+					// Also re-panic regular errors
+					panic(r)
+				}
+				// Other panics are swallowed for safety
 			}
 		}()
 		return evaluable.Eval(context)

@@ -7,7 +7,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-
 )
 
 // Dimension represents a number with a unit
@@ -123,9 +122,11 @@ func (d *Dimension) GenCSS(context any, output *CSSOutput) {
 		}
 	}
 	if strictUnits && !d.Unit.IsSingular() {
-		// Instead of panicking, output an error comment in CSS
-		output.Add(fmt.Sprintf("/* Error: Multiple units in dimension. Bad unit: %s */", d.Unit.ToString()), nil, nil)
-		return
+		// Match JavaScript: throw error for multiple units in strict mode
+		panic(&LessError{
+			Type:    "Dimension",
+			Message: fmt.Sprintf("Multiple units in dimension. Correct the units or use the unit function. Bad unit: %s", d.Unit.ToString()),
+		})
 	}
 
 	roundedValue := d.Fround(context, d.Value)
@@ -211,16 +212,27 @@ func (d *Dimension) Operate(context any, op string, other *Dimension) *Dimension
 				conversionMap[k] = v
 			}
 			otherConverted := other.ConvertTo(conversionMap)
-			if ctx, ok := SafeTypeAssertion[map[string]any](context); ok {
+
+			// Check strictUnits setting from context
+			var strictUnits bool
+			// First try Eval context (used during evaluation)
+			if evalCtx, ok := context.(*Eval); ok {
+				strictUnits = evalCtx.StrictUnits
+			} else if ctx, ok := SafeTypeAssertion[map[string]any](context); ok {
+				// Fallback to map-based context for compatibility (used during CSS generation)
 				if strict, exists := SafeMapAccess(ctx, "strictUnits"); exists {
-					if strictVal, ok := SafeTypeAssertion[bool](strict); ok && strictVal {
-						if otherConverted.Unit.ToString() != unit.ToString() {
-							// Instead of panicking, return a dimension with error information
-							// This maintains compatibility while avoiding panics
-							return NewDimensionFrom(0, NewUnit(nil, nil, fmt.Sprintf("error-incompatible-units-%s-%s", unit.ToString(), otherConverted.Unit.ToString())))
-						}
+					if strictVal, ok := SafeTypeAssertion[bool](strict); ok {
+						strictUnits = strictVal
 					}
 				}
+			}
+
+			if strictUnits && otherConverted.Unit.ToString() != unit.ToString() {
+				// Match JavaScript: throw error for incompatible units in strict mode
+				panic(&LessError{
+					Type:    "Operation",
+					Message: fmt.Sprintf("Incompatible units. Change the units or use the unit function. Bad units: '%s' and '%s'.", unit.ToString(), otherConverted.Unit.ToString()),
+				})
 			}
 			// Recalculate value with converted units
 			value = d.OperateArithmetic(context, op, d.Value, otherConverted.Value)
