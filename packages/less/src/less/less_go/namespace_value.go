@@ -258,9 +258,10 @@ func (nv *NamespaceValue) Eval(context any) (any, error) {
 					Index:    nv.GetIndex(),
 				}
 			}
-			// Also check if rules is a nil or empty slice (Go gotcha: nil slice in interface{} is not == nil)
-			// Empty slice means property was not found
-			if rulesSlice, ok := rules.([]any); ok && (rulesSlice == nil || len(rulesSlice) == 0) {
+			// Also check if rules is a nil slice (Go gotcha: nil slice in interface{} is not == nil)
+			// Note: Empty slices are valid and should be returned as-is (unlike JavaScript which would cause TypeError)
+			// This allows Go to handle edge cases gracefully
+			if rulesSlice, ok := rules.([]any); ok && rulesSlice == nil {
 				propertyName := name
 				if len(name) > 1 && name[0] == '$' {
 					propertyName = name[1:]
