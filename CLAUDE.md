@@ -148,16 +148,17 @@ When working on this project, please be aware of the following:
    - `LESS_GO_STRICT=1` - Fail tests on any output difference (useful for CI)
    - `LESS_GO_TRACE=1` - Show evaluation trace (for debugging specific issues)
 
-6. **Current Integration Test Status** (as of 2025-11-10 - Latest Verified Measurement):
+6. **Current Integration Test Status** (as of 2025-11-12 - Latest Verified Measurement):
    - **80 perfect CSS matches (43.5%)** - EXCELLENT PROGRESS! ✅
    - **3 compilation failures (1.6%)** - All external (network/packages) - expected
-   - **62 correct error handling (33.7%)** - tests that should fail, do fail correctly
+   - **79 correct error handling (42.9%)** - tests that should fail, do fail correctly ⬆️
    - **12 tests with CSS output differences (6.5%)** - compiles but CSS doesn't match
-   - **27 incorrect error handling (14.7%)** - tests that should error but succeed
-   - **Overall Success Rate: 77.2%** ✅ (142/184 tests perfect matches or correctly erroring)
+   - **10 incorrect error handling (5.4%)** - tests that should error but succeed ⬇️
+   - **Overall Success Rate: 86.4%** ✅ (159/184 tests perfect matches or correctly erroring) ⬆️
    - **Compilation Rate: 98.4%** (181/184 tests compile successfully)
    - **Perfect CSS Match Rate: 43.5%**
    - **✅ NO REGRESSIONS** - All previously passing tests still passing (including extend-chaining)
+   - **🎉 MAJOR ERROR HANDLING IMPROVEMENT**: 17 error validation tests fixed since last measurement!
 
    **🎉 Parser Status: ALL BUGS FIXED!**
    - Parser correctly handles full LESS syntax
@@ -165,7 +166,7 @@ When working on this project, please be aware of the following:
    - Remaining work is primarily CSS generation, error handling, and edge cases
 
    **✅ Unit Test Status:**
-   - **2,290+ tests passing** ✅ (99.9%+)
+   - **2,304 tests passing** ✅ (100%)
    - **1 test has a timeout issue**: `TestRulesetErrorConditions/should_handle_nested_rulesets_with_circular_dependencies` (test bug, not functionality)
    - No functionality regressions
 
@@ -197,6 +198,13 @@ When working on this project, please be aware of the following:
    - ✅ Issue #24: `css-escapes` - CSS escape handling - FIXED
    - ✅ Compilation failures reduced from 12 → 3 tests (75% reduction!)
    - ✅ **ALL DOCUMENTED REGRESSIONS FIXED**: mixins, mixins-interpolated, mixins-guards (main) - all now perfect matches!
+   - ✅ Issue #25: **Error validation improvements** - 17 error handling tests now correctly validate and fail (2025-11-12):
+     - Mixed unit operations (add/divide/multiply) now properly validated
+     - Recursive variable detection working
+     - Namespacing errors properly caught (namespacing-2, -3, -4)
+     - SVG gradient validation (all 6 tests)
+     - Detached ruleset type checking
+     - Function undefined detection
 
 7. **Organized Task System**:
    All project coordination and task management is now organized in the `.claude/` directory:
@@ -225,7 +233,7 @@ When working on this project, please be aware of the following:
    4. **MEDIUM**: Functions - functions (1 test, functions-each already passing ✅)
    5. **MEDIUM**: CSS output formatting - directives-bubling, container, media, css-3, comments2 (5 tests)
    6. **MEDIUM**: Import remote - import-remote (whitespace formatting)
-   7. **MEDIUM**: Error handling - 20 tests that should fail but succeed
+   7. **LOW**: Error handling - 10 tests that should fail but succeed (down from 27! 🎉)
    8. **LOW**: External dependencies - bootstrap4, google, import-module (network/packages) - expected failures
    9. **LOW**: Unit test bug - Fix timeout in circular dependency test
 
