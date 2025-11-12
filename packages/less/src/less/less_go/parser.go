@@ -974,11 +974,8 @@ func (e *EntityParsers) Variable() any {
 			}
 			ch = e.parsers.parser.parserInput.CurrentChar()
 			if ch == '(' || (ch == '[' && !e.parsers.parser.parserInput.IsWhitespace(-1)) {
-				// This may be a VariableCall lookup
-				// We need to restore to the beginning and let VariableCall parse the whole thing
-				e.parsers.parser.parserInput.Restore("")
-				e.parsers.parser.parserInput.Save()
-				result := e.parsers.VariableCall()
+				// This may be a VariableCall lookup - pass the parsed name to indicate value context
+				result := e.parsers.VariableCall(name)
 				if result != nil {
 					e.parsers.parser.parserInput.Forget()
 					return result
@@ -1735,36 +1732,76 @@ func (p *Parsers) ExtendRule() any {
 }
 
 // VariableCall parses variable calls
-func (p *Parsers) VariableCall() any {
+// parsedName: if provided, indicates we're parsing in a value context (inValue=true)
+func (p *Parsers) VariableCall(parsedName ...string) any {
 	var lookups []string
 	i := p.parser.parserInput.GetIndex()
 	var name string
+	var inValue bool
+	var matches []string
+
+	// Determine if we're in a value context
+	if len(parsedName) > 0 && parsedName[0] != "" {
+		name = parsedName[0]
+		inValue = true
+	}
 
 	p.parser.parserInput.Save()
 
-	if p.parser.parserInput.CurrentChar() == '@' {
-		nameMatch := p.parser.parserInput.Re(reVariableCall)
-		if nameMatch != nil {
-			matches, ok := nameMatch.([]string)
-			if ok && len(matches) > 1 {
-				name = matches[1]
-			}
-
-			lookups = p.mixin.RuleLookups()
-
-			if len(lookups) == 0 && (len(matches) < 3 || matches[2] != "()") {
-				p.parser.parserInput.Restore("Missing '[...]' lookup in variable call")
+	// If name is already provided or we can match it from input
+	if name != "" || p.parser.parserInput.CurrentChar() == '@' {
+		if name == "" {
+			// Try to match the variable call pattern
+			nameMatch := p.parser.parserInput.Re(reVariableCall)
+			if nameMatch == nil {
+				p.parser.parserInput.Restore("")
 				return nil
 			}
-
-			if len(lookups) == 0 {
-				p.parser.parserInput.Forget()
-				return NewVariableCall(name, i, p.parser.fileInfo)
-			} else {
-				p.parser.parserInput.Forget()
-				varCall := NewVariableCall(name, i, p.parser.fileInfo)
-				return NewNamespaceValue(varCall, lookups, i, p.parser.fileInfo)
+			var ok bool
+			matches, ok = nameMatch.([]string)
+			if !ok || len(matches) < 2 {
+				p.parser.parserInput.Restore("")
+				return nil
 			}
+			name = matches[1]
+		}
+
+		lookups = p.mixin.RuleLookups()
+
+		// Validation logic matching JavaScript parser line 843:
+		// if (!lookups && ((inValue && parserInput.$str('()') !== '()') || (name[2] !== '()'))) {
+		if len(lookups) == 0 {
+			if inValue {
+				// In value context: check if '()' follows OR if name[2] != '()'
+				result := p.parser.parserInput.Str("()")
+				strResult, _ := result.(string)
+				// For string names like "@a", name[2] (third char) will be a single character
+				// Check both conditions with OR as in JavaScript
+				var name3rd string
+				if len(name) > 2 {
+					name3rd = string(name[2])
+				}
+				// JavaScript: (inValue && parserInput.$str('()') !== '()') || (name[2] !== '()')
+				if (strResult != "()") || (name3rd != "()") {
+					p.parser.parserInput.Restore("Missing '[...]' lookup in variable call")
+					return nil
+				}
+			} else {
+				// Not in value context, check if regex captured '()'
+				if len(matches) < 3 || matches[2] != "()" {
+					p.parser.parserInput.Restore("Missing '[...]' lookup in variable call")
+					return nil
+				}
+			}
+		}
+
+		if len(lookups) == 0 {
+			p.parser.parserInput.Forget()
+			return NewVariableCall(name, i, p.parser.fileInfo)
+		} else {
+			p.parser.parserInput.Forget()
+			varCall := NewVariableCall(name, i, p.parser.fileInfo)
+			return NewNamespaceValue(varCall, lookups, i, p.parser.fileInfo)
 		}
 	}
 	p.parser.parserInput.Restore("")
