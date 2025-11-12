@@ -71,8 +71,15 @@ func NewDimension(value any, unit any) (*Dimension, error) {
 	return d, nil
 }
 
-// NewDimensionFrom is a helper constructor that creates a Dimension from a float64 value and *Unit without error handling.
+// NewDimensionFrom is a helper constructor that creates a Dimension from a float64 value and *Unit.
+// Returns nil if the value is NaN (matches JavaScript behavior where NaN dimensions are invalid).
 func NewDimensionFrom(value float64, unit *Unit) *Dimension {
+	// Match NewDimension behavior: reject NaN values
+	// This ensures that operations like 0/0 that produce NaN don't create invalid dimensions
+	// Instead, SafeEval will return the original Operation node, which outputs as "0/0" in CSS
+	if math.IsNaN(value) {
+		return nil
+	}
 	d := &Dimension{
 		Node:  NewNode(),
 		Value: value,
