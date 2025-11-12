@@ -174,14 +174,9 @@ func (o *Operation) Eval(context any) (any, error) {
 		// Handle Dimension operations
 		if aDim, aOk := a.(*Dimension); aOk {
 			if bDim, bOk := b.(*Dimension); bOk {
-				// Check for division by zero
-				if (op == "/" || op == "./") && bDim.Value == 0 {
-					return nil, &LessError{
-						Type:    "Operation",
-						Message: "Division by zero",
-					}
-				}
 				// Match JavaScript: return a.operate(context, op, b);
+				// Note: Division by zero naturally returns NaN/Inf in both JavaScript and Go
+				// This is valid behavior for CSS calc() and other contexts
 				return aDim.Operate(context, op, bDim), nil
 			}
 		}
