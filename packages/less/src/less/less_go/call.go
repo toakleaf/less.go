@@ -531,7 +531,11 @@ func (c *Call) Eval(context any) (any, error) {
 			}
 
 			errorType := "Runtime"
-			if typedErr, ok := err.(interface{ Type() string }); ok {
+			// Check for ErrorType() method first (used by LessError)
+			if typedErr, ok := err.(interface{ ErrorType() string }); ok {
+				errorType = typedErr.ErrorType()
+			} else if typedErr, ok := err.(interface{ Type() string }); ok {
+				// Fallback to Type() for other error types
 				errorType = typedErr.Type()
 			}
 

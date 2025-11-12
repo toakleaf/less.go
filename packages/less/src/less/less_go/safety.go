@@ -133,7 +133,12 @@ func SafeEval(value any, context any) any {
 		}()
 		result, err := evaluable.Eval(context)
 		if err != nil {
-			return value // Return original value on error
+			// If it's a LessError, panic with it so it propagates properly
+			if lessErr, isLessError := err.(*LessError); isLessError {
+				panic(lessErr)
+			}
+			// For other errors, also panic to ensure they propagate
+			panic(err)
 		}
 		return result
 	}

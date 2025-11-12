@@ -121,6 +121,12 @@ func (le *LessError) Error() string {
 	return fmt.Sprintf("%s: %s", le.Type, le.Message)
 }
 
+// ErrorType returns the error type (e.g., "Argument", "Syntax", "Runtime")
+// This method allows extracting the error type for proper error formatting
+func (le *LessError) ErrorType() string {
+	return le.Type
+}
+
 // StylizeFunc defines the signature for a function that can apply styles (e.g., colors).
 type StylizeFunc func(str string, style string) string
 
