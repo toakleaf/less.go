@@ -186,10 +186,26 @@ func TestVariable(t *testing.T) {
 				importantScope: []map[string]any{{"important": false}},
 			}
 
-			_, err := variable.Eval(context)
-			if err == nil {
-				t.Error("Expected error for recursive variable definition")
-			}
+			// Expect panic for circular dependency (matches JavaScript throw behavior)
+			defer func() {
+				r := recover()
+				if r == nil {
+					t.Error("Expected panic for recursive variable definition")
+				}
+				if lessErr, ok := r.(*LessError); ok {
+					if lessErr.Type != "Name" {
+						t.Errorf("Expected error type 'Name', got '%s'", lessErr.Type)
+					}
+					expectedMsg := "Recursive variable definition for @recursive"
+					if lessErr.Message != expectedMsg {
+						t.Errorf("Expected error message '%s', got '%s'", expectedMsg, lessErr.Message)
+					}
+				} else {
+					t.Errorf("Expected LessError panic, got %T", r)
+				}
+			}()
+
+			variable.Eval(context)
 		})
 
 		t.Run("should throw error for undefined variable", func(t *testing.T) {

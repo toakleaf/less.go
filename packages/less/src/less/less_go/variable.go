@@ -57,7 +57,7 @@ func (v *Variable) GetName() string {
 // Eval evaluates the variable
 func (v *Variable) Eval(context any) (any, error) {
 	name := v.name
-	
+
 
 	if len(name) >= 2 && name[:2] == "@@" {
 		innerVar := NewVariable(name[1:], v.GetIndex(), v.FileInfo())
@@ -136,12 +136,14 @@ func (v *Variable) Eval(context any) (any, error) {
 				filename = fn
 			}
 		}
-		return nil, &LessError{
+		// Match JavaScript behavior: throw error for circular dependency
+		// Use panic to ensure error propagates and isn't silently caught
+		panic(&LessError{
 			Type:     "Name",
 			Message:  fmt.Sprintf("Recursive variable definition for %s", name),
 			Filename: filename,
 			Index:    v.GetIndex(),
-		}
+		})
 	}
 
 	v.evaluating = true
