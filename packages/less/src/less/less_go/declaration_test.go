@@ -375,19 +375,28 @@ func TestDeclaration(t *testing.T) {
 		})
 
 		t.Run("handles detached ruleset errors", func(t *testing.T) {
+			// Create a real DetachedRuleset
+			node := NewNode()
+			node.Value = NewRuleset([]any{}, []any{}, false, nil)
+			detachedRuleset := NewDetachedRuleset(node, nil)
+
 			detachedValue := &Value{
-				Value: []any{
-					map[string]any{"type": "DetachedRuleset"},
-				},
+				Value: []any{detachedRuleset},
 			}
 			decl, _ := NewDeclaration("prop", detachedValue, nil, false, 0, map[string]any{"filename": "test.less"}, false, false)
-			
+
 			_, err := decl.Eval(createContext())
 			if err == nil {
 				t.Error("expected error for detached ruleset")
 			}
-			if err.Error() != "Rulesets cannot be evaluated on a property" {
-				t.Errorf("unexpected error message: %v", err)
+
+			// Check that it's a LessError with the right message
+			if lessErr, ok := err.(*LessError); ok {
+				if lessErr.Message != "Rulesets cannot be evaluated on a property." {
+					t.Errorf("unexpected error message: %v", lessErr.Message)
+				}
+			} else {
+				t.Errorf("expected LessError, got: %T", err)
 			}
 		})
 
