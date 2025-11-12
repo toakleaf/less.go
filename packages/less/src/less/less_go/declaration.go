@@ -202,7 +202,7 @@ func evalName(context any, name []any) (string, error) {
 		if evaluator, ok := n.(Evaluator); ok {
 			evald, err := evaluator.Eval(context)
 			if err != nil {
-				// Propagate evaluation errors (e.g., undefined variables in interpolation)
+				// Propagate errors from variable evaluation (e.g., undefined variables in interpolation)
 				return "", err
 			}
 			if evald != nil {
@@ -411,15 +411,12 @@ func (d *Declaration) GenCSS(context any, output *CSSOutput) {
 	case *Anonymous:
 		nameStr = fmt.Sprintf("%v", n.Value)
 	case []any:
-		// Note: This should not fail if Eval() was called first
-		// If it does fail, we'll use the fallback string representation
 		evaluatedName, err := evalName(context, n)
 		if err != nil {
-			// Cannot propagate error from GenCSS, use fallback
-			nameStr = fmt.Sprintf("%v", n)
-		} else {
-			nameStr = evaluatedName
+			// Panic to be caught by defer/recover above
+			panic(err)
 		}
+		nameStr = evaluatedName
 	default:
 		nameStr = fmt.Sprintf("%v", n)
 	}

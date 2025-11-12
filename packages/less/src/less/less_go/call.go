@@ -97,9 +97,9 @@ func (c *DefaultParserFunctionCaller) createMathEnabledContext() any {
 		// Clone the Eval context and enable math
 		newCtx := *evalCtx // Shallow copy
 		newCtx.MathOn = true
-		// Set Math to ALWAYS to ensure operations are evaluated in function arguments
-		// This matches JavaScript behavior where function arguments are always evaluated
-		newCtx.Math = MathAlways
+		// DON'T override Math mode - keep the original (strict, parens-division, etc.)
+		// This ensures that in strict math mode, operations like 16/17 are not evaluated
+		// unless they're in parentheses like (16/17)
 		return &newCtx
 	}
 

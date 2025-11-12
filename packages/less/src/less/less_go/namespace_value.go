@@ -2,6 +2,7 @@ package less_go
 
 import (
 	"fmt"
+	"os"
 )
 
 // NamespaceValue represents a namespace value node in the Less AST
@@ -68,6 +69,9 @@ func (nv *NamespaceValue) Eval(context any) (any, error) {
 	} else if evaluator, ok := nv.value.(interface{ Eval(any) (any, error) }); ok {
 		evalResult, err := evaluator.Eval(context)
 		if err != nil {
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Fprintf(os.Stderr, "[DEBUG NamespaceValue] Got error from evaluator (%T): %v\n", nv.value, err)
+			}
 			return nil, err
 		}
 		rules = evalResult
@@ -626,3 +630,22 @@ func TryParseDimensionString(str string) any {
 }
 
 // Note: LessError is now defined in less_error.go with full implementation
+// GenCSS generates CSS by first evaluating the namespace value
+// This ensures errors are properly propagated during CSS generation
+func (nv *NamespaceValue) GenCSS(context any, output *CSSOutput) {
+	// Evaluate the namespace value - errors will panic and be caught by callers
+	result, err := nv.Eval(context)
+	if err != nil {
+		// Panic to propagate the error during CSS generation
+		panic(err)
+	}
+	
+	// Generate CSS from the evaluated result
+	if gen, ok := result.(interface{ GenCSS(any, *CSSOutput) }); ok {
+		gen.GenCSS(context, output)
+	} else if cssStr, ok := result.(interface{ ToCSS(any) string }); ok {
+		output.Add(cssStr.ToCSS(context), nv.FileInfo(), nv.GetIndex())
+	} else {
+		output.Add(fmt.Sprintf("%v", result), nv.FileInfo(), nv.GetIndex())
+	}
+}

@@ -183,12 +183,23 @@ func TestGenCSS(t *testing.T) {
 			Add:     testOut.Add,
 			IsEmpty: testOut.IsEmpty,
 		}
+
+		// Should panic with LessError for multiple units in strict mode
+		defer func() {
+			if r := recover(); r != nil {
+				if lessErr, ok := r.(*LessError); ok {
+					if !strings.Contains(lessErr.Message, "Multiple units") {
+						t.Errorf("Expected LessError with multiple units message, got: %v", lessErr.Message)
+					}
+				} else {
+					t.Errorf("Expected LessError panic, got: %v", r)
+				}
+			} else {
+				t.Error("Expected panic for multiple units in strict mode, but no panic occurred")
+			}
+		}()
+
 		d.GenCSS(map[string]any{ "strictUnits": true }, cssOut)
-		
-		// Should output an error comment instead of panicking
-		if !strings.Contains(testOut.output, "Error: Multiple units in dimension") {
-			t.Errorf("Expected error comment in output, got: %s", testOut.output)
-		}
 	})
 
 	t.Run("output zero value with unit in non-compressed mode", func(t *testing.T) {
