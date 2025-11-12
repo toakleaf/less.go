@@ -202,10 +202,14 @@ func evalName(context any, name []any) (string, error) {
 		if evaluator, ok := n.(Evaluator); ok {
 			evald, err := evaluator.Eval(context)
 			if err != nil {
-				// Propagate errors from variable evaluation (e.g., undefined variables in interpolation)
-				return "", err
-			}
-			if evald != nil {
+				// In LESS, variables use late binding - they might be defined later
+				// or the value might be an intentional literal string (like ~'@not-variable')
+				// So we don't propagate errors here - just use the original value
+				if debugMode := os.Getenv("LESS_GO_DEBUG") == "1"; debugMode {
+					fmt.Fprintf(os.Stderr, "[DEBUG evalName] Variable evaluation error (using original): %v\n", err)
+				}
+				evaluated = n
+			} else if evald != nil {
 				evaluated = evald
 			}
 		}
