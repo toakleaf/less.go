@@ -254,8 +254,9 @@ func (nv *NamespaceValue) Eval(context any) (any, error) {
 					Index:    nv.GetIndex(),
 				}
 			}
-			// Also check if rules is a nil slice (Go gotcha: nil slice in interface{} is not == nil)
-			if rulesSlice, ok := rules.([]any); ok && rulesSlice == nil {
+			// Also check if rules is a nil or empty slice (Go gotcha: nil slice in interface{} is not == nil)
+			// Empty slice means property was not found
+			if rulesSlice, ok := rules.([]any); ok && (rulesSlice == nil || len(rulesSlice) == 0) {
 				propertyName := name
 				if len(name) > 1 && name[0] == '$' {
 					propertyName = name[1:]

@@ -178,7 +178,7 @@ func (d *Declaration) SetImportant(important bool) {
 }
 
 // evalName evaluates the name of the declaration
-func evalName(context any, name []any) string {
+func evalName(context any, name []any) (string, error) {
 	value := ""
 	output := &CSSOutput{
 		Add: func(chunk any, fileInfo any, index any) {
@@ -200,11 +200,16 @@ func evalName(context any, name []any) string {
 		// Always evaluate first, matching JavaScript behavior
 		var evaluated any = n
 		if evaluator, ok := n.(Evaluator); ok {
-			if evald, err := evaluator.Eval(context); err == nil && evald != nil {
+			evald, err := evaluator.Eval(context)
+			if err != nil {
+				// Propagate evaluation errors (e.g., undefined variables in interpolation)
+				return "", err
+			}
+			if evald != nil {
 				evaluated = evald
 			}
 		}
-		
+
 		// Then generate CSS
 		if generator, ok := evaluated.(CSSGenerator); ok {
 			generator.GenCSS(context, output)
@@ -221,7 +226,7 @@ func evalName(context any, name []any) string {
 		}
 	}
 
-	return value
+	return value, nil
 }
 
 // Accept visits the declaration value with a visitor
@@ -253,10 +258,18 @@ func (d *Declaration) Eval(context any) (any, error) {
 			if keyword, ok := nameArr[0].(*Keyword); ok {
 				name = keyword.value
 			} else {
-				name = evalName(context, nameArr)
+				evaluatedName, err := evalName(context, nameArr)
+				if err != nil {
+					return nil, err
+				}
+				name = evaluatedName
 			}
 		} else if ok {
-			name = evalName(context, nameArr)
+			evaluatedName, err := evalName(context, nameArr)
+			if err != nil {
+				return nil, err
+			}
+			name = evaluatedName
 		}
 		variable = false
 	} else {
@@ -398,7 +411,15 @@ func (d *Declaration) GenCSS(context any, output *CSSOutput) {
 	case *Anonymous:
 		nameStr = fmt.Sprintf("%v", n.Value)
 	case []any:
-		nameStr = evalName(context, n)
+		// Note: This should not fail if Eval() was called first
+		// If it does fail, we'll use the fallback string representation
+		evaluatedName, err := evalName(context, n)
+		if err != nil {
+			// Cannot propagate error from GenCSS, use fallback
+			nameStr = fmt.Sprintf("%v", n)
+		} else {
+			nameStr = evaluatedName
+		}
 	default:
 		nameStr = fmt.Sprintf("%v", n)
 	}
