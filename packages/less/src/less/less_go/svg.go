@@ -43,7 +43,19 @@ func (w *SvgFunctionWrapper) CallCtx(ctx *Context, args ...any) (any, error) {
 			if evaluatable, ok := arg.(Evaluable); ok {
 				evalResult, err := evaluatable.Eval(ctx)
 				if err != nil {
-					return nil, fmt.Errorf("error evaluating argument %d: %w", i, err)
+					// Panic with LessError to fail compilation
+					filename := ""
+					if ctx != nil && len(ctx.Frames) > 0 && ctx.Frames[0] != nil {
+						if ctx.Frames[0].CurrentFileInfo != nil {
+							if fn, ok := ctx.Frames[0].CurrentFileInfo["filename"].(string); ok {
+								filename = fn
+							}
+						}
+					}
+					panic(NewLessError(ErrorDetails{
+						Type:    "ArgumentError",
+						Message: fmt.Sprintf("error evaluating argument %d: %v", i, err),
+					}, nil, filename))
 				}
 				evaluatedArgs[i] = evalResult
 			} else {
@@ -54,7 +66,19 @@ func (w *SvgFunctionWrapper) CallCtx(ctx *Context, args ...any) (any, error) {
 		svgCtx := buildSvgContext(ctx)
 		result, err := SvgGradient(svgCtx, evaluatedArgs...)
 		if err != nil {
-			return nil, err
+			// Panic with LessError to fail compilation
+			filename := ""
+			if ctx != nil && len(ctx.Frames) > 0 && ctx.Frames[0] != nil {
+				if ctx.Frames[0].CurrentFileInfo != nil {
+					if fn, ok := ctx.Frames[0].CurrentFileInfo["filename"].(string); ok {
+						filename = fn
+					}
+				}
+			}
+			panic(NewLessError(ErrorDetails{
+				Type:    "ArgumentError",
+				Message: err.Error(),
+			}, nil, filename))
 		}
 		return result, nil
 	default:
