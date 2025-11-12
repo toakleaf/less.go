@@ -37,24 +37,98 @@ func (w *SvgFunctionWrapper) Call(args ...any) (any, error) {
 func (w *SvgFunctionWrapper) CallCtx(ctx *Context, args ...any) (any, error) {
 	switch w.name {
 	case "svg-gradient":
-		// Evaluate arguments first
+		// Extract the proper evaluation context from ctx
+		var evalCtx any = ctx
+		if ctx != nil && len(ctx.Frames) > 0 && ctx.Frames[0] != nil {
+			if ec, ok := ctx.Frames[0].EvalContext.(EvalContext); ok {
+				evalCtx = ec
+			}
+		}
+
+		// Evaluate arguments first - deeply evaluate Expression contents
 		evaluatedArgs := make([]any, len(args))
 		for i, arg := range args {
-			if evaluatable, ok := arg.(Evaluable); ok {
-				evalResult, err := evaluatable.Eval(ctx)
+			evaluated := arg
+
+			// First, evaluate the argument itself if it has an Eval method
+			// Try the new (any, error) signature first
+			if evaluator, ok := arg.(interface{ Eval(any) (any, error) }); ok {
+				evalResult, err := evaluator.Eval(evalCtx)
 				if err != nil {
-					return nil, fmt.Errorf("error evaluating argument %d: %w", i, err)
+					// Panic with LessError to fail compilation
+					filename := ""
+					if ctx != nil && len(ctx.Frames) > 0 && ctx.Frames[0] != nil {
+						if ctx.Frames[0].CurrentFileInfo != nil {
+							if fn, ok := ctx.Frames[0].CurrentFileInfo["filename"].(string); ok {
+								filename = fn
+							}
+						}
+					}
+					panic(NewLessError(ErrorDetails{
+						Type:    "ArgumentError",
+						Message: fmt.Sprintf("error evaluating argument %d: %v", i, err),
+					}, nil, filename))
 				}
-				evaluatedArgs[i] = evalResult
-			} else {
-				evaluatedArgs[i] = arg
+				evaluated = evalResult
+			} else if evaluator, ok := arg.(interface{ Eval(any) any }); ok {
+				// Try the old (any) signature for backward compatibility
+				evaluated = evaluator.Eval(evalCtx)
 			}
+
+			// If result is an Expression, evaluate its contents deeply
+			if expr, ok := evaluated.(*Expression); ok {
+				evaluatedValues := make([]any, len(expr.Value))
+				for j, val := range expr.Value {
+					// Try the new (any, error) signature first
+					if evaluator, ok := val.(interface{ Eval(any) (any, error) }); ok {
+						evalResult, err := evaluator.Eval(evalCtx)
+						if err != nil {
+							filename := ""
+							if ctx != nil && len(ctx.Frames) > 0 && ctx.Frames[0] != nil {
+								if ctx.Frames[0].CurrentFileInfo != nil {
+									if fn, ok := ctx.Frames[0].CurrentFileInfo["filename"].(string); ok {
+										filename = fn
+									}
+								}
+							}
+							panic(NewLessError(ErrorDetails{
+								Type:    "ArgumentError",
+								Message: fmt.Sprintf("error evaluating expression value %d in argument %d: %v", j, i, err),
+							}, nil, filename))
+						}
+						evaluatedValues[j] = evalResult
+					} else if evaluator, ok := val.(interface{ Eval(any) any }); ok {
+						// Try the old (any) signature for backward compatibility
+						evalResult := evaluator.Eval(evalCtx)
+						evaluatedValues[j] = evalResult
+					} else {
+						evaluatedValues[j] = val
+					}
+				}
+				// Create new Expression with evaluated values
+				newExpr, _ := NewExpression(evaluatedValues, expr.NoSpacing)
+				evaluated = newExpr
+			}
+
+			evaluatedArgs[i] = evaluated
 		}
 
 		svgCtx := buildSvgContext(ctx)
 		result, err := SvgGradient(svgCtx, evaluatedArgs...)
 		if err != nil {
-			return nil, err
+			// Panic with LessError to fail compilation
+			filename := ""
+			if ctx != nil && len(ctx.Frames) > 0 && ctx.Frames[0] != nil {
+				if ctx.Frames[0].CurrentFileInfo != nil {
+					if fn, ok := ctx.Frames[0].CurrentFileInfo["filename"].(string); ok {
+						filename = fn
+					}
+				}
+			}
+			panic(NewLessError(ErrorDetails{
+				Type:    "ArgumentError",
+				Message: err.Error(),
+			}, nil, filename))
 		}
 		return result, nil
 	default:
@@ -124,6 +198,9 @@ func SvgGradient(ctx SvgContext, args ...interface{}) (*URL, error) {
 		} else {
 			directionValue = fmt.Sprintf("%v", dir.Value)
 		}
+	case *Expression:
+		// Handle Expression (e.g., "to bottom" as two keywords in an expression)
+		directionValue = dir.ToCSS(ctx.Context)
 	default:
 		// Try ToCSS as last resort
 		if node, ok := args[0].(interface{ ToCSS(bool, *Eval) (string, error) }); ok {
