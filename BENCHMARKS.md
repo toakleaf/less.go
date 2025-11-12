@@ -6,15 +6,37 @@ This document provides a quick guide to running performance benchmarks comparing
 
 ### Run Comparison (Recommended)
 
+**Per-File Benchmark Comparison** (good for finding specific performance issues):
 ```bash
 pnpm bench:compare
 ```
 
-This runs both JavaScript and Go benchmarks and displays a clear side-by-side comparison with:
+**Suite Benchmark Comparison** (realistic build workload):
+```bash
+pnpm bench:compare:suite
+```
+
+Both run JavaScript and Go benchmarks and display a clear side-by-side comparison with:
 - ✅ Per-file and total compilation times
 - ✅ Performance ratio (which is faster and by how much)
 - ✅ Memory usage and allocation statistics (Go)
 - ✅ Actionable optimization recommendations
+
+### Which Benchmark Should You Use?
+
+**Use Suite Mode (`bench:compare:suite`)** when:
+- You want to measure realistic build performance
+- Testing how the compiler handles diverse workloads
+- Cache effects from repeated compilation might skew results
+- Simulating a build tool that compiles many different files
+
+**Use Per-File Mode (`bench:compare`)** when:
+- You want to identify performance issues in specific files
+- Microbenchmarking individual features
+- Comparing warm performance after cache warming
+- Debugging specific compilation bottlenecks
+
+**Both benchmarks are valuable** - suite mode shows real-world performance, while per-file mode helps identify specific optimization opportunities.
 
 **Example output:**
 ```
@@ -75,19 +97,50 @@ pnpm bench:go:suite
 
 ## Available Commands
 
+### Comparison Commands (Recommended)
 | Command | Description |
 |---------|-------------|
-| `pnpm bench:compare` | Run both JS and Go benchmarks for comparison (warm + cold) |
-| `pnpm bench:js` | Run JavaScript benchmark suite (warm + cold metrics) |
-| `pnpm bench:js:detailed` | Run JavaScript benchmarks with per-test results |
-| `pnpm bench:js:json` | Output JavaScript results as JSON |
-| `pnpm bench:go` | Run Go warm benchmarks (with 5 warmup runs) |
-| `pnpm bench:go:cold` | Run Go cold-start benchmarks (no warmup) |
-| `pnpm bench:go:suite` | Run Go benchmarks as a suite (warm, faster execution) |
+| `pnpm bench:compare` | **Per-file comparison**: Each file compiled 30x (warm + cold) |
+| `pnpm bench:compare:suite` | **Suite comparison**: All files sequentially, 30x (realistic workload) |
+
+### JavaScript Benchmarks
+| Command | Description |
+|---------|-------------|
+| `pnpm bench:js` | Per-file mode: Each file compiled 30x (warm + cold metrics) |
+| `pnpm bench:js:suite` | Suite mode: All files sequentially, 30x (realistic workload) |
+| `pnpm bench:js:detailed` | Per-file mode with detailed per-test results |
+| `pnpm bench:js:json` | Output results as JSON (works with both modes) |
+
+### Go Benchmarks
+| Command | Description |
+|---------|-------------|
+| `pnpm bench:go` | Per-file warm benchmarks (with 5 warmup runs) |
+| `pnpm bench:go:cold` | Per-file cold-start benchmarks (no warmup) |
+| `pnpm bench:go:suite` | Suite mode: All files sequentially, 30x with warmup |
+
+## Benchmark Methodologies
+
+### Per-File Mode (Default)
+- **What it does**: Compiles each file 30 times individually (5 warmup + 25 measured)
+- **Use case**: Microbenchmarking, finding file-specific performance issues
+- **Cache behavior**: Benefits from repeated compilation of the same content
+- **Run with**: `pnpm bench:compare` or `pnpm bench:js` / `pnpm bench:go`
+
+### Suite Mode (Realistic Workload)
+- **What it does**: Compiles all 73 files sequentially, repeats entire sequence 30 times
+- **Use case**: Simulating realistic build processes, measuring diverse workload performance
+- **Cache behavior**: Reduces cache benefits by switching between different files
+- **Run with**: `pnpm bench:compare:suite` or `pnpm bench:js:suite` / `pnpm bench:go:suite`
+
+**Key Difference**:
+- Per-file mode: `[file1 × 30] → [file2 × 30] → ... → [file73 × 30]`
+- Suite mode: `[file1, file2, ..., file73] × 30`
+
+Suite mode typically shows more realistic performance for build tools where you're compiling many different files in succession, not the same file repeatedly.
 
 ## What's Being Tested?
 
-The benchmarks test **80+ LESS files** from our integration test suite, including:
+The benchmarks test **73 LESS files** from our integration test suite, including:
 
 - ✅ Core LESS features (variables, mixins, operations)
 - ✅ Extend functionality

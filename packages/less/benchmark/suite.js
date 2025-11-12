@@ -378,51 +378,165 @@ function printResults(results, runCount, showIndividual = false) {
 	console.log('\n' + '='.repeat(80));
 }
 
+// Run suite benchmark (all files sequentially, repeated N times)
+async function benchmarkSuite(tests, runCount) {
+	const times = {
+		total: [],
+		coldStart: null
+	};
+
+	for (let i = 0; i < runCount; i++) {
+		const startTotal = getTime();
+
+		// Compile all files in sequence
+		for (const test of tests) {
+			try {
+				await new Promise((resolve, reject) => {
+					less.render(test.content, test.options, (err, result) => {
+						if (err) {
+							reject(err);
+						} else {
+							resolve(result);
+						}
+					});
+				});
+			} catch (err) {
+				// Skip this file if there's an error
+				continue;
+			}
+		}
+
+		const endTotal = getTime();
+		const totalTime = endTotal - startTotal;
+		times.total.push(totalTime);
+
+		// Capture cold-start time (first iteration before any warmup)
+		if (i === 0) {
+			times.coldStart = totalTime;
+		}
+	}
+
+	return times;
+}
+
+// Print suite results
+function printSuiteResults(times, testCount, runCount) {
+	console.log('\n' + '='.repeat(80));
+	console.log('LESS.JS SUITE BENCHMARK RESULTS');
+	console.log('='.repeat(80));
+	console.log(`Total files: ${testCount}`);
+	console.log(`Suite runs: ${runCount} (${WARMUP_RUNS} warmup)`);
+	console.log(`Methodology: All ${testCount} files compiled sequentially per iteration`);
+	console.log('='.repeat(80));
+
+	const stats = calculateStats(times.total, WARMUP_RUNS);
+	const coldStart = times.coldStart;
+
+	console.log('\n📊 SUITE PERFORMANCE (all files compiled sequentially)');
+	console.log('-'.repeat(80));
+
+	if (coldStart) {
+		console.log('\n🥶 Cold Start (1st iteration, no warmup):');
+		console.log(`   Total time: ${formatTime(coldStart)}`);
+		console.log(`   Per file:   ${formatTime(coldStart / testCount)}`);
+	}
+
+	if (stats) {
+		console.log('\n🔥 Warm Performance (after warmup):');
+		console.log(`   Average:    ${formatTime(stats.avg)} ± ${stats.variationPerc.toFixed(1)}%`);
+		console.log(`   Median:     ${formatTime(stats.median)}`);
+		console.log(`   Min:        ${formatTime(stats.min)}`);
+		console.log(`   Max:        ${formatTime(stats.max)}`);
+		console.log(`   Per file:   ${formatTime(stats.avg / testCount)}`);
+	}
+
+	if (coldStart && stats) {
+		const warmupEffect = ((coldStart - stats.avg) / coldStart * 100);
+		console.log(`\n📈 Warmup Effect: ${warmupEffect.toFixed(1)}% faster after warmup`);
+	}
+
+	console.log('\n' + '='.repeat(80));
+}
+
 // Main execution
 async function main() {
 	const showIndividual = process.argv.includes('--detailed') || process.argv.includes('-d');
+	const suiteMode = process.argv.includes('--suite') || process.argv.includes('-s');
 	const customRuns = parseInt(process.argv.find(arg => arg.startsWith('--runs='))?.split('=')[1]);
 	const runCount = customRuns || TOTAL_RUNS;
 
-	console.log('🚀 Starting Less.js Benchmark Suite...');
-	console.log(`   Runs per test: ${runCount} (${WARMUP_RUNS} warmup runs)`);
-
 	const tests = prepareTests();
-	console.log(`   Total tests: ${tests.length}`);
-	console.log('');
 
-	const results = [];
-	let completed = 0;
+	if (suiteMode) {
+		// Suite mode: compile all files sequentially, repeat N times
+		console.log('🚀 Starting Less.js Suite Benchmark...');
+		console.log(`   Suite runs: ${runCount} (${WARMUP_RUNS} warmup runs)`);
+		console.log(`   Total files per suite: ${tests.length}`);
+		console.log(`   Total compilations: ${tests.length * runCount}`);
+		console.log('');
 
-	for (const test of tests) {
-		process.stdout.write(`\rRunning benchmarks... ${++completed}/${tests.length} (${((completed / tests.length) * 100).toFixed(1)}%)`);
+		process.stdout.write('Running suite benchmark...');
+		const times = await benchmarkSuite(tests, runCount);
+		process.stdout.write(' done!\n');
 
-		const times = await benchmarkTest(test, runCount);
-		results.push({
-			name: test.name,
-			times: times
-		});
-	}
+		printSuiteResults(times, tests.length, runCount);
 
-	process.stdout.write('\n');
-	printResults(results, runCount, showIndividual);
+		// Output JSON format if requested
+		if (process.argv.includes('--json')) {
+			const stats = calculateStats(times.total, WARMUP_RUNS);
+			const jsonOutput = {
+				timestamp: new Date().toISOString(),
+				mode: 'suite',
+				runs: runCount,
+				warmupRuns: WARMUP_RUNS,
+				testCount: tests.length,
+				coldStart: times.coldStart,
+				warm: stats
+			};
+			console.log('\n\nJSON OUTPUT:');
+			console.log(JSON.stringify(jsonOutput, null, 2));
+		}
+	} else {
+		// Individual file mode: compile each file N times
+		console.log('🚀 Starting Less.js Benchmark Suite...');
+		console.log(`   Runs per test: ${runCount} (${WARMUP_RUNS} warmup runs)`);
+		console.log(`   Total tests: ${tests.length}`);
+		console.log('');
 
-	// Output JSON format if requested
-	if (process.argv.includes('--json')) {
-		const jsonOutput = {
-			timestamp: new Date().toISOString(),
-			runs: runCount,
-			warmupRuns: WARMUP_RUNS,
-			tests: results.map(r => ({
-				name: r.name,
-				coldStart: r.times.coldStart,
-				total: calculateStats(r.times.total, WARMUP_RUNS),
-				parse: calculateStats(r.times.parse, WARMUP_RUNS),
-				eval: calculateStats(r.times.eval, WARMUP_RUNS)
-			}))
-		};
-		console.log('\n\nJSON OUTPUT:');
-		console.log(JSON.stringify(jsonOutput, null, 2));
+		const results = [];
+		let completed = 0;
+
+		for (const test of tests) {
+			process.stdout.write(`\rRunning benchmarks... ${++completed}/${tests.length} (${((completed / tests.length) * 100).toFixed(1)}%)`);
+
+			const times = await benchmarkTest(test, runCount);
+			results.push({
+				name: test.name,
+				times: times
+			});
+		}
+
+		process.stdout.write('\n');
+		printResults(results, runCount, showIndividual);
+
+		// Output JSON format if requested
+		if (process.argv.includes('--json')) {
+			const jsonOutput = {
+				timestamp: new Date().toISOString(),
+				mode: 'individual',
+				runs: runCount,
+				warmupRuns: WARMUP_RUNS,
+				tests: results.map(r => ({
+					name: r.name,
+					coldStart: r.times.coldStart,
+					total: calculateStats(r.times.total, WARMUP_RUNS),
+					parse: calculateStats(r.times.parse, WARMUP_RUNS),
+					eval: calculateStats(r.times.eval, WARMUP_RUNS)
+				}))
+			};
+			console.log('\n\nJSON OUTPUT:');
+			console.log(JSON.stringify(jsonOutput, null, 2));
+		}
 	}
 }
 
