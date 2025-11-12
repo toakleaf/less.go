@@ -100,31 +100,58 @@ func (vc *VariableCall) Eval(context any) (result any, err error) {
 	if !hasRuleset {
 		var rules any
 
+		// Debug logging
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Fprintf(os.Stderr, "[DEBUG VariableCall] No ruleset, checking for rules in type %T\n", detachedRuleset)
+		}
+
 		// Match JavaScript conditions in order
 		if rulesObj, ok := detachedRuleset.(interface{ GetRules() []any }); ok && rulesObj.GetRules() != nil {
 			// if (detachedRuleset.rules) - with GetRules() method
 			rules = detachedRuleset
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Fprintf(os.Stderr, "[DEBUG VariableCall] Found GetRules() method\n")
+			}
 		} else if mapObj, ok := detachedRuleset.(map[string]any); ok {
 			// if (detachedRuleset.rules) - plain map with "rules" key
 			if rulesVal, hasRules := mapObj["rules"]; hasRules && rulesVal != nil {
 				rules = detachedRuleset
+				if os.Getenv("LESS_GO_DEBUG") == "1" {
+					fmt.Fprintf(os.Stderr, "[DEBUG VariableCall] Found map with rules key\n")
+				}
 			} else if valArr, hasValue := mapObj["value"].([]any); hasValue {
 				// else if (Array.isArray(detachedRuleset.value))
 				rules = NewRuleset([]any{}, valArr, false, nil)
+				if os.Getenv("LESS_GO_DEBUG") == "1" {
+					fmt.Fprintf(os.Stderr, "[DEBUG VariableCall] Found map with value array\n")
+				}
 			}
 		} else if arr, ok := detachedRuleset.([]any); ok {
 			// else if (Array.isArray(detachedRuleset))
 			rules = NewRuleset([]any{}, arr, false, nil)
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Fprintf(os.Stderr, "[DEBUG VariableCall] Found array, creating ruleset\n")
+			}
 		} else if valObj, ok := detachedRuleset.(interface{ GetValue() any }); ok {
 			if arr, ok := valObj.GetValue().([]any); ok {
 				// else if (Array.isArray(detachedRuleset.value))
 				rules = NewRuleset([]any{}, arr, false, nil)
+				if os.Getenv("LESS_GO_DEBUG") == "1" {
+					fmt.Fprintf(os.Stderr, "[DEBUG VariableCall] Found GetValue() returning array\n")
+				}
 			}
 		}
 
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Fprintf(os.Stderr, "[DEBUG VariableCall] rules = %v (type %T)\n", rules, rules)
+		}
+
 		if rules == nil {
-			// Match JavaScript: throw error;
-			return nil, NewLessError(ErrorDetails{Message: errorMsg}, nil, "")
+			// Match JavaScript: throw error (panic in Go)
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Fprintf(os.Stderr, "[DEBUG VariableCall] Throwing error: %s\n", errorMsg)
+			}
+			panic(NewLessError(ErrorDetails{Message: errorMsg}, nil, ""))
 		}
 		
 		// Match JavaScript: detachedRuleset = new DetachedRuleset(rules);
@@ -161,7 +188,7 @@ func (vc *VariableCall) Eval(context any) (result any, err error) {
 		}
 		return evalResult, nil
 	}
-	
-	// Match JavaScript: throw error;
-	return nil, NewLessError(ErrorDetails{Message: errorMsg}, nil, "")
+
+	// Match JavaScript: throw error (panic in Go)
+	panic(NewLessError(ErrorDetails{Message: errorMsg}, nil, ""))
 } 
