@@ -226,9 +226,15 @@ func (tf *TypesFunctions) Unit(val any, unit any) (*Dimension, error) {
 	if !ok {
 		// Check if it's an Operation to provide helpful error message
 		if _, isOp := val.(*Operation); isOp {
-			return nil, fmt.Errorf("Argument: the first argument to unit must be a number. Have you forgotten parenthesis?")
+			return nil, &LessError{
+				Type:    "Argument",
+				Message: "the first argument to unit must be a number. Have you forgotten parenthesis?",
+			}
 		}
-		return nil, fmt.Errorf("Argument: the first argument to unit must be a number")
+		return nil, &LessError{
+			Type:    "Argument",
+			Message: "the first argument to unit must be a number",
+		}
 	}
 
 	var unitStr string

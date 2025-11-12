@@ -536,8 +536,12 @@ func (c *Call) Eval(context any) (any, error) {
 			}
 
 			errorType := "Runtime"
+			// Check for GetErrorType() method first (used by LessError)
 			if typedErr, ok := err.(interface{ GetErrorType() string }); ok {
 				errorType = typedErr.GetErrorType()
+			} else if typedErr, ok := err.(interface{ Type() string }); ok {
+				// Fallback to Type() for other error types
+				errorType = typedErr.Type()
 			}
 
 			errorMsg := fmt.Sprintf("Error evaluating function `%s`", c.Name)

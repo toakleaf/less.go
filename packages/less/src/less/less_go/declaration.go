@@ -317,13 +317,31 @@ func (d *Declaration) Eval(context any) (any, error) {
 		return nil, err
 	}
 
-	// Check for detached ruleset
-	if !d.variable {
-		if val, ok := evaldValue.(map[string]any); ok {
-			if val["type"] == "DetachedRuleset" {
-				return nil, &ValueError{
-					Message: "Rulesets cannot be evaluated on a property",
-				}
+	// Check for detached ruleset - match JavaScript: if (!this.variable && evaldValue.type === 'DetachedRuleset')
+	if !variable {
+		// Check if evaldValue is a DetachedRuleset type
+		isDetachedRuleset := false
+		if _, ok := evaldValue.(*DetachedRuleset); ok {
+			isDetachedRuleset = true
+		} else if node, ok := evaldValue.(interface{ GetType() string }); ok {
+			if node.GetType() == "DetachedRuleset" {
+				isDetachedRuleset = true
+			}
+		}
+
+		if isDetachedRuleset {
+			return nil, &LessError{
+				Type:    "Syntax",
+				Message: "Rulesets cannot be evaluated on a property.",
+				Index:   d.Index,
+				Filename: func() string {
+					if d.FileInfo() != nil {
+						if f, ok := d.FileInfo()["filename"].(string); ok {
+							return f
+						}
+					}
+					return ""
+				}(),
 			}
 		}
 	}
