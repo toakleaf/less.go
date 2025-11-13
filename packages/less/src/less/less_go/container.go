@@ -97,6 +97,33 @@ func (c *Container) GetRules() []any {
 	return c.Rules
 }
 
+// Accept visits the node with a visitor
+// This method MUST be overridden because Container has its own Rules field
+// that shadows the embedded AtRule.Rules field. Without this override,
+// AtRule.Accept would visit the wrong Rules field, causing nested rulesets
+// to not be visited by JoinSelectorVisitor, resulting in unflattened selectors.
+func (c *Container) Accept(visitor any) {
+	if c.Features != nil {
+		if v, ok := visitor.(interface{ Visit(any) any }); ok {
+			if result := v.Visit(c.Features); result != nil {
+				if features, ok := result.(*Value); ok {
+					c.Features = features
+				}
+			}
+		}
+	}
+	if c.Rules != nil {
+		// Try variadic bool version first (like Ruleset.Accept)
+		if v, ok := visitor.(interface{ VisitArray([]any, ...bool) []any }); ok {
+			c.Rules = v.VisitArray(c.Rules)
+		} else if v, ok := visitor.(interface{ VisitArray([]any, bool) []any }); ok {
+			c.Rules = v.VisitArray(c.Rules, false)
+		} else if v, ok := visitor.(interface{ VisitArray([]any) []any }); ok {
+			c.Rules = v.VisitArray(c.Rules)
+		}
+	}
+}
+
 // GenCSS generates CSS representation
 func (c *Container) GenCSS(context any, output *CSSOutput) {
 	// Skip container queries with empty rulesets (happens when nested container queries are merged)
