@@ -317,12 +317,15 @@ func (a *AtRule) Eval(context any) (any, error) {
 			// Convert back to Ruleset if possible
 			if rs, ok := evaluated.(*Ruleset); ok {
 				rules = []any{rs}
-				// IMPORTANT: Set Root=true for rooted directives (@font-face, @keyframes)
-				// Also set Root=true for vendor-prefixed @keyframes (@-webkit-keyframes, etc.)
-				// For non-rooted directives (@supports, @document), leave Root unset
-				// so JoinSelectorVisitor can properly handle selector joining
+				// IMPORTANT: Set Root=true for container rulesets to prevent extra indentation
+				// This includes:
+				// - Rooted directives (@font-face, @keyframes)
+				// - Vendor-prefixed @keyframes (@-webkit-keyframes, etc.)
+				// - Bubbling directives (@supports, @document) - their wrapper rulesets should be Root
+				//   so they don't increment tabLevel and cause double-indentation
 				isKeyframes := strings.Contains(a.Name, "keyframes")
-				if a.IsRooted || isKeyframes {
+				isBubblingDirective := (a.Name == "@supports" || a.Name == "@document")
+				if a.IsRooted || isKeyframes || isBubblingDirective {
 					rs.Root = true
 				}
 			} else {
@@ -826,12 +829,12 @@ func (a *AtRule) Rulesets() []any {
 // OutputRuleset outputs CSS for rules with proper formatting
 func (a *AtRule) OutputRuleset(context any, output *CSSOutput, rules []any) {
 	ruleCnt := len(rules)
-	
+
 	ctx, ok := context.(map[string]any)
 	if !ok {
 		ctx = make(map[string]any)
 	}
-	
+
 	tabLevel := 0
 	if tl, ok := ctx["tabLevel"].(int); ok {
 		tabLevel = tl
