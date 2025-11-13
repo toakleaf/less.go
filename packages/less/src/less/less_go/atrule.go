@@ -317,15 +317,12 @@ func (a *AtRule) Eval(context any) (any, error) {
 			// Convert back to Ruleset if possible
 			if rs, ok := evaluated.(*Ruleset); ok {
 				rules = []any{rs}
-				// IMPORTANT: Set Root=true for container rulesets to prevent extra indentation
-				// This includes:
-				// - Rooted directives (@font-face, @keyframes)
-				// - Vendor-prefixed @keyframes (@-webkit-keyframes, etc.)
-				// - Bubbling directives (@supports, @document) - their wrapper rulesets should be Root
-				//   so they don't increment tabLevel and cause double-indentation
+				// IMPORTANT: Set Root=true for rooted directives (@font-face, @keyframes)
+				// Also set Root=true for vendor-prefixed @keyframes (@-webkit-keyframes, etc.)
+				// For non-rooted directives (@supports, @document), leave Root unset
+				// so JoinSelectorVisitor can properly handle selector joining
 				isKeyframes := strings.Contains(a.Name, "keyframes")
-				isBubblingDirective := (a.Name == "@supports" || a.Name == "@document")
-				if a.IsRooted || isKeyframes || isBubblingDirective {
+				if a.IsRooted || isKeyframes {
 					rs.Root = true
 				}
 			} else {
