@@ -2357,26 +2357,27 @@ func (p *Parsers) Sub() any {
 	if p.parser.parserInput.Char('(') != nil {
 		// Try Addition first for mathematical expressions like (2 + 3)
 		a = p.Addition()
-		if a != nil && p.parser.parserInput.Char(')') != nil {
-			p.parser.parserInput.Forget()
-			// Create Expression with Parens=true (like JavaScript)
-			// This allows math operations to collapse during evaluation
-			expr, err := NewExpression([]any{a}, false)
-			if err == nil {
-				expr.Parens = true
-				e = expr
-			}
-			return e
-		}
-
-		// If Addition parsed something but we didn't find ')', this is a malformed expression
-		// Match JavaScript behavior: fail immediately with "Expected ')'"
 		if a != nil {
+			// Addition succeeded, so we MUST find ')' next
+			if p.parser.parserInput.Char(')') != nil {
+				p.parser.parserInput.Forget()
+				// Create Expression with Parens=true (like JavaScript)
+				// This allows math operations to collapse during evaluation
+				expr, err := NewExpression([]any{a}, false)
+				if err == nil {
+					expr.Parens = true
+					e = expr
+				}
+				return e
+			}
+			// Addition succeeded but no closing paren - this is an error!
+			// This matches JavaScript behavior and prevents malformed expressions
+			// like "(12 (13 + 5 -23) + 5)" from being parsed incorrectly
 			p.parser.parserInput.Restore("Expected ')'")
 			return nil
 		}
 
-		// If Addition failed (returned nil), try parsing as a general expression with colon support
+		// Addition returned nil, try parsing as a general expression with colon support
 		// for media queries like (min-width: 480px)
 		p.parser.parserInput.Restore("")
 		p.parser.parserInput.Save()
