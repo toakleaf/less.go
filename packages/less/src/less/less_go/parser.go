@@ -2369,7 +2369,14 @@ func (p *Parsers) Sub() any {
 			return e
 		}
 
-		// If Addition failed, try parsing as a general expression with colon support
+		// If Addition parsed something but we didn't find ')', this is a malformed expression
+		// Match JavaScript behavior: fail immediately with "Expected ')'"
+		if a != nil {
+			p.parser.parserInput.Restore("Expected ')'")
+			return nil
+		}
+
+		// If Addition failed (returned nil), try parsing as a general expression with colon support
 		// for media queries like (min-width: 480px)
 		p.parser.parserInput.Restore("")
 		p.parser.parserInput.Save()
