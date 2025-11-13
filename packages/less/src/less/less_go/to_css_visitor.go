@@ -728,6 +728,37 @@ func (v *ToCSSVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitArgs) any {
 			if rs, ok := rulesetNode.(*Ruleset); ok {
 				fmt.Fprintf(os.Stderr, "[ToCSSVisitor.VisitRuleset] Ruleset root=%v, MultiMedia=%v, Rules=%d\n",
 					rootNode.GetRoot(), rs.MultiMedia, len(rs.Rules))
+				if rootNode.GetRoot() {
+					// Log details about root's rules
+					fmt.Fprintf(os.Stderr, "[ToCSSVisitor.VisitRuleset] ROOT RULESET - examining %d rules:\n", len(rs.Rules))
+					for i, rule := range rs.Rules {
+						if childRs, ok := rule.(*Ruleset); ok {
+							var sel string = "?"
+							var blocksVis bool = false
+							var visVal string = "nil"
+							if len(childRs.Paths) > 0 && len(childRs.Paths[0]) > 0 {
+								if s, ok := childRs.Paths[0][0].(*Selector); ok {
+									sel = s.ToCSS(nil)
+								}
+							}
+							if blocksNode, hasBlocks := rule.(interface{ BlocksVisibility() bool; IsVisible() *bool }); hasBlocks {
+								blocksVis = blocksNode.BlocksVisibility()
+								vis := blocksNode.IsVisible()
+								if vis != nil {
+									if *vis {
+										visVal = "true"
+									} else {
+										visVal = "false"
+									}
+								}
+							}
+							fmt.Fprintf(os.Stderr, "[ToCSSVisitor.VisitRuleset]   [%d] Ruleset: selector=%s blocksVisibility=%v visibility=%s ptr=%p\n",
+								i, sel, blocksVis, visVal, rule)
+						} else {
+							fmt.Fprintf(os.Stderr, "[ToCSSVisitor.VisitRuleset]   [%d] Other: type=%T\n", i, rule)
+						}
+					}
+				}
 			}
 		}
 		if !rootNode.GetRoot() {
@@ -811,9 +842,45 @@ func (v *ToCSSVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitArgs) any {
 	}
 	
 	// now decide whether we keep the ruleset
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		var sel string = "?"
+		var blocksVis bool = false
+		var visVal string = "nil"
+		if rs, ok := rulesetNode.(*Ruleset); ok {
+			if len(rs.Paths) > 0 && len(rs.Paths[0]) > 0 {
+				if s, ok := rs.Paths[0][0].(*Selector); ok {
+					sel = s.ToCSS(nil)
+				}
+			}
+			if blocksNode, hasBlocks := rulesetNode.(interface{ BlocksVisibility() bool; IsVisible() *bool }); hasBlocks {
+				blocksVis = blocksNode.BlocksVisibility()
+				vis := blocksNode.IsVisible()
+				if vis != nil {
+					if *vis {
+						visVal = "true"
+					} else {
+						visVal = "false"
+					}
+				}
+			}
+		}
+		fmt.Fprintf(os.Stderr, "[BEFORE IsVisibleRuleset] selector=%s blocksVisibility=%v visibility=%s ptr=%p\n",
+			sel, blocksVis, visVal, rulesetNode)
+	}
+
 	keepRuleset := v.utils.IsVisibleRuleset(rulesetNode)
 
 	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		var sel string = "?"
+		if rs, ok := rulesetNode.(*Ruleset); ok {
+			if len(rs.Paths) > 0 && len(rs.Paths[0]) > 0 {
+				if s, ok := rs.Paths[0][0].(*Selector); ok {
+					sel = s.ToCSS(nil)
+				}
+			}
+		}
+		fmt.Fprintf(os.Stderr, "[AFTER IsVisibleRuleset] selector=%s keepRuleset=%v ptr=%p\n", sel, keepRuleset, rulesetNode)
+
 		if rs, ok := rulesetNode.(*Ruleset); ok && rs.MultiMedia {
 			fmt.Fprintf(os.Stderr, "[ToCSSVisitor.VisitRuleset] MultiMedia Ruleset keepRuleset=%v\n", keepRuleset)
 		}

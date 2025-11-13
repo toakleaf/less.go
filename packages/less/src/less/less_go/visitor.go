@@ -1,6 +1,8 @@
 package less_go
 
 import (
+	"fmt"
+	"os"
 	"reflect"
 	"strconv"
 )
@@ -298,13 +300,21 @@ func (v *Visitor) VisitArray(nodes []any, nonReplacing ...bool) []any {
 	if len(nonReplacing) > 0 {
 		isNonReplacing = nonReplacing[0]
 	}
-	
+
 	// Non-replacing mode
 	if isNonReplacing || !v.isReplacing() {
+		if os.Getenv("LESS_GO_DEBUG") == "1" && cnt > 100 {
+			fmt.Fprintf(os.Stderr, "[VisitArray] NON-REPLACING mode for %d nodes (isNonReplacing=%v, isReplacing=%v)\n",
+				cnt, isNonReplacing, v.isReplacing())
+		}
 		for i := 0; i < cnt; i++ {
 			v.Visit(nodes[i])
 		}
 		return nodes
+	}
+
+	if os.Getenv("LESS_GO_DEBUG") == "1" && cnt > 100 {
+		fmt.Fprintf(os.Stderr, "[VisitArray] REPLACING mode for %d nodes\n", cnt)
 	}
 
 	// Replacing mode
@@ -312,19 +322,50 @@ func (v *Visitor) VisitArray(nodes []any, nonReplacing ...bool) []any {
 	for i := 0; i < cnt; i++ {
 		evaluated := v.Visit(nodes[i])
 		if evaluated == nil {
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Fprintf(os.Stderr, "[VisitArray] [%d] evaluated=nil, skipping\n", i)
+			}
 			continue // Skip undefined results like JS
 		}
-		
+
 		// Check if result is array-like (Go slice or has splice method)
 		if v.isArrayLike(evaluated) {
 			// It's array-like, flatten it
 			if arrayItems := v.convertToSlice(evaluated); len(arrayItems) > 0 {
+				if os.Getenv("LESS_GO_DEBUG") == "1" {
+					// Check if this is a ruleset to log its selector
+					var sel string = "?"
+					if len(arrayItems) > 0 {
+						if rs, ok := arrayItems[0].(*Ruleset); ok && len(rs.Paths) > 0 && len(rs.Paths[0]) > 0 {
+							if s, ok := rs.Paths[0][0].(*Selector); ok {
+								sel = s.ToCSS(nil)
+							}
+						}
+					}
+					fmt.Fprintf(os.Stderr, "[VisitArray] [%d] flattening array with %d items (first selector=%s)\n", i, len(arrayItems), sel)
+				}
 				v.Flatten(arrayItems, &out)
+			} else {
+				if os.Getenv("LESS_GO_DEBUG") == "1" {
+					fmt.Fprintf(os.Stderr, "[VisitArray] [%d] empty array, skipping\n", i)
+				}
 			}
 		} else {
 			// Regular item, add to output
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				var sel string = "?"
+				if rs, ok := evaluated.(*Ruleset); ok && len(rs.Paths) > 0 && len(rs.Paths[0]) > 0 {
+					if s, ok := rs.Paths[0][0].(*Selector); ok {
+						sel = s.ToCSS(nil)
+					}
+				}
+				fmt.Fprintf(os.Stderr, "[VisitArray] [%d] adding single item (type=%T, selector=%s)\n", i, evaluated, sel)
+			}
 			out = append(out, evaluated)
 		}
+	}
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Fprintf(os.Stderr, "[VisitArray] processed %d nodes, returning %d items\n", cnt, len(out))
 	}
 	return out
 }
@@ -359,15 +400,23 @@ func (v *Visitor) Flatten(arr []any, out *[]any) []any {
 // isReplacing checks if the implementation is replacing
 func (v *Visitor) isReplacing() bool {
 	if impl, ok := v.implementation.(Implementation); ok {
-		return impl.IsReplacing()
+		result := impl.IsReplacing()
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Fprintf(os.Stderr, "[isReplacing] Implementation cast succeeded, type=%T, result=%v\n", impl, result)
+		}
+		return result
 	}
-	
+
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Fprintf(os.Stderr, "[isReplacing] Implementation cast failed, type=%T, trying reflection\n", v.implementation)
+	}
+
 	// Use reflection to check for isReplacing property (like JS)
 	implValue := reflect.ValueOf(v.implementation)
 	if implValue.Kind() == reflect.Ptr {
 		implValue = implValue.Elem()
 	}
-	
+
 	// Check for isReplacing field first (direct property access like JS)
 	if implValue.Kind() == reflect.Struct {
 		isReplacingField := implValue.FieldByName("isReplacing")
@@ -380,7 +429,7 @@ func (v *Visitor) isReplacing() bool {
 			return isReplacingField.Bool()
 		}
 	}
-	
+
 	// Fallback to method call
 	method := reflect.ValueOf(v.implementation).MethodByName("IsReplacing")
 	if method.IsValid() {
