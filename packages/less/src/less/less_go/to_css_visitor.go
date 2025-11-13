@@ -221,6 +221,23 @@ func (u *CSSVisitorUtils) IsVisibleRuleset(rulesetNode any) bool {
 	if blockedNode, ok := rulesetNode.(interface{ BlocksVisibility() bool; IsVisible() *bool }); ok {
 		if blockedNode.BlocksVisibility() {
 			vis := blockedNode.IsVisible()
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				var sel string = "?"
+				if rs, ok := rulesetNode.(*Ruleset); ok && len(rs.Paths) > 0 && len(rs.Paths[0]) > 0 {
+					if s, ok := rs.Paths[0][0].(*Selector); ok {
+						sel = s.ToCSS(nil)
+					}
+				}
+				visVal := "nil"
+				if vis != nil {
+					if *vis {
+						visVal = "true"
+					} else {
+						visVal = "false"
+					}
+				}
+				fmt.Fprintf(os.Stderr, "[IsVisibleRuleset] selector=%s blocksVisibility=true visibility=%s\n", sel, visVal)
+			}
 			// If visibility is undefined (nil) or explicitly false, hide the ruleset
 			if vis == nil || !*vis {
 				return false

@@ -488,7 +488,11 @@ func (r *Ruleset) Eval(context any) (any, error) {
 	}
 
 	// Create new ruleset
-	ruleset := NewRuleset(selectors, rules, r.StrictImports, r.VisibilityInfo(), r.SelectorsParseFunc, r.ValueParseFunc, r.ParseContext, r.ParseImports)
+	// IMPORTANT: Pass nil for visibilityInfo to match JavaScript behavior
+	// When a ruleset is evaluated (e.g., from a mixin call), the new ruleset should NOT
+	// inherit visibility blocks from the original ruleset. This ensures that content
+	// from referenced imports is visible when explicitly used (via mixin calls/extends).
+	ruleset := NewRuleset(selectors, rules, r.StrictImports, nil, r.SelectorsParseFunc, r.ValueParseFunc, r.ParseContext, r.ParseImports)
 	ruleset.OriginalRuleset = r
 	ruleset.Root = r.Root
 	ruleset.FirstRoot = r.FirstRoot
