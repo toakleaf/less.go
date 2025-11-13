@@ -317,15 +317,10 @@ func (a *AtRule) Eval(context any) (any, error) {
 			// Convert back to Ruleset if possible
 			if rs, ok := evaluated.(*Ruleset); ok {
 				rules = []any{rs}
-				// IMPORTANT: Set Root=true for container rulesets to prevent extra indentation
-				// This includes:
-				// - Rooted directives (@font-face, @keyframes)
-				// - Vendor-prefixed @keyframes (@-webkit-keyframes, etc.)
-				//
-				// NOTE: Bubbling directives (@supports, @document) should NOT be set to Root=true here.
-				// They are handled by JoinSelectorVisitor which sets Root appropriately based on
-				// whether the ruleset has selectors (from BubbleSelectors). Setting Root=true here
-				// would prevent proper selector joining for nested selectors like .in1 .in2
+				// IMPORTANT: Set Root=true for rooted directives (@font-face, @keyframes)
+				// Also set Root=true for vendor-prefixed @keyframes (@-webkit-keyframes, etc.)
+				// For non-rooted directives (@supports, @document), leave Root unset
+				// so JoinSelectorVisitor can properly handle selector joining
 				isKeyframes := strings.Contains(a.Name, "keyframes")
 				if a.IsRooted || isKeyframes {
 					rs.Root = true
