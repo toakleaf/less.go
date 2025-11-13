@@ -90,6 +90,16 @@ func (u *CSSVisitorUtils) IsEmpty(owner any) bool {
 		return true
 	}
 
+	// Special case: Media nodes should not be considered empty based solely on Rules count
+	// Media nodes inside MultiMedia Rulesets need to be kept for output even if their inner
+	// rulesets were extracted during Accept()
+	if media, ok := owner.(*Media); ok {
+		// Media nodes are not empty if they have features (the media query conditions)
+		if media.Features != nil {
+			return false
+		}
+	}
+
 	if ownerWithRules, ok := owner.(interface{ GetRules() []any }); ok {
 		rules := ownerWithRules.GetRules()
 		isEmpty := rules == nil || len(rules) == 0
@@ -232,9 +242,17 @@ func (u *CSSVisitorUtils) IsVisibleRuleset(rulesetNode any) bool {
 	// These rulesets have AllowImports == true and don't need visible selectors
 	// because their parent node provides the selector context
 	if allowImportsNode, ok := rulesetNode.(interface{ GetAllowImports() bool }); ok {
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			if rs, ok := rulesetNode.(*Ruleset); ok {
+				fmt.Fprintf(os.Stderr, "[IsVisibleRuleset] Checking AllowImports: %v, Rules count=%d\n", allowImportsNode.GetAllowImports(), len(rs.Rules))
+			}
+		}
 		if allowImportsNode.GetAllowImports() {
 			// This is a wrapper ruleset inside a Media/AtRule node
 			// Keep it even if it has no visible selectors
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Fprintf(os.Stderr, "[IsVisibleRuleset] AllowImports=true, keeping ruleset\n")
+			}
 			return true
 		}
 	}
@@ -430,10 +448,22 @@ func (v *ToCSSVisitor) VisitMedia(mediaNode any, visitArgs *VisitArgs) any {
 		return nil
 	}
 
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		if media, ok := mediaNode.(*Media); ok {
+			fmt.Fprintf(os.Stderr, "[ToCSSVisitor.VisitMedia] Before Accept: Rules count=%d\n", len(media.Rules))
+		}
+	}
+
 	if acceptor, ok := mediaNode.(interface{ Accept(any) }); ok {
 		acceptor.Accept(v.visitor)
 	}
 	visitArgs.VisitDeeper = false
+
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		if media, ok := mediaNode.(*Media); ok {
+			fmt.Fprintf(os.Stderr, "[ToCSSVisitor.VisitMedia] After Accept: Rules count=%d\n", len(media.Rules))
+		}
+	}
 
 	return v.utils.ResolveVisibility(mediaNode)
 }
@@ -762,8 +792,21 @@ func (v *ToCSSVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitArgs) any {
 			// if (! rulesetNode.root) {
 			// For the root ruleset, we need to clean up paths of its direct children
 			// This ensures top-level rulesets don't have extra space combinators
-			if acceptor, ok := rulesetNode.(interface{ Accept(any) }); ok {
-				acceptor.Accept(v.visitor)
+
+			// Special case: MultiMedia Rulesets contain Media nodes that should keep their Rules intact
+			// Don't call Accept() which would visit and clear the Media nodes' inner Rulesets
+			isMultiMedia := false
+			if rs, ok := rulesetNode.(*Ruleset); ok && rs.MultiMedia {
+				isMultiMedia = true
+				if os.Getenv("LESS_GO_DEBUG") == "1" {
+					fmt.Fprintf(os.Stderr, "[ToCSSVisitor.VisitRuleset] Skipping Accept() for MultiMedia Ruleset to preserve Media Rules\n")
+				}
+			}
+
+			if !isMultiMedia {
+				if acceptor, ok := rulesetNode.(interface{ Accept(any) }); ok {
+					acceptor.Accept(v.visitor)
+				}
 			}
 			visitArgs.VisitDeeper = false
 		}

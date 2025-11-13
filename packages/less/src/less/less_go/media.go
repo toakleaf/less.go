@@ -114,11 +114,9 @@ func (m *Media) EvalTop(context any) any {
 
 	// Handle both *Eval and map[string]any contexts
 	var mediaBlocks []any
-	var hasMediaBlocks bool
 
 	if evalCtx, ok := context.(*Eval); ok {
 		mediaBlocks = evalCtx.MediaBlocks
-		hasMediaBlocks = len(mediaBlocks) > 0
 
 		if os.Getenv("LESS_GO_TRACE") != "" || os.Getenv("LESS_GO_DEBUG") == "1" {
 			fmt.Fprintf(os.Stderr, "[MEDIA.EvalTop] mediaBlocks count: %d\n", len(mediaBlocks))
@@ -128,10 +126,19 @@ func (m *Media) EvalTop(context any) any {
 		}
 
 		// Render all dependent Media blocks
-		if hasMediaBlocks && len(mediaBlocks) > 1 {
+		// IMPORTANT: The current media (m) added itself to mediaBlocks, but it should NOT be included
+		// in the MultiMedia Ruleset - only nested media blocks should be included
+		// Filter out the last block (which is the current media that just finished evaluation)
+		nestedBlocks := mediaBlocks
+		if len(mediaBlocks) > 0 {
+			// The current media is the last one added (line 587), so remove it
+			nestedBlocks = mediaBlocks[:len(mediaBlocks)-1]
+		}
+
+		if len(nestedBlocks) > 0 {
 			if os.Getenv("LESS_GO_DEBUG") == "1" {
-				fmt.Fprintf(os.Stderr, "[MEDIA.EvalTop] Creating MultiMedia Ruleset with %d media blocks\n", len(mediaBlocks))
-				for i, mb := range mediaBlocks {
+				fmt.Fprintf(os.Stderr, "[MEDIA.EvalTop] Creating MultiMedia Ruleset with %d nested media blocks (filtered from %d total)\n", len(nestedBlocks), len(mediaBlocks))
+				for i, mb := range nestedBlocks {
 					if media, ok := mb.(*Media); ok {
 						fmt.Fprintf(os.Stderr, "[MEDIA.EvalTop]   Media[%d]: Rules count=%d\n", i, len(media.Rules))
 					}
@@ -154,9 +161,11 @@ func (m *Media) EvalTop(context any) any {
 				selectors[i] = sel
 			}
 			// Create MultiMedia Ruleset with root=true so inner Media nodes are not extracted by ToCSSVisitor
-			ruleset := NewRuleset(selectors, mediaBlocks, false, m.VisibilityInfo())
+			// The MultiMedia Ruleset is a container for merged media queries
+			ruleset := NewRuleset(selectors, nestedBlocks, false, m.VisibilityInfo())
 			ruleset.MultiMedia = true // Set MultiMedia to true for multiple media blocks
-			ruleset.Root = true       // Set Root to true so ToCSSVisitor doesn't extract inner Media nodes
+			ruleset.Root = true       // Set Root to true so Media nodes stay as Rules (not extracted as separate rulesets)
+			ruleset.AllowImports = true // Keep this ruleset visible even without selectors
 			ruleset.CopyVisibilityInfo(m.VisibilityInfo())
 			m.SetParent(ruleset.Node, m.Node)
 			if os.Getenv("LESS_GO_DEBUG") == "1" {
@@ -178,8 +187,14 @@ func (m *Media) EvalTop(context any) any {
 		return result
 	}
 
-	mediaBlocks, hasMediaBlocks = ctx["mediaBlocks"].([]any)
-	if hasMediaBlocks && len(mediaBlocks) > 1 {
+	mediaBlocks, _ = ctx["mediaBlocks"].([]any)
+	// Filter out the current media (same as Eval context path)
+	nestedBlocks := mediaBlocks
+	if len(mediaBlocks) > 0 {
+		nestedBlocks = mediaBlocks[:len(mediaBlocks)-1]
+	}
+
+	if len(nestedBlocks) > 0 {
 		// Create empty selectors
 		selector, err := NewSelector(nil, nil, nil, m.GetIndex(), m.FileInfo(), nil)
 		if err != nil {
@@ -196,9 +211,11 @@ func (m *Media) EvalTop(context any) any {
 			selectors[i] = sel
 		}
 		// Create MultiMedia Ruleset with root=true so inner Media nodes are not extracted by ToCSSVisitor
-		ruleset := NewRuleset(selectors, mediaBlocks, false, m.VisibilityInfo())
+		// The MultiMedia Ruleset is a container for merged media queries
+		ruleset := NewRuleset(selectors, nestedBlocks, false, m.VisibilityInfo())
 		ruleset.MultiMedia = true // Set MultiMedia to true for multiple media blocks
-		ruleset.Root = true       // Set Root to true so ToCSSVisitor doesn't extract inner Media nodes
+		ruleset.Root = true       // Set Root to true so Media nodes stay as Rules (not extracted as separate rulesets)
+		ruleset.AllowImports = true // Keep this ruleset visible even without selectors
 		ruleset.CopyVisibilityInfo(m.VisibilityInfo())
 		m.SetParent(ruleset.Node, m.Node)
 		result = ruleset
@@ -475,6 +492,9 @@ func (m *Media) BubbleSelectors(selectors any) {
 
 // GenCSS generates CSS representation
 func (m *Media) GenCSS(context any, output *CSSOutput) {
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Fprintf(os.Stderr, "[MEDIA.GenCSS] Called, Rules count=%d\n", len(m.Rules))
+	}
 	// Match JavaScript: Media nodes are always output
 	// Visibility filtering happens at the rule level inside the media block, not at the media block itself
 	// JavaScript media.genCSS() has no visibility check
@@ -578,6 +598,13 @@ func (m *Media) Eval(context any) (any, error) {
 	// Match JavaScript: context.mediaPath.push(media); context.mediaBlocks.push(media);
 	evalCtx.MediaPath = append(evalCtx.MediaPath, media)
 	evalCtx.MediaBlocks = append(evalCtx.MediaBlocks, media)
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		featStr := "nil"
+		if media.Features != nil {
+			featStr = fmt.Sprintf("%T", media.Features)
+		}
+		fmt.Fprintf(os.Stderr, "[MEDIA.Eval] Added to mediaBlocks, features=%s, mediaPath len=%d\n", featStr, len(evalCtx.MediaPath))
+	}
 
 	// Match JavaScript: this.rules[0].functionRegistry = context.frames[0].functionRegistry.inherit();
 	if len(m.Rules) > 0 {
@@ -631,15 +658,37 @@ func (m *Media) Eval(context any) (any, error) {
 
 	// Match JavaScript: return context.mediaPath.length === 0 ? media.evalTop(context) : media.evalNested(context);
 	if len(evalCtx.MediaPath) == 0 {
-		if os.Getenv("LESS_GO_TRACE") != "" {
-			fmt.Fprintf(os.Stderr, "[MEDIA.Eval] Calling evalTop, mediaBlocks count: %d\n", len(evalCtx.MediaBlocks))
+		if os.Getenv("LESS_GO_TRACE") != "" || os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Fprintf(os.Stderr, "[MEDIA.Eval] Calling evalTop, mediaPath len=%d, mediaBlocks count: %d\n", len(evalCtx.MediaPath), len(evalCtx.MediaBlocks))
 		}
-		return media.EvalTop(evalCtx), nil
+		result := media.EvalTop(evalCtx)
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Fprintf(os.Stderr, "[MEDIA.Eval] evalTop returned type=%T\n", result)
+			if rs, ok := result.(*Ruleset); ok {
+				fmt.Fprintf(os.Stderr, "[MEDIA.Eval]   Ruleset: MultiMedia=%v, Root=%v, Rules count=%d\n", rs.MultiMedia, rs.Root, len(rs.Rules))
+			}
+		}
+		return result, nil
 	} else {
-		if os.Getenv("LESS_GO_TRACE") != "" {
+		if os.Getenv("LESS_GO_TRACE") != "" || os.Getenv("LESS_GO_DEBUG") == "1" {
 			fmt.Fprintf(os.Stderr, "[MEDIA.Eval] Calling evalNested, mediaPath length: %d\n", len(evalCtx.MediaPath))
 		}
-		return media.EvalNested(evalCtx), nil
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Fprintf(os.Stderr, "[MEDIA.Eval] Calling evalNested\n")
+		}
+		result := media.EvalNested(evalCtx)
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			featStr := "nil"
+			if media.Features != nil {
+				if val, ok := media.Features.(*Value); ok && len(val.Value) > 0 {
+					featStr = fmt.Sprintf("Value with %d items", len(val.Value))
+				} else {
+					featStr = fmt.Sprintf("%T", media.Features)
+				}
+			}
+			fmt.Fprintf(os.Stderr, "[MEDIA.Eval] After evalNested, media.features=%s, result type=%T\n", featStr, result)
+		}
+		return result, nil
 	}
 }
 
