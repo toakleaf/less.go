@@ -283,6 +283,13 @@ func (pev *ProcessExtendsVisitor) Run(root any) any {
 	pev.extendIndices = make(map[string]bool)
 	root = extendFinder.Run(root)
 
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Fprintf(os.Stderr, "[ProcessExtendsVisitor.Run] foundExtends=%v, root type=%T\n", extendFinder.foundExtends, root)
+		if rootRS, ok := root.(*Ruleset); ok {
+			fmt.Fprintf(os.Stderr, "[ProcessExtendsVisitor.Run] root has %d rules\n", len(rootRS.Rules))
+		}
+	}
+
 	if !extendFinder.foundExtends {
 		return root
 	}
@@ -291,6 +298,16 @@ func (pev *ProcessExtendsVisitor) Run(root any) any {
 	var rootAllExtends []*Extend
 	if rootWithExtends, ok := root.(interface{ GetAllExtends() []*Extend }); ok {
 		rootAllExtends = rootWithExtends.GetAllExtends()
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Fprintf(os.Stderr, "[ProcessExtendsVisitor.Run] Found %d extends in root\n", len(rootAllExtends))
+			for i, ext := range rootAllExtends {
+				if ext.Selector != nil {
+					if sel, ok := ext.Selector.(*Selector); ok {
+						fmt.Fprintf(os.Stderr, "[ProcessExtendsVisitor.Run] extend[%d]: selector=%s\n", i, sel.ToCSS(nil))
+					}
+				}
+			}
+		}
 	}
 
 	// Chain extends and concatenate with original extends
@@ -604,6 +621,23 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 
 			matches = pev.findMatch(allExtends[extendIndex], selectorPath)
 
+			if os.Getenv("LESS_GO_DEBUG") == "1" && len(matches) > 0 {
+				extendSel := "?"
+				if allExtends[extendIndex].Selector != nil {
+					if sel, ok := allExtends[extendIndex].Selector.(*Selector); ok {
+						extendSel = sel.ToCSS(nil)
+					}
+				}
+				pathSel := "?"
+				if len(selectorPath) > 0 {
+					if sel, ok := selectorPath[0].(*Selector); ok {
+						pathSel = sel.ToCSS(nil)
+					}
+				}
+				fmt.Fprintf(os.Stderr, "[EXTEND MATCH] extend=%s matched selector=%s (matches=%d)\n",
+					extendSel, pathSel, len(matches))
+			}
+
 			if len(matches) > 0 {
 				allExtends[extendIndex].HasFoundMatches = true
 
@@ -675,16 +709,16 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 					}
 
 					if isVisible && (selectorHasVisibilityBlocks || rulesetHasVisibilityBlocks) {
-						// Mark the EXTEND'S ruleset as visible (not the matched ruleset)
+						// Mark the EXTEND'S ruleset as visible
 						if targetRuleset.Node != nil {
-							if os.Getenv("LESS_GO_TRACE") == "1" {
+							if os.Getenv("LESS_GO_DEBUG") == "1" {
 								var targetSel string = "?"
 								if len(targetRuleset.Paths) > 0 && len(targetRuleset.Paths[0]) > 0 {
 									if sel, ok := targetRuleset.Paths[0][0].(*Selector); ok {
 										targetSel = sel.ToCSS(nil)
 									}
 								}
-								fmt.Printf("[VISIBILITY] Marking extend's ruleset %p (selector=%s) as visible due to extend match\n",
+								fmt.Fprintf(os.Stderr, "[VISIBILITY] Marking extend's ruleset %p (selector=%s) as visible due to extend match\n",
 									targetRuleset, targetSel)
 							}
 							targetRuleset.Node.EnsureVisibility()
@@ -695,9 +729,25 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 							// This ensures that @media and @supports blocks containing extended selectors are output
 							pev.makeParentNodesVisible(targetRuleset.Node)
 						}
-						// NOTE: We do NOT mark the original selector path as visible here,
-						// because that would cause the reference-imported selector to appear in the output.
-						// Only the newly created selector paths (created below) should be visible.
+
+						// CRITICAL: Also mark the MATCHED ruleset as visible
+						// When we extend selectors from a referenced import, those selectors SHOULD appear in the output
+						// That's the whole point of extend - it pulls content from referenced imports into your CSS
+						if ruleset.Node != nil {
+							if os.Getenv("LESS_GO_DEBUG") == "1" {
+								var matchedSel string = "?"
+								if len(ruleset.Paths) > 0 && len(ruleset.Paths[0]) > 0 {
+									if sel, ok := ruleset.Paths[0][0].(*Selector); ok {
+										matchedSel = sel.ToCSS(nil)
+									}
+								}
+								fmt.Fprintf(os.Stderr, "[VISIBILITY] Marking matched ruleset %p (selector=%s) as visible due to extend match\n",
+									ruleset, matchedSel)
+							}
+							ruleset.Node.EnsureVisibility()
+							// Also walk up the parent chain for the matched ruleset
+							pev.makeParentNodesVisible(ruleset.Node)
+						}
 					}
 
 					for _, selfSelector := range allExtends[extendIndex].SelfSelectors {
