@@ -449,12 +449,12 @@ func (m *Media) BubbleSelectors(selectors any) {
 
 	// Handle both []*Selector and []any types
 	var anySelectors []any
-	
+
 	switch s := selectors.(type) {
 	case []*Selector:
 		copiedSelectors := make([]*Selector, len(s))
 		copy(copiedSelectors, s)
-		
+
 		// Convert selectors to []any
 		anySelectors = make([]any, len(copiedSelectors))
 		for i, sel := range copiedSelectors {
@@ -467,7 +467,7 @@ func (m *Media) BubbleSelectors(selectors any) {
 	default:
 		return
 	}
-	
+
 	newRuleset := NewRuleset(anySelectors, []any{m.Rules[0]}, false, nil)
 	m.Rules = []any{newRuleset}
 	m.SetParent(m.Rules, m.Node)

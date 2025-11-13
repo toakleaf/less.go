@@ -204,7 +204,10 @@ func (a *AtRule) GenCSS(context any, output *CSSOutput) {
 
 	// Check if this directive has rules but they ONLY contain comments (no actual content)
 	// In that case, skip output entirely
-	if a.Rules != nil {
+	// Exception: @keyframes (and vendor-prefixed variants) should always be output,
+	// even if empty or with only comments, because they define animation names
+	isKeyframes := strings.Contains(a.Name, "keyframes")
+	if a.Rules != nil && !isKeyframes {
 		hasOnlyComments := false
 		for _, rule := range a.Rules {
 			if ruleset, ok := rule.(*Ruleset); ok {
