@@ -40,39 +40,50 @@ for (let i = 0; i < ITERATIONS; i++) {
 }
 process.stdout.write('\n');
 
-// Run Go benchmarks - Go's benchmark framework handles this
-console.log(`Running Go benchmarks (${ITERATIONS} iterations via go test)...\n`);
-let goOutput;
-try {
-    goOutput = execSync(`go test -bench=BenchmarkLargeSuite -benchmem -benchtime=${ITERATIONS}x ./packages/less/src/less/less_go`, {
-        encoding: 'utf8',
-        cwd: path.join(__dirname, '..'),
-        maxBuffer: 10 * 1024 * 1024
-    });
-} catch (error) {
-    if (error.stdout) {
-        goOutput = error.stdout;
-        console.log('⚠️  Go benchmark had issues, but continuing with results...\n');
-    } else {
-        console.error('Failed to run Go benchmark');
-        console.error(error.message);
-        process.exit(1);
+// Run Go benchmarks - multiple independent processes for fair comparison
+console.log(`Running Go benchmarks (${ITERATIONS} separate processes)...`);
+const goTimes = [];
+let goBytesPerOp = 0;
+let goAllocsPerOp = 0;
+
+for (let i = 0; i < ITERATIONS; i++) {
+    process.stdout.write(`\r  Go Progress: ${i + 1}/${ITERATIONS} (${((i + 1) / ITERATIONS * 100).toFixed(1)}%)`);
+
+    try {
+        const goOutput = execSync('go test -bench=BenchmarkLargeSuite -benchmem -benchtime=1x ./packages/less/src/less/less_go', {
+            encoding: 'utf8',
+            cwd: path.join(__dirname, '..'),
+            maxBuffer: 10 * 1024 * 1024,
+            stdio: ['ignore', 'pipe', 'ignore'] // Suppress stderr
+        });
+
+        // Parse Go benchmark output
+        const match = goOutput.match(/BenchmarkLargeSuite-\d+\s+\d+\s+(\d+)\s+ns\/op\s+(\d+)\s+B\/op\s+(\d+)\s+allocs\/op/);
+        if (match) {
+            const goNsPerOp = parseInt(match[1]);
+            const goMsPerOp = goNsPerOp / 1_000_000;
+            goTimes.push(goMsPerOp);
+
+            // Collect memory stats from first run
+            if (i === 0) {
+                goBytesPerOp = parseInt(match[2]);
+                goAllocsPerOp = parseInt(match[3]);
+            }
+        }
+    } catch (error) {
+        console.error(`\n⚠️  Go iteration ${i + 1} failed`);
     }
 }
+process.stdout.write('\n\n');
 
-// Parse Go benchmark output
-const match = goOutput.match(/BenchmarkLargeSuite-\d+\s+(\d+)\s+(\d+)\s+ns\/op\s+(\d+)\s+B\/op\s+(\d+)\s+allocs\/op/);
-if (!match) {
-    console.error('Failed to parse Go benchmark output');
-    console.error('Output:', goOutput);
-    process.exit(1);
-}
-
-const goIterations = parseInt(match[1]);
-const goNsPerOp = parseInt(match[2]);
-const goBytesPerOp = parseInt(match[3]);
-const goAllocsPerOp = parseInt(match[4]);
-const goMsPerOp = goNsPerOp / 1_000_000;
+// Calculate Go statistics
+const goAvg = goTimes.reduce((sum, t) => sum + t, 0) / goTimes.length;
+const goMin = Math.min(...goTimes);
+const goMax = Math.max(...goTimes);
+const goSorted = [...goTimes].sort((a, b) => a - b);
+const goMedian = goSorted[Math.floor(goSorted.length / 2)];
+const goStdDev = Math.sqrt(goTimes.reduce((sum, t) => sum + Math.pow(t - goAvg, 2), 0) / goTimes.length);
+const goVariationPerc = (goStdDev / goAvg * 100);
 
 // Calculate JavaScript statistics
 const jsAvg = jsTimes.reduce((sum, t) => sum + t, 0) / jsTimes.length;
@@ -102,7 +113,7 @@ console.log('═'.repeat(80));
 console.log('REALISTIC SUITE BENCHMARK RESULTS');
 console.log('═'.repeat(80));
 console.log(`Files per build: ${testCount}`);
-console.log(`Build iterations: ${ITERATIONS} independent processes (JS) / ${goIterations} iterations (Go)`);
+console.log(`Build iterations: ${ITERATIONS} independent processes per implementation`);
 console.log(`Methodology: Each iteration = fresh process compiling all files once`);
 console.log('This represents actual CLI/build tool usage patterns');
 console.log('');
@@ -112,12 +123,12 @@ console.log('│ 📊 BUILD PERFORMANCE (all files, one pass per build)         
 console.log('├─────────────────────────────────────────────────────────────────────────────┤');
 console.log('│                    │  JavaScript  │      Go      │   Difference             │');
 console.log('├────────────────────┼──────────────┼──────────────┼──────────────────────────┤');
-console.log(`│ All Files (avg)    │ ${formatTime(jsAvg).padEnd(12)} │ ${formatTime(goMsPerOp).padEnd(12)} │ ${formatDiff(jsAvg, goMsPerOp).padEnd(24)} │`);
-console.log(`│ All Files (median) │ ${formatTime(jsMedian).padEnd(12)} │ N/A          │ N/A                      │`);
-console.log(`│ All Files (min)    │ ${formatTime(jsMin).padEnd(12)} │ N/A          │ N/A                      │`);
-console.log(`│ All Files (max)    │ ${formatTime(jsMax).padEnd(12)} │ N/A          │ N/A                      │`);
-console.log(`│ Per File (avg)     │ ${formatTime(jsAvg / testCount).padEnd(12)} │ ${formatTime(goMsPerOp / testCount).padEnd(12)} │ ${formatDiff(jsAvg / testCount, goMsPerOp / testCount).padEnd(24)} │`);
-console.log(`│ Variation (±%)     │ ${jsVariationPerc.toFixed(1)}%`.padEnd(15) + '│ N/A          │ N/A                      │');
+console.log(`│ All Files (avg)    │ ${formatTime(jsAvg).padEnd(12)} │ ${formatTime(goAvg).padEnd(12)} │ ${formatDiff(jsAvg, goAvg).padEnd(24)} │`);
+console.log(`│ All Files (median) │ ${formatTime(jsMedian).padEnd(12)} │ ${formatTime(goMedian).padEnd(12)} │ ${formatDiff(jsMedian, goMedian).padEnd(24)} │`);
+console.log(`│ All Files (min)    │ ${formatTime(jsMin).padEnd(12)} │ ${formatTime(goMin).padEnd(12)} │ ${formatDiff(jsMin, goMin).padEnd(24)} │`);
+console.log(`│ All Files (max)    │ ${formatTime(jsMax).padEnd(12)} │ ${formatTime(goMax).padEnd(12)} │ ${formatDiff(jsMax, goMax).padEnd(24)} │`);
+console.log(`│ Per File (avg)     │ ${formatTime(jsAvg / testCount).padEnd(12)} │ ${formatTime(goAvg / testCount).padEnd(12)} │ ${formatDiff(jsAvg / testCount, goAvg / testCount).padEnd(24)} │`);
+console.log(`│ Variation (±%)     │ ${jsVariationPerc.toFixed(1)}%`.padEnd(34) + '│ ' + `${goVariationPerc.toFixed(1)}%`.padEnd(12) + '│ ' + 'N/A'.padEnd(24) + ' │');
 console.log('└────────────────────┴──────────────┴──────────────┴──────────────────────────┘');
 console.log('');
 
@@ -136,7 +147,7 @@ console.log('═'.repeat(80));
 console.log('PERFORMANCE ANALYSIS');
 console.log('═'.repeat(80));
 
-const speedRatio = goMsPerOp / jsAvg;
+const speedRatio = goAvg / jsAvg;
 let verdict;
 if (speedRatio < 0.8) {
     verdict = `🚀 Go is ${(1/speedRatio).toFixed(1)}x FASTER than JavaScript`;
@@ -150,29 +161,50 @@ if (speedRatio < 0.8) {
 
 console.log('🏗️  REALISTIC BUILD PERFORMANCE:');
 console.log(`   ${verdict}`);
-console.log(`   Build time: JS ${formatTime(jsAvg)} vs Go ${formatTime(goMsPerOp)} (${speedRatio.toFixed(2)}x)`);
-console.log(`   Per-file avg: JS ${formatTime(jsAvg / testCount)} vs Go ${formatTime(goMsPerOp / testCount)}`);
+console.log(`   Build time: JS ${formatTime(jsAvg)} vs Go ${formatTime(goAvg)} (${speedRatio.toFixed(2)}x)`);
+console.log(`   Per-file avg: JS ${formatTime(jsAvg / testCount)} vs Go ${formatTime(goAvg / testCount)}`);
 console.log('');
 
-// Check for within-iteration variance in JS
-const firstHalf = jsTimes.slice(0, Math.floor(jsTimes.length / 2));
-const secondHalf = jsTimes.slice(Math.floor(jsTimes.length / 2));
-const firstHalfAvg = firstHalf.reduce((sum, t) => sum + t, 0) / firstHalf.length;
-const secondHalfAvg = secondHalf.reduce((sum, t) => sum + t, 0) / secondHalf.length;
-const improvementPerc = ((firstHalfAvg - secondHalfAvg) / firstHalfAvg * 100);
+// Check for within-iteration variance in both implementations
+const jsFirstHalf = jsTimes.slice(0, Math.floor(jsTimes.length / 2));
+const jsSecondHalf = jsTimes.slice(Math.floor(jsTimes.length / 2));
+const jsFirstHalfAvg = jsFirstHalf.reduce((sum, t) => sum + t, 0) / jsFirstHalf.length;
+const jsSecondHalfAvg = jsSecondHalf.reduce((sum, t) => sum + t, 0) / jsSecondHalf.length;
+const jsImprovementPerc = ((jsFirstHalfAvg - jsSecondHalfAvg) / jsFirstHalfAvg * 100);
+
+const goFirstHalf = goTimes.slice(0, Math.floor(goTimes.length / 2));
+const goSecondHalf = goTimes.slice(Math.floor(goTimes.length / 2));
+const goFirstHalfAvg = goFirstHalf.reduce((sum, t) => sum + t, 0) / goFirstHalf.length;
+const goSecondHalfAvg = goSecondHalf.reduce((sum, t) => sum + t, 0) / goSecondHalf.length;
+const goImprovementPerc = ((goFirstHalfAvg - goSecondHalfAvg) / goFirstHalfAvg * 100);
 
 console.log('📈 PROCESS WARMING ANALYSIS:');
-if (Math.abs(improvementPerc) < 5) {
-    console.log(`   ✅ No significant warming detected (${improvementPerc.toFixed(1)}% difference)`);
-    console.log(`   Each build session is truly independent`);
-} else if (improvementPerc > 0) {
-    console.log(`   ⚠️  Builds got ${improvementPerc.toFixed(1)}% faster over time`);
-    console.log(`   This suggests system-level caching (disk cache, OS, etc.)`);
+console.log('');
+console.log('  JavaScript:');
+if (Math.abs(jsImprovementPerc) < 5) {
+    console.log(`    ✅ No significant warming detected (${jsImprovementPerc.toFixed(1)}% difference)`);
+} else if (jsImprovementPerc > 0) {
+    console.log(`    ⚠️  Builds got ${jsImprovementPerc.toFixed(1)}% faster over time`);
 } else {
-    console.log(`   ⚠️  Builds got ${Math.abs(improvementPerc).toFixed(1)}% slower over time`);
-    console.log(`   This suggests system resource contention or thermal throttling`);
+    console.log(`    ⚠️  Builds got ${Math.abs(jsImprovementPerc).toFixed(1)}% slower over time`);
 }
-console.log(`   First half avg: ${formatTime(firstHalfAvg)}, Second half avg: ${formatTime(secondHalfAvg)}`);
+console.log(`    First half avg: ${formatTime(jsFirstHalfAvg)}, Second half avg: ${formatTime(jsSecondHalfAvg)}`);
+console.log('');
+console.log('  Go:');
+if (Math.abs(goImprovementPerc) < 5) {
+    console.log(`    ✅ No significant warming detected (${goImprovementPerc.toFixed(1)}% difference)`);
+} else if (goImprovementPerc > 0) {
+    console.log(`    ⚠️  Builds got ${goImprovementPerc.toFixed(1)}% faster over time`);
+} else {
+    console.log(`    ⚠️  Builds got ${Math.abs(goImprovementPerc).toFixed(1)}% slower over time`);
+}
+console.log(`    First half avg: ${formatTime(goFirstHalfAvg)}, Second half avg: ${formatTime(goSecondHalfAvg)}`);
+console.log('');
+if (Math.abs(jsImprovementPerc) < 5 && Math.abs(goImprovementPerc) < 5) {
+    console.log('  ✅ Each build session is truly independent for both implementations');
+} else {
+    console.log('  💡 Timing variations suggest system-level caching or resource contention');
+}
 console.log('');
 
 // Context
@@ -181,8 +213,8 @@ console.log('  • This benchmark simulates REALISTIC CLI/build tool usage');
 console.log('  • Each iteration = independent process compiling all files once');
 console.log('  • NO artificial JIT warming from repeated in-process runs');
 console.log('  • Both implementations produce identical CSS output');
-console.log(`  • JavaScript: ${ITERATIONS} separate node processes`);
-console.log(`  • Go: ${goIterations} benchmark iterations`);
+console.log(`  • Both implementations: ${ITERATIONS} separate processes`);
+console.log('  • Fair comparison with same methodology for both languages');
 console.log('');
 
 console.log('💡 COMPARISON WITH PER-FILE BENCHMARKS:');
