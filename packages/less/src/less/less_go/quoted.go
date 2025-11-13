@@ -11,7 +11,8 @@ var (
 	// Match both @{variable} and @variable syntax
 	variableRegex = regexp.MustCompile(`@\{([\w-]+)\}|@([\w-]+)`)
 	// Match both ${property} and $property syntax
-	propRegex     = regexp.MustCompile(`\$\{([\w-]+)\}|\$([\w-]+)`)
+	// Note: $property must start with a letter (not a digit) to avoid matching regex capture groups like $1, $2, etc.
+	propRegex     = regexp.MustCompile(`\$\{([\w-]+)\}|\$([a-zA-Z][\w-]*)`)
 )
 
 // Quoted represents a quoted string in the Less AST

@@ -185,7 +185,7 @@ func Replace(stringArg, pattern, replacement interface{}, flags ...interface{}) 
 			patternStr = strVal
 		}
 	}
-	
+
 	// Get the replacement value
 	var replacementStr string
 	if quotedRepl, ok := replacement.(*Quoted); ok {
@@ -197,7 +197,7 @@ func Replace(stringArg, pattern, replacement interface{}, flags ...interface{}) 
 			replacementStr = strVal
 		}
 	}
-	
+
 	// Get the flags
 	var flagsStr string
 	if len(flags) > 0 {
@@ -212,13 +212,13 @@ func Replace(stringArg, pattern, replacement interface{}, flags ...interface{}) 
 			}
 		}
 	}
-	
+
 	// Create the regex with flags
 	regexStr := patternStr
 	if strings.Contains(flagsStr, "i") {
 		regexStr = "(?i)" + regexStr
 	}
-	
+
 	regex, err := regexp.Compile(regexStr)
 	if err != nil {
 		return NewQuoted(quote, stringVal, escaped, 0, nil), nil // Return original on error
