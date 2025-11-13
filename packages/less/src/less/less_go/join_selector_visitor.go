@@ -159,7 +159,22 @@ func (jsv *JoinSelectorVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitAr
 						}
 						
 						jsInterface.JoinSelectors(&pathsSlice, contextSlice, filteredSelectors)
-						
+
+						// Debug logging
+						if os.Getenv("LESS_GO_TRACE") != "" {
+							fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor] After JoinSelectors: pathsSlice=%d paths, context=%d paths\n", len(pathsSlice), len(contextSlice))
+							for i, path := range pathsSlice {
+								fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor]   Path %d: %d elements\n", i, len(path))
+								for j, elem := range path {
+									if sel, ok := elem.(*Selector); ok {
+										fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor]     Element %d: Selector with %d elements\n", j, len(sel.Elements))
+									} else {
+										fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor]     Element %d: %T\n", j, elem)
+									}
+								}
+							}
+						}
+
 						// Convert [][]any to []any and update the existing paths slice in place
 						// This ensures the paths array on the context stack gets populated
 						for _, path := range pathsSlice {
@@ -167,7 +182,7 @@ func (jsv *JoinSelectorVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitAr
 							flatPath := flattenPath(path)
 							paths = append(paths, flatPath)
 						}
-						
+
 						// Update the context stack with the populated paths
 						jsv.contexts[len(jsv.contexts)-1].paths = paths
 					}
@@ -175,10 +190,11 @@ func (jsv *JoinSelectorVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitAr
 					rulesetInterface.SetSelectors(nil)
 				}
 			}
-			
+
 			if len(rulesetInterface.GetSelectors()) == 0 {
 				rulesetInterface.SetRules(nil)
 			}
+			// Set the Paths field on the ruleset so GenCSS can use it
 			rulesetInterface.SetPaths(paths)
 		}
 	} else if ruleset, ok := rulesetNode.(*Ruleset); ok {
@@ -224,7 +240,7 @@ func (jsv *JoinSelectorVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitAr
 						}
 						
 						ruleset.JoinSelectors(pathsPtr, contextSlice, filteredSelectors)
-						
+
 						// Convert the result to []any and update the existing paths slice in place
 						// This ensures the paths array on the context stack gets populated
 						for _, path := range *pathsPtr {
@@ -232,7 +248,7 @@ func (jsv *JoinSelectorVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitAr
 							flatPath := flattenPath(path)
 							paths = append(paths, flatPath)
 						}
-						
+
 						// Update the context stack with the populated paths
 						jsv.contexts[len(jsv.contexts)-1].paths = paths
 						ruleset.SetPaths(paths)

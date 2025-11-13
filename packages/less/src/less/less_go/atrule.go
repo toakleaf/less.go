@@ -321,11 +321,13 @@ func (a *AtRule) Eval(context any) (any, error) {
 				// This includes:
 				// - Rooted directives (@font-face, @keyframes)
 				// - Vendor-prefixed @keyframes (@-webkit-keyframes, etc.)
-				// - Bubbling directives (@supports, @document) - their wrapper rulesets should be Root
-				//   so they don't increment tabLevel and cause double-indentation
+				//
+				// NOTE: Bubbling directives (@supports, @document) should NOT be set to Root=true here.
+				// They are handled by JoinSelectorVisitor which sets Root appropriately based on
+				// whether the ruleset has selectors (from BubbleSelectors). Setting Root=true here
+				// would prevent proper selector joining for nested selectors like .in1 .in2
 				isKeyframes := strings.Contains(a.Name, "keyframes")
-				isBubblingDirective := (a.Name == "@supports" || a.Name == "@document")
-				if a.IsRooted || isKeyframes || isBubblingDirective {
+				if a.IsRooted || isKeyframes {
 					rs.Root = true
 				}
 			} else {

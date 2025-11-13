@@ -1564,18 +1564,53 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 		isContainer = true
 	}
 
-	// For non-root, non-media-empty, non-container rulesets: increment tabLevel
+	// Pre-compute if this ruleset contains only nested rulesets (no declarations)
+	// We need to know this before incrementing tabLevel
+	hasOnlyRulesets := false
+	if !r.Root && r.Rules != nil && len(r.Rules) > 0 {
+		if os.Getenv("LESS_GO_TRACE") != "" {
+			fmt.Fprintf(os.Stderr, "[RULESET.GenCSS] Checking hasOnlyRulesets for ruleset with %d rules, Root=%v\n", len(r.Rules), r.Root)
+		}
+		hasOnlyRulesets = true
+		for _, rule := range r.Rules {
+			// Skip silent comments and extends when checking
+			if comment, ok := rule.(*Comment); ok {
+				// Assuming IsSilent exists on Comment - if not, adjust this check
+				if comment.IsSilent(ctx) {
+					continue
+				}
+			} else if _, ok := rule.(*Extend); ok {
+				continue
+			}
+
+			// Check if this rule is NOT a ruleset-like node
+			if rulesetLike, ok := rule.(interface{ IsRulesetLike() any }); !ok || rulesetLike.IsRulesetLike() == nil {
+				// This is a declaration or other non-ruleset node
+				hasOnlyRulesets = false
+				if os.Getenv("LESS_GO_TRACE") != "" {
+					fmt.Fprintf(os.Stderr, "[RULESET.GenCSS] hasOnlyRulesets=false because of rule type=%T\n", rule)
+				}
+				break
+			}
+		}
+		if os.Getenv("LESS_GO_TRACE") != "" && hasOnlyRulesets {
+			fmt.Fprintf(os.Stderr, "[RULESET.GenCSS] hasOnlyRulesets=true, skipping selector output for ruleset with %d rules\n", len(r.Rules))
+		}
+	}
+
+	// For non-root, non-media-empty, non-container, non-hasOnlyRulesets rulesets: increment tabLevel
 	// But skip this for top-level rulesets (extracted rulesets that should be formatted at root level)
-	if !r.Root && !isMediaEmpty && !isTopLevel && !isContainer {
+	// Skip for hasOnlyRulesets since they don't output their own braces
+	if !r.Root && !isMediaEmpty && !isTopLevel && !isContainer && !hasOnlyRulesets {
 		tabLevel++
 		ctx["tabLevel"] = tabLevel
 	}
-	
+
 	compress := false
 	if c, ok := ctx["compress"].(bool); ok {
 		compress = c
 	}
-	
+
 	var tabRuleStr, tabSetStr string
 	if compress {
 		tabRuleStr = ""
@@ -1597,7 +1632,7 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 			tabSetStr = ""
 		}
 	}
-	
+
 	// Organize rules by type like JavaScript version
 	var charsetRuleNodes []any
 	// Pre-allocate ruleNodes with capacity of Rules length to avoid reallocation
@@ -1661,7 +1696,7 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 	// Track how many paths were actually output (for visibility filtering)
 	outputCount := 0
 
-	if !r.Root && !isMediaEmpty && !hasOnlyExtends {
+	if !r.Root && !isMediaEmpty && !hasOnlyExtends && !hasOnlyRulesets {
 		// Generate debug info
 		if debugInfo := GetDebugInfo(ctx, r, tabSetStr); debugInfo != "" {
 			output.Add(debugInfo, nil, nil)
@@ -1879,18 +1914,20 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 	}
 
 	// Decrement tab level FIRST for correct newline logic
-	// Do this for all non-root rulesets (except top-level, media-empty, and container), even if we skip output (for extend-only rulesets)
+	// Do this for all non-root rulesets (except top-level, media-empty, container, and hasOnlyRulesets), even if we skip output (for extend-only rulesets)
 	// Skip for top-level because we didn't increment it
 	// Skip for media-empty rulesets since they didn't increment tabLevel
 	// Skip for container rulesets since they didn't increment tabLevel
-	if !r.Root && !isTopLevel && !isMediaEmpty && !isContainer {
+	// Skip for hasOnlyRulesets since they don't output their own braces
+	if !r.Root && !isTopLevel && !isMediaEmpty && !isContainer && !hasOnlyRulesets {
 		tabLevel--
 		ctx["tabLevel"] = tabLevel
 	}
 
 	// Add closing brace (skip if this ruleset contains only extends, all paths were filtered, or is a container)
 	// Container rulesets don't output their own braces - they're transparent wrappers
-	if !r.Root && !isMediaEmpty && !hasOnlyExtends && !isContainer && (outputCount > 0 || r.Paths == nil) {
+	// Also skip if this ruleset contains only nested rulesets (hasOnlyRulesets) - the nested rulesets handle their own output
+	if !r.Root && !isMediaEmpty && !hasOnlyExtends && !hasOnlyRulesets && !isContainer && (outputCount > 0 || r.Paths == nil) {
 		if compress {
 			output.Add("}", nil, nil)
 		} else {
