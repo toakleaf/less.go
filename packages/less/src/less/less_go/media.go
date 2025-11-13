@@ -126,19 +126,13 @@ func (m *Media) EvalTop(context any) any {
 		}
 
 		// Render all dependent Media blocks
-		// IMPORTANT: The current media (m) added itself to mediaBlocks, but it should NOT be included
-		// in the MultiMedia Ruleset - only nested media blocks should be included
-		// Filter out the last block (which is the current media that just finished evaluation)
-		nestedBlocks := mediaBlocks
-		if len(mediaBlocks) > 0 {
-			// The current media is the last one added (line 587), so remove it
-			nestedBlocks = mediaBlocks[:len(mediaBlocks)-1]
-		}
-
-		if len(nestedBlocks) > 0 {
+		// Match JavaScript: use ALL mediaBlocks (don't filter out current media)
+		// The parent media will have empty Rules (because nested evalNested() returned empty Ruleset)
+		// so it won't output, but the nested media (with merged features) will output
+		if len(mediaBlocks) > 1 {
 			if os.Getenv("LESS_GO_DEBUG") == "1" {
-				fmt.Fprintf(os.Stderr, "[MEDIA.EvalTop] Creating MultiMedia Ruleset with %d nested media blocks (filtered from %d total)\n", len(nestedBlocks), len(mediaBlocks))
-				for i, mb := range nestedBlocks {
+				fmt.Fprintf(os.Stderr, "[MEDIA.EvalTop] Creating MultiMedia Ruleset with %d media blocks\n", len(mediaBlocks))
+				for i, mb := range mediaBlocks {
 					if media, ok := mb.(*Media); ok {
 						fmt.Fprintf(os.Stderr, "[MEDIA.EvalTop]   Media[%d]: Rules count=%d\n", i, len(media.Rules))
 					}
@@ -162,7 +156,7 @@ func (m *Media) EvalTop(context any) any {
 			}
 			// Create MultiMedia Ruleset with root=true so inner Media nodes are not extracted by ToCSSVisitor
 			// The MultiMedia Ruleset is a container for merged media queries
-			ruleset := NewRuleset(selectors, nestedBlocks, false, m.VisibilityInfo())
+			ruleset := NewRuleset(selectors, mediaBlocks, false, m.VisibilityInfo())
 			ruleset.MultiMedia = true // Set MultiMedia to true for multiple media blocks
 			ruleset.Root = true       // Set Root to true so Media nodes stay as Rules (not extracted as separate rulesets)
 			ruleset.AllowImports = true // Keep this ruleset visible even without selectors
@@ -188,13 +182,8 @@ func (m *Media) EvalTop(context any) any {
 	}
 
 	mediaBlocks, _ = ctx["mediaBlocks"].([]any)
-	// Filter out the current media (same as Eval context path)
-	nestedBlocks := mediaBlocks
-	if len(mediaBlocks) > 0 {
-		nestedBlocks = mediaBlocks[:len(mediaBlocks)-1]
-	}
-
-	if len(nestedBlocks) > 0 {
+	// Match JavaScript: use ALL mediaBlocks without filtering
+	if len(mediaBlocks) > 1 {
 		// Create empty selectors
 		selector, err := NewSelector(nil, nil, nil, m.GetIndex(), m.FileInfo(), nil)
 		if err != nil {
@@ -212,7 +201,7 @@ func (m *Media) EvalTop(context any) any {
 		}
 		// Create MultiMedia Ruleset with root=true so inner Media nodes are not extracted by ToCSSVisitor
 		// The MultiMedia Ruleset is a container for merged media queries
-		ruleset := NewRuleset(selectors, nestedBlocks, false, m.VisibilityInfo())
+		ruleset := NewRuleset(selectors, mediaBlocks, false, m.VisibilityInfo())
 		ruleset.MultiMedia = true // Set MultiMedia to true for multiple media blocks
 		ruleset.Root = true       // Set Root to true so Media nodes stay as Rules (not extracted as separate rulesets)
 		ruleset.AllowImports = true // Keep this ruleset visible even without selectors
@@ -457,21 +446,42 @@ func (m *Media) BubbleSelectors(selectors any) {
 		fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors] Called with selectors: %v\n", selectors)
 	}
 
+	// Match JavaScript: if (!selectors) return;
+	// This includes nil and empty arrays
 	if selectors == nil {
 		return
 	}
+
+	// Check for empty slices - match JavaScript behavior where empty arrays are falsy
+	switch s := selectors.(type) {
+	case []*Selector:
+		if len(s) == 0 {
+			if os.Getenv("LESS_GO_TRACE") != "" {
+				fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors] Skipping empty selector array\n")
+			}
+			return
+		}
+	case []any:
+		if len(s) == 0 {
+			if os.Getenv("LESS_GO_TRACE") != "" {
+				fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors] Skipping empty selector array\n")
+			}
+			return
+		}
+	}
+
 	if len(m.Rules) == 0 {
 		return
 	}
 
 	// Handle both []*Selector and []any types
 	var anySelectors []any
-	
+
 	switch s := selectors.(type) {
 	case []*Selector:
 		copiedSelectors := make([]*Selector, len(s))
 		copy(copiedSelectors, s)
-		
+
 		// Convert selectors to []any
 		anySelectors = make([]any, len(copiedSelectors))
 		for i, sel := range copiedSelectors {
@@ -484,8 +494,93 @@ func (m *Media) BubbleSelectors(selectors any) {
 	default:
 		return
 	}
-	
-	newRuleset := NewRuleset(anySelectors, []any{m.Rules[0]}, false, nil)
+
+	if os.Getenv("LESS_GO_TRACE") != "" {
+		fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors] Wrapping Rules with %d selectors\n", len(anySelectors))
+		for i, selAny := range anySelectors {
+			if sel, ok := selAny.(*Selector); ok {
+				fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors]   Selector %d has %d elements\n", i, len(sel.Elements))
+				for j, elem := range sel.Elements {
+					fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors]     Element %d: Value=%v\n", j, elem.Value)
+				}
+			}
+		}
+	}
+
+	// Filter out parent selector references (&) from selectors
+	// When detached rulesets are called in contexts without parent selectors (e.g., directly inside @media),
+	// the & elements need to be removed as they have no parent to reference
+	cleanedSelectors := make([]any, 0, len(anySelectors))
+	for _, selAny := range anySelectors {
+		if sel, ok := selAny.(*Selector); ok {
+			// Filter out elements that are just "&" (parent selector reference)
+			cleanedElements := make([]*Element, 0, len(sel.Elements))
+			for _, elem := range sel.Elements {
+				// Skip elements that are ONLY a parent selector reference
+				if str, ok := elem.Value.(string); ok && str == "&" {
+					continue
+				}
+				cleanedElements = append(cleanedElements, elem)
+			}
+
+			// Only include selectors that have elements after filtering
+			if len(cleanedElements) > 0 {
+				// Create new selector with filtered elements
+				cleanedSel := &Selector{
+					Elements:       cleanedElements,
+					EvaldCondition: sel.EvaldCondition,
+					Condition:      sel.Condition,
+					ExtendList:     sel.ExtendList,
+					MediaEmpty:     sel.MediaEmpty,
+					Node:           sel.Node,
+				}
+				cleanedSelectors = append(cleanedSelectors, cleanedSel)
+			}
+		} else {
+			// If it's not a *Selector, keep it as-is
+			cleanedSelectors = append(cleanedSelectors, selAny)
+		}
+	}
+
+	// If all selectors were filtered out (all were just "&"), don't wrap
+	if len(cleanedSelectors) == 0 {
+		if os.Getenv("LESS_GO_TRACE") != "" {
+			fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors] All selectors were parent references, skipping wrap\n")
+		}
+		return
+	}
+
+	// Check if m.Rules[0] is a Ruleset with matching selectors
+	// If so, use its Rules directly instead of double-wrapping
+	var innerContent []any
+	if innerRuleset, ok := m.Rules[0].(*Ruleset); ok {
+		// If the inner ruleset has selectors, use its Rules (unwrap one level)
+		// This prevents double-nesting like .my-selector { .my-selector { ... } }
+		if len(innerRuleset.Selectors) > 0 || len(innerRuleset.Paths) > 0 {
+			innerContent = innerRuleset.Rules
+			if os.Getenv("LESS_GO_TRACE") != "" {
+				fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors] Inner ruleset has selectors, unwrapping its Rules\n")
+			}
+		} else {
+			// Inner ruleset has no selectors, wrap it as-is
+			innerContent = []any{m.Rules[0]}
+		}
+	} else {
+		// Not a Ruleset, wrap as-is
+		innerContent = []any{m.Rules[0]}
+	}
+
+	newRuleset := NewRuleset(cleanedSelectors, innerContent, false, nil)
+
+	// CRITICAL: Set Paths from selectors for proper CSS generation
+	// Ruleset.GenCSS prefers Paths over Selectors. Since these selectors are already
+	// evaluated/compiled, we can directly use them as paths (each selector becomes its own path)
+	paths := make([][]any, len(cleanedSelectors))
+	for i, sel := range cleanedSelectors {
+		paths[i] = []any{sel}
+	}
+	newRuleset.Paths = paths
+
 	m.Rules = []any{newRuleset}
 	m.SetParent(m.Rules, m.Node)
 }
@@ -493,7 +588,15 @@ func (m *Media) BubbleSelectors(selectors any) {
 // GenCSS generates CSS representation
 func (m *Media) GenCSS(context any, output *CSSOutput) {
 	if os.Getenv("LESS_GO_DEBUG") == "1" {
-		fmt.Fprintf(os.Stderr, "[MEDIA.GenCSS] Called, Rules count=%d\n", len(m.Rules))
+		featDesc := "nil"
+		if m.Features != nil {
+			if val, ok := m.Features.(*Value); ok && len(val.Value) > 0 {
+				featDesc = fmt.Sprintf("Value with %d expressions", len(val.Value))
+			} else {
+				featDesc = fmt.Sprintf("%T", m.Features)
+			}
+		}
+		fmt.Fprintf(os.Stderr, "[MEDIA.GenCSS] Called, Rules count=%d, Features=%s\n", len(m.Rules), featDesc)
 	}
 	// Match JavaScript: Media nodes are always output
 	// Visibility filtering happens at the rule level inside the media block, not at the media block itself
@@ -517,11 +620,47 @@ func (m *Media) GenCSS(context any, output *CSSOutput) {
 	if ruleset, ok := m.Rules[0].(*Ruleset); ok {
 		// Check if the ruleset has only empty content (regardless of selectors)
 		// A ruleset with selectors but no actual declarations/rules should not be output
-		if hasOnlyEmptyContent(ruleset.Rules) {
-			if os.Getenv("LESS_GO_DEBUG") == "1" {
-				fmt.Fprintf(os.Stderr, "[Media.GenCSS] Skipping - empty content (Rules=%d)\n", len(ruleset.Rules))
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Fprintf(os.Stderr, "[Media.GenCSS] Checking ruleset with %d rules, Selectors=%d, Paths=%d\n",
+				len(ruleset.Rules), len(ruleset.Selectors), len(ruleset.Paths))
+			for i, selAny := range ruleset.Selectors {
+				if sel, ok := selAny.(*Selector); ok {
+					fmt.Fprintf(os.Stderr, "[Media.GenCSS]   Selector %d: %T, Elements=%d\n", i, sel, len(sel.Elements))
+					if len(sel.Elements) > 0 {
+						for j, elem := range sel.Elements {
+							fmt.Fprintf(os.Stderr, "[Media.GenCSS]     Element %d: %T, Value=%v\n", j, elem, elem.Value)
+						}
+					}
+				} else {
+					fmt.Fprintf(os.Stderr, "[Media.GenCSS]   Selector %d: %T\n", i, selAny)
+				}
 			}
-			return // Skip empty media blocks
+			for i, rule := range ruleset.Rules {
+				fmt.Fprintf(os.Stderr, "[Media.GenCSS]   Rule %d: %T\n", i, rule)
+			}
+		}
+
+		// Skip parent media blocks that haven't been merged
+		// Parent media have Features as *Expression (unmerged)
+		// Merged media have Features as *Value
+		// Standalone media have Features as *Paren or other types (should output)
+		isUnmergedParent := false
+		if m.Features != nil {
+			if _, ok := m.Features.(*Expression); ok {
+				// Features are *Expression, this is an unmerged parent media from a MultiMedia context
+				isUnmergedParent = true
+			}
+		}
+
+		// Also skip media with empty content
+		isEmpty := hasOnlyEmptyContent(ruleset.Rules)
+
+		if isUnmergedParent || isEmpty {
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Fprintf(os.Stderr, "[Media.GenCSS] Skipping - unmerged parent or empty (isUnmergedParent=%v, isEmpty=%v)\n",
+					isUnmergedParent, isEmpty)
+			}
+			return // Skip unmerged parent media or empty media blocks
 		}
 	}
 

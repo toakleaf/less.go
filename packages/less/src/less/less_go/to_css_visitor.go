@@ -794,13 +794,10 @@ func (v *ToCSSVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitArgs) any {
 			// This ensures top-level rulesets don't have extra space combinators
 
 			// Special case: MultiMedia Rulesets contain Media nodes that should keep their Rules intact
-			// Don't call Accept() which would visit and clear the Media nodes' inner Rulesets
+			// Don't call Accept() which would visit/extract the Media nodes' inner Rulesets
 			isMultiMedia := false
 			if rs, ok := rulesetNode.(*Ruleset); ok && rs.MultiMedia {
 				isMultiMedia = true
-				if os.Getenv("LESS_GO_DEBUG") == "1" {
-					fmt.Fprintf(os.Stderr, "[ToCSSVisitor.VisitRuleset] Skipping Accept() for MultiMedia Ruleset to preserve Media Rules\n")
-				}
 			}
 
 			if !isMultiMedia {
