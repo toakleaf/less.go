@@ -256,7 +256,80 @@ func (c *DefaultParserFunctionCaller) Call(args []any) (any, error) {
 		evaluatedArgs[i] = evalResult
 	}
 
-	return c.funcDef.Call(evaluatedArgs...)
+	// Filter comments from evaluated arguments (matches JavaScript behavior)
+	// This handles cases like @color2: #FFF/* comment2 */;
+	filteredArgs := c.filterCommentsFromArgs(evaluatedArgs)
+
+	return c.funcDef.Call(filteredArgs...)
+}
+
+// filterCommentsFromArgs removes comments from evaluated arguments
+// This is specifically for handling inline comments in variable values
+func (c *DefaultParserFunctionCaller) filterCommentsFromArgs(args []any) []any {
+	isComment := func(node any) bool {
+		if comment, ok := node.(*Comment); ok {
+			return comment != nil
+		}
+		if hasType, ok := node.(interface{ GetType() string }); ok {
+			return hasType.GetType() == "Comment"
+		}
+		return false
+	}
+
+	filtered := make([]any, 0, len(args))
+	for _, arg := range args {
+		// Skip top-level comments
+		if isComment(arg) {
+			continue
+		}
+
+		// Handle Expression nodes that might contain comments
+		if expr, ok := arg.(*Expression); ok {
+			// Filter comments from expression value
+			hasComments := false
+			for _, val := range expr.Value {
+				if isComment(val) {
+					hasComments = true
+					break
+				}
+			}
+
+			if hasComments {
+				// Create new expression without comments
+				nonCommentVals := make([]any, 0, len(expr.Value))
+				for _, val := range expr.Value {
+					if !isComment(val) {
+						nonCommentVals = append(nonCommentVals, val)
+					}
+				}
+
+				if len(nonCommentVals) == 1 {
+					// Single value, return it directly
+					filtered = append(filtered, nonCommentVals[0])
+				} else if len(nonCommentVals) > 0 {
+					// Multiple values, create new expression
+					newExpr := &Expression{
+						Node:       NewNode(),
+						Value:      nonCommentVals,
+						Parens:     expr.Parens,
+						ParensInOp: expr.ParensInOp,
+					}
+					newExpr.Node.Index = expr.GetIndex()
+					newExpr.Node.SetFileInfo(expr.FileInfo())
+					filtered = append(filtered, newExpr)
+				}
+				// Skip if all values were comments
+			} else {
+				// No comments, keep as-is
+				filtered = append(filtered, arg)
+			}
+		} else {
+			// Not a comment or expression, keep as-is
+			filtered = append(filtered, arg)
+		}
+	}
+
+	return filtered
 }
 
 // MapEvalContext implements EvalContext for map[string]any contexts
