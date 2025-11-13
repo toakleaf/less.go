@@ -256,7 +256,105 @@ func (c *DefaultParserFunctionCaller) Call(args []any) (any, error) {
 		evaluatedArgs[i] = evalResult
 	}
 
-	return c.funcDef.Call(evaluatedArgs...)
+	// Preprocess evaluated arguments to filter comments and flatten expressions
+	// This matches JavaScript behavior in function-caller.js
+	processedArgs := c.preprocessEvaluatedArgs(evaluatedArgs)
+
+	return c.funcDef.Call(processedArgs...)
+}
+
+// preprocessEvaluatedArgs filters comments and flattens expressions from evaluated arguments
+// This is called AFTER evaluation to match JavaScript behavior
+func (c *DefaultParserFunctionCaller) preprocessEvaluatedArgs(args []any) []any {
+	if args == nil {
+		return []any{}
+	}
+
+	processed := make([]any, 0, len(args))
+
+	for _, arg := range args {
+		// Filter out comments (JavaScript uses commentFilter)
+		if c.isComment(arg) {
+			continue
+		}
+
+		// Process expressions - flatten single-item expressions
+		if expr, ok := arg.(*Expression); ok {
+			// Filter out comments from expression value
+			subNodes := make([]any, 0, len(expr.Value))
+			for _, subNode := range expr.Value {
+				if !c.isComment(subNode) {
+					subNodes = append(subNodes, subNode)
+				}
+			}
+
+			if len(subNodes) == 1 {
+				// Special handling for parens and division (JavaScript logic)
+				if expr.Parens {
+					if op, ok := subNodes[0].(*Operation); ok && op.Op == "/" {
+						// Keep the expression with parens for division
+						processed = append(processed, arg)
+						continue
+					}
+				}
+				// Return the single sub-node
+				processed = append(processed, subNodes[0])
+			} else if len(subNodes) > 0 {
+				// Create new expression with filtered nodes
+				newExpr := &Expression{
+					Node:       NewNode(),
+					Value:      subNodes,
+					ParensInOp: expr.ParensInOp,
+					Parens:     expr.Parens,
+				}
+				newExpr.Node.Index = expr.GetIndex()
+				newExpr.Node.SetFileInfo(expr.FileInfo())
+				processed = append(processed, newExpr)
+			}
+			// Skip empty expressions (all comments filtered out)
+		} else if val, ok := arg.(*Value); ok {
+			// Process Value nodes - filter out comments from their value array
+			// This handles cases like @color2: #FFF/* comment2 */; where the variable
+			// evaluates to a Value containing both a Color and a Comment
+			subNodes := make([]any, 0, len(val.Value))
+			for _, subNode := range val.Value {
+				if !c.isComment(subNode) {
+					subNodes = append(subNodes, subNode)
+				}
+			}
+
+			if len(subNodes) == 1 {
+				// Return the single sub-node directly
+				processed = append(processed, subNodes[0])
+			} else if len(subNodes) > 0 {
+				// Create new value with filtered nodes
+				newVal, err := NewValue(subNodes)
+				if err == nil {
+					newVal.Node.Index = val.GetIndex()
+					newVal.Node.SetFileInfo(val.FileInfo())
+					processed = append(processed, newVal)
+				}
+			}
+			// Skip empty values (all comments filtered out)
+		} else {
+			// Non-expression, non-value argument, add as-is
+			processed = append(processed, arg)
+		}
+	}
+
+	return processed
+}
+
+// isComment checks if a node is a comment
+func (c *DefaultParserFunctionCaller) isComment(node any) bool {
+	if comment, ok := node.(*Comment); ok {
+		return comment != nil
+	}
+	// Check for Node with comment type
+	if hasType, ok := node.(interface{ GetType() string }); ok {
+		return hasType.GetType() == "Comment"
+	}
+	return false
 }
 
 // MapEvalContext implements EvalContext for map[string]any contexts
@@ -514,9 +612,8 @@ func (c *Call) Eval(context any) (any, error) {
 	}
 
 	if funcCaller.IsValid() {
-		// Preprocess arguments to match JavaScript behavior
-		processedArgs := c.preprocessArgs(c.Args)
-		result, err = funcCaller.Call(processedArgs)
+		// Pass unevaluated args to Call - it will evaluate and preprocess them
+		result, err = funcCaller.Call(c.Args)
 
 		if err != nil {
 			exitCalc()
@@ -680,7 +777,7 @@ func (c *Call) preprocessArgs(args []any) []any {
 		if c.isComment(arg) {
 			continue
 		}
-		
+
 		// Process expressions - flatten single-item expressions
 		if expr, ok := arg.(*Expression); ok {
 			// Filter out comments from expression value
@@ -717,8 +814,32 @@ func (c *Call) preprocessArgs(args []any) []any {
 				processed = append(processed, newExpr)
 			}
 			// Skip empty expressions (all comments filtered out)
+		} else if val, ok := arg.(*Value); ok {
+			// Process Value nodes - filter out comments from their value array
+			// This handles cases like @color2: #FFF/* comment2 */; where the variable
+			// evaluates to a Value containing both a Color and a Comment
+			subNodes := make([]any, 0, len(val.Value))
+			for _, subNode := range val.Value {
+				if !c.isComment(subNode) {
+					subNodes = append(subNodes, subNode)
+				}
+			}
+
+			if len(subNodes) == 1 {
+				// Return the single sub-node directly
+				processed = append(processed, subNodes[0])
+			} else if len(subNodes) > 0 {
+				// Create new value with filtered nodes
+				newVal, err := NewValue(subNodes)
+				if err == nil {
+					newVal.Node.Index = val.GetIndex()
+					newVal.Node.SetFileInfo(val.FileInfo())
+					processed = append(processed, newVal)
+				}
+			}
+			// Skip empty values (all comments filtered out)
 		} else {
-			// Non-expression argument, add as-is
+			// Non-expression, non-value argument, add as-is
 			processed = append(processed, arg)
 		}
 	}
