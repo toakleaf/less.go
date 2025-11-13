@@ -1556,9 +1556,17 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 		}
 	}
 
-	// For non-root, non-media-empty rulesets: increment tabLevel
+	// Check if this is a container ruleset (no selectors/paths)
+	// Container rulesets inside at-rules (@supports, @document) don't output their own braces,
+	// so they shouldn't increment tabLevel
+	isContainer := false
+	if !r.Root && (r.Paths == nil || len(r.Paths) == 0) && (r.Selectors == nil || len(r.Selectors) == 0) {
+		isContainer = true
+	}
+
+	// For non-root, non-media-empty, non-container rulesets: increment tabLevel
 	// But skip this for top-level rulesets (extracted rulesets that should be formatted at root level)
-	if !r.Root && !isMediaEmpty && !isTopLevel {
+	if !r.Root && !isMediaEmpty && !isTopLevel && !isContainer {
 		tabLevel++
 		ctx["tabLevel"] = tabLevel
 	}
@@ -1871,16 +1879,18 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 	}
 
 	// Decrement tab level FIRST for correct newline logic
-	// Do this for all non-root rulesets (except top-level and media-empty), even if we skip output (for extend-only rulesets)
+	// Do this for all non-root rulesets (except top-level, media-empty, and container), even if we skip output (for extend-only rulesets)
 	// Skip for top-level because we didn't increment it
 	// Skip for media-empty rulesets since they didn't increment tabLevel
-	if !r.Root && !isTopLevel && !isMediaEmpty {
+	// Skip for container rulesets since they didn't increment tabLevel
+	if !r.Root && !isTopLevel && !isMediaEmpty && !isContainer {
 		tabLevel--
 		ctx["tabLevel"] = tabLevel
 	}
 
-	// Add closing brace (skip if this ruleset contains only extends or all paths were filtered)
-	if !r.Root && !isMediaEmpty && !hasOnlyExtends && (outputCount > 0 || r.Paths == nil) {
+	// Add closing brace (skip if this ruleset contains only extends, all paths were filtered, or is a container)
+	// Container rulesets don't output their own braces - they're transparent wrappers
+	if !r.Root && !isMediaEmpty && !hasOnlyExtends && !isContainer && (outputCount > 0 || r.Paths == nil) {
 		if compress {
 			output.Add("}", nil, nil)
 		} else {

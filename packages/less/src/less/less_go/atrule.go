@@ -826,12 +826,12 @@ func (a *AtRule) Rulesets() []any {
 // OutputRuleset outputs CSS for rules with proper formatting
 func (a *AtRule) OutputRuleset(context any, output *CSSOutput, rules []any) {
 	ruleCnt := len(rules)
-	
+
 	ctx, ok := context.(map[string]any)
 	if !ok {
 		ctx = make(map[string]any)
 	}
-	
+
 	tabLevel := 0
 	if tl, ok := ctx["tabLevel"].(int); ok {
 		tabLevel = tl
