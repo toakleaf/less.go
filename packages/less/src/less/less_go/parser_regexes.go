@@ -36,7 +36,10 @@ var (
 
 // Color patterns
 var (
-	reColorHex = regexp.MustCompile(`^#([A-Fa-f0-9]{8}|[A-Fa-f0-9]{6}|[A-Fa-f0-9]{3,4})`)
+	// Matches hex colors and captures optional trailing character to detect invalid formats
+	// Valid: #RGB, #RGBA, #RRGGBB, #RRGGBBAA
+	// Invalid: #RRRR, #RRRRR (detected via trailing character in capture group 2)
+	reColorHex = regexp.MustCompile(`^#([A-Fa-f0-9]{8}|[A-Fa-f0-9]{6}|[A-Fa-f0-9]{3,4})([\w.#\[])?`)
 )
 
 // Number and dimension patterns

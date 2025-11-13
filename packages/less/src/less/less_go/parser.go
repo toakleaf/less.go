@@ -1569,6 +1569,14 @@ func (e *EntityParsers) Color() any {
 		if rgb != nil {
 			matches := rgb.([]string)
 			if len(matches) > 1 {
+				// Check if capture group 2 is present (trailing character after hex digits)
+				// If present, this indicates invalid hex color format (e.g., #fffff has 5 digits)
+				// The regex matches valid digit counts (3,4,6,8) but captures any trailing
+				// word character, dot, hash, or bracket to detect invalid formats
+				if len(matches) > 2 && matches[2] != "" {
+					e.parsers.parser.parserInput.Restore("")
+					return nil
+				}
 				// Check if followed by '.' or '[' - if so, this is a namespace/mixin reference, not a color
 				// This handles cases like #DEF.colors[primary] where #DEF looks like a color but isn't
 				nextChar := e.parsers.parser.parserInput.CurrentChar()
