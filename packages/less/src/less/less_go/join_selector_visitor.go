@@ -273,34 +273,56 @@ func (jsv *JoinSelectorVisitor) VisitMedia(mediaNode any, visitArgs *VisitArgs) 
 
 	// Set root flag on inner ruleset
 	// JavaScript: mediaNode.rules[0].root = (context.length === 0 || context[0].multiMedia);
-	// Root is true if we're at the top level (context.paths empty) OR inside a MultiMedia Ruleset
-	rootValue := len(contextItem.paths) == 0 || contextItem.multiMedia
-
-	if os.Getenv("LESS_GO_DEBUG") == "1" {
-		fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor.VisitMedia] contextItem.paths len=%d, multiMedia=%v, setting root=%v\n",
-			len(contextItem.paths), contextItem.multiMedia, rootValue)
-	}
+	//
+	// IMPORTANT: The inner ruleset should have Root=false when it has selectors (from BubbleSelectors).
+	// This allows the selectors to be output and joined with nested selectors.
+	// We don't set Root=true on rulesets with selectors, as that would prevent their selectors
+	// from being output in GenCSS.
+	//
+	// The default Root value set by NewRuleset is false, so we only need to avoid overriding it.
+	// We only set Root=true for rulesets without selectors (media queries that weren't bubbled).
 
 	// Try interface-based approach first
 	if mediaInterface, ok := mediaNode.(interface{ GetRules() []any }); ok {
 		rules := mediaInterface.GetRules()
 		if len(rules) > 0 {
+			// Check if the inner ruleset has selectors
+			hasSelectors := false
+			if rulesetInterface, ok := rules[0].(interface{ GetSelectors() []any }); ok {
+				selectors := rulesetInterface.GetSelectors()
+				hasSelectors = selectors != nil && len(selectors) > 0
+			}
+
+			// Only set Root=true if the ruleset has no selectors (not bubbled)
+			// AND we're at root level or in a MultiMedia context
+			rootValue := false
+			if !hasSelectors {
+				rootValue = len(contextItem.paths) == 0 || contextItem.multiMedia
+			}
+
 			if mediaRule, ok := rules[0].(interface{ SetRoot(bool) }); ok {
 				mediaRule.SetRoot(rootValue)
-				if os.Getenv("LESS_GO_DEBUG") == "1" {
-					fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor.VisitMedia] Set root=%v on inner ruleset (interface)\n", rootValue)
-				}
 			}
 		}
 	} else if media, ok := mediaNode.(*Media); ok {
 		// Fallback to concrete type for backward compatibility
 		rules := media.Rules
 		if len(rules) > 0 {
+			// Check if the inner ruleset has selectors
+			hasSelectors := false
+			if ruleset, ok := rules[0].(*Ruleset); ok {
+				hasSelectors = ruleset.Selectors != nil && len(ruleset.Selectors) > 0
+			}
+
+			// Only set Root=true if the ruleset has no selectors (not bubbled)
+			// AND we're at root level or in a MultiMedia context
+			rootValue := false
+			if !hasSelectors {
+				rootValue = len(contextItem.paths) == 0 || contextItem.multiMedia
+			}
+
 			if mediaRule, ok := rules[0].(MediaRule); ok {
 				mediaRule.SetRoot(rootValue)
-				if os.Getenv("LESS_GO_DEBUG") == "1" {
-					fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor.VisitMedia] Set root=%v on inner ruleset (concrete)\n", rootValue)
-				}
 			}
 		}
 	}
@@ -328,13 +350,33 @@ func (jsv *JoinSelectorVisitor) VisitContainer(containerNode any, visitArgs *Vis
 	}
 
 	// Set root flag on inner ruleset (same as Media)
-	// Root is true if we're at the top level (context.paths empty) OR inside a MultiMedia Ruleset
-	rootValue := len(contextItem.paths) == 0 || contextItem.multiMedia
+	//
+	// IMPORTANT: The inner ruleset should have Root=false when it has selectors (from BubbleSelectors).
+	// This allows the selectors to be output and joined with nested selectors.
+	// We don't set Root=true on rulesets with selectors, as that would prevent their selectors
+	// from being output in GenCSS.
+	//
+	// The default Root value set by NewRuleset is false, so we only need to avoid overriding it.
+	// We only set Root=true for rulesets without selectors (container queries that weren't bubbled).
 
 	// Try interface-based approach first
 	if containerInterface, ok := containerNode.(interface{ GetRules() []any }); ok {
 		rules := containerInterface.GetRules()
 		if len(rules) > 0 {
+			// Check if the inner ruleset has selectors
+			hasSelectors := false
+			if rulesetInterface, ok := rules[0].(interface{ GetSelectors() []any }); ok {
+				selectors := rulesetInterface.GetSelectors()
+				hasSelectors = selectors != nil && len(selectors) > 0
+			}
+
+			// Only set Root=true if the ruleset has no selectors (not bubbled)
+			// AND we're at root level or in a MultiMedia context
+			rootValue := false
+			if !hasSelectors {
+				rootValue = len(contextItem.paths) == 0 || contextItem.multiMedia
+			}
+
 			if containerRule, ok := rules[0].(interface{ SetRoot(bool) }); ok {
 				containerRule.SetRoot(rootValue)
 			}
@@ -343,6 +385,19 @@ func (jsv *JoinSelectorVisitor) VisitContainer(containerNode any, visitArgs *Vis
 		// Fallback to concrete type for backward compatibility
 		rules := container.Rules
 		if len(rules) > 0 {
+			// Check if the inner ruleset has selectors
+			hasSelectors := false
+			if ruleset, ok := rules[0].(*Ruleset); ok {
+				hasSelectors = ruleset.Selectors != nil && len(ruleset.Selectors) > 0
+			}
+
+			// Only set Root=true if the ruleset has no selectors (not bubbled)
+			// AND we're at root level or in a MultiMedia context
+			rootValue := false
+			if !hasSelectors {
+				rootValue = len(contextItem.paths) == 0 || contextItem.multiMedia
+			}
+
 			if containerRule, ok := rules[0].(MediaRule); ok {
 				containerRule.SetRoot(rootValue)
 			}
