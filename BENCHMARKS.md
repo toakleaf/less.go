@@ -6,15 +6,22 @@ This document provides a quick guide to running performance benchmarks comparing
 
 ### Run Comparison (Recommended)
 
-**Per-File Benchmark Comparison** (good for finding specific performance issues):
-```bash
-pnpm bench:compare
-```
-
-**Suite Benchmark Comparison** (realistic build workload):
+**🏗️ Realistic Suite Benchmark** (simulates real CLI/build tool usage):
 ```bash
 pnpm bench:compare:suite
 ```
+- Each iteration = fresh process compiling all files once
+- NO warmup or JIT optimization artifacts
+- Shows true CLI/build tool performance
+- **Most realistic benchmark** ✅
+
+**🔬 Per-File Benchmark** (good for finding specific performance issues):
+```bash
+pnpm bench:compare
+```
+- Compiles each file 30x individually
+- Shows JIT warmup effects
+- Good for microbenchmarking and optimization work
 
 Both run JavaScript and Go benchmarks and display a clear side-by-side comparison with:
 - ✅ Per-file and total compilation times
@@ -24,19 +31,19 @@ Both run JavaScript and Go benchmarks and display a clear side-by-side compariso
 
 ### Which Benchmark Should You Use?
 
-**Use Suite Mode (`bench:compare:suite`)** when:
-- You want to measure realistic build performance
-- Testing how the compiler handles diverse workloads
-- Cache effects from repeated compilation might skew results
-- Simulating a build tool that compiles many different files
+**Use Realistic Suite Mode (`bench:compare:suite`)** when:
+- ✅ You want to measure **actual build tool performance**
+- ✅ Simulating real CLI usage (each build = fresh process)
+- ✅ Avoiding artificial warmup effects
+- ✅ Making performance decisions for production use
 
 **Use Per-File Mode (`bench:compare`)** when:
-- You want to identify performance issues in specific files
-- Microbenchmarking individual features
-- Comparing warm performance after cache warming
-- Debugging specific compilation bottlenecks
+- 🔬 Finding performance issues in specific files
+- 🔬 Measuring JIT optimization potential
+- 🔬 Debugging specific compilation bottlenecks
+- 🔬 Comparing warm vs cold performance
 
-**Both benchmarks are valuable** - suite mode shows real-world performance, while per-file mode helps identify specific optimization opportunities.
+**Recommendation**: Start with `bench:compare:suite` for realistic numbers, then use `bench:compare` for detailed optimization work.
 
 **Example output:**
 ```
@@ -120,23 +127,51 @@ pnpm bench:go:suite
 
 ## Benchmark Methodologies
 
-### Per-File Mode (Default)
+### Realistic Suite Mode (Recommended for Production Decisions)
+**Simulates actual CLI/build tool usage**
+- **What it does**: Runs 30 independent processes, each compiling all files once
+- **JavaScript**: 30 separate `node` processes
+- **Go**: 30 independent benchmark iterations (fresh factory each time)
+- **Use case**: Measuring real-world build tool performance
+- **Process behavior**: Each iteration = fresh process start → compile all 73 files → exit
+- **No warmup**: Each build is independent, like real CLI usage
+- **Run with**: `pnpm bench:compare:suite`
+
+**This is what actually happens in production:**
+```
+Build 1: Start process → [file1, file2, ..., file73] → Exit
+Build 2: Start process → [file1, file2, ..., file73] → Exit
+...
+Build 30: Start process → [file1, file2, ..., file73] → Exit
+```
+
+**Why this matters**: Real-world CLI tools don't benefit from JIT warmup or in-process caching. Each build starts fresh.
+
+### Per-File Mode (Good for Optimization Work)
+**Measures JIT optimization potential**
 - **What it does**: Compiles each file 30 times individually (5 warmup + 25 measured)
-- **Use case**: Microbenchmarking, finding file-specific performance issues
+- **Use case**: Microbenchmarking, finding file-specific performance issues, measuring JIT effects
 - **Cache behavior**: Benefits from repeated compilation of the same content
-- **Run with**: `pnpm bench:compare` or `pnpm bench:js` / `pnpm bench:go`
+- **Warmup**: Shows performance after JIT optimization
+- **Run with**: `pnpm bench:compare`
 
-### Suite Mode (Realistic Workload)
-- **What it does**: Compiles all 73 files sequentially, repeats entire sequence 30 times
-- **Use case**: Simulating realistic build processes, measuring diverse workload performance
-- **Cache behavior**: Reduces cache benefits by switching between different files
-- **Run with**: `pnpm bench:compare:suite` or `pnpm bench:js:suite` / `pnpm bench:go:suite`
+**Pattern**:
+```
+[file1 × 30 in same process] → [file2 × 30 in same process] → ...
+```
 
-**Key Difference**:
-- Per-file mode: `[file1 × 30] → [file2 × 30] → ... → [file73 × 30]`
-- Suite mode: `[file1, file2, ..., file73] × 30`
+**Why this matters**: Shows optimization potential but doesn't reflect real CLI usage. Good for finding specific hotspots.
 
-Suite mode typically shows more realistic performance for build tools where you're compiling many different files in succession, not the same file repeatedly.
+### Key Differences
+
+| Aspect | Realistic Suite Mode | Per-File Mode |
+|--------|---------------------|---------------|
+| **Process model** | 30 independent processes | Single long-running process |
+| **Warmup** | None (each build fresh) | 5 warmup runs per file |
+| **Real-world accuracy** | ✅ High (mirrors CLI usage) | ⚠️ Lower (JIT artifacts) |
+| **Use for** | Production decisions | Optimization work |
+| **JavaScript advantage** | Minimal (no JIT warmup) | Significant (JIT optimization) |
+| **Recommended for** | Performance comparisons | Finding bottlenecks |
 
 ## What's Being Tested?
 

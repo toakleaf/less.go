@@ -294,9 +294,9 @@ func BenchmarkLessEvaluation(b *testing.B) {
 }
 
 // BenchmarkLargeSuite runs a comprehensive benchmark on multiple files at once
-// This simulates a realistic workload where multiple different files are compiled
-// sequentially, similar to a build process.
-// Includes warmup runs for fair comparison with JIT-compiled JavaScript.
+// This simulates a realistic build workload where all files are compiled sequentially
+// in a single session. Each benchmark iteration represents one complete build.
+// NO warmup runs - each iteration is independent, simulating a fresh build process.
 func BenchmarkLargeSuite(b *testing.B) {
 	testDataRoot := "../../../../test-data"
 	lessRoot := filepath.Join(testDataRoot, "less")
@@ -332,21 +332,11 @@ func BenchmarkLargeSuite(b *testing.B) {
 		}
 	}
 
-	// Create factory once
-	factory := Factory(nil, nil)
-
-	// Warmup runs (matching JavaScript methodology)
-	// JavaScript does 5 warmup runs before measuring to allow V8 JIT optimization
-	// We do the same for fair comparison
-	const warmupRuns = 5
-	for i := 0; i < warmupRuns; i++ {
-		for _, test := range tests {
-			_, _ = compileLessForTest(factory, test.content, test.options)
-		}
-	}
-
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
+		// Create factory fresh for each iteration (simulating a fresh build)
+		factory := Factory(nil, nil)
+
 		for _, test := range tests {
 			// Compile the LESS file
 			_, compileErr := compileLessForTest(factory, test.content, test.options)
