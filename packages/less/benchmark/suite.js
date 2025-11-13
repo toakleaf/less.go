@@ -378,7 +378,35 @@ function printResults(results, runCount, showIndividual = false) {
 	console.log('\n' + '='.repeat(80));
 }
 
-// Run suite benchmark (all files sequentially, repeated N times)
+// Run suite benchmark - single pass through all files
+// This represents a single build session
+async function benchmarkSuiteSingleRun(tests) {
+	const startTotal = getTime();
+
+	// Compile all files in sequence (one build session)
+	for (const test of tests) {
+		try {
+			await new Promise((resolve, reject) => {
+				less.render(test.content, test.options, (err, result) => {
+					if (err) {
+						reject(err);
+					} else {
+						resolve(result);
+					}
+				});
+			});
+		} catch (err) {
+			// Skip this file if there's an error
+			continue;
+		}
+	}
+
+	const endTotal = getTime();
+	return endTotal - startTotal;
+}
+
+// Run suite benchmark (all files sequentially, repeated N times IN THE SAME PROCESS)
+// Note: This is NOT realistic for CLI tools - use --single-run for realistic benchmarking
 async function benchmarkSuite(tests, runCount) {
 	const times = {
 		total: [],
@@ -386,28 +414,7 @@ async function benchmarkSuite(tests, runCount) {
 	};
 
 	for (let i = 0; i < runCount; i++) {
-		const startTotal = getTime();
-
-		// Compile all files in sequence
-		for (const test of tests) {
-			try {
-				await new Promise((resolve, reject) => {
-					less.render(test.content, test.options, (err, result) => {
-						if (err) {
-							reject(err);
-						} else {
-							resolve(result);
-						}
-					});
-				});
-			} catch (err) {
-				// Skip this file if there's an error
-				continue;
-			}
-		}
-
-		const endTotal = getTime();
-		const totalTime = endTotal - startTotal;
+		const totalTime = await benchmarkSuiteSingleRun(tests);
 		times.total.push(totalTime);
 
 		// Capture cold-start time (first iteration before any warmup)
@@ -462,12 +469,26 @@ function printSuiteResults(times, testCount, runCount) {
 async function main() {
 	const showIndividual = process.argv.includes('--detailed') || process.argv.includes('-d');
 	const suiteMode = process.argv.includes('--suite') || process.argv.includes('-s');
+	const singleRun = process.argv.includes('--single-run');
 	const customRuns = parseInt(process.argv.find(arg => arg.startsWith('--runs='))?.split('=')[1]);
 	const runCount = customRuns || TOTAL_RUNS;
 
 	const tests = prepareTests();
 
-	if (suiteMode) {
+	if (singleRun) {
+		// Single-run mode: compile all files once and exit
+		// This simulates a single build session (realistic for CLI tools)
+		const totalTime = await benchmarkSuiteSingleRun(tests);
+
+		// Output JSON for easy parsing by wrapper scripts
+		console.log(JSON.stringify({
+			timestamp: new Date().toISOString(),
+			mode: 'single-run',
+			testCount: tests.length,
+			totalTime: totalTime,
+			perFileAvg: totalTime / tests.length
+		}));
+	} else if (suiteMode) {
 		// Suite mode: compile all files sequentially, repeat N times
 		console.log('🚀 Starting Less.js Suite Benchmark...');
 		console.log(`   Suite runs: ${runCount} (${WARMUP_RUNS} warmup runs)`);
