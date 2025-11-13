@@ -133,7 +133,11 @@ func SafeEval(value any, context any) any {
 		}()
 		result, err := evaluable.Eval(context)
 		if err != nil {
-			// Return original value on error to support late binding and graceful degradation
+			// Check if it's an ArgumentError (LessError with Type="Argument") - these should propagate
+			if lessErr, ok := err.(*LessError); ok && lessErr.Type == "Argument" {
+				panic(err)
+			}
+			// Return original value on other errors to support late binding and graceful degradation
 			// This allows undefined variables and other recoverable errors to be handled gracefully
 			return value
 		}
