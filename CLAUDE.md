@@ -148,17 +148,17 @@ When working on this project, please be aware of the following:
    - `LESS_GO_STRICT=1` - Fail tests on any output difference (useful for CI)
    - `LESS_GO_TRACE=1` - Show evaluation trace (for debugging specific issues)
 
-6. **Current Integration Test Status** (as of 2025-11-13 - Latest Verified Measurement):
-   - **82 perfect CSS matches (44.6%)** - EXCELLENT PROGRESS! ✅ (⬆️ +2 from 2025-11-12)
+6. **Current Integration Test Status** (as of 2025-11-13 - Latest Verified Measurement - UPDATED):
+   - **83 perfect CSS matches (45.1%)** - EXCELLENT PROGRESS! ✅ (⬆️ +1 from previous run, +3 from 2025-11-12)
    - **3 compilation failures (1.6%)** - All external (network/packages) - expected
-   - **87 correct error handling (47.3%)** - tests that should fail, do fail correctly ⬆️ (+8 from last measurement!)
-   - **10 tests with CSS output differences (5.4%)** - compiles but CSS doesn't match ⬇️ (-2 from 12)
-   - **2 incorrect error handling (1.1%)** - tests that should error but succeed ⬇️⬇️ (-8 from 10!)
-   - **Overall Success Rate: 91.8%** ✅ (169/184 tests perfect matches or correctly erroring) ⬆️ (+5.4%)
+   - **87 correct error handling (47.3%)** - tests that should fail, do fail correctly (stable)
+   - **9 tests with CSS output differences (4.9%)** - compiles but CSS doesn't match ⬇️ (-1 from 10!)
+   - **2 incorrect error handling (1.1%)** - tests that should error but succeed (stable)
+   - **Overall Success Rate: 92.4%** ✅ (170/184 tests perfect matches or correctly erroring) ⬆️ (+0.6% from 91.8%)
    - **Compilation Rate: 98.4%** (181/184 tests compile successfully)
-   - **Perfect CSS Match Rate: 44.6%**
-   - **✅ NO REGRESSIONS** - All previously passing tests still passing (including extend-chaining)
-   - **🎉 DRAMATIC ERROR HANDLING IMPROVEMENT**: Error validation tests improved from 10 → 2 failing! 🎉
+   - **Perfect CSS Match Rate: 45.1%** ⬆️
+   - **✅ NO REGRESSIONS** - All previously passing tests still passing + new improvements!
+   - **🎉 CONTINUING PROGRESS**: +1 perfect match, -1 output difference, +0.6% success rate! 🎉
 
    **🎉 Parser Status: ALL BUGS FIXED!**
    - Parser correctly handles full LESS syntax
@@ -226,17 +226,22 @@ When working on this project, please be aware of the following:
    - Compare with JavaScript implementation when fixing issues
    - See `.claude/tasks/` for specific task specifications
 
-   **Priority Order** (High to Low) - Updated 2025-11-13:
+   **Priority Order** (High to Low) - Updated 2025-11-13 (Current Run):
+
+   **9 Output Differences Remaining** (tests compile but CSS doesn't match):
    1. **HIGH**: Import reference (2 tests) - import-reference, import-reference-issues
-   2. **HIGH**: Detached rulesets - detached-rulesets (media query merging - root cause identified)
-   3. **HIGH**: URL variants - urls in main/static-urls/url-args (3 tests)
-   4. **MEDIUM**: CSS output formatting - container, css-3, directives-bubling, media (4 tests)
-   5. **MEDIUM**: Error handling - 2 tests that should fail but succeed ⬇️⬇️ (color-func-invalid-color-2, javascript-undefined-var)
-   6. **LOW**: External dependencies - bootstrap4, google, import-module (network/packages) - expected failures
+   2. **HIGH**: Detached rulesets (1 test) - detached-rulesets (media query merging - root cause identified)
+   3. **HIGH**: URL variants (3 tests) - urls in main/static-urls/url-args
+   4. **MEDIUM**: CSS output formatting (3 tests) - container, directives-bubling, media
+
+   **Other Issues**:
+   5. **MEDIUM**: Error handling - 2 tests that should fail but succeed (color-func-invalid-color-2, javascript-undefined-var)
+   6. **LOW**: External dependencies - 3 tests (bootstrap4, google, import-module) - network/packages - expected failures
    7. **LOW**: Unit test bug - Fix timeout in circular dependency test (not affecting functionality)
 
    **Recently Completed** (Past 6 weeks):
-   - ✅ **LATEST (2025-11-13)**: +2 perfect matches! From 80 → 82 tests! +8 error validation tests now passing!
+   - ✅ **LATEST (2025-11-13 - CURRENT)**: 83 perfect matches! Steady progress with +1 match, -1 output diff!
+   - ✅ **2025-11-13 EARLIER**: +2 perfect matches! From 80 → 82 tests! +8 error validation tests now passing!
    - ✅ **MASSIVE BREAKTHROUGH**: +45 perfect matches! From 34 → 79 tests! 🎉
    - ✅ **Week 4 WINS**: +10 perfect matches! From 69 → 79 tests!
    - ✅ **ALL namespacing tests FIXED**: 11/11 namespacing tests perfect matches (100% complete!)
