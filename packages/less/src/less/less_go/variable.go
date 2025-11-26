@@ -2,6 +2,7 @@ package less_go
 
 import (
 	"fmt"
+	"os"
 )
 
 // ParserFrame represents a scope frame that can look up variables and properties
@@ -213,7 +214,17 @@ func (v *Variable) Eval(context any) (any, error) {
 					} else {
 						return val, nil
 					}
+				} else if evalSingle, ok := val.(interface{ Eval(any) any }); ok {
+					// Handle single-return Eval (e.g., DetachedRuleset.Eval)
+					if os.Getenv("LESS_GO_DEBUG") == "1" {
+						fmt.Fprintf(os.Stderr, "[DEBUG Variable.Eval] Calling single-return Eval on %T\n", val)
+					}
+					result := evalSingle.Eval(context)
+					return result, nil
 				} else {
+					if os.Getenv("LESS_GO_DEBUG") == "1" {
+						fmt.Fprintf(os.Stderr, "[DEBUG Variable.Eval] No Eval method found, returning val as-is: %T\n", val)
+					}
 					return val, nil
 				}
 			}
@@ -294,6 +305,10 @@ func (v *Variable) Eval(context any) (any, error) {
 					} else if _, ok := val.(interface{ Eval(EvalContext) (any, error) }); ok {
 						// For map context, we can't pass EvalContext, so return value as-is
 						return val, nil
+					} else if evalSingle, ok := val.(interface{ Eval(any) any }); ok {
+						// Handle single-return Eval (e.g., DetachedRuleset.Eval)
+						result := evalSingle.Eval(context)
+						return result, nil
 					} else {
 						return val, nil
 					}

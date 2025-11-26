@@ -100,6 +100,11 @@ func (v *Value) Eval(context any) (any, error) {
 			result, err := evalValue.Eval(context)
 			return result, err
 		}
+		// Handle single-return Eval methods like DetachedRuleset.Eval
+		if evalSingle, ok := v.Value[0].(interface{ Eval(any) any }); ok {
+			result := evalSingle.Eval(context)
+			return result, nil
+		}
 		return v.Value[0], nil
 	}
 
@@ -119,6 +124,9 @@ func (v *Value) Eval(context any) (any, error) {
 				return nil, err
 			}
 			evaluatedValues[i] = evaluated
+		} else if evalSingle, ok := val.(interface{ Eval(any) any }); ok {
+			// Handle single-return Eval methods like DetachedRuleset.Eval
+			evaluatedValues[i] = evalSingle.Eval(context)
 		} else {
 			evaluatedValues[i] = val
 		}
