@@ -773,15 +773,8 @@ func (v *ToCSSVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitArgs) any {
 					}
 					for i := 0; i < nodeRuleCnt; {
 						rule := nodeRules[i]
-						if os.Getenv("LESS_GO_DEBUG") == "1" {
-							fmt.Fprintf(os.Stderr, "[VisitRuleset] Rule[%d]: type=%T\n", i, rule)
-						}
 						if ruleWithRules, ok := rule.(interface{ GetRules() []any }); ok {
-							rules := ruleWithRules.GetRules()
-							if os.Getenv("LESS_GO_DEBUG") == "1" {
-								fmt.Fprintf(os.Stderr, "[VisitRuleset] Rule[%d] has GetRules, rules=%v, len=%d\n", i, rules != nil, len(rules))
-							}
-							if rules != nil {
+							if ruleWithRules.GetRules() != nil {
 								if os.Getenv("LESS_GO_DEBUG") == "1" {
 									fmt.Fprintf(os.Stderr, "[VisitRuleset] Extracting child ruleset at index %d\n", i)
 								}

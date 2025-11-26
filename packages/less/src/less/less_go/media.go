@@ -766,9 +766,42 @@ func (m *Media) Eval(context any) (any, error) {
 		evalCtx.MediaPath = evalCtx.MediaPath[:len(evalCtx.MediaPath)-1]
 	}
 
-	// Note: BubbleSelectors is called from Ruleset.Eval, not here.
-	// JavaScript Media.eval() does NOT call bubbleSelectors - it's only called from Ruleset.eval
-	// after all rules have been evaluated. The selectors are collected and bubbled at that point.
+	// Bubble selectors from parent frames into the Media content
+	// This ensures that when Media is nested inside a selector (e.g., .body { @media print { ... } }),
+	// the parent selector (.body) is preserved inside the Media's content.
+	// Note: BubbleSelectors has an idempotency check, so calling it again from Ruleset.Eval is safe.
+	if len(evalCtx.Frames) > 0 {
+		// Collect selectors from the first parent frame that has real selectors
+		var parentSelectors []any
+		for i := 0; i < len(evalCtx.Frames); i++ {
+			if rs, ok := evalCtx.Frames[i].(*Ruleset); ok {
+				// Skip AllowImports rulesets - these are wrapper rulesets from media/container
+				if rs.AllowImports {
+					continue
+				}
+				// Only include rulesets that have selectors (not root rulesets)
+				if len(rs.Selectors) > 0 {
+					for _, sel := range rs.Selectors {
+						if s, ok := sel.(*Selector); ok {
+							// Skip MediaEmpty selectors - they're placeholders, not real parent selectors
+							if !s.MediaEmpty {
+								parentSelectors = append(parentSelectors, sel)
+							}
+						}
+					}
+					if len(parentSelectors) > 0 {
+						break
+					}
+				}
+			}
+		}
+		if len(parentSelectors) > 0 {
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Fprintf(os.Stderr, "[MEDIA.Eval] Bubbling %d parent selectors into media\n", len(parentSelectors))
+			}
+			media.BubbleSelectors(parentSelectors)
+		}
+	}
 
 	// Match JavaScript: return context.mediaPath.length === 0 ? media.evalTop(context) : media.evalNested(context);
 	if len(evalCtx.MediaPath) == 0 {
