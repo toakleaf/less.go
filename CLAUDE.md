@@ -149,15 +149,15 @@ When working on this project, please be aware of the following:
    - `LESS_GO_TRACE=1` - Show evaluation trace (for debugging specific issues)
 
 6. **Current Integration Test Status** (as of 2025-11-26 - Latest Verified Measurement - UPDATED):
-   - **87 perfect CSS matches (47.3%)** - EXCELLENT PROGRESS! ✅ (⬆️ +4 from 2025-11-13)
+   - **88 perfect CSS matches (47.8%)** - EXCELLENT PROGRESS! ✅ (⬆️ +5 from 2025-11-13)
    - **3 compilation failures (1.6%)** - All external (network/packages) - expected
    - **89 correct error handling (48.4%)** - tests that should fail, do fail correctly ⬆️ (+2)
-   - **5 tests with CSS output differences (2.7%)** - compiles but CSS doesn't match ⬇️ (-4 from 9!)
-   - **Overall Success Rate: 95.7%** ✅ (176/184 tests perfect matches or correctly erroring) ⬆️ (+3.3% from 92.4%)
+   - **4 tests with CSS output differences (2.2%)** - compiles but CSS doesn't match ⬇️ (-5 from 9!)
+   - **Overall Success Rate: 96.2%** ✅ (177/184 tests perfect matches or correctly erroring) ⬆️ (+3.8% from 92.4%)
    - **Compilation Rate: 98.4%** (181/184 tests compile successfully)
-   - **Perfect CSS Match Rate: 47.3%** ⬆️
+   - **Perfect CSS Match Rate: 47.8%** ⬆️
    - **✅ NO REGRESSIONS** - All previously passing tests still passing + new improvements!
-   - **🎉 CONTINUING PROGRESS**: +4 perfect matches, -4 output differences since 2025-11-13! 🎉
+   - **🎉 CONTINUING PROGRESS**: +5 perfect matches, -5 output differences since 2025-11-13! 🎉
 
    **🎉 Parser Status: ALL BUGS FIXED!**
    - Parser correctly handles full LESS syntax
@@ -227,9 +227,9 @@ When working on this project, please be aware of the following:
 
    **Priority Order** (High to Low) - Updated 2025-11-26 (Current Run):
 
-   **5 Output Differences Remaining** (tests compile but CSS doesn't match):
+   **4 Output Differences Remaining** (tests compile but CSS doesn't match):
    1. **HIGH**: Import reference (2 tests) - import-reference, import-reference-issues
-   2. **MEDIUM**: CSS output formatting (3 tests) - directives-bubling, media, urls
+   2. **MEDIUM**: CSS output formatting (2 tests) - media, urls (main suite only)
 
    **Other Issues**:
    3. **LOW**: External dependencies - 3 tests (bootstrap4, google, import-module) - network/packages - expected failures
@@ -239,10 +239,11 @@ When working on this project, please be aware of the following:
    - ✅ detached-rulesets - media query merging now working!
    - ✅ container - CSS output formatting fixed!
    - ✅ url tests in static-urls and url-args - now passing!
+   - ✅ directives-bubling - CSS directives bubbling now working!
    - ✅ +2 additional error handling tests now correctly validating
 
    **Recently Completed** (Past 6 weeks):
-   - ✅ **LATEST (2025-11-26 - CURRENT)**: 87 perfect matches! +4 from 2025-11-13, only 5 output diffs remaining!
+   - ✅ **LATEST (2025-11-26 - CURRENT)**: 88 perfect matches! +5 from 2025-11-13, only 4 output diffs remaining!
    - ✅ **2025-11-13**: 83 perfect matches! Steady progress with +1 match, -1 output diff!
    - ✅ **MASSIVE BREAKTHROUGH**: +45 perfect matches! From 34 → 79 tests! 🎉
    - ✅ **Week 4 WINS**: +10 perfect matches! From 69 → 79 tests!
