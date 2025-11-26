@@ -580,6 +580,20 @@ func (md *MixinDefinition) Eval(context any) (*MixinDefinition, error) {
 
 // EvalCall evaluates a mixin call
 func (md *MixinDefinition) EvalCall(context any, args []any, important bool) (*Ruleset, error) {
+	// Debug: trace incoming context
+	if os.Getenv("LESS_GO_TRACE") != "" {
+		switch ctx := context.(type) {
+		case *Eval:
+			fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] %s: *Eval context, mediaPath len=%d\n", md.Name, len(ctx.MediaPath))
+		case map[string]any:
+			if mp, ok := ctx["mediaPath"].([]any); ok {
+				fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] %s: map context, mediaPath len=%d\n", md.Name, len(mp))
+			} else {
+				fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] %s: map context, mediaPath is nil\n", md.Name)
+			}
+		}
+	}
+
 	// Arguments array will be populated by EvalParams
 	// For variadic mixins, we need to allocate space for all arguments
 	// For non-variadic, allocate space for parameters only
@@ -679,9 +693,34 @@ func (md *MixinDefinition) EvalCall(context any, args []any, important bool) (*R
 		evalCtx.CopyEvalToMap(evalContext, true)
 	}
 
+	// Debug: trace evalContext mediaPath after copy
+	if os.Getenv("LESS_GO_TRACE") != "" {
+		if mp, ok := evalContext["mediaPath"].([]any); ok {
+			fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] %s: evalContext after copy, mediaPath len=%d\n", md.Name, len(mp))
+		} else {
+			fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] %s: evalContext after copy, mediaPath is nil/not []any\n", md.Name)
+		}
+	}
+
 	evaluated, err := ruleset.Eval(evalContext)
 	if err != nil {
 		return nil, err
+	}
+
+	// Copy mediaBlocks and mediaPath back to parent context
+	// This ensures that Media nodes created inside the mixin are propagated up
+	if childBlocks, hasChild := evalContext["mediaBlocks"].([]any); hasChild && len(childBlocks) > 0 {
+		if parentEval, ok := context.(*Eval); ok {
+			parentEval.MediaBlocks = childBlocks
+			if childPath, hasPath := evalContext["mediaPath"].([]any); hasPath {
+				parentEval.MediaPath = childPath
+			}
+		} else if parentMap, ok := context.(map[string]any); ok {
+			parentMap["mediaBlocks"] = childBlocks
+			if childPath, hasPath := evalContext["mediaPath"].([]any); hasPath {
+				parentMap["mediaPath"] = childPath
+			}
+		}
 	}
 
 	evaluatedRuleset, ok := evaluated.(*Ruleset)

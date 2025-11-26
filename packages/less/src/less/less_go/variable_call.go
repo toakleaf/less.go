@@ -47,6 +47,20 @@ func (vc *VariableCall) FileInfo() map[string]any {
 
 // Eval evaluates the variable call - match JavaScript implementation
 func (vc *VariableCall) Eval(context any) (result any, err error) {
+	// Debug: trace incoming context for variable calls related to rulesets
+	if os.Getenv("LESS_GO_TRACE") != "" && vc.variable == "@ruleset" {
+		switch ctx := context.(type) {
+		case *Eval:
+			fmt.Fprintf(os.Stderr, "[VariableCall.Eval] @ruleset context: *Eval, mediaPath len=%d\n", len(ctx.MediaPath))
+		case map[string]any:
+			if mp, ok := ctx["mediaPath"].([]any); ok {
+				fmt.Fprintf(os.Stderr, "[VariableCall.Eval] @ruleset context: map, mediaPath len=%d\n", len(mp))
+			} else {
+				fmt.Fprintf(os.Stderr, "[VariableCall.Eval] @ruleset context: map, mediaPath is nil or not []any\n")
+			}
+		}
+	}
+
 	// Use defer/recover to catch panics and convert them to errors
 	defer func() {
 		if r := recover(); r != nil {

@@ -11,6 +11,9 @@ type Media struct {
 	Features any
 	Rules    []any
 	DebugInfo any
+	// evaluated marks this Media node as already evaluated (features merged by evalNested)
+	// This prevents double-merging when the node is re-evaluated
+	evaluated bool
 	selectorsBubbled bool // Track if BubbleSelectors was already called
 }
 
@@ -239,8 +242,33 @@ func (m *Media) EvalNested(context any) any {
 		mediaPath = []any{}
 	}
 
-	// Create path with current node
-	path := append(mediaPath, m)
+	// Create path with current node - MUST make a copy to avoid modifying mediaPath
+	// In JavaScript, concat() creates a new array. In Go, append() may share the
+	// underlying array if there's capacity. Since evalNested modifies path[i] to
+	// convert Media nodes to feature arrays, we must ensure path doesn't share
+	// its backing array with mediaPath.
+	path := make([]any, len(mediaPath)+1)
+	copy(path, mediaPath)
+	path[len(mediaPath)] = m
+
+	// Debug: trace path contents
+	if os.Getenv("LESS_GO_TRACE") != "" {
+		selfCSS := ""
+		if gen, ok := m.Features.(interface{ ToCSS(any) string }); ok {
+			selfCSS = gen.ToCSS(nil)
+		}
+		fmt.Fprintf(os.Stderr, "[Media.EvalNested] SELF=%p features=%q path len=%d mediaPath len=%d\n", m, selfCSS, len(path), len(mediaPath))
+		// Also log PATH contents (after adding self)
+		for i, p := range path {
+			pCSS := "<unknown>"
+			if media, ok := p.(*Media); ok {
+				if gen, ok := media.Features.(interface{ ToCSS(any) string }); ok {
+					pCSS = gen.ToCSS(nil)
+				}
+			}
+			fmt.Fprintf(os.Stderr, "[Media.EvalNested]   path[%d]=%p features=%q\n", i, p, pCSS)
+		}
+	}
 
 	// Extract the media-query conditions separated with `,` (OR)
 	for i := 0; i < len(path); i++ {
@@ -288,6 +316,7 @@ func (m *Media) EvalNested(context any) any {
 		} else {
 			path[i] = []any{value}
 		}
+
 	}
 
 	// Trace all permutations to generate the resulting media-query
@@ -345,6 +374,9 @@ func (m *Media) EvalNested(context any) any {
 		m.Features = newValue
 		m.SetParent(m.Features, m.Node)
 	}
+
+	// Mark this node as evaluated to prevent double-merging if re-evaluated
+	m.evaluated = true
 
 	// Return fake tree-node that doesn't output anything
 	return NewRuleset([]any{}, []any{}, false, nil)
@@ -488,6 +520,10 @@ func (m *Media) BubbleSelectors(selectors any) {
 
 	switch s := selectors.(type) {
 	case []*Selector:
+		// Skip if empty selectors - no need to wrap
+		if len(s) == 0 {
+			return
+		}
 		copiedSelectors := make([]*Selector, len(s))
 		copy(copiedSelectors, s)
 
@@ -497,6 +533,10 @@ func (m *Media) BubbleSelectors(selectors any) {
 			anySelectors[i] = sel
 		}
 	case []any:
+		// Skip if empty selectors - no need to wrap
+		if len(s) == 0 {
+			return
+		}
 		// Copy the slice
 		anySelectors = make([]any, len(s))
 		copy(anySelectors, s)
@@ -576,8 +616,29 @@ func (m *Media) Eval(context any) (any, error) {
 		return nil, fmt.Errorf("context is required for Media.Eval")
 	}
 
+	// If this Media node was already evaluated (by evalNested), return an empty Ruleset
+	// as a placeholder. This prevents double-merging of features when the node is
+	// re-evaluated by a parent context. The actual content is in mediaBlocks and will
+	// be output from there.
+	if m.evaluated {
+		if os.Getenv("LESS_GO_TRACE") != "" {
+			origFeatures := ""
+			if gen, ok := m.Features.(interface{ ToCSS(any) string }); ok {
+				origFeatures = gen.ToCSS(nil)
+			}
+			fmt.Fprintf(os.Stderr, "[MEDIA.Eval] Skipping already-evaluated node m=%p features=%q, returning empty Ruleset\n", m, origFeatures)
+		}
+		// Return empty Ruleset as placeholder - the actual content is in mediaBlocks
+		return NewRuleset([]any{}, []any{}, false, nil), nil
+	}
+
 	if os.Getenv("LESS_GO_TRACE") != "" {
-		fmt.Fprintf(os.Stderr, "[MEDIA.Eval] Starting eval\n")
+		// Log original AST node's features
+		origFeatures := ""
+		if gen, ok := m.Features.(interface{ ToCSS(any) string }); ok {
+			origFeatures = gen.ToCSS(nil)
+		}
+		fmt.Fprintf(os.Stderr, "[MEDIA.Eval] Starting eval, m=%p features=%q\n", m, origFeatures)
 	}
 
 	// Convert to *Eval context if needed
@@ -600,6 +661,10 @@ func (m *Media) Eval(context any) (any, error) {
 
 	// Match JavaScript: const media = new Media(null, [], this._index, this._fileInfo, this.visibilityInfo())
 	media := NewMedia(nil, []any{}, m.GetIndex(), m.FileInfo(), m.VisibilityInfo())
+
+	if os.Getenv("LESS_GO_TRACE") != "" {
+		fmt.Fprintf(os.Stderr, "[MEDIA.Eval] Created NEW media=%p, mediaPath len=%d\n", media, len(evalCtx.MediaPath))
+	}
 
 	// Match JavaScript: if (this.debugInfo) { this.rules[0].debugInfo = this.debugInfo; media.debugInfo = this.debugInfo; }
 	if m.DebugInfo != nil {
@@ -627,6 +692,14 @@ func (m *Media) Eval(context any) (any, error) {
 		// This is necessary for media queries with namespace calls that return expressions
 		// containing variables from the mixin scope
 		media.Features = m.deeplyEvaluateFeatures(media.Features, context)
+
+		if os.Getenv("LESS_GO_TRACE") != "" {
+			featureCSS := ""
+			if gen, ok := media.Features.(interface{ ToCSS(any) string }); ok {
+				featureCSS = gen.ToCSS(nil)
+			}
+			fmt.Fprintf(os.Stderr, "[MEDIA.Eval] After feature eval, media=%p features=%q\n", media, featureCSS)
+		}
 	}
 
 	// Match JavaScript: context.mediaPath.push(media); context.mediaBlocks.push(media);
@@ -660,6 +733,16 @@ func (m *Media) Eval(context any) (any, error) {
 				return nil, err
 			}
 			media.Rules = []any{evaluated}
+
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Fprintf(os.Stderr, "[MEDIA.Eval] After setting media.Rules, evaluated type=%T\n", evaluated)
+				if evalRS, ok := evaluated.(*Ruleset); ok {
+					fmt.Fprintf(os.Stderr, "[MEDIA.Eval]   Evaluated Ruleset: Selectors=%d, Rules=%d\n", len(evalRS.Selectors), len(evalRS.Rules))
+					for i, r := range evalRS.Rules {
+						fmt.Fprintf(os.Stderr, "[MEDIA.Eval]     Rules[%d]: type=%T\n", i, r)
+					}
+				}
+			}
 
 			// Propagate AllowImports to direct children to preserve them during ToCSSVisitor
 			// This ensures that rulesets like .my-selector inside detached rulesets are kept
