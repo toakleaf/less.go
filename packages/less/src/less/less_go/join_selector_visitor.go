@@ -140,6 +140,11 @@ func (jsv *JoinSelectorVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitAr
 		SetRules([]any)
 		SetPaths([]any)
 	}); ok {
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			if rs, ok := rulesetNode.(*Ruleset); ok {
+				fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor.VisitRuleset] ruleset=%p Root=%v\n", rs, rs.Root)
+			}
+		}
 		if !rulesetInterface.GetRoot() {
 			selectors := rulesetInterface.GetSelectors()
 			if selectors != nil {
@@ -147,7 +152,11 @@ func (jsv *JoinSelectorVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitAr
 				filteredSelectors := make([]any, 0)
 				for _, selector := range selectors {
 					if selectorWithOutput, ok := selector.(interface{ GetIsOutput() bool }); ok {
-						if selectorWithOutput.GetIsOutput() {
+						isOutput := selectorWithOutput.GetIsOutput()
+						if os.Getenv("LESS_GO_DEBUG") == "1" {
+							fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor.VisitRuleset] Selector %T GetIsOutput=%v\n", selector, isOutput)
+						}
+						if isOutput {
 							filteredSelectors = append(filteredSelectors, selector)
 						}
 					}

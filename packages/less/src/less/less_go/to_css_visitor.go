@@ -447,8 +447,30 @@ func (v *ToCSSVisitor) VisitMedia(mediaNode any, visitArgs *VisitArgs) any {
 		return nil
 	}
 
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		if m, ok := mediaNode.(*Media); ok {
+			fmt.Fprintf(os.Stderr, "[ToCSSVisitor.VisitMedia] Media=%p, Before Accept, Rules count=%d\n", m, len(m.Rules))
+			if len(m.Rules) > 0 {
+				if innerRs, ok := m.Rules[0].(*Ruleset); ok {
+					fmt.Fprintf(os.Stderr, "[ToCSSVisitor.VisitMedia]   inner ruleset=%p, Rules count=%d\n", innerRs, len(innerRs.Rules))
+				}
+			}
+		}
+	}
+
 	if acceptor, ok := mediaNode.(interface{ Accept(any) }); ok {
 		acceptor.Accept(v.visitor)
+	}
+
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		if m, ok := mediaNode.(*Media); ok {
+			fmt.Fprintf(os.Stderr, "[ToCSSVisitor.VisitMedia] After Accept, Rules count=%d\n", len(m.Rules))
+			if len(m.Rules) > 0 {
+				if innerRs, ok := m.Rules[0].(*Ruleset); ok {
+					fmt.Fprintf(os.Stderr, "[ToCSSVisitor.VisitMedia]   inner ruleset Rules count=%d\n", len(innerRs.Rules))
+				}
+			}
+		}
 	}
 	visitArgs.VisitDeeper = false
 
@@ -676,6 +698,12 @@ func (v *ToCSSVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitArgs) any {
 		return nil
 	}
 
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		if rs, ok := rulesetNode.(*Ruleset); ok {
+			fmt.Fprintf(os.Stderr, "[ToCSSVisitor.VisitRuleset ENTRY] ruleset=%p, Rules count=%d\n", rs, len(rs.Rules))
+		}
+	}
+
 	var rulesets []any
 	
 	
@@ -814,8 +842,9 @@ func (v *ToCSSVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitArgs) any {
 	keepRuleset := v.utils.IsVisibleRuleset(rulesetNode)
 
 	if os.Getenv("LESS_GO_DEBUG") == "1" {
-		if rs, ok := rulesetNode.(*Ruleset); ok && rs.MultiMedia {
-			fmt.Fprintf(os.Stderr, "[ToCSSVisitor.VisitRuleset] MultiMedia Ruleset keepRuleset=%v\n", keepRuleset)
+		if rs, ok := rulesetNode.(*Ruleset); ok {
+			fmt.Fprintf(os.Stderr, "[ToCSSVisitor.VisitRuleset] ruleset=%p keepRuleset=%v MultiMedia=%v AllowImports=%v Rules=%d Paths=%d Root=%v\n",
+				rs, keepRuleset, rs.MultiMedia, rs.AllowImports, len(rs.Rules), len(rs.Paths), rs.Root)
 		}
 	}
 	
