@@ -436,8 +436,14 @@ func (pev *ProcessExtendsVisitor) doExtendChaining(extendsList []*Extend, extend
 
 					// we found a match, so for each self selector..
 					for _, selfSelector := range extend.SelfSelectors {
+						// CRITICAL FIX: Use the ORIGINAL extend's visibility, not the target extend's visibility
+						// When .c extends .b and .b extends .a (reference import):
+						// - extend = .c extends .b (visible, from main file)
+						// - targetExtend = .b extends .a (invisible, from reference import)
+						// The chained extend .c extends .a should inherit visibility from .c (visible)
+						// not from .b (invisible)
 						var info any
-						info = targetExtend.VisibilityInfo()
+						info = extend.VisibilityInfo()
 
 						// process the extend as usual
 						// Match JavaScript: use extend.isVisible() to preserve visibility in chaining
@@ -647,16 +653,9 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 				// Note: Extend.IsVisible() returns bool (not *bool), taking visibility blocks into account
 				isVisible := allExtends[extendIndex].IsVisible()
 
-				// CRITICAL FIX for import-reference: Also check if the extend's parent Ruleset has visibility blocks
-				// Extends from reference imports don't have visibility blocks themselves, but their parent rulesets do
-				extendRuleset := allExtends[extendIndex].Ruleset
-				if isVisible && extendRuleset != nil && extendRuleset.Node != nil && extendRuleset.Node.BlocksVisibility() {
-					// The extend's parent ruleset has visibility blocks (from reference import)
-					// Only consider this extend visible if its Ruleset has explicit visibility=true
-					if rulesetVis := extendRuleset.Node.IsVisible(); rulesetVis == nil || !*rulesetVis {
-						isVisible = false
-					}
-				}
+				// Note: We intentionally do NOT check extendRuleset.Node.BlocksVisibility() here
+				// For chained extends, the Ruleset may be from a reference import even if the original
+				// extend is from the main file. We should respect the extend's own visibility.
 
 				if os.Getenv("LESS_GO_TRACE") == "1" {
 					var extendSel string = "?"
@@ -720,7 +719,7 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 					}
 
 					if isVisible && (selectorHasVisibilityBlocks || rulesetHasVisibilityBlocks) {
-						// Mark the EXTEND'S ruleset as visible
+						// Mark the EXTEND'S ruleset as visible so its content is output with the extended selector
 						if targetRuleset.Node != nil {
 							if os.Getenv("LESS_GO_DEBUG") == "1" {
 								var targetSel string = "?"
@@ -733,32 +732,15 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 									targetRuleset, targetSel)
 							}
 							targetRuleset.Node.EnsureVisibility()
-						// IMPORTANT: Keep the visibility block for proper filtering in ToCSSVisitor
-						// Do NOT call RemoveVisibilityBlock() here
 
-							// CRITICAL: Walk up the parent chain and make all parent Media/AtRule nodes visible
+							// Walk up the parent chain and make all parent Media/AtRule nodes visible
 							// This ensures that @media and @supports blocks containing extended selectors are output
 							pev.makeParentNodesVisible(targetRuleset.Node)
 						}
 
-						// CRITICAL: Also mark the MATCHED ruleset as visible
-						// When we extend selectors from a referenced import, those selectors SHOULD appear in the output
-						// That's the whole point of extend - it pulls content from referenced imports into your CSS
-						if ruleset.Node != nil {
-							if os.Getenv("LESS_GO_DEBUG") == "1" {
-								var matchedSel string = "?"
-								if len(ruleset.Paths) > 0 && len(ruleset.Paths[0]) > 0 {
-									if sel, ok := ruleset.Paths[0][0].(*Selector); ok {
-										matchedSel = sel.ToCSS(nil)
-									}
-								}
-								fmt.Fprintf(os.Stderr, "[VISIBILITY] Marking matched ruleset %p (selector=%s) as visible due to extend match\n",
-									ruleset, matchedSel)
-							}
-							ruleset.Node.EnsureVisibility()
-							// Also walk up the parent chain for the matched ruleset
-							pev.makeParentNodesVisible(ruleset.Node)
-						}
+						// NOTE: We intentionally do NOT mark the MATCHED ruleset as visible
+						// The extended selectors added to paths are already marked visible by extendSelector()
+						// Marking the matched ruleset visible would incorrectly output its original invisible selectors
 					}
 
 					for _, selfSelector := range allExtends[extendIndex].SelfSelectors {
