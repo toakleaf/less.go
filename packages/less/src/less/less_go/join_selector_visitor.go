@@ -313,19 +313,19 @@ func (jsv *JoinSelectorVisitor) VisitMedia(mediaNode any, visitArgs *VisitArgs) 
 	}
 	contextItem := jsv.contexts[len(jsv.contexts)-1]
 
-	// Set root flag on inner ruleset
+	// Determine root flag based on context
 	// JavaScript: mediaNode.rules[0].root = (context.length === 0 || context[0].multiMedia);
-	// Root is true if we're at the top level (context.paths empty) OR inside a MultiMedia Ruleset
-	rootValue := len(contextItem.paths) == 0 || contextItem.multiMedia
+	// In JavaScript, context[0].multiMedia checks if the first PATH has multiMedia property.
+	// But path arrays don't have multiMedia set - it's only on Ruleset nodes.
+	// When a MultiMedia Ruleset with root=true is visited, selector processing is skipped,
+	// resulting in empty paths. So context.length === 0 already handles the MultiMedia case.
+	// Root should be true ONLY when context (paths) is empty.
+	rootValue := len(contextItem.paths) == 0
 
 	if os.Getenv("LESS_GO_DEBUG") == "1" {
-		fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor.VisitMedia] contextItem.paths len=%d, multiMedia=%v, setting root=%v\n",
+		fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor.VisitMedia] contextItem.paths len=%d, multiMedia=%v, rootValue=%v\n",
 			len(contextItem.paths), contextItem.multiMedia, rootValue)
 	}
-
-	// NOTE: BubbleSelectors is called during Media.Eval, not here.
-	// By the time JoinSelectorVisitor runs, Media nodes have already been bubbled up
-	// and their parent selectors have been captured during evaluation.
 
 	// Try interface-based approach first
 	if mediaInterface, ok := mediaNode.(interface{ GetRules() []any }); ok {

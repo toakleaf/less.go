@@ -630,6 +630,17 @@ func (r *Ruleset) Eval(context any) (any, error) {
 		mediaBlockCount = len(mediaBlocks)
 	}
 
+	if os.Getenv("LESS_GO_TRACE") != "" {
+		firstSelContent := "none"
+		if len(selectors) > 0 {
+			if s, ok := selectors[0].(*Selector); ok && len(s.Elements) > 0 {
+				firstSelContent = fmt.Sprintf("%v", s.Elements[0].Value)
+			}
+		}
+		fmt.Fprintf(os.Stderr, "[RULESET.Eval] START: firstSel=%s, mediaBlockCount=%d, Root=%v\n",
+			firstSelContent, mediaBlockCount, r.Root)
+	}
+
 	// Evaluate mixin calls and variable calls - match JavaScript logic closely
 	if rsRules != nil {
 		i := 0
@@ -814,19 +825,44 @@ func (r *Ruleset) Eval(context any) (any, error) {
 		mediaBlocks = mb
 	}
 
-	if os.Getenv("LESS_GO_TRACE") != "" && mediaBlocks != nil {
-		fmt.Fprintf(os.Stderr, "[RULESET.Eval] BubbleSelectors section: mediaBlockCount=%d, len(mediaBlocks)=%d, selectors=%v\n",
-			mediaBlockCount, len(mediaBlocks), selectors)
+	if os.Getenv("LESS_GO_TRACE") != "" {
+		mbLen := 0
+		if mediaBlocks != nil {
+			mbLen = len(mediaBlocks)
+		}
+		// Get first selector content for identification
+		firstSelContent := "none"
+		if len(selectors) > 0 {
+			if s, ok := selectors[0].(*Selector); ok && len(s.Elements) > 0 {
+				firstSelContent = fmt.Sprintf("%v", s.Elements[0].Value)
+			}
+		}
+		fmt.Fprintf(os.Stderr, "[RULESET.Eval] BubbleSelectors section: mediaBlockCount=%d, len(mediaBlocks)=%d, len(selectors)=%d, firstSel=%s, Root=%v\n",
+			mediaBlockCount, mbLen, len(selectors), firstSelContent, ruleset.Root)
 	}
 
 	if mediaBlocks != nil {
-		for i := mediaBlockCount; i < len(mediaBlocks); i++ {
-			if mb, ok := mediaBlocks[i].(interface{ BubbleSelectors(any) }); ok {
-				if os.Getenv("LESS_GO_TRACE") != "" {
-					fmt.Fprintf(os.Stderr, "[RULESET.Eval] Calling BubbleSelectors on mediaBlock %d (type=%T)\n", i, mb)
-				}
-				mb.BubbleSelectors(selectors)
+		// Skip BubbleSelectors if all selectors are MediaEmpty (placeholder selectors from inner media rulesets)
+		// MediaEmpty selectors are just `&` placeholders created by Media constructor - they should not bubble
+		allMediaEmpty := true
+		for _, sel := range selectors {
+			if s, ok := sel.(*Selector); ok && !s.MediaEmpty {
+				allMediaEmpty = false
+				break
 			}
+		}
+
+		if !allMediaEmpty {
+			for i := mediaBlockCount; i < len(mediaBlocks); i++ {
+				if mb, ok := mediaBlocks[i].(interface{ BubbleSelectors(any) }); ok {
+					if os.Getenv("LESS_GO_TRACE") != "" {
+						fmt.Fprintf(os.Stderr, "[RULESET.Eval] Calling BubbleSelectors on mediaBlock %d (type=%T)\n", i, mb)
+					}
+					mb.BubbleSelectors(selectors)
+				}
+			}
+		} else if os.Getenv("LESS_GO_TRACE") != "" {
+			fmt.Fprintf(os.Stderr, "[RULESET.Eval] Skipping BubbleSelectors - all selectors are MediaEmpty\n")
 		}
 	}
 
@@ -1920,6 +1956,15 @@ func (r *Ruleset) JoinSelector(paths *[][]any, context [][]any, selector any) {
 	sel, ok := selector.(*Selector)
 	if !ok {
 		return
+	}
+
+	// Debug: log selector elements
+	if os.Getenv("LESS_GO_DEBUG_JOIN") == "1" {
+		fmt.Fprintf(os.Stderr, "[JoinSelector] selector elements (%d): ", len(sel.Elements))
+		for i, el := range sel.Elements {
+			fmt.Fprintf(os.Stderr, "[%d]=%q ", i, el.Value)
+		}
+		fmt.Fprintf(os.Stderr, ", context len=%d, MediaEmpty=%v\n", len(context), sel.MediaEmpty)
 	}
 
 	// createSelector helper function

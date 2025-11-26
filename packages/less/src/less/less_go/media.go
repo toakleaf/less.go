@@ -213,10 +213,12 @@ func (m *Media) EvalTop(context any) any {
 		for i, sel := range emptySelectors {
 			selectors[i] = sel
 		}
-		// Create MultiMedia Ruleset with root=true so inner Media nodes are not extracted by ToCSSVisitor
+		// Create MultiMedia Ruleset. JavaScript ONLY sets multiMedia=true, NOT root=true.
+		// Setting Root=true would prevent JoinSelectorVisitor from propagating parent context
+		// (like .body's paths) through the MultiMedia Ruleset.
 		ruleset := NewRuleset(selectors, mediaBlocks, false, m.VisibilityInfo())
 		ruleset.MultiMedia = true // Set MultiMedia to true for multiple media blocks
-		ruleset.Root = true       // Set Root to true so ToCSSVisitor doesn't extract inner Media nodes
+		// NOTE: Do NOT set Root=true here - it breaks selector joining!
 		ruleset.CopyVisibilityInfo(m.VisibilityInfo())
 		m.SetParent(ruleset.Node, m.Node)
 		result = ruleset
@@ -550,22 +552,23 @@ func (m *Media) BubbleSelectors(selectors any) {
 		return
 	}
 
-	// Get the rules from the inner ruleset to avoid keeping the & placeholder selector
-	// Instead of wrapping the entire inner ruleset, we extract its rules and create
-	// a new wrapper with the parent selectors
-	var innerRules []any
-	if innerRuleset, ok := m.Rules[0].(*Ruleset); ok {
-		innerRules = innerRuleset.Rules
-	} else {
-		// Fallback: wrap the entire rule
-		innerRules = []any{m.Rules[0]}
-	}
-
-	newRuleset := NewRuleset(anySelectors, innerRules, false, nil)
+	// Match JavaScript: this.rules = [new Ruleset(utils.copyArray(selectors), [this.rules[0]])];
+	// Wrap the entire inner ruleset to preserve the selector hierarchy for JoinSelectorVisitor.
+	// This is critical because JoinSelectorVisitor needs to walk the nested Ruleset structure
+	// to properly join selectors like ".first .second .third" from nested media queries.
+	newRuleset := NewRuleset(anySelectors, []any{m.Rules[0]}, false, nil)
 	if os.Getenv("LESS_GO_DEBUG") == "1" {
-		fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors] Created newRuleset with %d selectors and %d rules\n", len(anySelectors), len(innerRules))
+		fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors] Created newRuleset with %d selectors wrapping inner ruleset\n", len(anySelectors))
 		for i, sel := range anySelectors {
-			fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors]   selector[%d]: type=%T\n", i, sel)
+			if s, ok := sel.(*Selector); ok {
+				fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors]   selector[%d]: type=%T, elements=", i, sel)
+				for j, el := range s.Elements {
+					fmt.Fprintf(os.Stderr, "[%d]=%q ", j, el.Value)
+				}
+				fmt.Fprintf(os.Stderr, ", MediaEmpty=%v\n", s.MediaEmpty)
+			} else {
+				fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors]   selector[%d]: type=%T\n", i, sel)
+			}
 		}
 	}
 	m.Rules = []any{newRuleset}

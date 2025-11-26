@@ -388,8 +388,11 @@ func TestJoinSelectorVisitor_VisitMedia(t *testing.T) {
 		}
 	})
 
-	t.Run("should set root to true when multiMedia is true", func(t *testing.T) {
-		visitor.contexts = []*contextInfo{{paths: []any{"path"}, multiMedia: true}}
+	t.Run("should set root to true when multiMedia ruleset has empty paths", func(t *testing.T) {
+		// When multiMedia=true on a Ruleset, it also has root=true, which skips selector
+		// processing and leaves paths empty. So context.length === 0 results in root=true.
+		// This test verifies that empty paths result in root=true, as expected.
+		visitor.contexts = []*contextInfo{{paths: []any{}, multiMedia: true}}
 		mockMediaRule := &MockMediaRule{root: false}
 		mockMediaNode := &MockMedia{
 			rules: []any{mockMediaRule},
