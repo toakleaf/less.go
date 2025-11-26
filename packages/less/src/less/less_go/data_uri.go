@@ -454,6 +454,13 @@ func getMimeType(filename string) string {
 		".ttf":   "application/x-font-ttf",
 		".eot":   "application/vnd.ms-fontobject",
 		".otf":   "application/x-font-opentype",
+		".html":  "text/html",
+		".htm":   "text/html",
+		".css":   "text/css",
+		".js":    "application/javascript",
+		".json":  "application/json",
+		".xml":   "application/xml",
+		".txt":   "text/plain",
 	}
 	for ext, mime := range mimeTypes {
 		if strings.HasSuffix(lower, ext) {
