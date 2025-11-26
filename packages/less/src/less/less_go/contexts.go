@@ -325,6 +325,8 @@ func (e *Eval) PathRequiresRewrite(path string) bool {
 }
 
 // RewritePath rewrites a path with the given rootpath
+// For url() values, this adds "./" prefix when the original path was local relative
+// but the normalized path is not (to preserve explicit relativeness)
 func (e *Eval) RewritePath(path, rootpath string) string {
 	if rootpath == "" {
 		rootpath = ""
@@ -341,6 +343,17 @@ func (e *Eval) RewritePath(path, rootpath string) string {
 	}
 
 	return newPath
+}
+
+// RewritePathForImport rewrites a path with the given rootpath for @import statements
+// Unlike RewritePath for url() values, this does NOT add "./" prefix
+// because @import paths should be output without explicit relative prefix
+func (e *Eval) RewritePathForImport(path, rootpath string) string {
+	if rootpath == "" {
+		rootpath = ""
+	}
+	combined := rootpath + path
+	return e.NormalizePath(combined)
 }
 
 // NormalizePath normalizes a path by removing . and .. segments
@@ -398,6 +411,8 @@ func isPathRelative(path string) bool {
 }
 
 func isPathLocalRelative(path string) bool {
+	// Match paths starting with "." (includes both "./" and "../")
+	// This matches the JavaScript regex /^\./.test(path)
 	return strings.HasPrefix(path, ".")
 }
 

@@ -14,6 +14,7 @@ type Media struct {
 	// evaluated marks this Media node as already evaluated (features merged by evalNested)
 	// This prevents double-merging when the node is re-evaluated
 	evaluated bool
+	selectorsBubbled bool // Track if BubbleSelectors was already called
 }
 
 // NewMedia creates a new Media instance
@@ -137,6 +138,14 @@ func (m *Media) EvalTop(context any) any {
 				for i, mb := range mediaBlocks {
 					if media, ok := mb.(*Media); ok {
 						fmt.Fprintf(os.Stderr, "[MEDIA.EvalTop]   Media[%d]: Rules count=%d\n", i, len(media.Rules))
+						if len(media.Rules) > 0 {
+							if innerRs, ok := media.Rules[0].(*Ruleset); ok {
+								fmt.Fprintf(os.Stderr, "[MEDIA.EvalTop]     Media[%d] inner ruleset has %d rules\n", i, len(innerRs.Rules))
+								for j, r := range innerRs.Rules {
+									fmt.Fprintf(os.Stderr, "[MEDIA.EvalTop]       inner rule[%d]: type=%T\n", j, r)
+								}
+							}
+						}
 					}
 				}
 			}
@@ -468,8 +477,35 @@ func hasOnlyEmptyContent(rules []any) bool {
 
 // BubbleSelectors bubbles selectors up the tree (implementing NestableAtRulePrototype)
 func (m *Media) BubbleSelectors(selectors any) {
-	if os.Getenv("LESS_GO_TRACE") != "" {
-		fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors] Called with selectors: %v\n", selectors)
+	if os.Getenv("LESS_GO_TRACE") != "" || os.Getenv("LESS_GO_DEBUG") == "1" {
+		// Print features to identify which media this is
+		var featuresStr string
+		if m.Features != nil {
+			if val, ok := m.Features.(*Value); ok && len(val.Value) > 0 {
+				featuresStr = fmt.Sprintf("%v", val.Value)
+			} else {
+				featuresStr = fmt.Sprintf("%T", m.Features)
+			}
+		}
+		fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors] Features: %s, selectors: %v, alreadyBubbled: %v\n", featuresStr, selectors, m.selectorsBubbled)
+		fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors] m.Rules count: %d\n", len(m.Rules))
+		if len(m.Rules) > 0 {
+			if innerRs, ok := m.Rules[0].(*Ruleset); ok {
+				fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors] innerRuleset.Rules count: %d\n", len(innerRs.Rules))
+				for i, r := range innerRs.Rules {
+					fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors]   innerRuleset.Rules[%d]: type=%T\n", i, r)
+				}
+			}
+		}
+	}
+
+	// Idempotency check: if selectors were already bubbled, skip to avoid creating
+	// duplicate wrapper Rulesets that would lose their Paths from JoinSelectorVisitor
+	if m.selectorsBubbled {
+		if os.Getenv("LESS_GO_TRACE") != "" || os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors] Skipping - already bubbled\n")
+		}
+		return
 	}
 
 	if selectors == nil {
@@ -508,24 +544,27 @@ func (m *Media) BubbleSelectors(selectors any) {
 		return
 	}
 
+	// Get the rules from the inner ruleset to avoid keeping the & placeholder selector
+	// Instead of wrapping the entire inner ruleset, we extract its rules and create
+	// a new wrapper with the parent selectors
+	var innerRules []any
+	if innerRuleset, ok := m.Rules[0].(*Ruleset); ok {
+		innerRules = innerRuleset.Rules
+	} else {
+		// Fallback: wrap the entire rule
+		innerRules = []any{m.Rules[0]}
+	}
+
+	newRuleset := NewRuleset(anySelectors, innerRules, false, nil)
 	if os.Getenv("LESS_GO_DEBUG") == "1" {
-		fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors] Before wrap, m.Rules[0] type=%T\n", m.Rules[0])
-		if rs, ok := m.Rules[0].(*Ruleset); ok {
-			fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors]   m.Rules[0] Ruleset: Selectors=%d, Rules=%d\n", len(rs.Selectors), len(rs.Rules))
-			for i, r := range rs.Rules {
-				fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors]     Rules[%d]: type=%T\n", i, r)
-			}
+		fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors] Created newRuleset with %d selectors and %d rules\n", len(anySelectors), len(innerRules))
+		for i, sel := range anySelectors {
+			fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors]   selector[%d]: type=%T\n", i, sel)
 		}
 	}
-	newRuleset := NewRuleset(anySelectors, []any{m.Rules[0]}, false, nil)
 	m.Rules = []any{newRuleset}
 	m.SetParent(m.Rules, m.Node)
-	if os.Getenv("LESS_GO_DEBUG") == "1" {
-		fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors] After wrap, m.Rules[0] type=%T\n", m.Rules[0])
-		if rs, ok := m.Rules[0].(*Ruleset); ok {
-			fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors]   newRuleset: Selectors=%d, Rules=%d\n", len(rs.Selectors), len(rs.Rules))
-		}
-	}
+	m.selectorsBubbled = true
 }
 
 // GenCSS generates CSS representation
@@ -725,6 +764,43 @@ func (m *Media) Eval(context any) (any, error) {
 	// Match JavaScript: context.mediaPath.pop();
 	if len(evalCtx.MediaPath) > 0 {
 		evalCtx.MediaPath = evalCtx.MediaPath[:len(evalCtx.MediaPath)-1]
+	}
+
+	// Bubble selectors from parent frames into the Media content
+	// This ensures that when Media is nested inside a selector (e.g., .body { @media print { ... } }),
+	// the parent selector (.body) is preserved inside the Media's content.
+	// Note: BubbleSelectors has an idempotency check, so calling it again from Ruleset.Eval is safe.
+	if len(evalCtx.Frames) > 0 {
+		// Collect selectors from the first parent frame that has real selectors
+		var parentSelectors []any
+		for i := 0; i < len(evalCtx.Frames); i++ {
+			if rs, ok := evalCtx.Frames[i].(*Ruleset); ok {
+				// Skip AllowImports rulesets - these are wrapper rulesets from media/container
+				if rs.AllowImports {
+					continue
+				}
+				// Only include rulesets that have selectors (not root rulesets)
+				if len(rs.Selectors) > 0 {
+					for _, sel := range rs.Selectors {
+						if s, ok := sel.(*Selector); ok {
+							// Skip MediaEmpty selectors - they're placeholders, not real parent selectors
+							if !s.MediaEmpty {
+								parentSelectors = append(parentSelectors, sel)
+							}
+						}
+					}
+					if len(parentSelectors) > 0 {
+						break
+					}
+				}
+			}
+		}
+		if len(parentSelectors) > 0 {
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Fprintf(os.Stderr, "[MEDIA.Eval] Bubbling %d parent selectors into media\n", len(parentSelectors))
+			}
+			media.BubbleSelectors(parentSelectors)
+		}
 	}
 
 	// Match JavaScript: return context.mediaPath.length === 0 ? media.evalTop(context) : media.evalNested(context);

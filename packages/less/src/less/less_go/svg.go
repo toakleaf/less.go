@@ -335,8 +335,15 @@ func SvgGradient(ctx SvgContext, args ...interface{}) (*URL, error) {
 
 	// URL encode the SVG using JavaScript encodeURIComponent behavior
 	encodedSVG := url.QueryEscape(returner)
-	// Convert to match JavaScript encodeURIComponent: spaces should be %20 not +
+	// Convert to match JavaScript encodeURIComponent:
+	// - spaces should be %20 not +
+	// - certain characters are left unencoded: ! * ' ( ) ~
 	encodedSVG = strings.ReplaceAll(encodedSVG, "+", "%20")
+	encodedSVG = strings.ReplaceAll(encodedSVG, "%21", "!") // !
+	encodedSVG = strings.ReplaceAll(encodedSVG, "%2A", "*") // *
+	encodedSVG = strings.ReplaceAll(encodedSVG, "%27", "'") // '
+	encodedSVG = strings.ReplaceAll(encodedSVG, "%28", "(") // (
+	encodedSVG = strings.ReplaceAll(encodedSVG, "%29", ")") // )
 
 	// Create data URI
 	dataURI := fmt.Sprintf("data:image/svg+xml,%s", encodedSVG)

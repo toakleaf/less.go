@@ -146,16 +146,25 @@ func (i *Import) Accept(visitor any) {
 // GenCSS generates CSS representation
 func (i *Import) GenCSS(context any, output *CSSOutput) {
 	// Match JavaScript: this.css && this.path._fileInfo.reference === undefined
+	// Note: JavaScript checks if reference is undefined (not present), not if it's falsy
+	// So we should skip output only if reference is explicitly true
 	if i.css {
 		// Check path._fileInfo.reference like JavaScript
+		// In JS, reference is checked with === undefined, meaning only skip if reference is NOT undefined.
+		// However, reference: false should still allow output (only reference: true should skip).
+		// The JS behavior is: skip output if reference is explicitly set (truthy).
 		var shouldOutput bool = true
 		if pathWithFileInfo, ok := i.path.(interface{ FileInfo() map[string]any }); ok {
 			fileInfo := pathWithFileInfo.FileInfo()
-			if fileInfo != nil && fileInfo["reference"] != nil {
-				shouldOutput = false
+			// Only skip output if reference is truthy (e.g., true for @import (reference) "file.css")
+			// reference: false or missing reference should still allow output
+			if fileInfo != nil {
+				if ref, ok := fileInfo["reference"].(bool); ok && ref {
+					shouldOutput = false
+				}
 			}
 		}
-		
+
 		if shouldOutput {
 			output.Add("@import ", i._fileInfo, i._index)
 			if pathGen, ok := i.path.(interface{ GenCSS(any, *CSSOutput) }); ok {
@@ -170,6 +179,25 @@ func (i *Import) GenCSS(context any, output *CSSOutput) {
 			output.Add(";", nil, nil)
 		}
 	}
+}
+
+// IsVisible returns true if this CSS import should be output (not a reference import)
+// This is needed for proper newline handling in Ruleset.GenCSS
+func (i *Import) IsVisible() bool {
+	// CSS imports are visible unless they're reference imports
+	if !i.css {
+		return false
+	}
+	// Check if this is a reference import (should not output)
+	if pathWithFileInfo, ok := i.path.(interface{ FileInfo() map[string]any }); ok {
+		fileInfo := pathWithFileInfo.FileInfo()
+		if fileInfo != nil {
+			if ref, ok := fileInfo["reference"].(bool); ok && ref {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // pathFileInfoReference gets the reference from path's file info
@@ -340,7 +368,10 @@ func (i *Import) EvalPath(context any) any {
 				}
 				if requiresRewrite {
 					if rootpath, ok := fileInfo["rootpath"].(string); ok {
-						newValue = evalCtx.RewritePath(pathValueStr, rootpath)
+						// Use RewritePathForImport which doesn't add "./" prefix
+						// @import paths should be output without explicit relative prefix
+						// (unlike url() which does use "./" prefix)
+						newValue = evalCtx.RewritePathForImport(pathValueStr, rootpath)
 						needsUpdate = true
 						if os.Getenv("LESS_GO_DEBUG") == "1" {
 							fmt.Printf("[DEBUG Import.EvalPath] Rewriting %q -> %q (rootpath=%q)\n", pathValueStr, newValue, rootpath)
@@ -468,6 +499,29 @@ func (i *Import) DoEval(context any) (any, error) {
 		}
 	}
 
+	// Check if this is a variable import that should be treated as CSS
+	// When an import path contains variables (e.g., @import "@{var}";), the css flag
+	// may not be set at parse time. After variable interpolation, we need to re-check
+	// if the evaluated path is a CSS file.
+	if !i.css && i.root == nil {
+		// Evaluate the path to get the actual path value after variable interpolation
+		var pathStr string
+		if pathEval, ok := i.path.(interface{ Eval(any) (any, error) }); ok {
+			if result, err := pathEval.Eval(context); err == nil {
+				if quoted, ok := result.(*Quoted); ok {
+					pathStr = quoted.GetValue()
+				}
+			}
+		}
+		// Check if the evaluated path is a CSS file
+		if pathStr != "" && cssPatternRegex.MatchString(pathStr) {
+			// This is a CSS import - create a new Import with the evaluated path and return it
+			newImport := NewImport(i.EvalPath(context), features, i.options, i._index, i._fileInfo, nil)
+			newImport.css = true
+			return newImport, nil
+		}
+	}
+
 	// Handle plugin imports
 	if i.getBoolOption("isPlugin") {
 		if i.root != nil {
@@ -558,7 +612,10 @@ func (i *Import) DoEval(context any) (any, error) {
 
 	// Handle CSS imports
 	if i.css {
-		newImport := NewImport(i.EvalPath(context), features, i.options, i._index, i._fileInfo, nil)
+		// Note: Pass nil for fileInfo to prevent double path rewriting when the new Import is evaluated again.
+		// JavaScript does the same: new Import(this.evalPath(context), features, this.options, this._index)
+		// The _index parameter is the 4th arg, and fileInfo is omitted (undefined in JS).
+		newImport := NewImport(i.EvalPath(context), features, i.options, i._index, nil, nil)
 		if !newImport.css && i.error != nil {
 			return nil, i.error
 		}

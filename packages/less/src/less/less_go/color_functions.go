@@ -741,7 +741,7 @@ func ColorDarken(color, amount any, method ...any) any {
 	c, ok := color.(*Color)
 	if !ok {
 		return &LessError{
-			Type:    "Runtime",
+			Type:    "Argument",
 			Message: "Argument cannot be evaluated to a color",
 		}
 	}
@@ -1201,14 +1201,14 @@ func (w *ColorFunctionWrapper) Call(args ...any) (any, error) {
 						method = []any{methodArg}
 					}
 				}
-				return fn(args[0], amount, method...), nil
+				return checkLessError(fn(args[0], amount, method...))
 			} else if fn, ok := w.fn.(func(any, any) any); ok {
 				// Fallback to non-variadic signature
 				var amount any
 				if len(args) >= 2 {
 					amount = args[1]
 				}
-				return fn(args[0], amount), nil
+				return checkLessError(fn(args[0], amount))
 			}
 		}
 		return nil, fmt.Errorf("function %s expects 1-3 arguments, got %d", w.name, len(args))
