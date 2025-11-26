@@ -313,28 +313,48 @@ func (jsv *JoinSelectorVisitor) VisitMedia(mediaNode any, visitArgs *VisitArgs) 
 	}
 	contextItem := jsv.contexts[len(jsv.contexts)-1]
 
-	// Set root flag on inner ruleset
+	// Determine root flag based on context
 	// JavaScript: mediaNode.rules[0].root = (context.length === 0 || context[0].multiMedia);
-	// Root is true if we're at the top level (context.paths empty) OR inside a MultiMedia Ruleset
-	rootValue := len(contextItem.paths) == 0 || contextItem.multiMedia
+	// When context is empty and the wrapper has selectors from BubbleSelectors,
+	// we should NOT set root=true. This is because:
+	// 1. BubbleSelectors created a wrapper Ruleset with parent selectors (e.g., .body)
+	// 2. These selectors need to be processed by JoinSelectors to create paths
+	// 3. If root=true, JoinSelectors skips processing, no paths are created
+	// 4. Without paths, genCSS doesn't output the selector
+	//
+	// The fix: Only set root=true if the wrapper has NO selectors.
+	// If it has selectors (from BubbleSelectors), let JoinSelectors process them.
+	rootValue := len(contextItem.paths) == 0
 
 	if os.Getenv("LESS_GO_DEBUG") == "1" {
-		fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor.VisitMedia] contextItem.paths len=%d, multiMedia=%v, setting root=%v\n",
-			len(contextItem.paths), contextItem.multiMedia, rootValue)
+		fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor.VisitMedia] contextItem.paths len=%d, multiMedia=%v\n",
+			len(contextItem.paths), contextItem.multiMedia)
 	}
-
-	// NOTE: BubbleSelectors is called during Media.Eval, not here.
-	// By the time JoinSelectorVisitor runs, Media nodes have already been bubbled up
-	// and their parent selectors have been captured during evaluation.
 
 	// Try interface-based approach first
 	if mediaInterface, ok := mediaNode.(interface{ GetRules() []any }); ok {
 		rules := mediaInterface.GetRules()
 		if len(rules) > 0 {
+			// Check if the inner ruleset has selectors
+			hasSelectors := false
+			if selectorGetter, ok := rules[0].(interface{ GetSelectors() []any }); ok {
+				selectors := selectorGetter.GetSelectors()
+				hasSelectors = len(selectors) > 0
+			}
+
+			// If the wrapper has selectors (from BubbleSelectors), don't set root=true
+			// This allows JoinSelectors to process the selectors and create paths
+			effectiveRoot := rootValue && !hasSelectors
+
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor.VisitMedia] hasSelectors=%v, rootValue=%v, effectiveRoot=%v\n",
+					hasSelectors, rootValue, effectiveRoot)
+			}
+
 			if mediaRule, ok := rules[0].(interface{ SetRoot(bool) }); ok {
-				mediaRule.SetRoot(rootValue)
+				mediaRule.SetRoot(effectiveRoot)
 				if os.Getenv("LESS_GO_DEBUG") == "1" {
-					fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor.VisitMedia] Set root=%v on inner ruleset (interface)\n", rootValue)
+					fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor.VisitMedia] Set root=%v on inner ruleset (interface)\n", effectiveRoot)
 				}
 			}
 		}
@@ -342,10 +362,24 @@ func (jsv *JoinSelectorVisitor) VisitMedia(mediaNode any, visitArgs *VisitArgs) 
 		// Fallback to concrete type for backward compatibility
 		rules := media.Rules
 		if len(rules) > 0 {
+			// Check if the inner ruleset has selectors
+			hasSelectors := false
+			if rs, ok := rules[0].(*Ruleset); ok {
+				hasSelectors = len(rs.Selectors) > 0
+			}
+
+			// If the wrapper has selectors (from BubbleSelectors), don't set root=true
+			effectiveRoot := rootValue && !hasSelectors
+
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor.VisitMedia] hasSelectors=%v, rootValue=%v, effectiveRoot=%v (concrete)\n",
+					hasSelectors, rootValue, effectiveRoot)
+			}
+
 			if mediaRule, ok := rules[0].(MediaRule); ok {
-				mediaRule.SetRoot(rootValue)
+				mediaRule.SetRoot(effectiveRoot)
 				if os.Getenv("LESS_GO_DEBUG") == "1" {
-					fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor.VisitMedia] Set root=%v on inner ruleset (concrete)\n", rootValue)
+					fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor.VisitMedia] Set root=%v on inner ruleset (concrete)\n", effectiveRoot)
 				}
 			}
 		}
