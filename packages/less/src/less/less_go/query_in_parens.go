@@ -51,83 +51,61 @@ func (q *QueryInParens) Accept(visitor any) {
 }
 
 // Eval evaluates the query
+// IMPORTANT: This method returns a NEW QueryInParens instance with evaluated values
+// rather than mutating the original. This is critical for mixin expansion where
+// the same QueryInParens node may be evaluated multiple times with different contexts.
 func (q *QueryInParens) Eval(context any) (any, error) {
+	// Create a new QueryInParens to avoid mutating the original
+	result := &QueryInParens{
+		Node:    NewNode(),
+		op:      q.op,
+		op2:     q.op2,
+		mvalues: make([]any, 0),
+	}
+	result.Index = q.Index
+
 	// Evaluate lvalue
-	if evaluator, ok := q.lvalue.(interface{ Eval(any) (any, error) }); ok {
+	lvalue := q.lvalue
+	if evaluator, ok := lvalue.(interface{ Eval(any) (any, error) }); ok {
 		var err error
-		q.lvalue, err = evaluator.Eval(context)
+		lvalue, err = evaluator.Eval(context)
 		if err != nil {
 			return nil, err
 		}
-	} else if evaluator, ok := q.lvalue.(interface{ Eval(any) any }); ok {
-		q.lvalue = evaluator.Eval(context)
+	} else if evaluator, ok := lvalue.(interface{ Eval(any) any }); ok {
+		lvalue = evaluator.Eval(context)
 	}
+	result.lvalue = lvalue
 
-	var variableDeclaration any
-
-	if ctx, ok := context.(map[string]any); ok {
-		if frames, ok := ctx["frames"].([]any); ok {
-			for _, frame := range frames {
-				if frameMap, ok := frame.(map[string]any); ok {
-					if frameMap["type"] == "Ruleset" {
-						if rules, ok := frameMap["rules"].([]any); ok {
-							for _, r := range rules {
-								if decl, ok := r.(*Declaration); ok && decl.variable {
-									variableDeclaration = decl
-									break
-								}
-							}
-							if variableDeclaration != nil {
-								break
-							}
-						}
-					}
-				}
-			}
+	// Evaluate mvalue (the middle/comparison value)
+	mvalue := q.mvalue
+	if evaluator, ok := mvalue.(interface{ Eval(any) (any, error) }); ok {
+		var err error
+		mvalue, err = evaluator.Eval(context)
+		if err != nil {
+			return nil, err
 		}
+	} else if evaluator, ok := mvalue.(interface{ Eval(any) any }); ok {
+		mvalue = evaluator.Eval(context)
 	}
+	result.mvalue = mvalue
 
-	if q.mvalueCopy == nil {
-		// Create a deep copy of mvalue
-		q.mvalueCopy = deepCopy(q.mvalue)
-	}
-
-	if variableDeclaration != nil {
-		q.mvalue = q.mvalueCopy
-		if evaluator, ok := q.mvalue.(interface{ Eval(any) (any, error) }); ok {
-			var err error
-			q.mvalue, err = evaluator.Eval(context)
-			if err != nil {
-				return nil, err
-			}
-		} else if evaluator, ok := q.mvalue.(interface{ Eval(any) any }); ok {
-			q.mvalue = evaluator.Eval(context)
-		}
-		q.mvalues = append(q.mvalues, q.mvalue)
-	} else {
-		if evaluator, ok := q.mvalue.(interface{ Eval(any) (any, error) }); ok {
-			var err error
-			q.mvalue, err = evaluator.Eval(context)
-			if err != nil {
-				return nil, err
-			}
-		} else if evaluator, ok := q.mvalue.(interface{ Eval(any) any }); ok {
-			q.mvalue = evaluator.Eval(context)
-		}
-	}
-
+	// Evaluate rvalue if present
 	if q.rvalue != nil {
-		if evaluator, ok := q.rvalue.(interface{ Eval(any) (any, error) }); ok {
+		rvalue := q.rvalue
+		if evaluator, ok := rvalue.(interface{ Eval(any) (any, error) }); ok {
 			var err error
-			q.rvalue, err = evaluator.Eval(context)
+			rvalue, err = evaluator.Eval(context)
 			if err != nil {
 				return nil, err
 			}
-		} else if evaluator, ok := q.rvalue.(interface{ Eval(any) any }); ok {
-			q.rvalue = evaluator.Eval(context)
+		} else if evaluator, ok := rvalue.(interface{ Eval(any) any }); ok {
+			rvalue = evaluator.Eval(context)
 		}
+		result.rvalue = rvalue
 	}
-	return q, nil
+
+	return result, nil
 }
 
 // GenCSS generates CSS representation
