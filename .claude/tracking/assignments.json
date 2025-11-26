@@ -1,486 +1,80 @@
 {
-  "version": "1.6",
-  "last_updated": "2025-11-09T00:00:00Z",
+  "version": "2.0",
+  "last_updated": "2025-11-26T00:00:00Z",
   "summary": {
-    "perfect_matches": 63,
+    "perfect_matches": 84,
     "compilation_failures": 3,
-    "output_differences": 29,
-    "error_handling_tests": 39,
+    "output_differences": 8,
+    "error_handling_correct": 88,
+    "error_handling_gap": 1,
     "compilation_rate": "98.4%",
-    "overall_success_rate": "55.4%+",
-    "tasks_available": 9,
-    "tasks_completed": 9,
-    "tasks_partial": 2,
-    "tasks_in_progress": 0,
+    "overall_success_rate": "93.5%",
     "regressions_detected": 0
   },
-  "tasks": {
-    "fix-import-reference": {
-      "status": "partial",
+  "output_differences": {
+    "import-reference": {
+      "status": "available",
       "priority": "high",
-      "category": "runtime-failures",
-      "tests_affected": [
-        "import-reference",
-        "import-reference-issues"
-      ],
-      "estimated_time": "2-3 hours to complete",
-      "complexity": "medium",
-      "files_likely_modified": [
-        "import.go",
-        "import_visitor.go",
-        "ruleset.go"
-      ],
-      "task_file": ".claude/tasks/runtime-failures/import-reference.md",
-      "agent_session_id": "011CUq2UdcuwonuWYY5Ai4u2",
-      "claimed_at": "2025-11-05T03:00:00Z",
-      "completed_at": "2025-11-05T04:30:00Z",
-      "pr_branch": "claude/fix-import-reference-011CUq2UdcuwonuWYY5Ai4u2",
-      "status_note": "Tests now compile but CSS differs. CSS import loading fixed. Remaining: mixin availability from referenced imports.",
-      "test_status": "Both tests show output differences (not perfect match)"
+      "tests": ["import-reference", "import-reference-issues"],
+      "task_file": ".claude/tasks/output-differences/import-reference.md"
     },
-    "fix-namespace-resolution": {
-      "status": "completed",
+    "detached-rulesets": {
+      "status": "available",
       "priority": "high",
-      "category": "runtime-failures",
-      "tests_affected": [
-        "namespacing-6",
-        "namespacing-functions"
-      ],
-      "estimated_time": "DONE",
-      "complexity": "medium-high",
-      "files_likely_modified": [
-        "variable_call.go"
-      ],
-      "task_file": ".claude/tasks/runtime-failures/namespace-resolution.md",
-      "agent_session_id": "011CUpyq8TTyJcEfVbW5eCZA",
-      "claimed_at": "2025-11-05T00:00:00Z",
-      "completed_at": "2025-11-05T01:00:00Z",
-      "pr_branch": "claude/fix-namespace-resolution-011CUpyq8TTyJcEfVbW5eCZA",
-      "results": {
-        "namespacing-6": "Perfect match ✅",
-        "namespacing-functions": "Compiles with output differences ⚠️"
-      },
-      "impact": "+1 perfect match (14 → 15)"
+      "tests": ["detached-rulesets"],
+      "task_file": ".claude/tasks/output-differences/detached-rulesets.md"
     },
-    "fix-url-processing": {
-      "status": "blocked",
+    "urls": {
+      "status": "available",
       "priority": "high",
-      "category": "runtime-failures",
-      "tests_affected": [
-        "urls (main)",
-        "urls (static-urls)"
-      ],
-      "estimated_time": "2-3 hours once unblocked",
-      "complexity": "high",
-      "files_likely_modified": [
-        "parser.go",
-        "parser_input.go",
-        "url.go"
-      ],
-      "task_file": ".claude/tasks/runtime-failures/url-processing.md",
-      "agent_session_id": "011CUq2LGuFhHKKT2YCnsRYH",
-      "claimed_at": "2025-11-05T00:00:00Z",
-      "partial_progress": {
-        "completed_at": "2025-11-05T05:00:00Z",
-        "branch": "claude/fix-url-processing-011CUq2LGuFhHKKT2YCnsRYH",
-        "commit": "386eab9",
-        "status_note": "URL parsing fixed. Now blocked on mixin resolution.",
-        "progress_file": ".claude/tasks/runtime-failures/url-processing-progress.md"
-      },
-      "blocked_reason": "Test fails on mixin resolution ('.unquoted-relative-path-bg is undefined'). URL parsing is fixed.",
-      "test_status": "Compiles with output differences ⚠️"
+      "tests": ["urls (main)", "urls (static-urls)", "urls (url-args)"],
+      "task_file": ".claude/tasks/output-differences/urls.md"
     },
-    "fix-mixin-args": {
-      "status": "completed",
-      "priority": "CRITICAL",
-      "category": "runtime-failures",
-      "tests_affected": [
-        "mixins-args (math-parens)",
-        "mixins-args (math-parens-division)"
-      ],
-      "estimated_time": "DONE",
-      "complexity": "medium",
-      "impact": "UNBLOCKED 2 test suites",
-      "files_likely_modified": [
-        "mixin_definition.go",
-        "mixin_call.go"
-      ],
-      "task_file": ".claude/tasks/runtime-failures/mixin-args.md",
-      "agent_session_id": "011CUqoVwcQHiyZTRgurdxup",
-      "claimed_at": "2025-11-06T00:00:00Z",
-      "completed_at": "2025-11-06T00:30:00Z",
-      "pr_branch": "claude/fix-mixin-division-matching-011CUqoVwcQHiyZTRgurdxup",
-      "results": {
-        "mixins-args (math-parens)": "Compiles with output differences ⚠️",
-        "mixins-args (math-parens-division)": "Compiles with output differences ⚠️"
-      },
-      "impact_actual": "Reduced compilation failures from 6 to 4 (-33%)",
-      "notes": "Fixed variadic parameter expansion and argument matching. Tests now compile successfully."
-    },
-    "fix-include-path": {
-      "status": "completed",
-      "priority": "high",
-      "category": "runtime-failures",
-      "tests_affected": [
-        "include-path",
-        "include-path-string"
-      ],
-      "estimated_time": "DONE",
-      "complexity": "low-medium",
-      "files_likely_modified": [
-        "import_manager.go",
-        "file_system_file_manager.go",
-        "index.go",
-        "integration_suite_test.go"
-      ],
-      "task_file": ".claude/tasks/runtime-failures/include-path.md",
-      "agent_session_id": "011CUqtTQQiKADUC9oF1c5z1",
-      "completed_at": "2025-11-05T20:02:25Z",
-      "pr_branch": "claude/implement-include-path-cli-011CUqtTQQiKADUC9oF1c5z1",
-      "commit_sha": "a6a581b",
-      "results": {
-        "include-path": "Compiles with output differences ⚠️ (data-uri/image-size functions not implemented)",
-        "include-path-string": "Compiles with output differences ⚠️ (data-uri function not implemented)"
-      },
-      "notes": "COMPLETED - Include path resolution working correctly. Output differs due to data-uri() and image-size() functions not being fully implemented (separate issue)."
-    },
-    "fix-import-interpolation": {
+    "media": {
       "status": "available",
       "priority": "medium",
-      "category": "runtime-failures",
-      "tests_affected": [
-        "import-interpolation"
-      ],
-      "estimated_time": "3-4 hours",
-      "complexity": "high",
-      "notes": "Architectural issue - variable interpolation in import paths",
-      "files_likely_modified": [
-        "import.go",
-        "import_visitor.go"
-      ],
-      "task_file": ".claude/tasks/runtime-failures/import-interpolation.md"
+      "tests": ["media"],
+      "task_file": ".claude/tasks/output-differences/media.md"
     },
-    "fix-import-module": {
+    "container": {
       "status": "available",
-      "priority": "low",
-      "category": "runtime-failures",
-      "tests_affected": [
-        "import-module"
-      ],
-      "estimated_time": "4-6 hours",
-      "complexity": "high",
-      "notes": "Node modules resolution - advanced feature, low priority"
-    },
-    "fix-bootstrap4": {
-      "status": "available",
-      "priority": "low",
-      "category": "runtime-failures",
-      "tests_affected": [
-        "bootstrap4"
-      ],
-      "estimated_time": "4-8 hours",
-      "complexity": "very-high",
-      "notes": "Large integration test - do last after other fixes",
-      "task_file": ".claude/tasks/runtime-failures/bootstrap4.md"
-    },
-    "fix-google-remote-import": {
-      "status": "blocked",
-      "priority": "low",
-      "category": "runtime-failures",
-      "tests_affected": [
-        "google (process-imports)"
-      ],
-      "estimated_time": "N/A",
-      "complexity": "infrastructure",
-      "notes": "DNS lookup fails in container - network issue, not code issue",
-      "blocked_reason": "Container network configuration"
-    },
-    "fix-namespacing-output": {
-      "status": "completed",
-      "priority": "high",
-      "category": "output-differences",
-      "tests_affected": [
-        "namespacing-1",
-        "namespacing-2",
-        "namespacing-3",
-        "namespacing-4",
-        "namespacing-5",
-        "namespacing-7",
-        "namespacing-8",
-        "namespacing-functions",
-        "namespacing-operations"
-      ],
-      "estimated_time": "DONE",
-      "complexity": "medium",
-      "impact": "10 tests - very high impact - ALL NOW PERFECT MATCHES! 🎉",
-      "files_likely_modified": [
-        "namespace_value.go",
-        "ruleset.go"
-      ],
-      "task_file": ".claude/tasks/output-differences/namespacing-output.md",
-      "completed_at": "2025-11-07T00:00:00Z",
-      "results": "All 10 namespacing tests now show perfect CSS matches! ✅",
-      "notes": "COMPLETED - All namespace variable lookups, operations, and function calls now work correctly."
-    },
-    "fix-extend-functionality": {
-      "status": "partial",
-      "priority": "low",
-      "category": "output-differences",
-      "tests_affected": [
-        "extend-chaining"
-      ],
-      "estimated_time": "2-3 hours",
-      "complexity": "medium",
-      "files_likely_modified": [
-        "extend_visitor.go"
-      ],
-      "task_file": ".claude/tasks/output-differences/extend-functionality.md",
-      "notes": "✅ MAJOR SUCCESS: 6/7 extend tests now passing! Only extend-chaining remains (multi-level extend chains).",
-      "completed_tests": [
-        "extend",
-        "extend-clearfix",
-        "extend-exact",
-        "extend-media",
-        "extend-nest",
-        "extend-selector"
-      ],
-      "remaining_tests": ["extend-chaining"],
-      "completed_at": "2025-11-07T00:00:00Z",
-      "results": "6/7 tests perfect matches! Only extend-chaining remains for chaining logic."
-    },
-    "fix-guards-conditionals": {
-      "status": "completed",
       "priority": "medium",
-      "category": "output-differences",
-      "tests_affected": [
-        "css-guards",
-        "mixins-guards-default-func",
-        "mixins-guards"
-      ],
-      "estimated_time": "DONE",
-      "complexity": "medium",
-      "files_likely_modified": [
-        "ruleset.go",
-        "mixin_definition.go",
-        "condition.go",
-        "default.go"
-      ],
-      "task_file": ".claude/tasks/output-differences/guards-conditionals.md",
-      "completed_at": "2025-11-07T00:00:00Z",
-      "results": "All 3 guard tests now show perfect CSS matches! ✅",
-      "notes": "COMPLETED - CSS guards and mixin guards with default() function all working correctly."
+      "tests": ["container"],
+      "task_file": ".claude/tasks/output-differences/container.md"
     },
-    "fix-math-operations": {
+    "directives-bubling": {
       "status": "available",
-      "priority": "high",
-      "category": "output-differences",
-      "tests_affected": [
-        "math-parens suite (4 tests)",
-        "math-parens-division suite (4 tests)",
-        "math-always suite (2 tests)",
-        "operations"
-      ],
-      "estimated_time": "3-5 hours",
-      "complexity": "medium-high",
-      "impact": "10+ tests",
-      "files_likely_modified": [
-        "operation.go",
-        "paren.go",
-        "contexts.go",
-        "dimension.go"
-      ],
-      "task_file": ".claude/tasks/output-differences/math-operations.md",
-      "notes": "UNBLOCKED - math suite tests now compile. Math modes (strict, parens, parens-division, always) not implemented correctly"
-    },
-    "fix-mixin-issues": {
-      "status": "partial",
       "priority": "medium",
-      "category": "output-differences",
-      "tests_affected": [
-        "mixins-nested",
-        "mixins-important"
-      ],
-      "estimated_time": "1-2 hours remaining",
-      "complexity": "medium",
-      "files_likely_modified": [
-        "mixin_definition.go",
-        "mixin_call.go",
-        "declaration.go"
-      ],
-      "task_file": ".claude/tasks/output-differences/mixin-issues.md",
-      "notes": "PARTIAL - mixins-named-args now FIXED ✅. Remaining: nested mixin issues, !important not propagating",
-      "completed_tests": ["mixins-named-args"],
-      "remaining_tests": ["mixins-nested", "mixins-important"]
-    },
-    "fix-color-functions": {
-      "status": "partial",
-      "priority": "low",
-      "category": "output-differences",
-      "tests_affected": [
-        "colors"
-      ],
-      "estimated_time": "1-2 hours remaining",
-      "complexity": "medium",
-      "notes": "PARTIAL - colors2 now FIXED ✅. Remaining: colors test still has output differences",
-      "completed_tests": ["colors2"],
-      "remaining_tests": ["colors"]
-    },
-    "fix-import-output": {
-      "status": "partial",
-      "priority": "low",
-      "category": "output-differences",
-      "tests_affected": [
-        "import-inline",
-        "import-remote"
-      ],
-      "estimated_time": "1-2 hours remaining",
-      "complexity": "low-medium",
-      "notes": "PARTIAL - import-once now FIXED ✅. Remaining: import-inline and import-remote have formatting issues",
-      "completed_tests": ["import-once"],
-      "remaining_tests": ["import-inline", "import-remote"]
-    },
-    "fix-formatting-output": {
-      "status": "available",
-      "priority": "low",
-      "category": "output-differences",
-      "tests_affected": [
-        "comments",
-        "comments2",
-        "charsets",
-        "whitespace",
-        "parse-interpolation",
-        "variables-in-at-rules"
-      ],
-      "estimated_time": "3-4 hours",
-      "complexity": "low",
-      "notes": "Logic correct but formatting/whitespace differs. Can be batch fixed."
+      "tests": ["directives-bubling"],
+      "task_file": ".claude/tasks/output-differences/directives-bubling.md"
     }
   },
-  "priority_order": [
-    "1. fix-extend-functionality (URGENT - REGRESSION - 3 tests broken that were passing)",
-    "2. fix-math-operations (HIGH - multiple suites failing to compile)",
-    "3. fix-url-processing (HIGH - 7 suites failing to compile)",
-    "4. fix-include-path-compilation (HIGH - 2 suites failing to compile)",
-    "5. fix-units-suites (MEDIUM - 2 suites failing to compile)",
-    "6. Complete fix-import-reference (MEDIUM - partial)",
-    "7. Complete fix-mixin-issues (MEDIUM - partial - 2 tests)",
-    "8. fix-import-interpolation (MEDIUM)",
-    "9. Lower priority tasks..."
+  "completed_categories": [
+    "namespacing (11/11)",
+    "guards (3/3)",
+    "extend (7/7)",
+    "colors (2/2)",
+    "compression (1/1)",
+    "math-operations (12/12)",
+    "units (2/2)",
+    "url-rewriting (4/4)",
+    "include-path (2/2)"
   ],
-  "agent_recommendations": {
-    "immediate_work": [
-      {
-        "task": "extend-chaining",
-        "reason": "Complete extend category! Last test of 7. Multi-level extend chains.",
-        "difficulty": "medium",
-        "time": "2-3 hours",
-        "priority": "HIGH"
-      },
-      {
-        "task": "namespacing-media",
-        "reason": "Complete namespacing category! Last test of 11. Variable interpolation in media queries.",
-        "difficulty": "low-medium",
-        "time": "1-2 hours",
-        "priority": "HIGH"
-      },
-      {
-        "task": "mixins-nested",
-        "reason": "Complete mixin category! Last mixin output issue.",
-        "difficulty": "medium",
-        "time": "1-2 hours",
-        "priority": "HIGH"
-      },
-      {
-        "task": "fix-math-operations",
-        "reason": "High impact - 6 tests with output differences. Math modes implementation.",
-        "difficulty": "medium-high",
-        "time": "4-6 hours",
-        "priority": "HIGH"
-      },
-      {
-        "task": "fix-url-rewriting",
-        "reason": "High impact - 7 tests with output differences. URL rewriting logic.",
-        "difficulty": "medium",
-        "time": "3-4 hours",
-        "priority": "HIGH"
-      },
-      {
-        "task": "fix-formatting-comments",
-        "reason": "High impact - 6 tests with formatting issues. Likely simple fixes.",
-        "difficulty": "low-medium",
-        "time": "3-4 hours",
-        "priority": "MEDIUM"
-      }
-    ],
-    "parallel_work": "All tasks are independent! Can run 3-6 agents in parallel.",
-    "celebration": "🎉🎉🎉 INCREDIBLE WINS: +13 perfect matches! 47 total! All namespacing (10/10), all guards (3/3), nearly all extend (6/7), all colors (2/2), compression, and more!"
-  },
-  "statistics": {
-    "perfect_matches": 47,
-    "perfect_matches_names": [
-      "charsets",
-      "colors",
-      "colors2",
-      "comments2",
-      "compression",
-      "css-grid",
-      "css-guards",
-      "empty",
-      "extend",
-      "extend-clearfix",
-      "extend-exact",
-      "extend-media",
-      "extend-nest",
-      "extend-selector",
-      "ie-filters",
-      "impor",
-      "import-once",
-      "lazy-eval",
-      "media-math (math-parens)",
-      "media-math (math-parens-division)",
-      "mixin-noparens",
-      "mixins",
-      "mixins-closure",
-      "mixins-guards",
-      "mixins-guards-default-func",
-      "mixins-important",
-      "mixins-interpolated",
-      "mixins-named-args",
-      "mixins-pattern",
-      "namespacing-1",
-      "namespacing-2",
-      "namespacing-3",
-      "namespacing-4",
-      "namespacing-5",
-      "namespacing-6",
-      "namespacing-7",
-      "namespacing-8",
-      "namespacing-functions",
-      "namespacing-operations",
-      "new-division",
-      "no-output",
-      "no-sm-operations",
-      "operations",
-      "plugi",
-      "rulesets",
-      "scope",
-      "strict-units"
-    ],
-    "compilation_failures": 3,
-    "compilation_failures_names": [
-      "import-module",
-      "bootstrap4",
-      "google"
-    ],
-    "output_differences": 45,
-    "quarantined": 5,
-    "error_handling_tests_passing": 39
+  "external_failures": [
+    "bootstrap4 - external dependency",
+    "google - network access",
+    "import-module - node modules"
+  ],
+  "baseline_metrics": {
+    "date": "2025-11-26",
+    "unit_tests": 2304,
+    "perfect_matches": 84,
+    "error_tests_correct": 88,
+    "compilation_rate": "98.4%"
   },
   "notes": {
     "coordination": "Update this file when claiming, completing, or blocking tasks",
     "conflicts": "If multiple agents claim same task, first to push wins",
-    "blocked_tasks": "Tasks marked 'blocked' should document what they're waiting for",
-    "priority_guide": "high = runtime failures OR high-impact output differences, medium = output differences, low = polish",
-    "next_review": "After 4-5 tasks complete, re-run tests and update this file"
+    "priority_guide": "high = import-reference, urls, detached-rulesets; medium = media, container, directives"
   }
 }
