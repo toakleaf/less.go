@@ -146,16 +146,21 @@ func (i *Import) Accept(visitor any) {
 // GenCSS generates CSS representation
 func (i *Import) GenCSS(context any, output *CSSOutput) {
 	// Match JavaScript: this.css && this.path._fileInfo.reference === undefined
+	// Note: JavaScript checks if reference is undefined (not present), not if it's falsy
+	// So we should skip output only if reference is explicitly true
 	if i.css {
 		// Check path._fileInfo.reference like JavaScript
 		var shouldOutput bool = true
 		if pathWithFileInfo, ok := i.path.(interface{ FileInfo() map[string]any }); ok {
 			fileInfo := pathWithFileInfo.FileInfo()
-			if fileInfo != nil && fileInfo["reference"] != nil {
-				shouldOutput = false
+			// Match JavaScript: skip only if reference is explicitly true (not undefined/absent)
+			if fileInfo != nil {
+				if ref, hasRef := fileInfo["reference"]; hasRef && ref == true {
+					shouldOutput = false
+				}
 			}
 		}
-		
+
 		if shouldOutput {
 			output.Add("@import ", i._fileInfo, i._index)
 			if pathGen, ok := i.path.(interface{ GenCSS(any, *CSSOutput) }); ok {
@@ -558,7 +563,10 @@ func (i *Import) DoEval(context any) (any, error) {
 
 	// Handle CSS imports
 	if i.css {
-		newImport := NewImport(i.EvalPath(context), features, i.options, i._index, i._fileInfo, nil)
+		// Match JavaScript: new Import(this.evalPath(context), features, this.options, this._index)
+		// Note: JavaScript does NOT pass _fileInfo to the new Import, preventing double path rewriting
+		// when the new Import is evaluated again by Ruleset.Eval's "evaluate everything else" loop
+		newImport := NewImport(i.EvalPath(context), features, i.options, i._index, nil, nil)
 		if !newImport.css && i.error != nil {
 			return nil, i.error
 		}

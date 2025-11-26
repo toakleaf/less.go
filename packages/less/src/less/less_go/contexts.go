@@ -398,6 +398,8 @@ func isPathRelative(path string) bool {
 }
 
 func isPathLocalRelative(path string) bool {
+	// Match paths starting with "." (includes both "./" and "../")
+	// This matches the JavaScript regex /^\./.test(path)
 	return strings.HasPrefix(path, ".")
 }
 
