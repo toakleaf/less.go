@@ -8,10 +8,9 @@ import (
 // Media represents a media query node in the Less AST
 type Media struct {
 	*AtRule
-	Features any
-	Rules    []any
+	Features  any
+	Rules     []any
 	DebugInfo any
-	selectorsBubbled bool // Track if BubbleSelectors was already called
 }
 
 // NewMedia creates a new Media instance
@@ -171,10 +170,12 @@ func (m *Media) EvalTop(context any) any {
 			for i, sel := range emptySelectors {
 				selectors[i] = sel
 			}
-			// Create MultiMedia Ruleset with root=true so inner Media nodes are not extracted by ToCSSVisitor
+			// Create MultiMedia Ruleset. JavaScript ONLY sets multiMedia=true, NOT root=true.
+			// Setting Root=true would prevent JoinSelectorVisitor from propagating parent
+			// context paths through the MultiMedia Ruleset, breaking selector joining.
 			ruleset := NewRuleset(selectors, mediaBlocks, false, m.VisibilityInfo())
 			ruleset.MultiMedia = true // Set MultiMedia to true for multiple media blocks
-			ruleset.Root = true       // Set Root to true so ToCSSVisitor doesn't extract inner Media nodes
+			// NOTE: Do NOT set Root=true here - it breaks selector joining!
 			ruleset.CopyVisibilityInfo(m.VisibilityInfo())
 			m.SetParent(ruleset.Node, m.Node)
 			if os.Getenv("LESS_GO_DEBUG") == "1" {
@@ -484,6 +485,14 @@ func hasOnlyEmptyContent(rules []any) bool {
 }
 
 // BubbleSelectors bubbles selectors up the tree (implementing NestableAtRulePrototype)
+// This function wraps the media's inner ruleset with the parent selectors.
+// It can be called multiple times from different parent rulesets, each adding
+// another layer of wrapping to build up the full selector path.
+// For example, with .first { .second { .third { @media {...} } } }:
+// - First call wraps with .third selectors
+// - Second call wraps with .second selectors (around the .third wrapper)
+// - Third call wraps with .first selectors (around the .second wrapper)
+// This builds up to .first .second .third when selectors are joined.
 func (m *Media) BubbleSelectors(selectors any) {
 	if os.Getenv("LESS_GO_TRACE") != "" || os.Getenv("LESS_GO_DEBUG") == "1" {
 		// Print features to identify which media this is
@@ -495,7 +504,7 @@ func (m *Media) BubbleSelectors(selectors any) {
 				featuresStr = fmt.Sprintf("%T", m.Features)
 			}
 		}
-		fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors] m=%p Features: %s, selectors: %v, alreadyBubbled: %v\n", m, featuresStr, selectors, m.selectorsBubbled)
+		fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors] m=%p Features: %s, selectors: %v\n", m, featuresStr, selectors)
 		fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors] m.Rules count: %d\n", len(m.Rules))
 		if len(m.Rules) > 0 {
 			if innerRs, ok := m.Rules[0].(*Ruleset); ok {
@@ -507,14 +516,10 @@ func (m *Media) BubbleSelectors(selectors any) {
 		}
 	}
 
-	// Idempotency check: if selectors were already bubbled, skip to avoid creating
-	// duplicate wrapper Rulesets that would lose their Paths from JoinSelectorVisitor
-	if m.selectorsBubbled {
-		if os.Getenv("LESS_GO_TRACE") != "" || os.Getenv("LESS_GO_DEBUG") == "1" {
-			fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors] Skipping - already bubbled\n")
-		}
-		return
-	}
+	// NOTE: Unlike an earlier version, we do NOT have an idempotency check here.
+	// In JavaScript, bubbleSelectors() can be called multiple times from different
+	// parent rulesets, each wrapping their selectors around the media's rules.
+	// This is essential for building up nested selector paths like .first .second .third.
 
 	if selectors == nil {
 		return
@@ -573,7 +578,6 @@ func (m *Media) BubbleSelectors(selectors any) {
 	}
 	m.Rules = []any{newRuleset}
 	m.SetParent(m.Rules, m.Node)
-	m.selectorsBubbled = true
 }
 
 // GenCSS generates CSS representation
