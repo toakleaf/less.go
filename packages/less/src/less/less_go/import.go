@@ -368,13 +368,18 @@ func (i *Import) EvalPath(context any) any {
 				}
 				if requiresRewrite {
 					if rootpath, ok := fileInfo["rootpath"].(string); ok {
-						// Use RewritePathForImport which doesn't add "./" prefix
-						// @import paths should be output without explicit relative prefix
-						// (unlike url() which does use "./" prefix)
-						newValue = evalCtx.RewritePathForImport(pathValueStr, rootpath)
+						// When rewriteUrls is ALL (truthy), don't add "./" prefix for @imports
+						// When rewriteUrls is OFF, preserve "./" for explicit local relative paths
+						if evalCtx.RewriteUrls == RewriteUrlsAll {
+							// Use NormalizePath with rootpath, don't add "./"
+							newValue = evalCtx.NormalizePath(rootpath + pathValueStr)
+						} else {
+							// Use RewritePath which adds "./" when original path was local relative
+							newValue = evalCtx.RewritePath(pathValueStr, rootpath)
+						}
 						needsUpdate = true
 						if os.Getenv("LESS_GO_DEBUG") == "1" {
-							fmt.Printf("[DEBUG Import.EvalPath] Rewriting %q -> %q (rootpath=%q)\n", pathValueStr, newValue, rootpath)
+							fmt.Printf("[DEBUG Import.EvalPath] Rewriting %q -> %q (rootpath=%q, rewriteUrls=%d)\n", pathValueStr, newValue, rootpath, evalCtx.RewriteUrls)
 						}
 					}
 				} else {
