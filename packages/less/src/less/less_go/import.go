@@ -148,14 +148,21 @@ func (i *Import) GenCSS(context any, output *CSSOutput) {
 	// Match JavaScript: this.css && this.path._fileInfo.reference === undefined
 	if i.css {
 		// Check path._fileInfo.reference like JavaScript
+		// In JS, reference is checked with === undefined, meaning only skip if reference is NOT undefined.
+		// However, reference: false should still allow output (only reference: true should skip).
+		// The JS behavior is: skip output if reference is explicitly set (truthy).
 		var shouldOutput bool = true
 		if pathWithFileInfo, ok := i.path.(interface{ FileInfo() map[string]any }); ok {
 			fileInfo := pathWithFileInfo.FileInfo()
-			if fileInfo != nil && fileInfo["reference"] != nil {
-				shouldOutput = false
+			// Only skip output if reference is truthy (e.g., true for @import (reference) "file.css")
+			// reference: false or missing reference should still allow output
+			if fileInfo != nil {
+				if ref, ok := fileInfo["reference"].(bool); ok && ref {
+					shouldOutput = false
+				}
 			}
 		}
-		
+
 		if shouldOutput {
 			output.Add("@import ", i._fileInfo, i._index)
 			if pathGen, ok := i.path.(interface{ GenCSS(any, *CSSOutput) }); ok {
@@ -170,6 +177,25 @@ func (i *Import) GenCSS(context any, output *CSSOutput) {
 			output.Add(";", nil, nil)
 		}
 	}
+}
+
+// IsVisible returns true if this CSS import should be output (not a reference import)
+// This is needed for proper newline handling in Ruleset.GenCSS
+func (i *Import) IsVisible() bool {
+	// CSS imports are visible unless they're reference imports
+	if !i.css {
+		return false
+	}
+	// Check if this is a reference import (should not output)
+	if pathWithFileInfo, ok := i.path.(interface{ FileInfo() map[string]any }); ok {
+		fileInfo := pathWithFileInfo.FileInfo()
+		if fileInfo != nil {
+			if ref, ok := fileInfo["reference"].(bool); ok && ref {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // pathFileInfoReference gets the reference from path's file info
@@ -558,7 +584,10 @@ func (i *Import) DoEval(context any) (any, error) {
 
 	// Handle CSS imports
 	if i.css {
-		newImport := NewImport(i.EvalPath(context), features, i.options, i._index, i._fileInfo, nil)
+		// Note: Pass nil for fileInfo to prevent double path rewriting when the new Import is evaluated again.
+		// JavaScript does the same: new Import(this.evalPath(context), features, this.options, this._index)
+		// The _index parameter is the 4th arg, and fileInfo is omitted (undefined in JS).
+		newImport := NewImport(i.EvalPath(context), features, i.options, i._index, nil, nil)
 		if !newImport.css && i.error != nil {
 			return nil, i.error
 		}
