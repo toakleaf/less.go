@@ -148,17 +148,16 @@ When working on this project, please be aware of the following:
    - `LESS_GO_STRICT=1` - Fail tests on any output difference (useful for CI)
    - `LESS_GO_TRACE=1` - Show evaluation trace (for debugging specific issues)
 
-6. **Current Integration Test Status** (as of 2025-11-13 - Latest Verified Measurement - UPDATED):
-   - **83 perfect CSS matches (45.1%)** - EXCELLENT PROGRESS! ✅ (⬆️ +1 from previous run, +3 from 2025-11-12)
+6. **Current Integration Test Status** (as of 2025-11-26 - Latest Verified Measurement - UPDATED):
+   - **87 perfect CSS matches (47.3%)** - EXCELLENT PROGRESS! ✅ (⬆️ +4 from 2025-11-13)
    - **3 compilation failures (1.6%)** - All external (network/packages) - expected
-   - **87 correct error handling (47.3%)** - tests that should fail, do fail correctly (stable)
-   - **9 tests with CSS output differences (4.9%)** - compiles but CSS doesn't match ⬇️ (-1 from 10!)
-   - **2 incorrect error handling (1.1%)** - tests that should error but succeed (stable)
-   - **Overall Success Rate: 92.4%** ✅ (170/184 tests perfect matches or correctly erroring) ⬆️ (+0.6% from 91.8%)
+   - **89 correct error handling (48.4%)** - tests that should fail, do fail correctly ⬆️ (+2)
+   - **5 tests with CSS output differences (2.7%)** - compiles but CSS doesn't match ⬇️ (-4 from 9!)
+   - **Overall Success Rate: 95.7%** ✅ (176/184 tests perfect matches or correctly erroring) ⬆️ (+3.3% from 92.4%)
    - **Compilation Rate: 98.4%** (181/184 tests compile successfully)
-   - **Perfect CSS Match Rate: 45.1%** ⬆️
+   - **Perfect CSS Match Rate: 47.3%** ⬆️
    - **✅ NO REGRESSIONS** - All previously passing tests still passing + new improvements!
-   - **🎉 CONTINUING PROGRESS**: +1 perfect match, -1 output difference, +0.6% success rate! 🎉
+   - **🎉 CONTINUING PROGRESS**: +4 perfect matches, -4 output differences since 2025-11-13! 🎉
 
    **🎉 Parser Status: ALL BUGS FIXED!**
    - Parser correctly handles full LESS syntax
@@ -226,22 +225,25 @@ When working on this project, please be aware of the following:
    - Compare with JavaScript implementation when fixing issues
    - See `.claude/tasks/` for specific task specifications
 
-   **Priority Order** (High to Low) - Updated 2025-11-13 (Current Run):
+   **Priority Order** (High to Low) - Updated 2025-11-26 (Current Run):
 
-   **9 Output Differences Remaining** (tests compile but CSS doesn't match):
+   **5 Output Differences Remaining** (tests compile but CSS doesn't match):
    1. **HIGH**: Import reference (2 tests) - import-reference, import-reference-issues
-   2. **HIGH**: Detached rulesets (1 test) - detached-rulesets (media query merging - root cause identified)
-   3. **HIGH**: URL variants (3 tests) - urls in main/static-urls/url-args
-   4. **MEDIUM**: CSS output formatting (3 tests) - container, directives-bubling, media
+   2. **MEDIUM**: CSS output formatting (3 tests) - directives-bubling, media, urls
 
    **Other Issues**:
-   5. **MEDIUM**: Error handling - 2 tests that should fail but succeed (color-func-invalid-color-2, javascript-undefined-var)
-   6. **LOW**: External dependencies - 3 tests (bootstrap4, google, import-module) - network/packages - expected failures
-   7. **LOW**: Unit test bug - Fix timeout in circular dependency test (not affecting functionality)
+   3. **LOW**: External dependencies - 3 tests (bootstrap4, google, import-module) - network/packages - expected failures
+   4. **LOW**: Unit test bug - Fix timeout in circular dependency test (not affecting functionality)
+
+   **Recently Fixed** (since 2025-11-13):
+   - ✅ detached-rulesets - media query merging now working!
+   - ✅ container - CSS output formatting fixed!
+   - ✅ url tests in static-urls and url-args - now passing!
+   - ✅ +2 additional error handling tests now correctly validating
 
    **Recently Completed** (Past 6 weeks):
-   - ✅ **LATEST (2025-11-13 - CURRENT)**: 83 perfect matches! Steady progress with +1 match, -1 output diff!
-   - ✅ **2025-11-13 EARLIER**: +2 perfect matches! From 80 → 82 tests! +8 error validation tests now passing!
+   - ✅ **LATEST (2025-11-26 - CURRENT)**: 87 perfect matches! +4 from 2025-11-13, only 5 output diffs remaining!
+   - ✅ **2025-11-13**: 83 perfect matches! Steady progress with +1 match, -1 output diff!
    - ✅ **MASSIVE BREAKTHROUGH**: +45 perfect matches! From 34 → 79 tests! 🎉
    - ✅ **Week 4 WINS**: +10 perfect matches! From 69 → 79 tests!
    - ✅ **ALL namespacing tests FIXED**: 11/11 namespacing tests perfect matches (100% complete!)
@@ -256,11 +258,10 @@ When working on this project, please be aware of the following:
    - ✅ **Parser fully fixed**: All real compilation failures resolved!
    - ✅ **ZERO REGRESSIONS**: All previously passing tests continue to pass
 
-   **Error Handling Milestone** (2025-11-13):
-   - **80% of error validation tests now working correctly!** (87/89 total)
-   - Error tests improved from 10 failing → 2 failing (-80% reduction!)
-   - Success rate increased from 86.4% → 91.8%
-   - Only 2 remaining error tests: color-func-invalid-color-2, javascript-undefined-var
+   **Error Handling Milestone** (2025-11-26):
+   - **89 correct error handling tests!** (48.4% of all tests)
+   - Overall success rate now at 95.7%
+   - Only 5 output differences remaining to reach 100% perfect match goal
 
 9. **Quarantined Features** (for future implementation):
    - Plugin system tests (`plugin`, `plugin-module`, `plugin-preeval`)
