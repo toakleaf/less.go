@@ -618,6 +618,17 @@ func (r *Ruleset) Eval(context any) (any, error) {
 		mediaBlockCount = len(mediaBlocks)
 	}
 
+	if os.Getenv("LESS_GO_TRACE") != "" {
+		firstSelContent := "none"
+		if len(selectors) > 0 {
+			if s, ok := selectors[0].(*Selector); ok && len(s.Elements) > 0 {
+				firstSelContent = fmt.Sprintf("%v", s.Elements[0].Value)
+			}
+		}
+		fmt.Fprintf(os.Stderr, "[RULESET.Eval] START: firstSel=%s, mediaBlockCount=%d, Root=%v\n",
+			firstSelContent, mediaBlockCount, r.Root)
+	}
+
 	// Evaluate mixin calls and variable calls - match JavaScript logic closely
 	if rsRules != nil {
 		i := 0
@@ -814,8 +825,8 @@ func (r *Ruleset) Eval(context any) (any, error) {
 				firstSelContent = fmt.Sprintf("%v", s.Elements[0].Value)
 			}
 		}
-		fmt.Fprintf(os.Stderr, "[RULESET.Eval] BubbleSelectors section: mediaBlockCount=%d, len(mediaBlocks)=%d, len(selectors)=%d, firstSel=%s\n",
-			mediaBlockCount, mbLen, len(selectors), firstSelContent)
+		fmt.Fprintf(os.Stderr, "[RULESET.Eval] BubbleSelectors section: mediaBlockCount=%d, len(mediaBlocks)=%d, len(selectors)=%d, firstSel=%s, Root=%v\n",
+			mediaBlockCount, mbLen, len(selectors), firstSelContent, ruleset.Root)
 	}
 
 	if mediaBlocks != nil {
