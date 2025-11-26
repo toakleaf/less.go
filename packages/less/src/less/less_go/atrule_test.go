@@ -173,7 +173,8 @@ func TestAtRule(t *testing.T) {
 		t.Run("should visit rules when present", func(t *testing.T) {
 			rule := NewRuleset(nil, nil, false, nil)
 			visitedRule := NewRuleset(nil, nil, false, nil)
-			atRule := NewAtRule("@media", nil, []any{rule}, 0, nil, nil, false, nil)
+			// Use @supports which is a bubblable at-rule that visits its children
+			atRule := NewAtRule("@supports", nil, []any{rule}, 0, nil, nil, false, nil)
 
 			visitArrayCalled := false
 			visitor := &atRuleMockVisitor{
