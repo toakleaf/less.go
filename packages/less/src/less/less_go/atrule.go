@@ -123,15 +123,10 @@ func (a *AtRule) GetIsRooted() bool {
 }
 
 // GetRules returns the rules array (for ToCSSVisitor extraction)
-// Only @supports and @document should use this for extraction
-// This handles vendor-prefixed variants like @-moz-document
+// All at-rules with rules should be extractable (not just @supports/@document)
+// This matches JavaScript behavior where any node with .rules gets extracted
 func (a *AtRule) GetRules() []any {
-	// Only return rules for directives that should be extracted
-	nonVendorName := stripVendorPrefix(a.Name)
-	if nonVendorName == "@supports" || nonVendorName == "@document" {
-		return a.Rules
-	}
-	return nil
+	return a.Rules
 }
 
 // SetRules sets the rules array (for ToCSSVisitor extraction)
@@ -155,24 +150,17 @@ func (a *AtRule) ToCSS(context any) string {
 }
 
 // Accept visits the node with a visitor
+// Matches JavaScript behavior: visits all rules and value for ALL at-rules
 func (a *AtRule) Accept(visitor any) {
-	// Only visit rules for bubblable at-rules (@supports/@document)
-	// For other at-rules (like @keyframes), the original behavior was to NOT visit
-	// children through Accept (the interface check was silently failing)
-	nonVendorName := stripVendorPrefix(a.Name)
-	isBubblable := nonVendorName == "@supports" || nonVendorName == "@document"
-
-	if isBubblable {
+	// Visit rules for ALL at-rules (not just @supports/@document)
+	// This matches JavaScript behavior exactly
+	if a.Rules != nil {
 		// Try the variadic signature first (matches Visitor.VisitArray)
 		if v, ok := visitor.(interface{ VisitArray([]any, ...bool) []any }); ok {
-			if a.Rules != nil {
-				a.Rules = v.VisitArray(a.Rules)
-			}
+			a.Rules = v.VisitArray(a.Rules)
 		} else if v, ok := visitor.(interface{ VisitArray([]any) []any }); ok {
 			// Fallback to non-variadic signature for compatibility
-			if a.Rules != nil {
-				a.Rules = v.VisitArray(a.Rules)
-			}
+			a.Rules = v.VisitArray(a.Rules)
 		}
 	}
 
