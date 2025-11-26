@@ -133,9 +133,17 @@ func SafeEval(value any, context any) any {
 		}()
 		result, err := evaluable.Eval(context)
 		if err != nil {
-			// Check if it's an ArgumentError (LessError with Type="Argument") - these should propagate
-			if lessErr, ok := err.(*LessError); ok && lessErr.Type == "Argument" {
-				panic(err)
+			// Check if it's an error type that should propagate
+			if lessErr, ok := err.(*LessError); ok {
+				// Argument errors (invalid function arguments) should propagate
+				if lessErr.Type == "Argument" {
+					panic(err)
+				}
+				// JavaScript-related errors should propagate
+				// JavaScript expressions are evaluated eagerly, so all errors from them are real
+				if lessErr.Type == "JavaScript" {
+					panic(err)
+				}
 			}
 			// Return original value on other errors to support late binding and graceful degradation
 			// This allows undefined variables and other recoverable errors to be handled gracefully

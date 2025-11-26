@@ -924,8 +924,12 @@ func (a *AtRule) OutputRuleset(context any, output *CSSOutput, rules []any) {
 		}
 
 		output.Add(tabSetStr+"}", nil, nil)
-		// Add newline after closing brace to separate from next top-level rule
-		output.Add("\n", nil, nil)
+		// Add newline after closing brace only for top-level at-rules
+		// (tabLevel == 1 means we were at tabLevel 0 before entering this at-rule)
+		// This prevents extra blank lines when at-rules are nested
+		if tabLevel == 1 {
+			output.Add("\n", nil, nil)
+		}
 	}
 
 	ctx["tabLevel"] = tabLevel - 1

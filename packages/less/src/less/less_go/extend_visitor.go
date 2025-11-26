@@ -647,6 +647,17 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 				// Note: Extend.IsVisible() returns bool (not *bool), taking visibility blocks into account
 				isVisible := allExtends[extendIndex].IsVisible()
 
+				// CRITICAL FIX for import-reference: Also check if the extend's parent Ruleset has visibility blocks
+				// Extends from reference imports don't have visibility blocks themselves, but their parent rulesets do
+				extendRuleset := allExtends[extendIndex].Ruleset
+				if isVisible && extendRuleset != nil && extendRuleset.Node != nil && extendRuleset.Node.BlocksVisibility() {
+					// The extend's parent ruleset has visibility blocks (from reference import)
+					// Only consider this extend visible if its Ruleset has explicit visibility=true
+					if rulesetVis := extendRuleset.Node.IsVisible(); rulesetVis == nil || !*rulesetVis {
+						isVisible = false
+					}
+				}
+
 				if os.Getenv("LESS_GO_TRACE") == "1" {
 					var extendSel string = "?"
 					if len(allExtends[extendIndex].SelfSelectors) > 0 {
@@ -782,22 +793,53 @@ func (pev *ProcessExtendsVisitor) selectorExists(paths [][]any, newPath []any) b
 }
 
 // deduplicatePaths removes duplicate selector paths based on their CSS output
+// When duplicates are found, it prefers the path with visible selectors
 func (pev *ProcessExtendsVisitor) deduplicatePaths(paths [][]any) [][]any {
 	if len(paths) == 0 {
 		return paths
 	}
 
-	// Use a map to track CSS strings we've seen
-	seen := make(map[string]bool)
+	// Use a map to track CSS strings we've seen and their index in unique
+	seenIndex := make(map[string]int)
 	unique := make([][]any, 0, len(paths))
 
 	for _, path := range paths {
 		// Generate CSS for this path
 		css := pev.pathToCSS(path)
 
-		// Only add if we haven't seen this CSS before
-		if !seen[css] {
-			seen[css] = true
+		// Check if this path has any visible selectors
+		pathHasVisible := false
+		for _, selector := range path {
+			if sel, ok := selector.(*Selector); ok {
+				if vis := sel.IsVisible(); vis != nil && *vis {
+					pathHasVisible = true
+					break
+				}
+			}
+		}
+
+		if idx, exists := seenIndex[css]; exists {
+			// We've seen this CSS before - check if we should replace it
+			// Prefer paths with visible selectors
+			if pathHasVisible {
+				existingPath := unique[idx]
+				existingHasVisible := false
+				for _, selector := range existingPath {
+					if sel, ok := selector.(*Selector); ok {
+						if vis := sel.IsVisible(); vis != nil && *vis {
+							existingHasVisible = true
+							break
+						}
+					}
+				}
+				// Replace if existing doesn't have visible but new one does
+				if !existingHasVisible {
+					unique[idx] = path
+				}
+			}
+		} else {
+			// First time seeing this CSS
+			seenIndex[css] = len(unique)
 			unique = append(unique, path)
 		}
 	}
@@ -1290,7 +1332,6 @@ func (pev *ProcessExtendsVisitor) VisitAtRuleOut(atRuleNode any) {
 // from a reference import, we need to make the entire @media or @supports block visible,
 // not just the ruleset.
 func (pev *ProcessExtendsVisitor) makeParentNodesVisible(node *Node) {
-
 	// Mark all Media/AtRule containers in the stack as visible
 	// NOTE: The specific ruleset containing the extended selector has already been marked
 	// visible by the caller, so we don't need to mark child rulesets here.

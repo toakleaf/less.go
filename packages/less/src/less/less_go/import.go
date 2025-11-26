@@ -368,13 +368,18 @@ func (i *Import) EvalPath(context any) any {
 				}
 				if requiresRewrite {
 					if rootpath, ok := fileInfo["rootpath"].(string); ok {
-						// Use RewritePathForImport which doesn't add "./" prefix
-						// @import paths should be output without explicit relative prefix
-						// (unlike url() which does use "./" prefix)
-						newValue = evalCtx.RewritePathForImport(pathValueStr, rootpath)
+						// When rewriteUrls is ALL (truthy), don't add "./" prefix for @imports
+						// When rewriteUrls is OFF, preserve "./" for explicit local relative paths
+						if evalCtx.RewriteUrls == RewriteUrlsAll {
+							// Use NormalizePath with rootpath, don't add "./"
+							newValue = evalCtx.NormalizePath(rootpath + pathValueStr)
+						} else {
+							// Use RewritePath which adds "./" when original path was local relative
+							newValue = evalCtx.RewritePath(pathValueStr, rootpath)
+						}
 						needsUpdate = true
 						if os.Getenv("LESS_GO_DEBUG") == "1" {
-							fmt.Printf("[DEBUG Import.EvalPath] Rewriting %q -> %q (rootpath=%q)\n", pathValueStr, newValue, rootpath)
+							fmt.Printf("[DEBUG Import.EvalPath] Rewriting %q -> %q (rootpath=%q, rewriteUrls=%d)\n", pathValueStr, newValue, rootpath, evalCtx.RewriteUrls)
 						}
 					}
 				} else {
@@ -430,6 +435,11 @@ func (i *Import) Eval(context any) (any, error) {
 		return nil, err
 	}
 
+	// For reference imports, mark ALL nodes with visibility blocks recursively.
+	// This ensures that when nested rulesets are processed during GenCSS, they know
+	// they're from a reference import and should filter paths accordingly.
+	// This differs from JavaScript where the structure is preserved better during evaluation,
+	// but achieves the same result of hiding reference import content unless extended.
 	if i.getBoolOption("reference") || i.BlocksVisibility() {
 		if resultSlice, ok := result.([]any); ok {
 			for _, node := range resultSlice {
@@ -605,7 +615,8 @@ func (i *Import) DoEval(context any) (any, error) {
 				featuresValue = i.features
 			}
 
-			return NewMedia([]any{contents}, featuresValue, i._index, i._fileInfo, nil), nil
+			// Pass Import's visibility info to preserve reference import blocking
+			return NewMedia([]any{contents}, featuresValue, i._index, i._fileInfo, i.VisibilityInfo()), nil
 		}
 		return []any{contents}, nil
 	}
@@ -648,7 +659,8 @@ func (i *Import) DoEval(context any) (any, error) {
 				featuresValue = i.features
 			}
 
-			return NewMedia(ruleset.Rules, featuresValue, i._index, i._fileInfo, nil), nil
+			// Pass Import's visibility info to preserve reference import blocking
+			return NewMedia(ruleset.Rules, featuresValue, i._index, i._fileInfo, i.VisibilityInfo()), nil
 		}
 		return ruleset.Rules, nil
 	}

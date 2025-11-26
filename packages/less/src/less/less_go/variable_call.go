@@ -47,17 +47,17 @@ func (vc *VariableCall) FileInfo() map[string]any {
 
 // Eval evaluates the variable call - match JavaScript implementation
 func (vc *VariableCall) Eval(context any) (result any, err error) {
-	// Debug: trace incoming context for variable calls related to rulesets
-	if os.Getenv("LESS_GO_TRACE") != "" && vc.variable == "@ruleset" {
+	// Debug: trace incoming context for all variable calls
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
 		switch ctx := context.(type) {
 		case *Eval:
-			fmt.Fprintf(os.Stderr, "[VariableCall.Eval] @ruleset context: *Eval, mediaPath len=%d\n", len(ctx.MediaPath))
+			fmt.Fprintf(os.Stderr, "[VariableCall.Eval] %s context: *Eval, mediaPath len=%d, mediaBlocks len=%d\n", vc.variable, len(ctx.MediaPath), len(ctx.MediaBlocks))
 		case map[string]any:
-			if mp, ok := ctx["mediaPath"].([]any); ok {
-				fmt.Fprintf(os.Stderr, "[VariableCall.Eval] @ruleset context: map, mediaPath len=%d\n", len(mp))
-			} else {
-				fmt.Fprintf(os.Stderr, "[VariableCall.Eval] @ruleset context: map, mediaPath is nil or not []any\n")
-			}
+			mp, _ := ctx["mediaPath"].([]any)
+			mb, _ := ctx["mediaBlocks"].([]any)
+			fmt.Fprintf(os.Stderr, "[VariableCall.Eval] %s context: map, mediaPath len=%d, mediaBlocks len=%d\n", vc.variable, len(mp), len(mb))
+		default:
+			fmt.Fprintf(os.Stderr, "[VariableCall.Eval] %s context: unknown type %T\n", vc.variable, context)
 		}
 	}
 
@@ -86,6 +86,9 @@ func (vc *VariableCall) Eval(context any) (result any, err error) {
 	// Debug: check what we got
 	if os.Getenv("LESS_GO_DEBUG") == "1" {
 		fmt.Fprintf(os.Stderr, "[DEBUG VariableCall] %s evaluated to type: %T, value: %+v\n", vc.variable, detachedRuleset, detachedRuleset)
+		if dr, ok := detachedRuleset.(*DetachedRuleset); ok {
+			fmt.Fprintf(os.Stderr, "[DEBUG VariableCall] %s DetachedRuleset frames: nil=%v, len=%d\n", vc.variable, dr.frames == nil, len(dr.frames))
+		}
 	}
 
 	errorMsg := fmt.Sprintf("Could not evaluate variable call %s", vc.variable)

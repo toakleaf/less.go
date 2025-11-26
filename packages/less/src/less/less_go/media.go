@@ -11,9 +11,6 @@ type Media struct {
 	Features any
 	Rules    []any
 	DebugInfo any
-	// evaluated marks this Media node as already evaluated (features merged by evalNested)
-	// This prevents double-merging when the node is re-evaluated
-	evaluated bool
 	selectorsBubbled bool // Track if BubbleSelectors was already called
 }
 
@@ -143,6 +140,15 @@ func (m *Media) EvalTop(context any) any {
 								fmt.Fprintf(os.Stderr, "[MEDIA.EvalTop]     Media[%d] inner ruleset has %d rules\n", i, len(innerRs.Rules))
 								for j, r := range innerRs.Rules {
 									fmt.Fprintf(os.Stderr, "[MEDIA.EvalTop]       inner rule[%d]: type=%T\n", j, r)
+									// Additional debugging for Ruleset rules
+									if subRs, ok := r.(*Ruleset); ok {
+										fmt.Fprintf(os.Stderr, "[MEDIA.EvalTop]         sub-ruleset selectors=%d, rules=%d\n", len(subRs.Selectors), len(subRs.Rules))
+										for k, sel := range subRs.Selectors {
+											if s, ok := sel.(*Selector); ok {
+												fmt.Fprintf(os.Stderr, "[MEDIA.EvalTop]           selector[%d]: elements=%d\n", k, len(s.Elements))
+											}
+										}
+									}
 								}
 							}
 						}
@@ -377,10 +383,10 @@ func (m *Media) EvalNested(context any) any {
 		m.SetParent(m.Features, m.Node)
 	}
 
-	// Mark this node as evaluated to prevent double-merging if re-evaluated
-	m.evaluated = true
-
 	// Return fake tree-node that doesn't output anything
+	// NOTE: We intentionally do NOT set an "evaluated" flag here. In JavaScript, Media nodes
+	// can be re-evaluated multiple times, which is essential for combining features with parent
+	// media contexts (e.g., when mixins return Media nodes that need to combine with outer @media).
 	return NewRuleset([]any{}, []any{}, false, nil)
 }
 
@@ -489,7 +495,7 @@ func (m *Media) BubbleSelectors(selectors any) {
 				featuresStr = fmt.Sprintf("%T", m.Features)
 			}
 		}
-		fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors] Features: %s, selectors: %v, alreadyBubbled: %v\n", featuresStr, selectors, m.selectorsBubbled)
+		fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors] m=%p Features: %s, selectors: %v, alreadyBubbled: %v\n", m, featuresStr, selectors, m.selectorsBubbled)
 		fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors] m.Rules count: %d\n", len(m.Rules))
 		if len(m.Rules) > 0 {
 			if innerRs, ok := m.Rules[0].(*Ruleset); ok {
@@ -619,30 +625,12 @@ func (m *Media) Eval(context any) (any, error) {
 		return nil, fmt.Errorf("context is required for Media.Eval")
 	}
 
-	// If this Media node was already evaluated (by evalNested), return an empty Ruleset
-	// as a placeholder. This prevents double-merging of features when the node is
-	// re-evaluated by a parent context. The actual content is in mediaBlocks and will
-	// be output from there.
-	if m.evaluated {
-		if os.Getenv("LESS_GO_TRACE") != "" {
-			origFeatures := ""
-			if gen, ok := m.Features.(interface{ ToCSS(any) string }); ok {
-				origFeatures = gen.ToCSS(nil)
-			}
-			fmt.Fprintf(os.Stderr, "[MEDIA.Eval] Skipping already-evaluated node m=%p features=%q, returning empty Ruleset\n", m, origFeatures)
-		}
-		// Return empty Ruleset as placeholder - the actual content is in mediaBlocks
-		return NewRuleset([]any{}, []any{}, false, nil), nil
-	}
-
-	if os.Getenv("LESS_GO_TRACE") != "" {
-		// Log original AST node's features
-		origFeatures := ""
-		if gen, ok := m.Features.(interface{ ToCSS(any) string }); ok {
-			origFeatures = gen.ToCSS(nil)
-		}
-		fmt.Fprintf(os.Stderr, "[MEDIA.Eval] Starting eval, m=%p features=%q\n", m, origFeatures)
-	}
+	// NOTE: Unlike an earlier version of this code, we do NOT check for an "evaluated" flag here.
+	// In JavaScript, Media nodes CAN be re-evaluated multiple times. This is essential when:
+	// 1. A mixin returns rules containing Media nodes
+	// 2. Those rules are spliced into the parent's Ruleset.eval "Evaluate everything else" loop
+	// 3. The Media nodes are re-evaluated with the parent's context (which may have additional mediaPath entries)
+	// 4. This re-evaluation causes features to be properly combined (e.g., portrait + widescreen)
 
 	// Convert to *Eval context if needed
 	var evalCtx *Eval
@@ -662,8 +650,43 @@ func (m *Media) Eval(context any) (any, error) {
 		evalCtx.MediaPath = []any{}
 	}
 
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		// Log original AST node's features
+		origFeatures := ""
+		if gen, ok := m.Features.(interface{ ToCSS(any) string }); ok {
+			origFeatures = gen.ToCSS(nil)
+		}
+		// Also log what's in m.Rules[0]
+		rulesInfo := ""
+		if len(m.Rules) > 0 {
+			if rs, ok := m.Rules[0].(*Ruleset); ok {
+				rulesInfo = fmt.Sprintf(" innerRuleset.Rules=%d", len(rs.Rules))
+				for j, r := range rs.Rules {
+					rulesInfo += fmt.Sprintf(" [%d]=%T", j, r)
+				}
+			}
+		}
+		fmt.Fprintf(os.Stderr, "[MEDIA.Eval] m=%p features=%q mediaPath=%d mediaBlocks=%d%s\n", m, origFeatures, len(evalCtx.MediaPath), len(evalCtx.MediaBlocks), rulesInfo)
+	}
+
 	// Match JavaScript: const media = new Media(null, [], this._index, this._fileInfo, this.visibilityInfo())
 	media := NewMedia(nil, []any{}, m.GetIndex(), m.FileInfo(), m.VisibilityInfo())
+
+	// CRITICAL FIX: Propagate visibility blocks from parent Media in the mediaPath
+	// This ensures that nested @media inside reference imports also block visibility
+	// even though only the top-level node gets AddVisibilityBlock() called
+	if m.Node != nil && !m.Node.BlocksVisibility() && len(evalCtx.MediaPath) > 0 {
+		// Check if any parent in mediaPath has visibility blocks
+		for _, parent := range evalCtx.MediaPath {
+			if parentMedia, ok := parent.(*Media); ok {
+				if parentMedia.Node != nil && parentMedia.Node.BlocksVisibility() {
+					// Parent has visibility blocks - propagate to this media
+					media.Node.AddVisibilityBlock()
+					break
+				}
+			}
+		}
+	}
 
 	if os.Getenv("LESS_GO_TRACE") != "" {
 		fmt.Fprintf(os.Stderr, "[MEDIA.Eval] Created NEW media=%p, mediaPath len=%d\n", media, len(evalCtx.MediaPath))
@@ -769,10 +792,10 @@ func (m *Media) Eval(context any) (any, error) {
 		evalCtx.MediaPath = evalCtx.MediaPath[:len(evalCtx.MediaPath)-1]
 	}
 
-	// NOTE: Do NOT call BubbleSelectors here! JavaScript's Media.eval() does NOT call bubbleSelectors.
-	// Instead, Ruleset.eval() calls bubbleSelectors on all media blocks after evaluating its rules.
-	// This ensures proper selector accumulation through nested levels.
-	// See JavaScript: ruleset.js lines 219-223
+	// NOTE: Do NOT call BubbleSelectors here. In JavaScript, bubbleSelectors is ONLY called
+	// from Ruleset.eval at the end, after all rules are evaluated. Calling it here causes
+	// duplicate selector wrapping (e.g., "header header" instead of "header") when detached
+	// rulesets are evaluated inside media queries.
 
 	// Match JavaScript: return context.mediaPath.length === 0 ? media.evalTop(context) : media.evalNested(context);
 	if len(evalCtx.MediaPath) == 0 {
@@ -874,8 +897,44 @@ func (m *Media) evalWithMapContext(ctx map[string]any) (any, error) {
 		ctx["mediaPath"] = []any{}
 	}
 
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		// Log original AST node's features
+		origFeatures := ""
+		if gen, ok := m.Features.(interface{ ToCSS(any) string }); ok {
+			origFeatures = gen.ToCSS(nil)
+		}
+		// Also log what's in m.Rules[0]
+		rulesInfo := ""
+		if len(m.Rules) > 0 {
+			if rs, ok := m.Rules[0].(*Ruleset); ok {
+				rulesInfo = fmt.Sprintf(" innerRuleset.Rules=%d", len(rs.Rules))
+				for j, r := range rs.Rules {
+					rulesInfo += fmt.Sprintf(" [%d]=%T", j, r)
+				}
+			}
+		}
+		mediaPath, _ := ctx["mediaPath"].([]any)
+		mediaBlocks, _ := ctx["mediaBlocks"].([]any)
+		fmt.Fprintf(os.Stderr, "[MEDIA.evalWithMapContext] m=%p features=%q mediaPath=%d mediaBlocks=%d%s\n", m, origFeatures, len(mediaPath), len(mediaBlocks), rulesInfo)
+	}
+
 	// Match JavaScript: const media = new Media(null, [], this._index, this._fileInfo, this.visibilityInfo())
 	media := NewMedia(nil, []any{}, m.GetIndex(), m.FileInfo(), m.VisibilityInfo())
+
+	// CRITICAL FIX: Propagate visibility blocks from parent Media in the mediaPath
+	// This ensures that nested @media inside reference imports also block visibility
+	if m.Node != nil && !m.Node.BlocksVisibility() {
+		if mediaPath, ok := ctx["mediaPath"].([]any); ok && len(mediaPath) > 0 {
+			for _, parent := range mediaPath {
+				if parentMedia, ok := parent.(*Media); ok {
+					if parentMedia.Node != nil && parentMedia.Node.BlocksVisibility() {
+						media.Node.AddVisibilityBlock()
+						break
+					}
+				}
+			}
+		}
+	}
 
 	// Match JavaScript: if (this.debugInfo) { this.rules[0].debugInfo = this.debugInfo; media.debugInfo = this.debugInfo; }
 	if m.DebugInfo != nil {
@@ -943,6 +1002,16 @@ func (m *Media) evalWithMapContext(ctx map[string]any) (any, error) {
 			}
 			media.Rules = []any{evaluated}
 
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Fprintf(os.Stderr, "[MEDIA.evalWithMapContext] After setting media.Rules, evaluated type=%T\n", evaluated)
+				if evalRS, ok := evaluated.(*Ruleset); ok {
+					fmt.Fprintf(os.Stderr, "[MEDIA.evalWithMapContext]   Evaluated Ruleset: Selectors=%d, Rules=%d\n", len(evalRS.Selectors), len(evalRS.Rules))
+					for i, r := range evalRS.Rules {
+						fmt.Fprintf(os.Stderr, "[MEDIA.evalWithMapContext]     Rules[%d]: type=%T\n", i, r)
+					}
+				}
+			}
+
 			// Match JavaScript: context.frames.shift();
 			if currentFrames, ok := ctx["frames"].([]any); ok && len(currentFrames) > 0 {
 				ctx["frames"] = currentFrames[1:]
@@ -957,6 +1026,9 @@ func (m *Media) evalWithMapContext(ctx map[string]any) (any, error) {
 
 	// Match JavaScript: return context.mediaPath.length === 0 ? media.evalTop(context) : media.evalNested(context);
 	if mediaPath, ok := ctx["mediaPath"].([]any); ok {
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Fprintf(os.Stderr, "[MEDIA.evalWithMapContext] mediaPath len after pop=%d, calling %s\n", len(mediaPath), func() string { if len(mediaPath) == 0 { return "evalTop" } else { return "evalNested" } }())
+		}
 		if len(mediaPath) == 0 {
 			result := media.EvalTop(ctx)
 			return result, nil

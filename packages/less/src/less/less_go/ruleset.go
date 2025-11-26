@@ -335,6 +335,18 @@ func (r *Ruleset) Accept(visitor any) {
 		if len(r.Rules) > 0 {
 			r.Rules = v.VisitArray(r.Rules)
 		}
+	} else if v, ok := visitor.(interface{ VisitArray(any) any }); ok {
+		// Handle reflection-based visitors like SetTreeVisibilityVisitor
+		if r.Paths != nil {
+			for _, path := range r.Paths {
+				v.VisitArray(path)
+			}
+		} else if r.Selectors != nil {
+			v.VisitArray(r.Selectors)
+		}
+		if len(r.Rules) > 0 {
+			v.VisitArray(r.Rules)
+		}
 	}
 }
 
@@ -1698,30 +1710,29 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 					continue
 				}
 
-				// Check if any selector in the path is invisible
-				// If so, skip this entire path
+				// Visibility filtering for reference imports:
+				// Check if THIS RULESET blocks visibility (from reference import)
+				// If it does, paths need at least one explicitly visible selector (from extend)
+				// If it doesn't, all paths pass through
+				rulesetBlocksVisibility := r.Node != nil && r.Node.BlocksVisibility()
+
 				pathIsVisible := true
-				for _, pathElem := range path {
-					if sel, ok := pathElem.(*Selector); ok {
-						if sel.Node != nil {
-							// Check if selector blocks visibility (from reference imports)
-							if sel.Node.BlocksVisibility() {
-								selVisible := sel.Node.IsVisible()
-								if selVisible == nil || !*selVisible {
-									pathIsVisible = false
-									break
-								}
-							} else {
-								// Even if not blocking visibility, check if explicitly marked invisible
-								// This handles selectors marked invisible by extend processing
-								selVisible := sel.Node.IsVisible()
-								if selVisible != nil && !*selVisible {
-									pathIsVisible = false
+				if rulesetBlocksVisibility {
+					// Ruleset blocks visibility - need at least one explicitly visible selector
+					pathHasVisibleSelector := false
+					for _, pathElem := range path {
+						if sel, ok := pathElem.(*Selector); ok {
+							// Check if selector is explicitly visible (set by extend processing)
+							if sel.Node != nil {
+								nodeVis := sel.Node.IsVisible()
+								if nodeVis != nil && *nodeVis && sel.EvaldCondition {
+									pathHasVisibleSelector = true
 									break
 								}
 							}
 						}
 					}
+					pathIsVisible = pathHasVisibleSelector
 				}
 
 				if !pathIsVisible {

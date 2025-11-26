@@ -625,18 +625,21 @@ func (md *MixinDefinition) EvalCall(context any, args []any, important bool) (*R
 	}
 
 	// Create mixin environment
+	// NOTE: Do NOT copy mediaBlocks/mediaPath from parent context, matching JavaScript's
+	// contexts.Eval which doesn't include them in evalCopyProperties
 	mixinEnv := map[string]any{
 		"frames": mixinFrames,
 	}
 	if ctx, ok := context.(map[string]any); ok {
 		for k, v := range ctx {
-			if k != "frames" {
+			if k != "frames" && k != "mediaBlocks" && k != "mediaPath" {
 				mixinEnv[k] = v
 			}
 		}
 	} else if evalCtx, ok := context.(*Eval); ok {
-		// Efficiently copy Eval fields to map (with closures for compatibility)
-		evalCtx.CopyEvalToMap(mixinEnv, true)
+		// Efficiently copy Eval fields to map, but NOT mediaBlocks/mediaPath
+		// (matching JavaScript's contexts.Eval which doesn't include them in evalCopyProperties)
+		evalCtx.CopyEvalToMap(mixinEnv, false)
 	}
 
 	// Evaluate parameters
@@ -684,13 +687,19 @@ func (md *MixinDefinition) EvalCall(context any, args []any, important bool) (*R
 	}
 	if ctx, ok := context.(map[string]any); ok {
 		for k, v := range ctx {
-			if k != "frames" {
+			// Skip "frames" (already set), and "mediaBlocks"/"mediaPath" which should NOT be
+			// inherited. In JavaScript's contexts.Eval constructor, mediaBlocks and mediaPath
+			// are NOT in evalCopyProperties, meaning mixin body evaluation gets a fresh media
+			// context. This is critical for correct media query merging when a mixin contains
+			// nested @media rules with detached ruleset calls.
+			if k != "frames" && k != "mediaBlocks" && k != "mediaPath" {
 				evalContext[k] = v
 			}
 		}
 	} else if evalCtx, ok := context.(*Eval); ok {
 		// Efficiently copy Eval fields to map (with closures for compatibility)
-		evalCtx.CopyEvalToMap(evalContext, true)
+		// Pass false for includeMediaContext to NOT copy mediaBlocks/mediaPath
+		evalCtx.CopyEvalToMap(evalContext, false)
 	}
 
 	// Debug: trace evalContext mediaPath after copy
@@ -707,21 +716,12 @@ func (md *MixinDefinition) EvalCall(context any, args []any, important bool) (*R
 		return nil, err
 	}
 
-	// Copy mediaBlocks and mediaPath back to parent context
-	// This ensures that Media nodes created inside the mixin are propagated up
-	if childBlocks, hasChild := evalContext["mediaBlocks"].([]any); hasChild && len(childBlocks) > 0 {
-		if parentEval, ok := context.(*Eval); ok {
-			parentEval.MediaBlocks = childBlocks
-			if childPath, hasPath := evalContext["mediaPath"].([]any); hasPath {
-				parentEval.MediaPath = childPath
-			}
-		} else if parentMap, ok := context.(map[string]any); ok {
-			parentMap["mediaBlocks"] = childBlocks
-			if childPath, hasPath := evalContext["mediaPath"].([]any); hasPath {
-				parentMap["mediaPath"] = childPath
-			}
-		}
-	}
+	// NOTE: Do NOT propagate mediaBlocks/mediaPath back to parent context.
+	// Since the mixin body evaluation now has a fresh media context (matching JavaScript
+	// where mediaBlocks/mediaPath are NOT in evalCopyProperties), the media blocks
+	// collected in the mixin body are returned as part of the evaluated rules via
+	// Media.evalTop's return value (either the single media node or a MultiMedia ruleset).
+	// The parent will receive these media nodes as part of the mixin's evaluated rules.
 
 	evaluatedRuleset, ok := evaluated.(*Ruleset)
 	if !ok {

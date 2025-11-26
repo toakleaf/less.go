@@ -191,7 +191,11 @@ func (e *Eval) ToMap() map[string]any {
 
 // CopyEvalToMap efficiently copies Eval fields to an existing map, excluding frames
 // This avoids the overhead of creating closures every time when they're not needed
-func (e *Eval) CopyEvalToMap(target map[string]any, withClosures bool) {
+// Parameters:
+//   - includeMediaContext: if true, also copy mediaBlocks and mediaPath
+//     (should be false for mixin evaluation to match JavaScript behavior where
+//     mediaBlocks/mediaPath are NOT in evalCopyProperties)
+func (e *Eval) CopyEvalToMap(target map[string]any, includeMediaContext bool) {
 	target["paths"] = e.Paths
 	target["compress"] = e.Compress
 	target["math"] = e.Math
@@ -204,25 +208,28 @@ func (e *Eval) CopyEvalToMap(target map[string]any, withClosures bool) {
 	target["importantScope"] = e.ImportantScope
 	target["rewriteUrls"] = e.RewriteUrls
 	target["numPrecision"] = e.NumPrecision
-	target["mediaBlocks"] = e.MediaBlocks
-	target["mediaPath"] = e.MediaPath
 	target["inCalc"] = e.InCalc
 	target["mathOn"] = e.MathOn
 
-	// Only add closures if requested (they're expensive to create)
-	if withClosures {
-		// Pass the *Eval instance directly instead of creating closures
-		// The consuming code can call methods on it directly
-		target["_evalContext"] = e
-		target["inParenthesis"] = func() {
-			e.InParenthesis()
-		}
-		target["outOfParenthesis"] = func() {
-			e.OutOfParenthesis()
-		}
-		target["isMathOn"] = func(op string) bool {
-			return e.IsMathOnWithOp(op)
-		}
+	// Always copy closure functions - they're needed for math evaluation
+	target["_evalContext"] = e
+	target["inParenthesis"] = func() {
+		e.InParenthesis()
+	}
+	target["outOfParenthesis"] = func() {
+		e.OutOfParenthesis()
+	}
+	target["isMathOn"] = func(op string) bool {
+		return e.IsMathOnWithOp(op)
+	}
+
+	// Only include mediaBlocks/mediaPath if requested
+	// In JavaScript's contexts.Eval constructor, these are NOT copied (they're not in
+	// evalCopyProperties), so mixin body evaluation gets a fresh media context.
+	// This is critical for correct media query merging order.
+	if includeMediaContext {
+		target["mediaBlocks"] = e.MediaBlocks
+		target["mediaPath"] = e.MediaPath
 	}
 }
 
