@@ -714,10 +714,12 @@ func (v *ToCSSVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitArgs) any {
 		if firstRootNode, ok := rulesetNode.(interface{ GetFirstRoot() bool }); ok {
 			isFirstRoot = firstRootNode.GetFirstRoot()
 		}
-		
-		// Special check: if this is a ruleset with no selectors at the root level,
-		// we need to check if it contains only properties (which would be invalid)
-		if isFirstRoot || v.isRulesetAtRoot(rulesetNode) {
+
+		// Special check: if this is the file root and contains selector-less rulesets
+		// with only properties, that would be invalid CSS
+		// Note: We only check isFirstRoot here, matching JavaScript behavior exactly.
+		// Do NOT use isRulesetAtRoot() which incorrectly returns true for @font-face/@keyframes inner rulesets
+		if isFirstRoot {
 			if selNode, ok := rulesetNode.(interface{ GetSelectors() []any }); ok {
 				selectors := selNode.GetSelectors()
 				if len(selectors) == 0 && v.containsOnlyProperties(rules) {
@@ -745,7 +747,7 @@ func (v *ToCSSVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitArgs) any {
 				}
 			}
 		}
-		
+
 		if err := v.CheckValidNodes(rules, isFirstRoot); err != nil {
 			panic(err) // Matches JS behavior of throwing errors
 		}
