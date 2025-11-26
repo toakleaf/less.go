@@ -322,36 +322,11 @@ func (s *Selector) Match(other *Selector) int {
 	return lenOther
 }
 
-var mixinElementsRegex *regexp.Regexp
-
-func init() {
-	// JS regex: /[,&#*.\w-]([\w-]|(\\.))*/g
-	// `\w` is [A-Za-z0-9_]. `.` in `[]` is literal. `-` needs care. `\\.` is escaped char.
-	// Go: "[,\&#*\\.\\w\\-]+([\\w\\-]+|(\\\\.))*"
-	// `\\\\.` -> backslash followed by any char (except newline unless `s` flag)
-	// The JS `(\\.))` implies backslash + one char. Go: `(\\\\(.))` or `(\\\\[\\s\\S])` for any char including newline.
-	// Let's try `(\\\\.?)` for robustness (backslash possibly followed by a char).
-	// A common tokenizing regex for selector parts.
-	// Example "div .class" -> "div", ".class"
-	// Example "div.foo" -> "div", ".foo"
-	// The regex /[,&#*.\w-]([\w-]|(\\.))*/g is meant to find sequences.
-	// `[#.&]?[\w-]+` for basic parts.
-	// `[#.&]?\w([\w-]*|(\\.))*` might be closer.
-	// The key is that `elements.map(...).join('')` forms a string like "tag.class#id"
-	// and the regex splits it back into ["tag", ".class", "#id"].
-
-	// Using the more direct interpretation from JS for now:
-	// It tokenizes strings like "foo.bar" into "foo", ".bar"
-	// `[,&#*.\w-]([\w-]|(\\.))*`
-	// First char class: `[,&#*.\w-]` -> any of ,,&,#,*,.,word char,hyphen
-	// Following: `([\w-]|(\\.))*` -> word char or hyphen, OR escaped char, repeated.
-	// Go: `[,\x26#*\.\w\-]([\w\-]|(\\\\.))*` -- assuming `.` is any char after `\\`
-	var err error
-	mixinElementsRegex, err = regexp.Compile(`[,\x26#*\.\w\-]([\w\-]|(\\.))*`) // \\. matches backslash followed by any character
-	if err != nil {
-		panic(fmt.Sprintf("Failed to compile MixinElements regex: %v", err))
-	}
-}
+// mixinElementsRegex tokenizes selector strings like "foo.bar" into ["foo", ".bar"]
+// JS regex: /[,&#*.\w-]([\w-]|(\\.))*/g
+// First char class: [,&#*.\w-] -> any of , & # * . word-char hyphen
+// Following: ([\w-]|(\\.))*  -> word char or hyphen, OR escaped char, repeated
+var mixinElementsRegex = regexp.MustCompile(`[,\x26#*\.\w\-]([\w\-]|(\\.))*`)
 
 
 // MixinElements gets the string parts of the selector for mixin matching.
