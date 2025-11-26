@@ -1862,6 +1862,11 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 				}
 			}
 
+			// Special case: Import nodes should always have a newline after them
+			if ruleType, ok := rule.(interface{ GetType() string }); ok && ruleType.GetType() == "Import" {
+				shouldAddNewline = true
+			}
+
 			if shouldAddNewline && !compress {
 				output.Add("\n"+tabRuleStr, nil, nil)
 			}

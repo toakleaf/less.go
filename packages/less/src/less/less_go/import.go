@@ -146,6 +146,8 @@ func (i *Import) Accept(visitor any) {
 // GenCSS generates CSS representation
 func (i *Import) GenCSS(context any, output *CSSOutput) {
 	// Match JavaScript: this.css && this.path._fileInfo.reference === undefined
+	// Note: JavaScript checks if reference is undefined (not present), not if it's falsy
+	// So we should skip output only if reference is explicitly true
 	if i.css {
 		// Check path._fileInfo.reference like JavaScript
 		// In JS, reference is checked with === undefined, meaning only skip if reference is NOT undefined.
