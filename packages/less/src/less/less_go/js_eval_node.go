@@ -125,12 +125,23 @@ func (j *JsEvalNode) EvaluateJavaScript(expression string, context any) (any, er
 	}
 
 	if !javascriptEnabled {
-		return nil, fmt.Errorf("inline JavaScript is not enabled. Is it set in your options? (filename: %s, index: %d)",
-			getFilename(), j.GetIndex())
+		// Return a JavaScript-type error so it propagates through SafeEval
+		return nil, &LessError{
+			Type:     "JavaScript",
+			Message:  "inline JavaScript is not enabled. Is it set in your options?",
+			Filename: getFilename(),
+			Index:    j.GetIndex(),
+		}
 	}
 
 	// Replace Less variables with their values for better error messages
+	// Track the first error from variable evaluation
+	var varEvalError error
 	expressionForError := reVariableAtBrace.ReplaceAllStringFunc(expression, func(match string) string {
+		// If we already have an error, just return the match
+		if varEvalError != nil {
+			return match
+		}
 		// Extract variable name without @ and {}
 		varName := match[2 : len(match)-1]
 		// Create a Variable node
@@ -138,10 +149,38 @@ func (j *JsEvalNode) EvaluateJavaScript(expression string, context any) (any, er
 		// Evaluate variable
 		result, err := variable.Eval(wrappedContext)
 		if err != nil {
+			// Capture the error - this is likely an undefined variable
+			varEvalError = err
 			return match // Keep original on error
 		}
 		return j.jsify(result)
 	})
+
+	// If there was a variable evaluation error (e.g., undefined variable), wrap it
+	// as a JavaScript error so it propagates through SafeEval
+	// This matches JavaScript behavior where undefined variables in JS expressions
+	// throw a NameError
+	if varEvalError != nil {
+		// Wrap the error as a JavaScript-type error so SafeEval propagates it
+		if lessErr, ok := varEvalError.(*LessError); ok {
+			// Convert to JavaScript type while preserving the original message and info
+			return nil, &LessError{
+				Type:     "JavaScript",
+				Message:  lessErr.Message,
+				Filename: lessErr.Filename,
+				Index:    lessErr.Index,
+				Line:     lessErr.Line,
+				Column:   lessErr.Column,
+			}
+		}
+		// For non-LessError, wrap it as a JavaScript error
+		return nil, &LessError{
+			Type:     "JavaScript",
+			Message:  varEvalError.Error(),
+			Filename: getFilename(),
+			Index:    j.GetIndex(),
+		}
+	}
 
 	// JavaScript evaluation is not supported in the Go port
 	return nil, fmt.Errorf("JavaScript evaluation is not supported in the Go port. Expression: %s (filename: %s, index: %d)",
