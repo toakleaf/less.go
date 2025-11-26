@@ -281,6 +281,10 @@ func (jsv *JoinSelectorVisitor) VisitMedia(mediaNode any, visitArgs *VisitArgs) 
 			len(contextItem.paths), contextItem.multiMedia, rootValue)
 	}
 
+	// NOTE: BubbleSelectors is called during Media.Eval, not here.
+	// By the time JoinSelectorVisitor runs, Media nodes have already been bubbled up
+	// and their parent selectors have been captured during evaluation.
+
 	// Try interface-based approach first
 	if mediaInterface, ok := mediaNode.(interface{ GetRules() []any }); ok {
 		rules := mediaInterface.GetRules()
@@ -330,6 +334,10 @@ func (jsv *JoinSelectorVisitor) VisitContainer(containerNode any, visitArgs *Vis
 	// Set root flag on inner ruleset (same as Media)
 	// Root is true if we're at the top level (context.paths empty) OR inside a MultiMedia Ruleset
 	rootValue := len(contextItem.paths) == 0 || contextItem.multiMedia
+
+	// NOTE: BubbleSelectors is called during Container.Eval, not here.
+	// By the time JoinSelectorVisitor runs, Container nodes have already been bubbled up
+	// and their parent selectors have been captured during evaluation.
 
 	// Try interface-based approach first
 	if containerInterface, ok := containerNode.(interface{ GetRules() []any }); ok {

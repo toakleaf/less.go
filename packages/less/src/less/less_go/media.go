@@ -468,7 +468,18 @@ func (m *Media) BubbleSelectors(selectors any) {
 		return
 	}
 
-	newRuleset := NewRuleset(anySelectors, []any{m.Rules[0]}, false, nil)
+	// Get the rules from the inner ruleset to avoid keeping the & placeholder selector
+	// Instead of wrapping the entire inner ruleset, we extract its rules and create
+	// a new wrapper with the parent selectors
+	var innerRules []any
+	if innerRuleset, ok := m.Rules[0].(*Ruleset); ok {
+		innerRules = innerRuleset.Rules
+	} else {
+		// Fallback: wrap the entire rule
+		innerRules = []any{m.Rules[0]}
+	}
+
+	newRuleset := NewRuleset(anySelectors, innerRules, false, nil)
 	m.Rules = []any{newRuleset}
 	m.SetParent(m.Rules, m.Node)
 }
@@ -627,6 +638,49 @@ func (m *Media) Eval(context any) (any, error) {
 	// Match JavaScript: context.mediaPath.pop();
 	if len(evalCtx.MediaPath) > 0 {
 		evalCtx.MediaPath = evalCtx.MediaPath[:len(evalCtx.MediaPath)-1]
+	}
+
+	// Bubble selectors from parent frames into the Media content
+	// This ensures that when Media is nested inside a selector (e.g., .body { @media print { ... } }),
+	// the parent selector (.body) is preserved inside the Media's content
+	// This applies to both top-level and nested media queries - each media query needs its
+	// parent selector bubbled in independently.
+	if len(evalCtx.Frames) > 0 {
+		// Collect selectors from the first parent frame that has real selectors
+		// We only want the immediate parent selector, not all ancestors
+		// Skip frames that are AllowImports=true (media/container wrapper rulesets)
+		var parentSelectors []any
+		for i := 0; i < len(evalCtx.Frames); i++ {
+			if rs, ok := evalCtx.Frames[i].(*Ruleset); ok {
+				// Skip AllowImports rulesets - these are wrapper rulesets from media/container
+				// that have empty selectors and shouldn't be bubbled
+				if rs.AllowImports {
+					continue
+				}
+				// Only include rulesets that have selectors (not root rulesets)
+				if len(rs.Selectors) > 0 {
+					// Check if this is a real selector (not an empty/& selector from createEmptySelectors)
+					for _, sel := range rs.Selectors {
+						if s, ok := sel.(*Selector); ok {
+							// Skip MediaEmpty selectors - they're placeholders, not real parent selectors
+							if !s.MediaEmpty {
+								parentSelectors = append(parentSelectors, sel)
+							}
+						}
+					}
+					// Found selectors in this frame, stop looking
+					if len(parentSelectors) > 0 {
+						break
+					}
+				}
+			}
+		}
+		if len(parentSelectors) > 0 {
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Fprintf(os.Stderr, "[MEDIA.Eval] Bubbling %d parent selectors into media\n", len(parentSelectors))
+			}
+			media.BubbleSelectors(parentSelectors)
+		}
 	}
 
 	// Match JavaScript: return context.mediaPath.length === 0 ? media.evalTop(context) : media.evalNested(context);
