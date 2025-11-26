@@ -39,18 +39,30 @@ func (dr *DetachedRuleset) Accept(visitor any) {
 func (dr *DetachedRuleset) Eval(context any) any {
 	// Match JavaScript: const frames = this.frames || utils.copyArray(context.frames);
 	frames := dr.frames
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Fprintf(os.Stderr, "[DetachedRuleset.Eval] dr.frames=%v (nil=%v)\n", dr.frames != nil, dr.frames == nil)
+	}
 	if frames == nil {
 		// Copy frames from context
 		switch ctx := context.(type) {
 		case *Eval:
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Fprintf(os.Stderr, "[DetachedRuleset.Eval] *Eval context, Frames len=%d (nil=%v)\n", len(ctx.Frames), ctx.Frames == nil)
+			}
 			if ctx.Frames != nil {
 				frames = CopyArray(ctx.Frames)
 			}
 		case map[string]any:
 			if contextFrames, ok := ctx["frames"].([]any); ok {
 				frames = CopyArray(contextFrames)
+				if os.Getenv("LESS_GO_DEBUG") == "1" {
+					fmt.Fprintf(os.Stderr, "[DetachedRuleset.Eval] map context, frames len=%d\n", len(contextFrames))
+				}
 			}
 		}
+	}
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Fprintf(os.Stderr, "[DetachedRuleset.Eval] Returning new DetachedRuleset with frames=%v (nil=%v)\n", frames != nil, frames == nil)
 	}
 	// Match JavaScript: return new DetachedRuleset(this.ruleset, frames);
 	return NewDetachedRuleset(dr.ruleset, frames)
@@ -84,6 +96,17 @@ func (dr *DetachedRuleset) CallEval(context any) any {
 
 	var evalContext any = context
 
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Fprintf(os.Stderr, "[DetachedRuleset.CallEval] dr.frames=%v (nil=%v)\n", dr.frames != nil, dr.frames == nil)
+		if ec, ok := context.(*Eval); ok {
+			fmt.Fprintf(os.Stderr, "[DetachedRuleset.CallEval] context is *Eval, MediaBlocks=%d, MediaPath=%d\n", len(ec.MediaBlocks), len(ec.MediaPath))
+		} else if mc, ok := context.(map[string]any); ok {
+			mb, _ := mc["mediaBlocks"].([]any)
+			mp, _ := mc["mediaPath"].([]any)
+			fmt.Fprintf(os.Stderr, "[DetachedRuleset.CallEval] context is map, mediaBlocks=%d, mediaPath=%d\n", len(mb), len(mp))
+		}
+	}
+
 	if dr.frames != nil {
 		// Create concatenated frames: this.frames.concat(context.frames)
 		var contextFrames []any
@@ -91,7 +114,15 @@ func (dr *DetachedRuleset) CallEval(context any) any {
 		switch ctx := context.(type) {
 		case *Eval:
 			contextFrames = ctx.Frames
-			// Create new Eval with concatenated frames and all properties copied
+			// Create new Eval with concatenated frames and MOST properties copied
+			// IMPORTANT: Do NOT copy MediaBlocks and MediaPath. In JavaScript,
+			// new contexts.Eval(context, frames) does NOT include these in evalCopyProperties.
+			// This means the child context starts with undefined/nil mediaBlocks,
+			// and Media.eval creates fresh arrays when it checks if (!context.mediaBlocks).
+			// This isolation is essential for correct ordering: Media nodes inside
+			// detached rulesets should NOT add to the parent's mediaBlocks during the
+			// first loop of Ruleset.Eval. They should only be added when the spliced
+			// result is re-evaluated in the second loop with the actual parent context.
 			newEval := &Eval{
 				Frames:            append(dr.frames, contextFrames...),
 				Compress:          ctx.Compress,
@@ -110,14 +141,21 @@ func (dr *DetachedRuleset) CallEval(context any) any {
 				InCalc:            ctx.InCalc,
 				MathOn:            ctx.MathOn,
 				DefaultFunc:       ctx.DefaultFunc,
-				MediaBlocks:       ctx.MediaBlocks,
-				MediaPath:         ctx.MediaPath,
+				// MediaBlocks: nil - intentionally not copied, see comment above
+				// MediaPath: nil - intentionally not copied, see comment above
+			}
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Fprintf(os.Stderr, "[DetachedRuleset.CallEval] Created isolated *Eval context, MediaBlocks=%v, MediaPath=%v\n", newEval.MediaBlocks, newEval.MediaPath)
 			}
 			evalContext = newEval
 		case map[string]any:
-			// Copy all context keys to preserve mediaBlocks, mediaPath, etc.
+			// Copy context keys EXCEPT mediaBlocks and mediaPath (see comment above)
 			contextMap := make(map[string]any, len(ctx))
 			for k, v := range ctx {
+				// Skip mediaBlocks and mediaPath - child context should start fresh
+				if k == "mediaBlocks" || k == "mediaPath" {
+					continue
+				}
 				contextMap[k] = v
 			}
 
@@ -134,6 +172,9 @@ func (dr *DetachedRuleset) CallEval(context any) any {
 	}
 
 	// Call eval on the ruleset
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Fprintf(os.Stderr, "[DEBUG DetachedRuleset.CallEval] dr.ruleset type=%T, value=%+v\n", dr.ruleset, dr.ruleset)
+	}
 	if dr.ruleset != nil {
 		// Check if ruleset is a Ruleset
 		if ruleset, ok := dr.ruleset.(*Ruleset); ok {
@@ -148,41 +189,26 @@ func (dr *DetachedRuleset) CallEval(context any) any {
 			}
 
 			// Convert evalContext to map for Ruleset.Eval (it expects map[string]any or *Eval)
-			// But we need to track the original parent context to copy mediaBlocks back
+			// The child context has its own isolated mediaBlocks/mediaPath, so Media nodes
+			// inside will add to the child's arrays. These Media nodes will be returned as
+			// part of the result rules and re-evaluated with the parent's context in the
+			// second loop of Ruleset.Eval, where they'll properly add to the parent's mediaBlocks.
 			mapContext := evalContextToMap(evalContext)
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				mb, _ := mapContext["mediaBlocks"].([]any)
+				mp, _ := mapContext["mediaPath"].([]any)
+				fmt.Fprintf(os.Stderr, "[DetachedRuleset.CallEval] mapContext after evalContextToMap: mediaBlocks=%v (len=%d), mediaPath=%v (len=%d)\n", mapContext["mediaBlocks"], len(mb), mapContext["mediaPath"], len(mp))
+			}
 			result, err := ruleset.Eval(mapContext)
 			if err != nil {
 				// Match JavaScript behavior - throw the error
 				panic(err)
 			}
 
-			// IMPORTANT: Copy back ALL mediaBlocks from the map context to the parent context
-			// When DetachedRuleset evaluates nested media queries, those queries modify existing
-			// media blocks (combining features) and may add new ones. We need to replace the
-			// parent's mediaBlocks entirely with the child's version, not try to merge them.
-
-			// Copy from map back to parent *Eval context
-			if parentEval, ok := context.(*Eval); ok {
-				if childBlocks, hasChild := mapContext["mediaBlocks"].([]any); hasChild {
-					// Replace parent's mediaBlocks with child's version entirely
-					// This ensures modifications to existing blocks and new blocks are both captured
-					parentEval.MediaBlocks = childBlocks
-				}
-				if childPath, hasPath := mapContext["mediaPath"].([]any); hasPath {
-					parentEval.MediaPath = childPath
-				}
-			}
-
-			// Copy from map back to parent map context
-			if parentMap, ok := context.(map[string]any); ok {
-				if childBlocks, hasChild := mapContext["mediaBlocks"].([]any); hasChild {
-					// Replace parent's mediaBlocks with child's version entirely
-					parentMap["mediaBlocks"] = childBlocks
-				}
-				if childPath, hasPath := mapContext["mediaPath"].([]any); hasPath {
-					parentMap["mediaPath"] = childPath
-				}
-			}
+			// NOTE: We intentionally do NOT copy mediaBlocks/mediaPath back to the parent.
+			// The child's isolated context ensures Media nodes are not prematurely added
+			// to the parent's mediaBlocks. The returned rules containing Media nodes will
+			// be re-evaluated in the parent's Ruleset.Eval second loop with the correct context.
 
 			if os.Getenv("LESS_GO_DEBUG") == "1" {
 				if rs, ok := result.(*Ruleset); ok {
@@ -201,39 +227,14 @@ func (dr *DetachedRuleset) CallEval(context any) any {
 				}
 
 				// Convert evalContext to map for Ruleset.Eval
+				// The child context has its own isolated mediaBlocks/mediaPath (see comment above)
 				mapContext := evalContextToMap(evalContext)
 				result, err := ruleset.Eval(mapContext)
 				if err != nil {
 					panic(err)
 				}
 
-				// IMPORTANT: Copy back ALL mediaBlocks from the map context to the parent context
-				// When DetachedRuleset evaluates nested media queries, those queries modify existing
-				// media blocks (combining features) and may add new ones. We need to replace the
-				// parent's mediaBlocks entirely with the child's version, not try to merge them.
-
-				// Copy from map back to parent *Eval context
-				if parentEval, ok := context.(*Eval); ok {
-					if childBlocks, hasChild := mapContext["mediaBlocks"].([]any); hasChild {
-						// Replace parent's mediaBlocks with child's version entirely
-						// This ensures modifications to existing blocks and new blocks are both captured
-						parentEval.MediaBlocks = childBlocks
-					}
-					if childPath, hasPath := mapContext["mediaPath"].([]any); hasPath {
-						parentEval.MediaPath = childPath
-					}
-				}
-
-				// Copy from map back to parent map context
-				if parentMap, ok := context.(map[string]any); ok {
-					if childBlocks, hasChild := mapContext["mediaBlocks"].([]any); hasChild {
-						// Replace parent's mediaBlocks with child's version entirely
-						parentMap["mediaBlocks"] = childBlocks
-					}
-					if childPath, hasPath := mapContext["mediaPath"].([]any); hasPath {
-						parentMap["mediaPath"] = childPath
-					}
-				}
+				// NOTE: We intentionally do NOT copy mediaBlocks/mediaPath back to the parent.
 
 				if os.Getenv("LESS_GO_DEBUG") == "1" {
 					if rs, ok := result.(*Ruleset); ok {
