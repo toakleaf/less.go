@@ -1829,14 +1829,33 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 				shouldAddNewline = true
 			}
 
-			// Special case: Add newlines for child rulesets inside container rulesets
-			// (like @keyframes which creates a container ruleset with no selectors)
-			if rulesetLike, ok := rule.(interface{ IsRulesetLike() bool }); ok && rulesetLike.IsRulesetLike() {
-				// Only add newline if parent ruleset has no selectors (is a container)
-				// and we're not at the file-level root (tabLevel > 0)
-				isContainer := (r.Paths == nil || len(r.Paths) == 0) && (r.Selectors == nil || len(r.Selectors) == 0)
-				if isContainer && tabLevel > 0 {
-					shouldAddNewline = true
+			// Special case: Add newlines for rulesetLike nodes (AtRule, Media) at the root level
+			// Note: Regular Rulesets already add their own newlines via their GenCSS method,
+			// so we only add newlines here for at-rules (which have IsRulesetLike() any, not bool)
+			// Also add newlines for child rulesets inside container rulesets (like @keyframes)
+			_, isActualRuleset := rule.(*Ruleset)
+			if !isActualRuleset {
+				isRulesetLike := false
+				if rulesetLikeBool, ok := rule.(interface{ IsRulesetLike() bool }); ok && rulesetLikeBool.IsRulesetLike() {
+					isRulesetLike = true
+				} else if rulesetLikeAny, ok := rule.(interface{ IsRulesetLike() any }); ok {
+					// Handle AtRule which returns any (rules array or bool)
+					result := rulesetLikeAny.IsRulesetLike()
+					if b, isBool := result.(bool); isBool {
+						isRulesetLike = b
+					} else if result != nil {
+						// Non-nil result (like rules array) means it's ruleset-like
+						isRulesetLike = true
+					}
+				}
+				if isRulesetLike {
+					// Add newline if:
+					// 1. Parent is a container (no selectors/paths) AND not at file-level root (tabLevel > 0)
+					// 2. Parent is the root ruleset (r.Root == true) - for newlines between top-level at-rules
+					isParentContainer := (r.Paths == nil || len(r.Paths) == 0) && (r.Selectors == nil || len(r.Selectors) == 0)
+					if (isParentContainer && tabLevel > 0) || r.Root {
+						shouldAddNewline = true
+					}
 				}
 			}
 

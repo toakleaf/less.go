@@ -126,9 +126,15 @@ func (a *AtRule) GetIsRooted() bool {
 // Only @supports and @document should use this for extraction
 // This handles vendor-prefixed variants like @-moz-document
 func (a *AtRule) GetRules() []any {
-	// Only return rules for directives that should be extracted
+	// Return rules for directives that should be extracted from parent selectors:
+	// 1. @supports and @document - bubblable directives
+	// 2. Rooted directives (@font-face, @keyframes) - should bubble to root level
 	nonVendorName := stripVendorPrefix(a.Name)
 	if nonVendorName == "@supports" || nonVendorName == "@document" {
+		return a.Rules
+	}
+	// Rooted at-rules should be extracted from parent selectors
+	if a.IsRooted || strings.Contains(a.Name, "keyframes") {
 		return a.Rules
 	}
 	return nil
@@ -669,8 +675,10 @@ func (a *AtRule) EvalNested(context any) any {
 }
 
 // BubbleSelectors bubbles selectors up the tree (implementing NestableAtRulePrototype pattern)
-// This matches JavaScript's nested-at-rule.js bubbleSelectors method exactly:
+// This matches JavaScript's nested-at-rule.js bubbleSelectors method:
 //   this.rules = [new Ruleset(utils.copyArray(selectors), [this.rules[0]])];
+// However, to avoid selector duplication when nested directives are bubbled up,
+// we extract the inner rules from the inner ruleset (matching Media.BubbleSelectors behavior).
 func (a *AtRule) BubbleSelectors(selectors any) {
 	if selectors == nil {
 		return
@@ -684,6 +692,10 @@ func (a *AtRule) BubbleSelectors(selectors any) {
 
 	switch s := selectors.(type) {
 	case []*Selector:
+		// Skip if empty selectors - no need to wrap
+		if len(s) == 0 {
+			return
+		}
 		copiedSelectors := make([]*Selector, len(s))
 		copy(copiedSelectors, s)
 
@@ -693,6 +705,10 @@ func (a *AtRule) BubbleSelectors(selectors any) {
 			anySelectors[i] = sel
 		}
 	case []any:
+		// Skip if empty selectors - no need to wrap
+		if len(s) == 0 {
+			return
+		}
 		// Copy the slice
 		anySelectors = make([]any, len(s))
 		copy(anySelectors, s)
@@ -700,9 +716,18 @@ func (a *AtRule) BubbleSelectors(selectors any) {
 		return
 	}
 
-	// Create a new Ruleset wrapper with the selectors containing the original rules
-	// This matches JavaScript: this.rules = [new Ruleset(utils.copyArray(selectors), [this.rules[0]])];
-	newRuleset := NewRuleset(anySelectors, []any{a.Rules[0]}, false, nil)
+	// Get the rules from the inner ruleset to avoid keeping the & placeholder selector
+	// Instead of wrapping the entire inner ruleset, we extract its rules and create
+	// a new wrapper with the parent selectors (matching Media.BubbleSelectors behavior)
+	var innerRules []any
+	if innerRuleset, ok := a.Rules[0].(*Ruleset); ok {
+		innerRules = innerRuleset.Rules
+	} else {
+		// Fallback: wrap the entire rule
+		innerRules = []any{a.Rules[0]}
+	}
+
+	newRuleset := NewRuleset(anySelectors, innerRules, false, nil)
 	a.Rules = []any{newRuleset}
 	a.SetParent(a.Rules, a.Node)
 }
@@ -924,8 +949,6 @@ func (a *AtRule) OutputRuleset(context any, output *CSSOutput, rules []any) {
 		}
 
 		output.Add(tabSetStr+"}", nil, nil)
-		// Add newline after closing brace to separate from next top-level rule
-		output.Add("\n", nil, nil)
 	}
 
 	ctx["tabLevel"] = tabLevel - 1
