@@ -168,13 +168,20 @@ func (jsv *JoinSelectorVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitAr
 					if jsInterface, ok := rulesetNode.(interface{ JoinSelectors(*[][]any, [][]any, []any) }); ok {
 						// Convert paths and context to the expected types
 						pathsSlice := make([][]any, 0)
-						
+
+						// Check if this ruleset has pre-resolved selectors (from BubbleSelectors).
+						// If so, use empty context to prevent duplicate prepending of parent selectors.
+						selectorsPreResolved := false
+						if rs, ok := rulesetNode.(*Ruleset); ok {
+							selectorsPreResolved = rs.SelectorsPreResolved
+						}
+
 						// The context is already a []any containing paths.
 						// JoinSelectors expects [][]any where each element is a path.
-						// If context is empty, pass empty [][]any
+						// If context is empty OR selectors are pre-resolved, pass empty [][]any
 						// Otherwise, convert context elements to [][]any
 						var contextSlice [][]any
-						if len(context) == 0 {
+						if len(context) == 0 || selectorsPreResolved {
 							contextSlice = [][]any{}
 						} else {
 							// Each element in context should be a path ([]any)
@@ -188,7 +195,7 @@ func (jsv *JoinSelectorVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitAr
 								}
 							}
 						}
-						
+
 						jsInterface.JoinSelectors(&pathsSlice, contextSlice, filteredSelectors)
 
 						// Convert [][]any to []any and update the existing paths slice in place
@@ -241,13 +248,13 @@ func (jsv *JoinSelectorVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitAr
 					if hasJoinSelectors(ruleset) {
 						pathsSlice := make([][]any, 0)
 						pathsPtr := &pathsSlice
-						
+
 						// The context is already a []any containing paths.
 						// JoinSelectors expects [][]any where each element is a path.
-						// If context is empty, pass empty [][]any
+						// If context is empty OR selectors are pre-resolved, pass empty [][]any
 						// Otherwise, convert context elements to [][]any
 						var contextSlice [][]any
-						if len(context) == 0 {
+						if len(context) == 0 || ruleset.SelectorsPreResolved {
 							contextSlice = [][]any{}
 						} else {
 							// Each element in context should be a path ([]any)
@@ -261,7 +268,7 @@ func (jsv *JoinSelectorVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitAr
 								}
 							}
 						}
-						
+
 						ruleset.JoinSelectors(pathsPtr, contextSlice, filteredSelectors)
 						
 						// Convert the result to []any and update the existing paths slice in place

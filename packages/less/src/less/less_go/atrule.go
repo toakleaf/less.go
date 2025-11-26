@@ -9,13 +9,14 @@ import (
 // AtRule represents an at-rule node in the Less AST
 type AtRule struct {
 	*Node
-	Name        string
-	Value       any
-	Rules       []any
-	IsRooted    bool
-	AllowRoot   bool
-	DebugInfo   any
-	AllExtends  []*Extend // For storing extends found by ExtendFinderVisitor
+	Name             string
+	Value            any
+	Rules            []any
+	IsRooted         bool
+	AllowRoot        bool
+	DebugInfo        any
+	AllExtends       []*Extend // For storing extends found by ExtendFinderVisitor
+	selectorsBubbled bool      // Track if BubbleSelectors was already called (idempotency)
 }
 
 // NewAtRule creates a new AtRule instance
@@ -672,11 +673,40 @@ func (a *AtRule) EvalNested(context any) any {
 // This matches JavaScript's nested-at-rule.js bubbleSelectors method exactly:
 //   this.rules = [new Ruleset(utils.copyArray(selectors), [this.rules[0]])];
 func (a *AtRule) BubbleSelectors(selectors any) {
+	if os.Getenv("LESS_GO_TRACE_BUBBLE") == "1" {
+		fmt.Fprintf(os.Stderr, "[ATRULE.BubbleSelectors] CALLED for %s, selectors=%T\n", a.Name, selectors)
+	}
 	if selectors == nil {
 		return
 	}
 	if len(a.Rules) == 0 {
 		return
+	}
+
+	// Idempotency check - prevent duplicate selector wrapping
+	// This matches Media.BubbleSelectors behavior
+	if a.selectorsBubbled {
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Fprintf(os.Stderr, "[ATRULE.BubbleSelectors] Skipping - already bubbled for %s\n", a.Name)
+		}
+		return
+	}
+	a.selectorsBubbled = true
+
+	// Debug: Show what selectors we're receiving
+	if os.Getenv("LESS_GO_TRACE_BUBBLE") == "1" {
+		fmt.Fprintf(os.Stderr, "[ATRULE.BubbleSelectors] AtRule=%s, selectors type=%T\n", a.Name, selectors)
+		if sels, ok := selectors.([]any); ok {
+			for i, sel := range sels {
+				if s, ok := sel.(*Selector); ok {
+					fmt.Fprintf(os.Stderr, "  Selector[%d]: Elements=", i)
+					for j, el := range s.Elements {
+						fmt.Fprintf(os.Stderr, "[%d:%v] ", j, el.Value)
+					}
+					fmt.Fprintf(os.Stderr, "\n")
+				}
+			}
+		}
 	}
 
 	// Handle both []*Selector and []any types

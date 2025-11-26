@@ -72,6 +72,10 @@ type Ruleset struct {
 	// InsideMixinDefinition marks rulesets that are nested inside mixin definitions
 	// These should not be output directly, only when the mixin is called
 	InsideMixinDefinition bool
+	// SelectorsPreResolved marks rulesets created by BubbleSelectors where selectors
+	// have already been resolved from the parent context and should use empty context
+	// in JoinSelectorVisitor (to prevent duplicate prepending of parent selectors)
+	SelectorsPreResolved bool
 }
 
 // NewRuleset creates a new Ruleset instance

@@ -555,11 +555,33 @@ func (m *Media) BubbleSelectors(selectors any) {
 		innerRules = []any{m.Rules[0]}
 	}
 
+	// Don't modify the selectors - just pass them through.
+	// The SelectorsPreResolved flag will tell JoinSelectorVisitor to use empty context,
+	// which will cause `&` to be replaced with an empty element rather than parent context.
+	// This prevents selector duplication (e.g., `.outOfMedia &` -> `.outOfMedia .outOfMedia`)
+	// while still allowing selectors that are just `&` to work correctly.
+
+	// Create wrapper ruleset WITHOUT setting Root=true - JoinSelectorVisitor will handle it.
+	// With SelectorsPreResolved=true, JoinSelectors will use empty context for `&` handling.
 	newRuleset := NewRuleset(anySelectors, innerRules, false, nil)
+	// Mark this ruleset as having selectors already resolved from parent context.
+	// This tells JoinSelectorVisitor to use empty context for this ruleset,
+	// preventing duplicate prepending of parent selectors.
+	newRuleset.SelectorsPreResolved = true
+	// Note: Don't set MultiMedia=true here as it affects child Media processing
+
 	if os.Getenv("LESS_GO_DEBUG") == "1" {
-		fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors] Created newRuleset with %d selectors and %d rules\n", len(anySelectors), len(innerRules))
+		fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors] Created newRuleset with SelectorsPreResolved=true, %d selectors, %d rules\n",
+			len(anySelectors), len(innerRules))
 		for i, sel := range anySelectors {
 			fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors]   selector[%d]: type=%T\n", i, sel)
+			if s, ok := sel.(*Selector); ok {
+				fmt.Fprintf(os.Stderr, "[MEDIA.BubbleSelectors]     elements: ")
+				for _, el := range s.Elements {
+					fmt.Fprintf(os.Stderr, "[%v] ", el.Value)
+				}
+				fmt.Fprintf(os.Stderr, "\n")
+			}
 		}
 	}
 	m.Rules = []any{newRuleset}
