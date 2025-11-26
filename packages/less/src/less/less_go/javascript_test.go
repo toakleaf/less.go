@@ -60,8 +60,9 @@ func TestJavaScript(t *testing.T) {
 				t.Error("Expected error when javascript is not enabled")
 			}
 			// Check for the specific error message for disabled JS
-			// Use the filename from the node if available, otherwise <unknown>
-			expectedMsg := "inline JavaScript is not enabled. Is it set in your options? (filename: <unknown>, index: 0)"
+			// Since we return a LessError with Type="JavaScript", the error message format is:
+			// "JavaScript: {message} in {filename}" where filename is "<unknown>" when FileInfo is nil
+			expectedMsg := "JavaScript: inline JavaScript is not enabled. Is it set in your options? in <unknown>"
 			if err == nil || err.Error() != expectedMsg {
 				t.Errorf("Expected specific error message '%s', got '%v'", expectedMsg, err)
 			}
