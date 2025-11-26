@@ -95,10 +95,18 @@ func (d *Dimension) GetType() string {
 }
 
 // Accept accepts a visitor and updates the unit.
-func (d *Dimension) Accept(visitor Visitor) {
-	result := visitor.Visit(d.Unit)
-	if u, ok := result.(*Unit); ok {
-		d.Unit = u
+func (d *Dimension) Accept(visitor any) {
+	// Handle both *Visitor and interface{ Visit(any) any }
+	if v, ok := visitor.(*Visitor); ok {
+		result := v.Visit(d.Unit)
+		if u, ok := result.(*Unit); ok {
+			d.Unit = u
+		}
+	} else if v, ok := visitor.(interface{ Visit(any) any }); ok {
+		result := v.Visit(d.Unit)
+		if u, ok := result.(*Unit); ok {
+			d.Unit = u
+		}
 	}
 }
 

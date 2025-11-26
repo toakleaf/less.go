@@ -155,29 +155,14 @@ func (e *Extend) FindSelfSelectors(selectors []any) {
 }
 
 // IsVisible returns whether the extend is visible (compatibility method for JS API)
-// Match JavaScript: if nodeVisible is explicitly set, use that; otherwise check visibilityBlocks
+// Match JavaScript: if nodeVisible is explicitly set, use that; otherwise return !blocksVisibility()
 func (e *Extend) IsVisible() bool {
     visible := e.Node.IsVisible()
     if visible != nil {
         return *visible
     }
-
-    // CRITICAL FIX for import-reference: Check if any of the SelfSelectors are visible
-    // The extend's visibility should be based on where it's DEFINED (its self selectors),
-    // not just on the extend node's visibility blocks
-    if len(e.SelfSelectors) > 0 {
-        for _, selfSel := range e.SelfSelectors {
-            if sel, ok := selfSel.(*Selector); ok {
-                if selVis := sel.IsVisible(); selVis != nil && *selVis {
-                    return true
-                }
-            }
-        }
-    }
-
-    // If nodeVisible is not set, return true if there are no visibility blocks
-    // This matches JavaScript behavior where undefined nodeVisible with no blocks = visible
-    return !e.BlocksVisibility()
+    // Match JavaScript: return !this.blocksVisibility() when nodeVisible is undefined
+    return !e.Node.BlocksVisibility()
 }
 
 // GenCSS outputs nothing for Extend nodes - they are processed by ExtendVisitor

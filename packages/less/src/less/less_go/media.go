@@ -669,6 +669,22 @@ func (m *Media) Eval(context any) (any, error) {
 	// Match JavaScript: const media = new Media(null, [], this._index, this._fileInfo, this.visibilityInfo())
 	media := NewMedia(nil, []any{}, m.GetIndex(), m.FileInfo(), m.VisibilityInfo())
 
+	// CRITICAL FIX: Propagate visibility blocks from parent Media in the mediaPath
+	// This ensures that nested @media inside reference imports also block visibility
+	// even though only the top-level node gets AddVisibilityBlock() called
+	if m.Node != nil && !m.Node.BlocksVisibility() && len(evalCtx.MediaPath) > 0 {
+		// Check if any parent in mediaPath has visibility blocks
+		for _, parent := range evalCtx.MediaPath {
+			if parentMedia, ok := parent.(*Media); ok {
+				if parentMedia.Node != nil && parentMedia.Node.BlocksVisibility() {
+					// Parent has visibility blocks - propagate to this media
+					media.Node.AddVisibilityBlock()
+					break
+				}
+			}
+		}
+	}
+
 	if os.Getenv("LESS_GO_TRACE") != "" {
 		fmt.Fprintf(os.Stderr, "[MEDIA.Eval] Created NEW media=%p, mediaPath len=%d\n", media, len(evalCtx.MediaPath))
 	}
@@ -901,6 +917,21 @@ func (m *Media) evalWithMapContext(ctx map[string]any) (any, error) {
 
 	// Match JavaScript: const media = new Media(null, [], this._index, this._fileInfo, this.visibilityInfo())
 	media := NewMedia(nil, []any{}, m.GetIndex(), m.FileInfo(), m.VisibilityInfo())
+
+	// CRITICAL FIX: Propagate visibility blocks from parent Media in the mediaPath
+	// This ensures that nested @media inside reference imports also block visibility
+	if m.Node != nil && !m.Node.BlocksVisibility() {
+		if mediaPath, ok := ctx["mediaPath"].([]any); ok && len(mediaPath) > 0 {
+			for _, parent := range mediaPath {
+				if parentMedia, ok := parent.(*Media); ok {
+					if parentMedia.Node != nil && parentMedia.Node.BlocksVisibility() {
+						media.Node.AddVisibilityBlock()
+						break
+					}
+				}
+			}
+		}
+	}
 
 	// Match JavaScript: if (this.debugInfo) { this.rules[0].debugInfo = this.debugInfo; media.debugInfo = this.debugInfo; }
 	if m.DebugInfo != nil {

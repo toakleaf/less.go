@@ -21,7 +21,7 @@ func (v *SetTreeVisibilityVisitor) Run(root any) {
 	v.Visit(root)
 }
 
-// VisitArray visits an array of nodes
+// VisitArray visits an array of nodes (generic version using reflection)
 func (v *SetTreeVisibilityVisitor) VisitArray(nodes any) any {
 	if nodes == nil {
 		return nodes
@@ -41,6 +41,7 @@ func (v *SetTreeVisibilityVisitor) VisitArray(nodes any) any {
 	return nodes
 }
 
+
 // Visit visits a single node
 func (v *SetTreeVisibilityVisitor) Visit(node any) any {
 	if node == nil {
@@ -54,6 +55,9 @@ func (v *SetTreeVisibilityVisitor) Visit(node any) any {
 	}
 
 	// Check if node has blocksVisibility method and if it blocks visibility
+	// Match JavaScript behavior: if node blocks visibility, return early without visiting children
+	// This is important because reference import rulesets block visibility on the ROOT only
+	// Children retain undefined visibility, and extend processing sets visibility explicitly
 	if v.hasBlocksVisibilityMethod(node) && v.callBlocksVisibility(node) {
 		return node
 	}
@@ -108,7 +112,7 @@ func (v *SetTreeVisibilityVisitor) callEnsureVisibility(node any) {
 	if node == nil {
 		return
 	}
-	
+
 	// Try interface-based approach first (preferred)
 	if visibilityNode, ok := node.(interface{ EnsureVisibility() }); ok {
 		visibilityNode.EnsureVisibility()
