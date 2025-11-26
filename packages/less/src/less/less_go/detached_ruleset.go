@@ -60,6 +60,28 @@ func (dr *DetachedRuleset) Eval(context any) any {
 func (dr *DetachedRuleset) CallEval(context any) any {
 	// Match JavaScript: return this.ruleset.eval(this.frames ? new contexts.Eval(context, this.frames.concat(context.frames)) : context);
 
+	// Debug: trace incoming mediaPath
+	if os.Getenv("LESS_GO_TRACE") != "" {
+		switch ctx := context.(type) {
+		case *Eval:
+			fmt.Fprintf(os.Stderr, "[DetachedRuleset.CallEval] Incoming mediaPath len=%d\n", len(ctx.MediaPath))
+			for i, mp := range ctx.MediaPath {
+				if m, ok := mp.(*Media); ok && m.Features != nil {
+					fmt.Fprintf(os.Stderr, "[DetachedRuleset.CallEval]   mediaPath[%d] features: %T\n", i, m.Features)
+				}
+			}
+		case map[string]any:
+			if mp, ok := ctx["mediaPath"].([]any); ok {
+				fmt.Fprintf(os.Stderr, "[DetachedRuleset.CallEval] Incoming mediaPath len=%d\n", len(mp))
+				for i, m := range mp {
+					if media, ok := m.(*Media); ok && media.Features != nil {
+						fmt.Fprintf(os.Stderr, "[DetachedRuleset.CallEval]   mediaPath[%d] features: %T\n", i, media.Features)
+					}
+				}
+			}
+		}
+	}
+
 	var evalContext any = context
 
 	if dr.frames != nil {
