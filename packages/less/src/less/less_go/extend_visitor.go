@@ -787,17 +787,46 @@ func (pev *ProcessExtendsVisitor) deduplicatePaths(paths [][]any) [][]any {
 		return paths
 	}
 
-	// Use a map to track CSS strings we've seen
-	seen := make(map[string]bool)
+	// Use a map to track CSS strings and their best path (prefer visible paths)
+	// For import-reference: when an extend creates a visible copy of a reference path,
+	// we want to keep the VISIBLE one, not the first (invisible) one
+	seen := make(map[string]int) // maps CSS to index in unique slice
 	unique := make([][]any, 0, len(paths))
 
 	for _, path := range paths {
 		// Generate CSS for this path
 		css := pev.pathToCSS(path)
 
-		// Only add if we haven't seen this CSS before
-		if !seen[css] {
-			seen[css] = true
+		// Check if any selector in this path is visible
+		pathIsVisible := false
+		for _, sel := range path {
+			if s, ok := sel.(*Selector); ok {
+				if vis := s.IsVisible(); vis != nil && *vis {
+					pathIsVisible = true
+					break
+				}
+			}
+		}
+
+		if existingIdx, exists := seen[css]; exists {
+			// We've seen this CSS before. Replace if the new path is visible and the old one isn't.
+			existingPath := unique[existingIdx]
+			existingIsVisible := false
+			for _, sel := range existingPath {
+				if s, ok := sel.(*Selector); ok {
+					if vis := s.IsVisible(); vis != nil && *vis {
+						existingIsVisible = true
+						break
+					}
+				}
+			}
+			if pathIsVisible && !existingIsVisible {
+				// Replace with the visible path
+				unique[existingIdx] = path
+			}
+		} else {
+			// First time seeing this CSS
+			seen[css] = len(unique)
 			unique = append(unique, path)
 		}
 	}
