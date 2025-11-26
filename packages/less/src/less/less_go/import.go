@@ -366,7 +366,10 @@ func (i *Import) EvalPath(context any) any {
 				}
 				if requiresRewrite {
 					if rootpath, ok := fileInfo["rootpath"].(string); ok {
-						newValue = evalCtx.RewritePath(pathValueStr, rootpath)
+						// Use RewritePathForImport which doesn't add "./" prefix
+						// @import paths should be output without explicit relative prefix
+						// (unlike url() which does use "./" prefix)
+						newValue = evalCtx.RewritePathForImport(pathValueStr, rootpath)
 						needsUpdate = true
 						if os.Getenv("LESS_GO_DEBUG") == "1" {
 							fmt.Printf("[DEBUG Import.EvalPath] Rewriting %q -> %q (rootpath=%q)\n", pathValueStr, newValue, rootpath)
@@ -491,6 +494,29 @@ func (i *Import) DoEval(context any) (any, error) {
 			features = result
 		} else {
 			features = i.features
+		}
+	}
+
+	// Check if this is a variable import that should be treated as CSS
+	// When an import path contains variables (e.g., @import "@{var}";), the css flag
+	// may not be set at parse time. After variable interpolation, we need to re-check
+	// if the evaluated path is a CSS file.
+	if !i.css && i.root == nil {
+		// Evaluate the path to get the actual path value after variable interpolation
+		var pathStr string
+		if pathEval, ok := i.path.(interface{ Eval(any) (any, error) }); ok {
+			if result, err := pathEval.Eval(context); err == nil {
+				if quoted, ok := result.(*Quoted); ok {
+					pathStr = quoted.GetValue()
+				}
+			}
+		}
+		// Check if the evaluated path is a CSS file
+		if pathStr != "" && cssPatternRegex.MatchString(pathStr) {
+			// This is a CSS import - create a new Import with the evaluated path and return it
+			newImport := NewImport(i.EvalPath(context), features, i.options, i._index, i._fileInfo, nil)
+			newImport.css = true
+			return newImport, nil
 		}
 	}
 
