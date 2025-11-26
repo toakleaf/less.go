@@ -260,7 +260,22 @@ func (c *DefaultParserFunctionCaller) Call(args []any) (any, error) {
 	// This handles cases like @color2: #FFF/* comment2 */;
 	filteredArgs := c.filterCommentsFromArgs(evaluatedArgs)
 
-	return c.funcDef.Call(filteredArgs...)
+	// Build a context for functions that need it even with evaluated args
+	// This is needed for functions like data-uri that need file info for path resolution
+	tempRegistry := NewRegistryFunctionAdapter(DefaultRegistry.Inherit())
+	tempRegistry.registry.Add(c.name, c.funcDef)
+
+	funcContext := &Context{
+		Frames: []*Frame{
+			{
+				FunctionRegistry: tempRegistry,
+				EvalContext:      c.context,
+				CurrentFileInfo:  c.fileInfo,
+			},
+		},
+	}
+
+	return c.funcDef.CallCtx(funcContext, filteredArgs...)
 }
 
 // filterCommentsFromArgs removes comments from evaluated arguments

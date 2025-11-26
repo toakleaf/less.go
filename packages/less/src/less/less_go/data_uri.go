@@ -232,7 +232,7 @@ func (w *DataURIFunctionWrapper) CallCtx(ctx *Context, args ...any) (any, error)
 }
 
 func (w *DataURIFunctionWrapper) NeedsEvalArgs() bool {
-	return false
+	return true
 }
 
 // ImageSizeFunctionWrapper wraps the image-size function to implement FunctionDefinition
@@ -252,7 +252,7 @@ func (w *ImageSizeFunctionWrapper) CallCtx(ctx *Context, args ...any) (any, erro
 }
 
 func (w *ImageSizeFunctionWrapper) NeedsEvalArgs() bool {
-	return false
+	return true
 }
 
 // buildContextMap builds a context map from the Context for data-uri and image-size functions
