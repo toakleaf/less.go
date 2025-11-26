@@ -220,13 +220,18 @@ func (w *DataURIFunctionWrapper) Call(args ...any) (any, error) {
 
 func (w *DataURIFunctionWrapper) CallCtx(ctx *Context, args ...any) (any, error) {
 	contextMap := buildContextMap(ctx)
+
+	// Evaluate arguments before passing to DataURI
+	// This handles cases like data-uri(@var) or data-uri(replace(...))
+	evaluatedArgs := evaluateArgsWithContext(ctx, args)
+
 	var result any
-	if len(args) == 1 {
-		result = DataURI(contextMap, nil, args[0])
-	} else if len(args) == 2 {
-		result = DataURI(contextMap, args[0], args[1])
+	if len(evaluatedArgs) == 1 {
+		result = DataURI(contextMap, nil, evaluatedArgs[0])
+	} else if len(evaluatedArgs) == 2 {
+		result = DataURI(contextMap, evaluatedArgs[0], evaluatedArgs[1])
 	} else {
-		return nil, fmt.Errorf("data-uri expects 1 or 2 arguments, got %d", len(args))
+		return nil, fmt.Errorf("data-uri expects 1 or 2 arguments, got %d", len(evaluatedArgs))
 	}
 	return result, nil
 }
@@ -247,7 +252,11 @@ func (w *ImageSizeFunctionWrapper) CallCtx(ctx *Context, args ...any) (any, erro
 		return nil, fmt.Errorf("image-size expects 1 argument, got %d", len(args))
 	}
 	contextMap := buildContextMap(ctx)
-	result := ImageSize(contextMap, args[0])
+
+	// Evaluate argument before passing to ImageSize
+	evaluatedArgs := evaluateArgsWithContext(ctx, args)
+
+	result := ImageSize(contextMap, evaluatedArgs[0])
 	return result, nil
 }
 
@@ -509,4 +518,54 @@ func encodeURIComponent(s string) string {
 	// which matches JavaScript's behavior
 
 	return encoded
+}
+
+// evaluateArgsWithContext evaluates function arguments using the given context
+// This is needed for functions like data-uri that receive unevaluated arguments
+// (e.g., variables or nested function calls)
+func evaluateArgsWithContext(ctx *Context, args []any) []any {
+	if ctx == nil || len(ctx.Frames) == 0 {
+		return args
+	}
+
+	// Get eval context from the first frame
+	var evalCtx any
+	if ctx.Frames[0] != nil {
+		evalCtx = ctx.Frames[0].EvalContext
+	}
+	if evalCtx == nil {
+		return args
+	}
+
+	evaluated := make([]any, len(args))
+	for i, arg := range args {
+		evaluated[i] = evaluateArgWithContext(arg, evalCtx)
+	}
+	return evaluated
+}
+
+// evaluateArgWithContext evaluates a single argument using the given eval context
+func evaluateArgWithContext(arg any, evalCtx any) any {
+	if arg == nil {
+		return nil
+	}
+
+	// Try different Eval signatures
+	if evalable, ok := arg.(interface {
+		Eval(any) (any, error)
+	}); ok {
+		result, err := evalable.Eval(evalCtx)
+		if err == nil && result != nil {
+			return result
+		}
+	} else if evalable, ok := arg.(interface {
+		Eval(any) any
+	}); ok {
+		result := evalable.Eval(evalCtx)
+		if result != nil {
+			return result
+		}
+	}
+
+	return arg
 }
