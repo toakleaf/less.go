@@ -315,46 +315,26 @@ func (jsv *JoinSelectorVisitor) VisitMedia(mediaNode any, visitArgs *VisitArgs) 
 
 	// Determine root flag based on context
 	// JavaScript: mediaNode.rules[0].root = (context.length === 0 || context[0].multiMedia);
-	// When context is empty and the wrapper has selectors from BubbleSelectors,
-	// we should NOT set root=true. This is because:
-	// 1. BubbleSelectors created a wrapper Ruleset with parent selectors (e.g., .body)
-	// 2. These selectors need to be processed by JoinSelectors to create paths
-	// 3. If root=true, JoinSelectors skips processing, no paths are created
-	// 4. Without paths, genCSS doesn't output the selector
-	//
-	// The fix: Only set root=true if the wrapper has NO selectors.
-	// If it has selectors (from BubbleSelectors), let JoinSelectors process them.
+	// In JavaScript, context[0].multiMedia checks if the first PATH has multiMedia property.
+	// But path arrays don't have multiMedia set - it's only on Ruleset nodes.
+	// When a MultiMedia Ruleset with root=true is visited, selector processing is skipped,
+	// resulting in empty paths. So context.length === 0 already handles the MultiMedia case.
+	// Root should be true ONLY when context (paths) is empty.
 	rootValue := len(contextItem.paths) == 0
 
 	if os.Getenv("LESS_GO_DEBUG") == "1" {
-		fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor.VisitMedia] contextItem.paths len=%d, multiMedia=%v\n",
-			len(contextItem.paths), contextItem.multiMedia)
+		fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor.VisitMedia] contextItem.paths len=%d, multiMedia=%v, rootValue=%v\n",
+			len(contextItem.paths), contextItem.multiMedia, rootValue)
 	}
 
 	// Try interface-based approach first
 	if mediaInterface, ok := mediaNode.(interface{ GetRules() []any }); ok {
 		rules := mediaInterface.GetRules()
 		if len(rules) > 0 {
-			// Check if the inner ruleset has selectors
-			hasSelectors := false
-			if selectorGetter, ok := rules[0].(interface{ GetSelectors() []any }); ok {
-				selectors := selectorGetter.GetSelectors()
-				hasSelectors = len(selectors) > 0
-			}
-
-			// If the wrapper has selectors (from BubbleSelectors), don't set root=true
-			// This allows JoinSelectors to process the selectors and create paths
-			effectiveRoot := rootValue && !hasSelectors
-
-			if os.Getenv("LESS_GO_DEBUG") == "1" {
-				fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor.VisitMedia] hasSelectors=%v, rootValue=%v, effectiveRoot=%v\n",
-					hasSelectors, rootValue, effectiveRoot)
-			}
-
 			if mediaRule, ok := rules[0].(interface{ SetRoot(bool) }); ok {
-				mediaRule.SetRoot(effectiveRoot)
+				mediaRule.SetRoot(rootValue)
 				if os.Getenv("LESS_GO_DEBUG") == "1" {
-					fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor.VisitMedia] Set root=%v on inner ruleset (interface)\n", effectiveRoot)
+					fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor.VisitMedia] Set root=%v on inner ruleset (interface)\n", rootValue)
 				}
 			}
 		}
@@ -362,24 +342,10 @@ func (jsv *JoinSelectorVisitor) VisitMedia(mediaNode any, visitArgs *VisitArgs) 
 		// Fallback to concrete type for backward compatibility
 		rules := media.Rules
 		if len(rules) > 0 {
-			// Check if the inner ruleset has selectors
-			hasSelectors := false
-			if rs, ok := rules[0].(*Ruleset); ok {
-				hasSelectors = len(rs.Selectors) > 0
-			}
-
-			// If the wrapper has selectors (from BubbleSelectors), don't set root=true
-			effectiveRoot := rootValue && !hasSelectors
-
-			if os.Getenv("LESS_GO_DEBUG") == "1" {
-				fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor.VisitMedia] hasSelectors=%v, rootValue=%v, effectiveRoot=%v (concrete)\n",
-					hasSelectors, rootValue, effectiveRoot)
-			}
-
 			if mediaRule, ok := rules[0].(MediaRule); ok {
-				mediaRule.SetRoot(effectiveRoot)
+				mediaRule.SetRoot(rootValue)
 				if os.Getenv("LESS_GO_DEBUG") == "1" {
-					fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor.VisitMedia] Set root=%v on inner ruleset (concrete)\n", effectiveRoot)
+					fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor.VisitMedia] Set root=%v on inner ruleset (concrete)\n", rootValue)
 				}
 			}
 		}
