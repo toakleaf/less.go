@@ -430,6 +430,11 @@ func (i *Import) Eval(context any) (any, error) {
 		return nil, err
 	}
 
+	// For reference imports, mark ALL nodes with visibility blocks recursively.
+	// This ensures that when nested rulesets are processed during GenCSS, they know
+	// they're from a reference import and should filter paths accordingly.
+	// This differs from JavaScript where the structure is preserved better during evaluation,
+	// but achieves the same result of hiding reference import content unless extended.
 	if i.getBoolOption("reference") || i.BlocksVisibility() {
 		if resultSlice, ok := result.([]any); ok {
 			for _, node := range resultSlice {
@@ -605,7 +610,8 @@ func (i *Import) DoEval(context any) (any, error) {
 				featuresValue = i.features
 			}
 
-			return NewMedia([]any{contents}, featuresValue, i._index, i._fileInfo, nil), nil
+			// Pass Import's visibility info to preserve reference import blocking
+			return NewMedia([]any{contents}, featuresValue, i._index, i._fileInfo, i.VisibilityInfo()), nil
 		}
 		return []any{contents}, nil
 	}
@@ -648,7 +654,8 @@ func (i *Import) DoEval(context any) (any, error) {
 				featuresValue = i.features
 			}
 
-			return NewMedia(ruleset.Rules, featuresValue, i._index, i._fileInfo, nil), nil
+			// Pass Import's visibility info to preserve reference import blocking
+			return NewMedia(ruleset.Rules, featuresValue, i._index, i._fileInfo, i.VisibilityInfo()), nil
 		}
 		return ruleset.Rules, nil
 	}
