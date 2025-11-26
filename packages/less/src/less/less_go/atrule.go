@@ -52,29 +52,36 @@ func NewAtRule(name string, value any, rules any, index int, currentFileInfo map
 		if rulesSlice, ok := rules.([]any); ok {
 			atRule.Rules = rulesSlice
 		} else {
-			// Single rule - convert to array and add empty selectors
+			// Single rule - convert to array
 			atRule.Rules = []any{rules}
-			if ruleset, ok := rules.(*Ruleset); ok {
-				// Create empty selectors like JavaScript version - skip if errors occur
-				emptySelector, err := NewSelector("", nil, nil, index, currentFileInfo, nil)
-				if err == nil {
-					emptySelectors, err := emptySelector.CreateEmptySelectors()
-					if err == nil {
-						ruleset.Selectors = make([]any, len(emptySelectors))
-						for i, sel := range emptySelectors {
-							ruleset.Selectors[i] = sel
-						}
-					}
-				}
-			}
 		}
 
-		// Set allowImports to true for all rules and parent relationships
-		// Also set Root = true for the ruleset (matches JavaScript atrule.js:91)
+		// Check if this is a bubblable at-rule (@supports or @document)
+		// Only these at-rules need empty selectors for selector joining
+		nonVendorName := stripVendorPrefix(name)
+		isBubblable := nonVendorName == "@supports" || nonVendorName == "@document"
+
+		// Set allowImports and Root for ALL at-rules
+		// Only create empty selectors for bubblable at-rules (@supports/@document)
 		for _, rule := range atRule.Rules {
 			if ruleset, ok := rule.(*Ruleset); ok {
+				// These settings are needed for all at-rules
 				ruleset.AllowImports = true
 				ruleset.Root = true
+
+				// Only add empty selectors for bubblable at-rules
+				// This is needed for JoinSelectorVisitor to properly join selectors
+				if isBubblable && len(ruleset.Selectors) == 0 {
+					// Create empty selectors directly (same as Selector.CreateEmptySelectors)
+					// Create an Element with & as the value
+					el := NewElement("", "&", false, index, currentFileInfo, nil)
+					// Create Selector with the element
+					sel, err := NewSelector(el, nil, nil, index, currentFileInfo, nil)
+					if err == nil {
+						sel.MediaEmpty = true
+						ruleset.Selectors = []any{sel}
+					}
+				}
 			}
 		}
 		atRule.SetParent(atRule.Rules, atRule.Node)
@@ -149,9 +156,23 @@ func (a *AtRule) ToCSS(context any) string {
 
 // Accept visits the node with a visitor
 func (a *AtRule) Accept(visitor any) {
-	if v, ok := visitor.(interface{ VisitArray([]any) []any }); ok {
-		if a.Rules != nil {
-			a.Rules = v.VisitArray(a.Rules)
+	// Only visit rules for bubblable at-rules (@supports/@document)
+	// For other at-rules (like @keyframes), the original behavior was to NOT visit
+	// children through Accept (the interface check was silently failing)
+	nonVendorName := stripVendorPrefix(a.Name)
+	isBubblable := nonVendorName == "@supports" || nonVendorName == "@document"
+
+	if isBubblable {
+		// Try the variadic signature first (matches Visitor.VisitArray)
+		if v, ok := visitor.(interface{ VisitArray([]any, ...bool) []any }); ok {
+			if a.Rules != nil {
+				a.Rules = v.VisitArray(a.Rules)
+			}
+		} else if v, ok := visitor.(interface{ VisitArray([]any) []any }); ok {
+			// Fallback to non-variadic signature for compatibility
+			if a.Rules != nil {
+				a.Rules = v.VisitArray(a.Rules)
+			}
 		}
 	}
 
@@ -271,12 +292,12 @@ func (a *AtRule) GenCSS(context any, output *CSSOutput) {
 // Eval evaluates the at-rule
 func (a *AtRule) Eval(context any) (any, error) {
 	if os.Getenv("LESS_GO_DEBUG") == "1" {
-		fmt.Printf("[DEBUG AtRule.Eval] name=%q, hasRules=%v\n", a.Name, len(a.Rules) > 0)
+		fmt.Printf("[DEBUG AtRule.Eval] name=%q, hasRules=%v, isRooted=%v\n", a.Name, len(a.Rules) > 0, a.IsRooted)
 	}
 
 	// Standard directives use regular evaluation
-	// Note: @supports/@document should NOT use the mediaBlocks bubbling mechanism
-	// They bubble via ToCSSVisitor extraction AFTER JoinSelectorVisitor has run
+	// Note: @supports/@document stay in place during eval; their selectors are joined
+	// by JoinSelectorVisitor later (NOT via mediaBlocks bubbling like @media)
 	var mediaPathBackup, mediaBlocksBackup any
 	var value any = a.Value
 	var rules []any = a.Rules
@@ -648,6 +669,8 @@ func (a *AtRule) EvalNested(context any) any {
 }
 
 // BubbleSelectors bubbles selectors up the tree (implementing NestableAtRulePrototype pattern)
+// This matches JavaScript's nested-at-rule.js bubbleSelectors method exactly:
+//   this.rules = [new Ruleset(utils.copyArray(selectors), [this.rules[0]])];
 func (a *AtRule) BubbleSelectors(selectors any) {
 	if selectors == nil {
 		return
@@ -677,11 +700,10 @@ func (a *AtRule) BubbleSelectors(selectors any) {
 		return
 	}
 
-	// Join parent selectors with nested selectors during bubbling
-	// This avoids the need for JoinSelectorVisitor to handle bubbled directives
-	a.joinSelectorsRecursive(a.Rules[0], anySelectors)
-
-	// Don't create wrapper - selectors are already joined in nested rulesets
+	// Create a new Ruleset wrapper with the selectors containing the original rules
+	// This matches JavaScript: this.rules = [new Ruleset(utils.copyArray(selectors), [this.rules[0]])];
+	newRuleset := NewRuleset(anySelectors, []any{a.Rules[0]}, false, nil)
+	a.Rules = []any{newRuleset}
 	a.SetParent(a.Rules, a.Node)
 }
 

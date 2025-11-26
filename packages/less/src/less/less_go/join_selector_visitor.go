@@ -107,8 +107,30 @@ func (jsv *JoinSelectorVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitAr
 		isMultiMedia = rs.MultiMedia
 	}
 
+	// Debug tracing for directives-bubling analysis
+	if os.Getenv("LESS_GO_TRACE_JOIN") == "1" {
+		fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor.VisitRuleset] START: context.paths len=%d, isMultiMedia=%v\n",
+			len(context), isMultiMedia)
+		if rs, ok := rulesetNode.(*Ruleset); ok {
+			fmt.Fprintf(os.Stderr, "  Ruleset: Root=%v, Selectors len=%d\n", rs.Root, len(rs.Selectors))
+			for i, sel := range rs.Selectors {
+				if s, ok := sel.(*Selector); ok {
+					fmt.Fprintf(os.Stderr, "    Selector[%d]: Elements=%d, EvaldCondition=%v\n", i, len(s.Elements), s.EvaldCondition)
+					for j, el := range s.Elements {
+						fmt.Fprintf(os.Stderr, "      Element[%d]: Value=%v\n", j, el.Value)
+					}
+				}
+			}
+		}
+	}
+
 	// Push new context info to context stack BEFORE JoinSelectors (matches JavaScript)
 	jsv.contexts = append(jsv.contexts, &contextInfo{paths: paths, multiMedia: isMultiMedia})
+
+	// Debug tracing for context stack
+	if os.Getenv("LESS_GO_TRACE_JOIN") == "1" {
+		fmt.Fprintf(os.Stderr, "  PUSHED context, stack depth now %d\n", len(jsv.contexts))
+	}
 	
 	// Try interface-based approach first
 	if rulesetInterface, ok := rulesetNode.(interface {
@@ -159,7 +181,7 @@ func (jsv *JoinSelectorVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitAr
 						}
 						
 						jsInterface.JoinSelectors(&pathsSlice, contextSlice, filteredSelectors)
-						
+
 						// Convert [][]any to []any and update the existing paths slice in place
 						// This ensures the paths array on the context stack gets populated
 						for _, path := range pathsSlice {
@@ -167,9 +189,17 @@ func (jsv *JoinSelectorVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitAr
 							flatPath := flattenPath(path)
 							paths = append(paths, flatPath)
 						}
-						
+
 						// Update the context stack with the populated paths
 						jsv.contexts[len(jsv.contexts)-1].paths = paths
+
+						// Debug tracing for directives-bubling analysis
+						if os.Getenv("LESS_GO_TRACE_JOIN") == "1" {
+							fmt.Fprintf(os.Stderr, "  After JoinSelectors: paths len=%d\n", len(paths))
+							for i, p := range paths {
+								fmt.Fprintf(os.Stderr, "    Path[%d]: %v\n", i, p)
+							}
+						}
 					}
 				} else {
 					rulesetInterface.SetSelectors(nil)
@@ -253,6 +283,9 @@ func (jsv *JoinSelectorVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitAr
 
 // VisitRulesetOut removes the top context when exiting a ruleset
 func (jsv *JoinSelectorVisitor) VisitRulesetOut(rulesetNode any) {
+	if os.Getenv("LESS_GO_TRACE_JOIN") == "1" {
+		fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor.VisitRulesetOut] POPPING context, stack depth was %d\n", len(jsv.contexts))
+	}
 	if len(jsv.contexts) > 0 {
 		jsv.contexts = jsv.contexts[:len(jsv.contexts)-1]
 	}
@@ -358,6 +391,11 @@ type AtRuleRule interface {
 }
 
 // VisitAtRule processes at-rule nodes
+// This matches JavaScript join-selector-visitor.js visitAtRule exactly:
+//   const context = this.contexts[this.contexts.length - 1];
+//   if (atRuleNode.rules && atRuleNode.rules.length) {
+//       atRuleNode.rules[0].root = (atRuleNode.isRooted || context.length === 0 || null);
+//   }
 func (jsv *JoinSelectorVisitor) VisitAtRule(atRuleNode any, visitArgs *VisitArgs) any {
 	// Guard against empty contexts
 	if len(jsv.contexts) == 0 {
@@ -365,6 +403,14 @@ func (jsv *JoinSelectorVisitor) VisitAtRule(atRuleNode any, visitArgs *VisitArgs
 	}
 	contextItem := jsv.contexts[len(jsv.contexts)-1]
 	contextPaths := contextItem.paths
+
+	// Debug tracing for directives-bubling analysis
+	if os.Getenv("LESS_GO_TRACE_JOIN") == "1" {
+		if atRule, ok := atRuleNode.(*AtRule); ok {
+			fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor.VisitAtRule] AtRule name=%q, isRooted=%v, context.paths len=%d\n",
+				atRule.Name, atRule.IsRooted, len(contextPaths))
+		}
+	}
 
 	// Try interface-based approach first
 	if atRuleInterface, ok := atRuleNode.(interface{ GetRules() []any }); ok {
@@ -389,34 +435,7 @@ func (jsv *JoinSelectorVisitor) VisitAtRule(atRuleNode any, visitArgs *VisitArgs
 						rootValue = true
 					} else if isBubblingDirective {
 						// ONLY @supports and @document get special bubbling treatment
-						// - With context: bubble selectors and set Root=false
-						// - Without context: set Root=false to allow nested selector joining
-						if len(contextPaths) > 0 {
-							// For bubbling directives with context, bubble selectors
-							// This joins parent selectors with nested selectors
-							if bubbleInterface, ok := atRuleNode.(interface{ BubbleSelectors(any) }); ok {
-								// Extract selectors from context paths
-								// Context is []any where each element is a path ([]any of selectors)
-								selectors := make([]any, 0)
-								for _, path := range contextPaths {
-									if pathArray, ok := path.([]any); ok {
-										// Each path is an array of selectors
-										// We want to pass all selectors from all paths
-										for _, sel := range pathArray {
-											selectors = append(selectors, sel)
-										}
-									} else {
-										// Single selector
-										selectors = append(selectors, path)
-									}
-								}
-								if len(selectors) > 0 {
-									bubbleInterface.BubbleSelectors(selectors)
-								}
-							}
-						}
-						// Always set Root=false for bubbling directives
-						// This allows nested selectors to be joined properly
+						// Set Root=false to allow nested selector joining
 						rootValue = false
 					} else {
 						// Other non-rooted directives use the old behavior
@@ -438,10 +457,12 @@ func (jsv *JoinSelectorVisitor) VisitAtRule(atRuleNode any, visitArgs *VisitArgs
 		if rules != nil && len(rules) > 0 {
 			if atRuleRule, ok := rules[0].(AtRuleRule); ok {
 				var rootValue any = nil
-				if hasIsRooted(atRule) {
-					if getIsRooted(atRule) || len(contextPaths) == 0 {
-						rootValue = true
-					}
+				// Check if this is a bubbling directive
+				isBubblingDirective := (atRule.Name == "@supports" || atRule.Name == "@document")
+				if atRule.IsRooted {
+					rootValue = true
+				} else if isBubblingDirective {
+					rootValue = false
 				} else if len(contextPaths) == 0 {
 					rootValue = true
 				}
@@ -449,7 +470,7 @@ func (jsv *JoinSelectorVisitor) VisitAtRule(atRuleNode any, visitArgs *VisitArgs
 			}
 		}
 	}
-	
+
 	return atRuleNode
 }
 
