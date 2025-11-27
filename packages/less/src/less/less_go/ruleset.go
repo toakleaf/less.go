@@ -1057,7 +1057,7 @@ func isFalsy(v any) bool {
 	if v == nil {
 		return true
 	}
-	
+
 	switch val := v.(type) {
 	case bool:
 		return !val
@@ -1070,6 +1070,46 @@ func isFalsy(v any) bool {
 	default:
 		return false
 	}
+}
+
+// ruleBlocksVisibility checks if a rule blocks visibility and is not explicitly visible
+// This is used to skip rules from reference imports during CSS generation
+func ruleBlocksVisibility(rule any) bool {
+	// Check if the rule has visibility blocking methods
+	if visNode, ok := rule.(interface{ BlocksVisibility() bool; IsVisible() *bool }); ok {
+		if visNode.BlocksVisibility() {
+			nodeVisible := visNode.IsVisible()
+			// If visibility is nil or false, check for visible paths from extends
+			if nodeVisible == nil || !*nodeVisible {
+				// For rulesets, check if they have visible paths (from extends)
+				// This matches the logic in ToCSSVisitor.IsVisibleRuleset
+				if rs, isRuleset := rule.(*Ruleset); isRuleset {
+					// Check if ruleset has visible paths with visible selectors
+					if rs.Paths != nil && len(rs.Paths) > 0 {
+						for _, path := range rs.Paths {
+							if len(path) > 0 {
+								// Check if any selector in the path is explicitly visible
+								for _, pathElem := range path {
+									if sel, ok := pathElem.(*Selector); ok {
+										if sel.Node != nil {
+											selVis := sel.Node.IsVisible()
+											if selVis != nil && *selVis {
+												// Has a visible selector from extends - don't filter
+												return false
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+				// No visible paths, filter it out
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // ResetCache resets all cached values
@@ -1640,7 +1680,15 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 				if comment.IsSilent(ctx) {
 					continue // Skip silent comments
 				}
-				// Non-silent comments are included
+				// Also skip comments that block visibility and are not explicitly visible
+				// This handles comments from reference imports
+				if comment.Node != nil && comment.Node.BlocksVisibility() {
+					nodeVisible := comment.Node.IsVisible()
+					if nodeVisible == nil || !*nodeVisible {
+						continue // Skip comments from reference imports
+					}
+				}
+				// Non-silent, visible comments are included
 				if importNodeIndex == i {
 					importNodeIndex++
 				}
@@ -1649,6 +1697,10 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 				// Skip Extend rules entirely - they don't generate CSS output
 				// Extend rules are processed during the extend visitor phase and should not appear in CSS
 				// This prevents extra blank lines from being added
+				continue
+			} else if ruleBlocksVisibility(rule) {
+				// Skip rules that block visibility and are not explicitly visible
+				// This handles rulesets from reference imports
 				continue
 			} else if charset, ok := rule.(interface{ IsCharset() bool }); ok && charset.IsCharset() {
 				// ruleNodes.splice(charsetNodeIndex, 0, rule);
