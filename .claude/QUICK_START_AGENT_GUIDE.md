@@ -3,36 +3,29 @@
 
 ---
 
-## Current Status - Only 3 Tests Remaining!
+## Current Status - Only 2 Tests Remaining!
 
 ### Baseline Metrics (MUST MAINTAIN)
 - **Unit Tests**: 3,012 tests passing (100%)
-- **Perfect Matches**: 89 tests (48.4%)
-- **Output Differences**: 3 tests (1.6%)
+- **Perfect Matches**: 90 tests (48.9%)
+- **Output Differences**: 2 tests (1.1%)
 - **Error Tests**: 89 tests (48.4%)
-- **Overall Success**: 96.7%
+- **Overall Success**: 97.3%
 - **NO REGRESSIONS**: Maintaining all progress
 
 ---
 
-## Only 3 Tasks Left!
+## Only 1 Task Left!
 
 | # | Task | Impact | Difficulty |
 |---|------|--------|------------|
 | 1 | Import Reference | +2 tests | Medium |
-| 2 | URL Handling | +1 test | Low-Medium |
 
 ### Task 1: Import Reference (HIGH PRIORITY)
 **Files**: `import-reference`, `import-reference-issues`
 **Details**: `.claude/tasks/runtime-failures/import-reference.md`
 
 Reference imports outputting CSS when they shouldn't. Files imported with `(reference)` option should not output CSS, but selectors/mixins should be available.
-
-### Task 2: URL Handling (MEDIUM PRIORITY)
-**Files**: `urls` (main suite only)
-**Note**: Other URL tests (static-urls, url-args) are now passing
-
-URL edge cases in the main urls test.
 
 ---
 
@@ -70,7 +63,7 @@ LESS_GO_QUIET=1 pnpm -w test:go 2>&1 | tail -30
 ### 4. Verify No Regressions (CRITICAL!)
 ```bash
 pnpm -w test:go:unit          # MUST: 3,012 passing
-LESS_GO_QUIET=1 pnpm -w test:go 2>&1 | grep "Perfect CSS"  # MUST: >= 89
+LESS_GO_QUIET=1 pnpm -w test:go 2>&1 | grep "Perfect CSS"  # MUST: >= 90
 ```
 
 ### 5. Commit & Push
@@ -107,7 +100,7 @@ less.go/
 
 1. **ALWAYS check baseline before starting**
 2. **NEVER let unit tests fail**
-3. **NEVER reduce perfect match count** (currently 89)
+3. **NEVER reduce perfect match count** (currently 90)
 4. **ALWAYS test incrementally**
 5. **ALWAYS read the JavaScript version when confused**
 6. **ALWAYS verify no regressions before committing**
@@ -150,19 +143,14 @@ LESS_GO_DEBUG=1 LESS_GO_TRACE=1 LESS_GO_DIFF=1 pnpm -w test:go
 
 When you fix both import-reference tests:
 ```
-✅ Perfect CSS Matches: 91 (49.5%)  # Was 89, now 91 (+2!)
-```
-
-When all 3 remaining tests are fixed:
-```
-✅ Perfect CSS Matches: 92 (50.0%)
+✅ Perfect CSS Matches: 92 (50.0%)  # Was 90, now 92 (+2!)
 ✅ Success Rate: 98.4% (181/184 tests)
 # Only 3 external dependency tests remain as expected failures
 ```
 
 ---
 
-**You've got this!** Only 3 tests left to fix.
+**You've got this!** Only 2 tests left to fix (both import-reference).
 
 ---
 Last Updated: 2025-11-27

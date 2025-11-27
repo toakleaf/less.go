@@ -1,20 +1,20 @@
 # Integration Test Status Report
 **Updated**: 2025-11-27
-**Status**: **EXCELLENT!** 89 perfect matches, only 3 output differences remaining
+**Status**: **EXCELLENT!** 90 perfect matches, only 2 output differences remaining
 
 ## Overall Status Summary
 
 ### Key Statistics
-- **Perfect CSS Matches**: 89 tests (48.4%)
+- **Perfect CSS Matches**: 90 tests (48.9%)
 - **Correct Error Handling**: 89 tests (48.4%)
-- **CSS Output Differences**: 3 tests (1.6%)
+- **CSS Output Differences**: 2 tests (1.1%)
 - **Compilation Failures**: 3 tests (1.6%) - All expected (external dependencies)
-- **Overall Success Rate**: 96.7% (178/184 tests)
+- **Overall Success Rate**: 97.3% (179/184 tests)
 - **Compilation Rate**: 98.4% (181/184 tests)
 - **Unit Tests**: 3,012 tests passing (100%)
 - **ZERO REGRESSIONS**: All previously passing tests still passing!
 
-## Remaining 3 Output Differences
+## Remaining 2 Output Differences
 
 ### 1. import-reference (main suite)
 - Reference imports outputting CSS when they shouldn't
@@ -23,10 +23,6 @@
 ### 2. import-reference-issues (main suite)
 - Import reference with extends/mixins edge cases
 - Related to import-reference fix
-
-### 3. urls (main suite)
-- URL handling edge cases
-- Other URL tests (static-urls, url-args) now passing
 
 ## Compilation Failures (Expected - External)
 
@@ -62,12 +58,12 @@
 | 2025-11-10 | 79 | 75.7% | +10 |
 | 2025-11-13 | 83 | 93.0% | +4 |
 | 2025-11-26 | 84 | 93.5% | +1 |
-| **2025-11-27** | **89** | **96.7%** | **+5** |
+| **2025-11-27** | **90** | **97.3%** | **+6** |
 
 ## Path to Completion
 
-**Current**: 96.7% (178/184 tests)
-**Target**: Fix 3 remaining output differences → 98.4% (181/184)
+**Current**: 97.3% (179/184 tests)
+**Target**: Fix 2 remaining output differences → 98.4% (181/184)
 
 The only remaining failures would be the 3 external dependency tests.
 
@@ -76,7 +72,7 @@ The only remaining failures would be the 3 external dependency tests.
 ```bash
 # Check baseline
 pnpm -w test:go:unit          # Must: 3,012 tests passing
-LESS_GO_QUIET=1 pnpm -w test:go 2>&1 | tail -30  # Must: 89 perfect
+LESS_GO_QUIET=1 pnpm -w test:go 2>&1 | tail -30  # Must: 90 perfect
 
 # Debug specific test
 LESS_GO_DIFF=1 pnpm -w test:go 2>&1 | grep -A 20 "import-reference"
@@ -84,4 +80,4 @@ LESS_GO_DIFF=1 pnpm -w test:go 2>&1 | grep -A 20 "import-reference"
 
 ---
 
-**The less.go port is in EXCELLENT shape with 96.7% success rate!**
+**The less.go port is in EXCELLENT shape with 97.3% success rate!**

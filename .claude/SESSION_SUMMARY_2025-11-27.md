@@ -5,20 +5,19 @@
 
 ## Current Test Status
 
-- **Perfect CSS Matches**: 89 tests (48.4%)
-- **Output Differences**: 3 tests (1.6%)
+- **Perfect CSS Matches**: 90 tests (48.9%)
+- **Output Differences**: 2 tests (1.1%)
 - **Correct Error Handling**: 89 tests (48.4%)
 - **Compilation Failures**: 3 tests (expected - external dependencies)
-- **Overall Success Rate**: 96.7% (178/184 tests)
+- **Overall Success Rate**: 97.3% (179/184 tests)
 - **Unit Tests**: 3,012 tests passing (100%)
 
 ---
 
-## Remaining 3 Output Differences
+## Remaining 2 Output Differences
 
 1. **import-reference** - Reference imports outputting CSS when they shouldn't
 2. **import-reference-issues** - Import reference with extends/mixins edge cases
-3. **urls** (main suite) - URL handling edge cases
 
 ---
 
@@ -57,9 +56,9 @@
 
 | Metric | 2025-11-26 | 2025-11-27 | Change |
 |--------|------------|------------|--------|
-| Perfect Matches | 84 | 89 | +5 |
-| Output Differences | 8 | 3 | -5 |
-| Success Rate | 93.5% | 96.7% | +3.2% |
+| Perfect Matches | 84 | 90 | +6 |
+| Output Differences | 8 | 2 | -6 |
+| Success Rate | 93.5% | 97.3% | +3.8% |
 
 ### Tests Fixed (by previous sessions)
 - detached-rulesets
@@ -68,6 +67,7 @@
 - directives-bubbling
 - static-urls (urls suite)
 - url-args (urls suite)
+- urls (main suite) - JUST FIXED!
 
 ---
 
@@ -77,9 +77,6 @@
 Fix import-reference and import-reference-issues tests.
 See `.claude/tasks/runtime-failures/import-reference.md`
 
-### Priority 2: URL Handling (1 test)
-Fix remaining URL edge cases in urls main suite.
-
 ---
 
 ## Validation Commands
@@ -87,7 +84,7 @@ Fix remaining URL edge cases in urls main suite.
 ```bash
 # Check current state
 pnpm -w test:go:unit          # 3,012 tests passing
-LESS_GO_QUIET=1 pnpm -w test:go 2>&1 | tail -30  # 89 perfect
+LESS_GO_QUIET=1 pnpm -w test:go 2>&1 | tail -30  # 90 perfect
 
 # Debug remaining tests
 LESS_GO_DIFF=1 pnpm -w test:go 2>&1 | grep -A 20 "import-reference"
@@ -95,7 +92,7 @@ LESS_GO_DIFF=1 pnpm -w test:go 2>&1 | grep -A 20 "import-reference"
 
 ---
 
-**The less.go port is at 96.7% success rate with only 3 output differences remaining!**
+**The less.go port is at 97.3% success rate with only 2 import-reference tests remaining!**
 
 ---
 Generated: 2025-11-27

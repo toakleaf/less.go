@@ -4,17 +4,17 @@
 
 ### Test Results Summary
 - **Total Active Tests**: 184
-- **Perfect CSS Matches**: 89 tests (48.4%)
+- **Perfect CSS Matches**: 90 tests (48.9%)
 - **Correct Error Handling**: 89 tests (48.4%)
-- **Output Differs (but compiles)**: 3 tests (1.6%)
+- **Output Differs (but compiles)**: 2 tests (1.1%)
 - **Compilation Failures**: 3 tests (1.6%) - All external (network/packages)
-- **Tests Passing or Correctly Erroring**: 178 tests (96.7%)
-- **Overall Success Rate**: 96.7% (178/184)
+- **Tests Passing or Correctly Erroring**: 179 tests (97.3%)
+- **Overall Success Rate**: 97.3% (179/184)
 - **Compilation Rate**: 98.4% (181/184)
 - **Unit Tests**: 3,012 tests passing (100%)
 
 ### Parser Status
-**ALL PARSER BUGS FIXED!** The parser correctly handles full LESS syntax. All remaining work is in **CSS output edge cases** for 3 tests.
+**ALL PARSER BUGS FIXED!** The parser correctly handles full LESS syntax. All remaining work is in **CSS output edge cases** for 2 import-reference tests.
 
 ## Strategy Overview
 
@@ -57,12 +57,11 @@ This document outlines a strategy for **parallelizing the work** of fixing remai
 12. **Container Queries** - 1/1 test
 13. **Directives Bubbling** - 1/1 test
 
-**Remaining (3 tests)**:
+**Remaining (2 tests)**:
 1. **Import Reference** - 2 tests (`import-reference`, `import-reference-issues`)
-2. **URL Handling** - 1 test (`urls` main suite)
 
-### Phase 3: Polish & Edge Cases - MOSTLY DONE
-The remaining 3 tests are edge cases in import reference handling and URL processing.
+### Phase 3: Polish & Edge Cases - NEARLY COMPLETE!
+The remaining 2 tests are edge cases in import reference handling.
 
 ## Task Assignment System
 
@@ -192,21 +191,20 @@ less.go/
 | 2025-11-10 | 79 | 75.7% | Week 4 wins |
 | 2025-11-13 | 83 | 93.0% | Continued progress |
 | 2025-11-26 | 84 | 93.5% | Minor fix |
-| **2025-11-27** | **89** | **96.7%** | **Current** |
+| **2025-11-27** | **90** | **97.3%** | **Current** |
 
 ### Major Milestones
 
 - **Week 1-2**: Fixed core evaluation issues (`if()`, type functions, detached rulesets)
 - **Week 3**: MASSIVE BREAKTHROUGH - 69 perfect matches, all major categories fixed
 - **Week 4**: Continued progress - 79 perfect matches
-- **Week 5-6**: Polish and edge cases - 89 perfect matches
-- **Current**: Only 3 output differences remaining!
+- **Week 5-6**: Polish and edge cases - 90 perfect matches
+- **Current**: Only 2 output differences remaining (both import-reference)!
 
 ## Next Steps
 
 1. **Fix import-reference** (2 tests) - See `.claude/tasks/runtime-failures/import-reference.md`
-2. **Fix urls main suite** (1 test) - URL edge case handling
-3. **Document completion** - Update all tracking when done
+2. **Document completion** - Update all tracking when done
 
 ---
 
