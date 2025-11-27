@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
 )
 
 // Node represents a base node in the Less AST
@@ -27,29 +26,11 @@ func (n *Node) GenCSSSourceMap(context map[string]any, output *SourceMapOutput) 
 	// Default implementation for source map generation - most nodes will override this
 }
 
-// nodePool is a sync.Pool for reusing Node instances to reduce allocations
-var nodePool = sync.Pool{
-	New: func() interface{} {
-		return &Node{}
-	},
-}
-
-// NewNode creates a new Node instance, potentially reusing from pool
+// NewNode creates a new Node instance.
+// Direct allocation is more efficient than sync.Pool when objects aren't returned
+// to the pool - which is the case for AST nodes that become garbage after compilation.
 func NewNode() *Node {
-	n := nodePool.Get().(*Node)
-	// Reset all fields to zero values
-	n.Parent = nil
-	n.VisibilityBlocks = nil
-	n.NodeVisible = nil
-	n.RootNode = nil
-	n.Parsed = nil
-	n.Value = nil
-	n.Index = 0
-	n.fileInfo = nil
-	n.Parens = false
-	n.ParensInOp = false
-	n.TypeIndex = 0
-	return n
+	return &Node{}
 }
 
 // SetParent sets the parent for one or more nodes
