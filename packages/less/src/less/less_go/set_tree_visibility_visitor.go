@@ -1,181 +1,36 @@
 package less_go
 
-import (
-	"reflect"
-)
+// VisibilityNode interface for nodes that support visibility operations
+type VisibilityNode interface {
+	BlocksVisibility() bool
+	EnsureVisibility()
+	EnsureInvisibility()
+}
+
+// AcceptableNode interface for nodes that accept visitors
+type AcceptableNode interface {
+	Accept(visitor any)
+}
 
 // SetTreeVisibilityVisitor implements the visitor pattern to set tree visibility
 type SetTreeVisibilityVisitor struct {
-	visible any
+	visible bool
 }
 
 // NewSetTreeVisibilityVisitor creates a new SetTreeVisibilityVisitor instance
 func NewSetTreeVisibilityVisitor(visible any) *SetTreeVisibilityVisitor {
 	return &SetTreeVisibilityVisitor{
-		visible: visible,
+		visible: isTruthyValue(visible),
 	}
 }
 
-// Run starts the visitor on the root node
-func (v *SetTreeVisibilityVisitor) Run(root any) {
-	v.Visit(root)
-}
-
-// VisitArray visits an array of nodes (generic version using reflection)
-func (v *SetTreeVisibilityVisitor) VisitArray(nodes any) any {
-	if nodes == nil {
-		return nodes
-	}
-
-	// Handle different array types through reflection
-	nodesVal := reflect.ValueOf(nodes)
-	if nodesVal.Kind() != reflect.Slice && nodesVal.Kind() != reflect.Array {
-		return nodes
-	}
-
-	cnt := nodesVal.Len()
-	for i := 0; i < cnt; i++ {
-		nodeInterface := nodesVal.Index(i).Interface()
-		v.Visit(nodeInterface)
-	}
-	return nodes
-}
-
-
-// Visit visits a single node
-func (v *SetTreeVisibilityVisitor) Visit(node any) any {
-	if node == nil {
-		return node
-	}
-
-	// Check if node is an array
-	nodeVal := reflect.ValueOf(node)
-	if nodeVal.Kind() == reflect.Slice || nodeVal.Kind() == reflect.Array {
-		return v.VisitArray(node)
-	}
-
-	// Check if node has blocksVisibility method and if it blocks visibility
-	// Match JavaScript behavior: if node blocks visibility, return early without visiting children
-	// This is important because reference import rulesets block visibility on the ROOT only
-	// Children retain undefined visibility, and extend processing sets visibility explicitly
-	if v.hasBlocksVisibilityMethod(node) && v.callBlocksVisibility(node) {
-		return node
-	}
-
-	// Set visibility based on visitor's visible flag
-	if v.isTruthy(v.visible) {
-		v.callEnsureVisibility(node)
-	} else {
-		v.callEnsureInvisibility(node)
-	}
-
-	// Call accept method if it exists
-	v.callAccept(node, v)
-
-	return node
-}
-
-// hasBlocksVisibilityMethod checks if node has blocksVisibility method
-func (v *SetTreeVisibilityVisitor) hasBlocksVisibilityMethod(node any) bool {
-	if node == nil {
-		return false
-	}
-	
-	nodeVal := reflect.ValueOf(node)
-	method := nodeVal.MethodByName("BlocksVisibility")
-	return method.IsValid()
-}
-
-// callBlocksVisibility calls the blocksVisibility method on the node
-func (v *SetTreeVisibilityVisitor) callBlocksVisibility(node any) bool {
-	if node == nil {
-		return false
-	}
-	
-	nodeVal := reflect.ValueOf(node)
-	method := nodeVal.MethodByName("BlocksVisibility")
-	if !method.IsValid() {
-		return false
-	}
-	
-	results := method.Call(nil)
-	if len(results) > 0 {
-		if boolResult, ok := results[0].Interface().(bool); ok {
-			return boolResult
-		}
-	}
-	return false
-}
-
-// callEnsureVisibility calls the ensureVisibility method on the node
-func (v *SetTreeVisibilityVisitor) callEnsureVisibility(node any) {
-	if node == nil {
-		return
-	}
-
-	// Try interface-based approach first (preferred)
-	if visibilityNode, ok := node.(interface{ EnsureVisibility() }); ok {
-		visibilityNode.EnsureVisibility()
-		return
-	}
-	
-	// Fallback to reflection for backward compatibility
-	nodeVal := reflect.ValueOf(node)
-	method := nodeVal.MethodByName("EnsureVisibility")
-	if method.IsValid() {
-		method.Call(nil)
-		return
-	}
-	
-	// Gracefully handle missing methods - this is a more idiomatic Go approach
-	// than the JavaScript's runtime failure. Nodes that don't support visibility
-	// simply don't get visibility updates, which is a reasonable default.
-}
-
-// callEnsureInvisibility calls the ensureInvisibility method on the node
-func (v *SetTreeVisibilityVisitor) callEnsureInvisibility(node any) {
-	if node == nil {
-		return
-	}
-	
-	// Try interface-based approach first (preferred)
-	if visibilityNode, ok := node.(interface{ EnsureInvisibility() }); ok {
-		visibilityNode.EnsureInvisibility()
-		return
-	}
-	
-	// Fallback to reflection for backward compatibility
-	nodeVal := reflect.ValueOf(node)
-	method := nodeVal.MethodByName("EnsureInvisibility")
-	if method.IsValid() {
-		method.Call(nil)
-		return
-	}
-	
-	// Gracefully handle missing methods - this is a more idiomatic Go approach
-	// than the JavaScript's runtime failure. Nodes that don't support visibility
-	// simply don't get visibility updates, which is a reasonable default.
-}
-
-// callAccept calls the accept method on the node with the visitor
-func (v *SetTreeVisibilityVisitor) callAccept(node any, visitor any) {
-	if node == nil {
-		return
-	}
-	
-	nodeVal := reflect.ValueOf(node)
-	method := nodeVal.MethodByName("Accept")
-	if method.IsValid() {
-		method.Call([]reflect.Value{reflect.ValueOf(visitor)})
-	}
-}
-
-// isTruthy determines if a value is truthy (JavaScript-like behavior)
-func (v *SetTreeVisibilityVisitor) isTruthy(value any) bool {
+// isTruthyValue determines if a value is truthy (JavaScript-like behavior)
+// This is evaluated once at construction time to avoid repeated checks
+func isTruthyValue(value any) bool {
 	if value == nil {
 		return false
 	}
-	
+
 	switch v := value.(type) {
 	case bool:
 		return v
@@ -206,14 +61,58 @@ func (v *SetTreeVisibilityVisitor) isTruthy(value any) bool {
 	case string:
 		return v != ""
 	default:
-		// For other types, check if they're nil or have a zero value
-		val := reflect.ValueOf(value)
-		if !val.IsValid() {
-			return false
-		}
-		if val.Kind() == reflect.Ptr || val.Kind() == reflect.Interface {
-			return !val.IsNil()
-		}
-		return !val.IsZero()
+		// Non-nil non-basic types are truthy
+		return true
 	}
+}
+
+// Run starts the visitor on the root node
+func (v *SetTreeVisibilityVisitor) Run(root any) {
+	v.Visit(root)
+}
+
+// VisitArray visits an array of nodes using type assertions
+func (v *SetTreeVisibilityVisitor) VisitArray(nodes []any) {
+	for _, node := range nodes {
+		v.Visit(node)
+	}
+}
+
+// Visit visits a single node using type assertions for fast dispatch
+func (v *SetTreeVisibilityVisitor) Visit(node any) any {
+	if node == nil {
+		return node
+	}
+
+	// Fast path: Check for []any slice (most common array type)
+	if arr, ok := node.([]any); ok {
+		v.VisitArray(arr)
+		return node
+	}
+
+	// Check if node blocks visibility using interface assertion (no reflection)
+	if visNode, ok := node.(interface{ BlocksVisibility() bool }); ok {
+		if visNode.BlocksVisibility() {
+			// Match JavaScript behavior: if node blocks visibility, return early without visiting children
+			return node
+		}
+	}
+
+	// Set visibility based on visitor's visible flag
+	if v.visible {
+		if visNode, ok := node.(interface{ EnsureVisibility() }); ok {
+			visNode.EnsureVisibility()
+		}
+	} else {
+		if visNode, ok := node.(interface{ EnsureInvisibility() }); ok {
+			visNode.EnsureInvisibility()
+		}
+	}
+
+	// Call accept method if it exists
+	if acceptNode, ok := node.(interface{ Accept(any) }); ok {
+		acceptNode.Accept(v)
+	}
+
+	return node
 }

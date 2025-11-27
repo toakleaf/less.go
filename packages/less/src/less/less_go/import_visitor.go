@@ -39,6 +39,61 @@ func NewImportVisitor(importer any, finish func(error)) *ImportVisitor {
 	return iv
 }
 
+// IsReplacing returns the replacing status of the visitor
+// This implements the Implementation interface to avoid reflection fallback
+func (iv *ImportVisitor) IsReplacing() bool {
+	return iv.isReplacing
+}
+
+// VisitNode implements direct dispatch without reflection for better performance
+func (iv *ImportVisitor) VisitNode(node any, visitArgs *VisitArgs) (any, bool) {
+	switch n := node.(type) {
+	case *Import:
+		iv.VisitImport(n, visitArgs)
+		return n, true
+	case *Declaration:
+		iv.VisitDeclaration(n, visitArgs)
+		return n, true
+	case *AtRule:
+		iv.VisitAtRule(n, visitArgs)
+		return n, true
+	case *MixinDefinition:
+		iv.VisitMixinDefinition(n, visitArgs)
+		return n, true
+	case *Ruleset:
+		iv.VisitRuleset(n, visitArgs)
+		return n, true
+	case *Media:
+		iv.VisitMedia(n, visitArgs)
+		return n, true
+	default:
+		return node, false
+	}
+}
+
+// VisitNodeOut implements direct dispatch for visitOut methods
+func (iv *ImportVisitor) VisitNodeOut(node any) bool {
+	switch n := node.(type) {
+	case *Declaration:
+		iv.VisitDeclarationOut(n)
+		return true
+	case *AtRule:
+		iv.VisitAtRuleOut(n)
+		return true
+	case *MixinDefinition:
+		iv.VisitMixinDefinitionOut(n)
+		return true
+	case *Ruleset:
+		iv.VisitRulesetOut(n)
+		return true
+	case *Media:
+		iv.VisitMediaOut(n)
+		return true
+	default:
+		return false
+	}
+}
+
 // Run processes the root node
 func (iv *ImportVisitor) Run(root any) {
 	defer func() {
