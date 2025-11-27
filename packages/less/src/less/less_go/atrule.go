@@ -268,20 +268,8 @@ func (a *AtRule) GenCSS(context any, output *CSSOutput) {
 	if a.Rules != nil {
 		a.OutputRuleset(context, output, a.Rules)
 	} else {
-		// Check if compress mode is enabled
-		compress := false
-		if ctx, ok := context.(map[string]any); ok {
-			if c, ok := ctx["compress"].(bool); ok {
-				compress = c
-			}
-		}
-
-		// Add semicolon and newline (except in compress mode)
-		if compress {
-			output.Add(";", nil, nil)
-		} else {
-			output.Add(";\n", nil, nil)
-		}
+		// Add semicolon only (parent will add newline between rules)
+		output.Add(";", nil, nil)
 	}
 }
 
@@ -901,15 +889,55 @@ func (a *AtRule) OutputRuleset(context any, output *CSSOutput, rules []any) {
 		}
 
 		// Output subsequent rules with indentation before each
+		// But only add indentation if the rule will actually output something
 		for i := 1; i < ruleCnt; i++ {
-			output.Add(tabRuleStr, nil, nil)
+			rule := rules[i]
+
+			// Check if this rule will output anything (for visibility filtering)
+			// Skip adding newline/indent for rules that will be filtered out
+			willOutput := true
+			if rs, ok := rule.(*Ruleset); ok {
+				// Check if ruleset blocks visibility and has no visible paths
+				if rs.Node != nil && rs.Node.BlocksVisibility() {
+					nodeVisible := rs.Node.IsVisible()
+					if nodeVisible == nil || !*nodeVisible {
+						// Check if any path has visible selectors
+						hasVisiblePath := false
+						if rs.Paths != nil && len(rs.Paths) > 0 {
+							for _, path := range rs.Paths {
+								for _, pathElem := range path {
+									if sel, ok := pathElem.(*Selector); ok {
+										if sel.Node != nil {
+											selVis := sel.Node.IsVisible()
+											if selVis != nil && *selVis {
+												hasVisiblePath = true
+												break
+											}
+										}
+									}
+								}
+								if hasVisiblePath {
+									break
+								}
+							}
+						}
+						if !hasVisiblePath {
+							willOutput = false
+						}
+					}
+				}
+			}
+
+			if willOutput {
+				output.Add(tabRuleStr, nil, nil)
+			}
 
 			// Set lastRule flag for the last rule
 			if i+1 == ruleCnt {
 				ctx["lastRule"] = true
 			}
 
-			if gen, ok := rules[i].(interface{ GenCSS(any, *CSSOutput) }); ok {
+			if gen, ok := rule.(interface{ GenCSS(any, *CSSOutput) }); ok {
 				gen.GenCSS(ctx, output)
 			}
 
@@ -920,12 +948,9 @@ func (a *AtRule) OutputRuleset(context any, output *CSSOutput, rules []any) {
 		}
 
 		output.Add(tabSetStr+"}", nil, nil)
-		// Add newline after closing brace only for top-level at-rules
-		// (tabLevel == 1 means we were at tabLevel 0 before entering this at-rule)
-		// This prevents extra blank lines when at-rules are nested
-		if tabLevel == 1 {
-			output.Add("\n", nil, nil)
-		}
+		// Note: Don't add newline after closing brace here.
+		// The parent ruleset's GenCSS will add the appropriate newline
+		// between top-level rules.
 	}
 
 	ctx["tabLevel"] = tabLevel - 1

@@ -1086,6 +1086,22 @@ func ensureMixinContentVisibility(node any) {
 		return
 	}
 
+	// Debug: check visibility before changes
+	if os.Getenv("LESS_GO_DEBUG_VIS") == "1" {
+		if rs, ok := node.(*Ruleset); ok && len(rs.Selectors) > 0 {
+			if sel, ok := rs.Selectors[0].(*Selector); ok && len(sel.Elements) > 0 {
+				elemVal := sel.Elements[0].Value
+				if str, ok := elemVal.(string); ok && str == "div" {
+					fmt.Fprintf(os.Stderr, "[ensureMixinContentVisibility] Found div ruleset=%p, Node=%p\n", rs, rs.Node)
+					if rs.Node != nil {
+						fmt.Fprintf(os.Stderr, "[ensureMixinContentVisibility] BEFORE: BlocksVisibility=%v, VisibilityBlocks=%v\n",
+							rs.Node.BlocksVisibility(), rs.Node.VisibilityBlocks)
+					}
+				}
+			}
+		}
+	}
+
 	// Clear visibility blocks first (so the node no longer blocks visibility)
 	if clearNode, ok := node.(interface{ ClearVisibilityBlocks() }); ok {
 		clearNode.ClearVisibilityBlocks()
@@ -1096,9 +1112,33 @@ func ensureMixinContentVisibility(node any) {
 		visNode.EnsureVisibility()
 	}
 
+	// Debug: check visibility after changes
+	if os.Getenv("LESS_GO_DEBUG_VIS") == "1" {
+		if rs, ok := node.(*Ruleset); ok && len(rs.Selectors) > 0 {
+			if sel, ok := rs.Selectors[0].(*Selector); ok && len(sel.Elements) > 0 {
+				elemVal := sel.Elements[0].Value
+				if str, ok := elemVal.(string); ok && str == "div" {
+					if rs.Node != nil {
+						fmt.Fprintf(os.Stderr, "[ensureMixinContentVisibility] AFTER: BlocksVisibility=%v, VisibilityBlocks=%v\n",
+							rs.Node.BlocksVisibility(), rs.Node.VisibilityBlocks)
+					}
+				}
+			}
+		}
+	}
+
 	// Recursively process children based on node type
 	switch n := node.(type) {
 	case *Ruleset:
+		// Also ensure visibility on selectors - this is important for path filtering in compileRulesetPaths
+		for _, sel := range n.Selectors {
+			if selector, ok := sel.(*Selector); ok {
+				if selector.Node != nil {
+					selector.Node.ClearVisibilityBlocks()
+					selector.Node.EnsureVisibility()
+				}
+			}
+		}
 		for _, rule := range n.Rules {
 			ensureMixinContentVisibility(rule)
 		}

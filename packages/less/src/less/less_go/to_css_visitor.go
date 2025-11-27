@@ -338,6 +338,27 @@ func (u *CSSVisitorUtils) IsVisibleRuleset(rulesetNode any) bool {
 		return false
 	}
 
+	// Debug: trace div rulesets
+	if os.Getenv("LESS_GO_DEBUG_VIS") == "1" {
+		if rs, ok := rulesetNode.(*Ruleset); ok && len(rs.Selectors) > 0 {
+			if sel, ok := rs.Selectors[0].(*Selector); ok && len(sel.Elements) > 0 {
+				// Check if first element value contains "div" in any form
+				elemVal := sel.Elements[0].Value
+				var valStr string
+				if str, ok := elemVal.(string); ok {
+					valStr = str
+				} else {
+					valStr = fmt.Sprintf("%v", elemVal)
+				}
+				if valStr == "div" || fmt.Sprintf("%T", elemVal) == "*less_go.Keyword" {
+					hasVisibleSel := u.HasVisibleSelector(rulesetNode)
+					fmt.Fprintf(os.Stderr, "[IsVisibleRuleset ENTRY] ruleset=%p, elemVal=%v (%T), BlocksVis=%v, HasVisibleSelector=%v, Paths=%d\n",
+						rs, elemVal, elemVal, rs.Node.BlocksVisibility(), hasVisibleSel, len(rs.Paths))
+				}
+			}
+		}
+	}
+
 	if firstRootNode, ok := rulesetNode.(interface{ GetFirstRoot() bool }); ok {
 		if firstRootNode.GetFirstRoot() {
 			return true
