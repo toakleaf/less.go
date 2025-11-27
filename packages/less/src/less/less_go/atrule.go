@@ -211,39 +211,47 @@ func (a *AtRule) GenCSS(context any, output *CSSOutput) {
 		}
 	}
 
-	// Check if this directive has rules but they ONLY contain comments (no actual content)
-	// In that case, skip output entirely
+	// Check if this directive has rules but they ONLY contain silent content (line comments)
+	// In that case, skip output entirely since line comments are stripped from CSS output
 	// Exception: @keyframes (and vendor-prefixed variants) should always be output,
-	// even if empty or with only comments, because they define animation names
+	// even if empty, because they define animation names
+	// Note: CSS block comments (/* ... */) ARE output, so we don't skip those
 	isKeyframes := strings.Contains(a.Name, "keyframes")
 	if a.Rules != nil && !isKeyframes {
-		hasOnlyComments := false
+		hasOnlySilentContent := false
 		for _, rule := range a.Rules {
 			if ruleset, ok := rule.(*Ruleset); ok {
 				// Only check if ruleset has rules - empty rulesets should still be output
 				if len(ruleset.Rules) > 0 {
-					hasContent := false
-					// Check if ruleset has any non-comment rules
+					hasVisibleContent := false
+					// Check if ruleset has any visible (non-silent) content
 					for _, r := range ruleset.Rules {
-						// Ignore comments - they don't count as content
-						if _, isComment := r.(*Comment); !isComment {
-							hasContent = true
+						if comment, isComment := r.(*Comment); isComment {
+							// Only line comments are silent (stripped from output)
+							// Block comments (/* ... */) are visible content
+							if !comment.IsLineComment {
+								hasVisibleContent = true
+								break
+							}
+						} else {
+							// Any non-comment rule is visible content
+							hasVisibleContent = true
 							break
 						}
 					}
-					if !hasContent {
-						// This ruleset has rules, but they're all comments
-						hasOnlyComments = true
+					if !hasVisibleContent {
+						// This ruleset has rules, but they're all silent (line comments)
+						hasOnlySilentContent = true
 					} else {
-						// This ruleset has actual content
-						hasOnlyComments = false
+						// This ruleset has visible content
+						hasOnlySilentContent = false
 						break
 					}
 				}
 			}
 		}
-		if hasOnlyComments {
-			// All rulesets contain only comments, skip output
+		if hasOnlySilentContent {
+			// All rulesets contain only silent content, skip output
 			return
 		}
 	}

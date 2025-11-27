@@ -1816,7 +1816,22 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 			currentLastRule = lr
 		}
 
-		if rulesetLike, ok := rule.(interface{ IsRulesetLike() bool }); ok && rulesetLike.IsRulesetLike() {
+		// Check IsRulesetLike - handle both bool return and any return (AtRule returns any)
+		isRulesetLikeForCtx := false
+		if rl, ok := rule.(interface{ IsRulesetLike() any }); ok {
+			result := rl.IsRulesetLike()
+			if result != nil {
+				if b, ok := result.(bool); ok {
+					isRulesetLikeForCtx = b
+				} else {
+					// Non-nil, non-bool (like rules slice) means ruleset-like
+					isRulesetLikeForCtx = true
+				}
+			}
+		} else if rl, ok := rule.(interface{ IsRulesetLike() bool }); ok {
+			isRulesetLikeForCtx = rl.IsRulesetLike()
+		}
+		if isRulesetLikeForCtx {
 			ctx["lastRule"] = false
 		}
 
@@ -1878,14 +1893,30 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 
 			// Special case: Add newlines for child rulesets inside container rulesets
 			// (like @keyframes which creates a container ruleset with no selectors)
-			if rulesetLike, ok := rule.(interface{ IsRulesetLike() bool }); ok && rulesetLike.IsRulesetLike() {
+			// Check IsRulesetLike - handle both bool return and any return (AtRule returns any)
+			isRulesetLike := false
+			if rl, ok := rule.(interface{ IsRulesetLike() any }); ok {
+				result := rl.IsRulesetLike()
+				if result != nil {
+					if b, ok := result.(bool); ok {
+						isRulesetLike = b
+					} else {
+						// Non-nil, non-bool (like rules slice) means ruleset-like
+						isRulesetLike = true
+					}
+				}
+			} else if rl, ok := rule.(interface{ IsRulesetLike() bool }); ok {
+				isRulesetLike = rl.IsRulesetLike()
+			}
+			if isRulesetLike {
 				// Only add newline if parent ruleset has no selectors (is a container)
 				// and we're not at the file-level root (tabLevel > 0)
-				isContainer := (r.Paths == nil || len(r.Paths) == 0) && (r.Selectors == nil || len(r.Selectors) == 0)
-				if isContainer && tabLevel > 0 {
+				isParentContainer := (r.Paths == nil || len(r.Paths) == 0) && (r.Selectors == nil || len(r.Selectors) == 0)
+				if isParentContainer && tabLevel > 0 {
 					shouldAddNewline = true
 				}
 			}
+
 
 			// Special case: Import nodes should always have a newline after them
 			if ruleType, ok := rule.(interface{ GetType() string }); ok && ruleType.GetType() == "Import" {
