@@ -194,7 +194,15 @@ func (d *Dimension) ToCSS(context any) string {
 	var strs []string
 	output := &CSSOutput{
 		Add: func(chunk any, fileInfo any, index any) {
-			strs = append(strs, fmt.Sprintf("%v", chunk))
+			// Optimize: use type switch to avoid fmt.Sprintf allocation for common types
+			switch v := chunk.(type) {
+			case string:
+				strs = append(strs, v)
+			case fmt.Stringer:
+				strs = append(strs, v.String())
+			default:
+				strs = append(strs, fmt.Sprintf("%v", chunk))
+			}
 		},
 		IsEmpty: func() bool {
 			return len(strs) == 0
