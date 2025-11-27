@@ -1,10 +1,10 @@
 # Integration Test Status Report
-**Updated**: 2025-11-27
+**Updated**: 2025-11-27 (Verified Run)
 **Status**: **EXCELLENT!** 90 perfect matches, only 2 output differences remaining
 
 ## Overall Status Summary
 
-### Key Statistics
+### Key Statistics (Verified 2025-11-27)
 - **Perfect CSS Matches**: 90 tests (48.9%)
 - **Correct Error Handling**: 89 tests (48.4%)
 - **CSS Output Differences**: 2 tests (1.1%)
@@ -12,6 +12,7 @@
 - **Overall Success Rate**: 97.3% (179/184 tests)
 - **Compilation Rate**: 98.4% (181/184 tests)
 - **Unit Tests**: 3,012 tests passing (100%)
+- **Benchmarks**: ~111ms/op, ~38MB/op, ~600k allocs/op
 - **ZERO REGRESSIONS**: All previously passing tests still passing!
 
 ## Remaining 2 Output Differences

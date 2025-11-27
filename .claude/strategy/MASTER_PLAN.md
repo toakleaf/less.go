@@ -1,17 +1,18 @@
 # Master Strategy: Parallelized Test Fixing for less.go
 
-## Current Status (Updated: 2025-11-27)
+## Current Status (Updated: 2025-11-27 - Verified Run)
 
-### Test Results Summary
+### Test Results Summary (Verified)
 - **Total Active Tests**: 184
 - **Perfect CSS Matches**: 90 tests (48.9%)
 - **Correct Error Handling**: 89 tests (48.4%)
-- **Output Differs (but compiles)**: 2 tests (1.1%)
+- **Output Differs (but compiles)**: 2 tests (1.1%) - import-reference & import-reference-issues
 - **Compilation Failures**: 3 tests (1.6%) - All external (network/packages)
 - **Tests Passing or Correctly Erroring**: 179 tests (97.3%)
 - **Overall Success Rate**: 97.3% (179/184)
 - **Compilation Rate**: 98.4% (181/184)
 - **Unit Tests**: 3,012 tests passing (100%)
+- **Benchmarks**: ~111ms/op, ~38MB/op, ~600k allocs/op
 
 ### Parser Status
 **ALL PARSER BUGS FIXED!** The parser correctly handles full LESS syntax. All remaining work is in **CSS output edge cases** for 2 import-reference tests.
@@ -38,11 +39,11 @@ This document outlines a strategy for **parallelizing the work** of fixing remai
 - `google` - requires network access to Google Fonts
 - `import-module` - requires node_modules resolution (low priority)
 
-### Phase 2: Output Differences - NEARLY COMPLETE! (Only 3 remaining)
+### Phase 2: Output Differences - NEARLY COMPLETE! (Only 2 remaining)
 **Impact**: Features work but produce incorrect output
 **Location**: `.claude/tasks/runtime-failures/`
 
-**Completed Categories** (13 categories at 100%):
+**Completed Categories** (14 categories at 100%):
 1. **Namespacing** - 11/11 tests
 2. **Guards & Conditionals** - 3/3 tests
 3. **Extend** - 7/7 tests
@@ -56,6 +57,7 @@ This document outlines a strategy for **parallelizing the work** of fixing remai
 11. **Media Queries** - 1/1 test
 12. **Container Queries** - 1/1 test
 13. **Directives Bubbling** - 1/1 test
+14. **URLs (main)** - 1/1 test (JUST FIXED!)
 
 **Remaining (2 tests)**:
 1. **Import Reference** - 2 tests (`import-reference`, `import-reference-issues`)
@@ -107,7 +109,7 @@ Each task must:
 - [x] Reach 96% success rate
 
 **Current Goal**:
-- [ ] Fix remaining 3 output differences (import-reference, urls)
+- [ ] Fix remaining 2 output differences (import-reference, import-reference-issues)
 - [ ] Reach 98.4% success rate (181/184 tests)
 
 **Stretch Goals**:
@@ -191,7 +193,7 @@ less.go/
 | 2025-11-10 | 79 | 75.7% | Week 4 wins |
 | 2025-11-13 | 83 | 93.0% | Continued progress |
 | 2025-11-26 | 84 | 93.5% | Minor fix |
-| **2025-11-27** | **90** | **97.3%** | **Current** |
+| **2025-11-27** | **90** | **97.3%** | **Current - urls fixed!** |
 
 ### Major Milestones
 
