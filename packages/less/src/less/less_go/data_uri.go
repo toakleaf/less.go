@@ -206,8 +206,10 @@ func GetDataURIFunctions() map[string]any {
 // GetWrappedDataURIFunctions returns data-uri functions for registry
 func GetWrappedDataURIFunctions() map[string]interface{} {
 	return map[string]interface{}{
-		"data-uri":   &DataURIFunctionWrapper{},
-		"image-size": &ImageSizeFunctionWrapper{},
+		"data-uri":     &DataURIFunctionWrapper{},
+		"image-size":   &ImageSizeFunctionWrapper{},
+		"image-width":  &ImageWidthFunctionWrapper{},
+		"image-height": &ImageHeightFunctionWrapper{},
 	}
 }
 
@@ -261,6 +263,54 @@ func (w *ImageSizeFunctionWrapper) CallCtx(ctx *Context, args ...any) (any, erro
 }
 
 func (w *ImageSizeFunctionWrapper) NeedsEvalArgs() bool {
+	return false
+}
+
+// ImageWidthFunctionWrapper wraps the image-width function to implement FunctionDefinition
+type ImageWidthFunctionWrapper struct{}
+
+func (w *ImageWidthFunctionWrapper) Call(args ...any) (any, error) {
+	return nil, fmt.Errorf("image-width function requires context - use CallCtx instead")
+}
+
+func (w *ImageWidthFunctionWrapper) CallCtx(ctx *Context, args ...any) (any, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("image-width expects 1 argument, got %d", len(args))
+	}
+	contextMap := buildContextMap(ctx)
+
+	// Evaluate argument before passing to ImageWidth
+	evaluatedArgs := evaluateArgsWithContext(ctx, args)
+
+	result := ImageWidth(contextMap, evaluatedArgs[0])
+	return result, nil
+}
+
+func (w *ImageWidthFunctionWrapper) NeedsEvalArgs() bool {
+	return false
+}
+
+// ImageHeightFunctionWrapper wraps the image-height function to implement FunctionDefinition
+type ImageHeightFunctionWrapper struct{}
+
+func (w *ImageHeightFunctionWrapper) Call(args ...any) (any, error) {
+	return nil, fmt.Errorf("image-height function requires context - use CallCtx instead")
+}
+
+func (w *ImageHeightFunctionWrapper) CallCtx(ctx *Context, args ...any) (any, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("image-height expects 1 argument, got %d", len(args))
+	}
+	contextMap := buildContextMap(ctx)
+
+	// Evaluate argument before passing to ImageHeight
+	evaluatedArgs := evaluateArgsWithContext(ctx, args)
+
+	result := ImageHeight(contextMap, evaluatedArgs[0])
+	return result, nil
+}
+
+func (w *ImageHeightFunctionWrapper) NeedsEvalArgs() bool {
 	return false
 }
 
@@ -400,6 +450,124 @@ func ImageSize(context map[string]any, filePathNode any) any {
 		expr.SetFileInfo(currentFileInfo)
 	}
 	return expr
+}
+
+// ImageWidth implements the image-width function
+func ImageWidth(context map[string]any, filePathNode any) any {
+	var filePath string
+	if quoted, ok := filePathNode.(*Quoted); ok {
+		filePath = quoted.value
+	} else {
+		return nil
+	}
+
+	environment, ok := context["environment"].(map[string]any)
+	if !ok {
+		return nil
+	}
+
+	var currentDirectory string
+	if cfi, ok := context["currentFileInfo"].(map[string]any); ok {
+		if cd, ok := cfi["currentDirectory"].(string); ok {
+			currentDirectory = cd
+		}
+	}
+
+	getFileManager, ok := environment["getFileManager"].(func(string, string, map[string]any, map[string]any, bool) any)
+	if !ok {
+		return nil
+	}
+
+	fileManager := getFileManager(filePath, currentDirectory, context, environment, true)
+	if fileManager == nil {
+		return nil
+	}
+
+	loadFileSync, ok := fileManager.(map[string]any)["loadFileSync"].(func(string, string, map[string]any, map[string]any) map[string]any)
+	if !ok {
+		return nil
+	}
+
+	fileSync := loadFileSync(filePath, currentDirectory, context, environment)
+	if fileSync == nil {
+		return nil
+	}
+
+	contents, ok := fileSync["contents"].(string)
+	if !ok || contents == "" {
+		return nil
+	}
+
+	width, _ := getImageDimensions(filePath, contents)
+	if width == 0 {
+		return nil
+	}
+
+	widthDim, err := NewDimension(float64(width), "px")
+	if err != nil {
+		return nil
+	}
+
+	return widthDim
+}
+
+// ImageHeight implements the image-height function
+func ImageHeight(context map[string]any, filePathNode any) any {
+	var filePath string
+	if quoted, ok := filePathNode.(*Quoted); ok {
+		filePath = quoted.value
+	} else {
+		return nil
+	}
+
+	environment, ok := context["environment"].(map[string]any)
+	if !ok {
+		return nil
+	}
+
+	var currentDirectory string
+	if cfi, ok := context["currentFileInfo"].(map[string]any); ok {
+		if cd, ok := cfi["currentDirectory"].(string); ok {
+			currentDirectory = cd
+		}
+	}
+
+	getFileManager, ok := environment["getFileManager"].(func(string, string, map[string]any, map[string]any, bool) any)
+	if !ok {
+		return nil
+	}
+
+	fileManager := getFileManager(filePath, currentDirectory, context, environment, true)
+	if fileManager == nil {
+		return nil
+	}
+
+	loadFileSync, ok := fileManager.(map[string]any)["loadFileSync"].(func(string, string, map[string]any, map[string]any) map[string]any)
+	if !ok {
+		return nil
+	}
+
+	fileSync := loadFileSync(filePath, currentDirectory, context, environment)
+	if fileSync == nil {
+		return nil
+	}
+
+	contents, ok := fileSync["contents"].(string)
+	if !ok || contents == "" {
+		return nil
+	}
+
+	_, height := getImageDimensions(filePath, contents)
+	if height == 0 {
+		return nil
+	}
+
+	heightDim, err := NewDimension(float64(height), "px")
+	if err != nil {
+		return nil
+	}
+
+	return heightDim
 }
 
 // getImageDimensions extracts width and height from an image file
