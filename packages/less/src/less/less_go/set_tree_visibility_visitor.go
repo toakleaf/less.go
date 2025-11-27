@@ -72,10 +72,12 @@ func (v *SetTreeVisibilityVisitor) Run(root any) {
 }
 
 // VisitArray visits an array of nodes using type assertions
-func (v *SetTreeVisibilityVisitor) VisitArray(nodes []any) {
+// Returns the nodes array to match the interface expected by Ruleset.Accept
+func (v *SetTreeVisibilityVisitor) VisitArray(nodes []any) []any {
 	for _, node := range nodes {
 		v.Visit(node)
 	}
+	return nodes
 }
 
 // Visit visits a single node using type assertions for fast dispatch

@@ -1157,7 +1157,8 @@ func (v *ToCSSVisitor) compileRulesetPaths(rulesetNode any) {
 							// true = explicitly visible (either from non-reference or made visible by extend)
 							// false = explicitly invisible
 							isVisible := false
-							if vis := sel.IsVisible(); vis != nil {
+							vis := sel.IsVisible()
+							if vis != nil {
 								isVisible = *vis
 							}
 

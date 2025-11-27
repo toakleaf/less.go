@@ -438,8 +438,16 @@ func (i *Import) Eval(context any) (any, error) {
 	// For reference imports, mark ALL nodes with visibility blocks recursively.
 	// This ensures that when nested rulesets are processed during GenCSS, they know
 	// they're from a reference import and should filter paths accordingly.
-	// This differs from JavaScript where the structure is preserved better during evaluation,
-	// but achieves the same result of hiding reference import content unless extended.
+	//
+	// Note: This differs from JavaScript which uses forEach (non-recursive) on top-level
+	// nodes only. The JavaScript approach relies on SetTreeVisibilityVisitor NOT visiting
+	// children when a parent blocks visibility. However, our Go implementation has
+	// SetTreeVisibilityVisitor running before paths are created from selectors, which
+	// means selectors get marked visible before the visibility check can filter them.
+	//
+	// The recursive approach ensures all nested content is properly marked, though it
+	// means nested mixin content from reference imports won't become visible when the
+	// mixin is called. This is a known limitation.
 	if i.getBoolOption("reference") || i.BlocksVisibility() {
 		if resultSlice, ok := result.([]any); ok {
 			for _, node := range resultSlice {

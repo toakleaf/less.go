@@ -430,14 +430,21 @@ func (n *Node) VisibilityInfo() map[string]any {
 }
 
 // CopyVisibilityInfo copies visibility information from another node
+// IMPORTANT: This copies VALUES, not pointers. Each node needs its own copy
+// so that modifications (RemoveVisibilityBlock, ClearVisibilityBlocks) to one
+// node don't affect other nodes. This matches JavaScript's value semantics.
 func (n *Node) CopyVisibilityInfo(info map[string]any) {
 	if info == nil {
 		return
 	}
-	if blocks, ok := info["visibilityBlocks"].(*int); ok {
-		n.VisibilityBlocks = blocks
+	if blocks, ok := info["visibilityBlocks"].(*int); ok && blocks != nil {
+		newBlocks := new(int)
+		*newBlocks = *blocks
+		n.VisibilityBlocks = newBlocks
 	}
-	if visible, ok := info["nodeVisible"].(*bool); ok {
-		n.NodeVisible = visible
+	if visible, ok := info["nodeVisible"].(*bool); ok && visible != nil {
+		newVisible := new(bool)
+		*newVisible = *visible
+		n.NodeVisible = newVisible
 	}
 } 
