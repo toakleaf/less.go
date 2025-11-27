@@ -363,9 +363,10 @@ func (r *Ruleset) Eval(context any) (any, error) {
 
 	if ec, ok := context.(*Eval); ok {
 		evalCtx = ec
-		// Create a minimal map for state tracking (circular dependency, etc.)
+		// Create a minimal map for state tracking (selectors, etc.)
 		// We'll pass the *Eval context to child evaluations
-		ctx = make(map[string]any)
+		// Pre-allocate with capacity 2 since we typically only use selectors and maybe frames
+		ctx = make(map[string]any, 2)
 	} else if mapCtx, ok := context.(map[string]any); ok {
 		ctx = mapCtx
 	} else {
@@ -435,19 +436,20 @@ func (r *Ruleset) Eval(context any) (any, error) {
 		}
 		if hasVariable && r.SelectorsParseFunc != nil {
 			// Convert selectors to CSS strings for parsing (like JavaScript toParseSelectors)
-			var toParseSelectors []string
+			// Pre-allocate with capacity based on selectors length
+			toParseSelectors := make([]string, 0, len(selectors))
 			var startingIndex int
 			var selectorFileInfo map[string]any
-			
+			// Reuse toCSSCtx map across iterations to reduce allocations
+			toCSSCtx := map[string]any{"firstSelector": true}
+
 			for i, sel := range selectors {
 				if selector, ok := sel.(*Selector); ok {
 					// Get CSS representation of selector
 					// Pass firstSelector=true to avoid leading spaces
-					toCSSCtx := make(map[string]any)
-					toCSSCtx["firstSelector"] = true
 					cssStr := selector.ToCSS(toCSSCtx)
 					toParseSelectors = append(toParseSelectors, cssStr)
-					
+
 					if i == 0 {
 						startingIndex = selector.GetIndex()
 						selectorFileInfo = selector.FileInfo()
@@ -1077,7 +1079,9 @@ func (r *Ruleset) ResetCache() {
 	r.rulesets = nil
 	r.variables = nil
 	r.properties = nil
-	r.lookups = make(map[string][]any, 4)
+	// Use nil instead of make() - lookups is lazily initialized in Find() when needed
+	// This avoids allocating a map that may never be used
+	r.lookups = nil
 }
 
 // Variables returns a map of all variables in the ruleset
@@ -1399,14 +1403,15 @@ func (r *Ruleset) Rulesets() []any {
 	if r.Rules == nil {
 		return []any{}
 	}
-	
-	var filtered []any
+
+	// Pre-allocate with estimated capacity - typically a fraction of rules are rulesets
+	filtered := make([]any, 0, len(r.Rules)/4+1)
 	for _, rule := range r.Rules {
 		if rs, ok := rule.(interface{ IsRuleset() bool }); ok && rs.IsRuleset() {
 			filtered = append(filtered, rule)
 		}
 	}
-	
+
 	return filtered
 }
 
@@ -1442,10 +1447,11 @@ func (r *Ruleset) Find(selector any, self any, filter func(any) bool) []any {
 		return cached
 	}
 
-	rules := []any{}
+	// Pre-allocate rules with small initial capacity to avoid reallocation
+	// Most Find calls return 0-2 results
+	rules := make([]any, 0, 4)
 	var match int
 	var foundMixins []any
-
 
 	// this.rulesets().forEach(function (rule) { ... }) pattern
 	rulesets := r.Rulesets()
@@ -1651,21 +1657,18 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 				// This prevents extra blank lines from being added
 				continue
 			} else if charset, ok := rule.(interface{ IsCharset() bool }); ok && charset.IsCharset() {
-				// ruleNodes.splice(charsetNodeIndex, 0, rule);
-				newRules := make([]any, len(ruleNodes)+1)
-				copy(newRules, ruleNodes[:charsetNodeIndex])
-				newRules[charsetNodeIndex] = rule
-				copy(newRules[charsetNodeIndex+1:], ruleNodes[charsetNodeIndex:])
-				ruleNodes = newRules
+				// Insert at charsetNodeIndex position
+				// Use slices.Insert if available, or manual splice
+				ruleNodes = append(ruleNodes, nil)
+				copy(ruleNodes[charsetNodeIndex+1:], ruleNodes[charsetNodeIndex:])
+				ruleNodes[charsetNodeIndex] = rule
 				charsetNodeIndex++
 				importNodeIndex++
 			} else if ruleType, ok := rule.(interface{ GetType() string }); ok && ruleType.GetType() == "Import" {
-				// ruleNodes.splice(importNodeIndex, 0, rule);
-				newRules := make([]any, len(ruleNodes)+1)
-				copy(newRules, ruleNodes[:importNodeIndex])
-				newRules[importNodeIndex] = rule
-				copy(newRules[importNodeIndex+1:], ruleNodes[importNodeIndex:])
-				ruleNodes = newRules
+				// Insert at importNodeIndex position
+				ruleNodes = append(ruleNodes, nil)
+				copy(ruleNodes[importNodeIndex+1:], ruleNodes[importNodeIndex:])
+				ruleNodes[importNodeIndex] = rule
 				importNodeIndex++
 			} else {
 				ruleNodes = append(ruleNodes, rule)
@@ -1843,7 +1846,8 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 			if childRuleset, ok := rule.(*Ruleset); ok && !childRuleset.Root {
 				// Create a new context for the child with topLevel flag
 				// Don't modify tabLevel - let it stay as-is so declarations inside have correct indentation
-				childContext = make(map[string]any)
+				// Pre-allocate with capacity for all keys + 1 for topLevel
+				childContext = make(map[string]any, len(ctx)+1)
 				for k, v := range ctx {
 					childContext[k] = v
 				}
