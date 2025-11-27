@@ -18,14 +18,17 @@ type Anonymous struct {
 
 // NewAnonymous creates a new Anonymous instance
 func NewAnonymous(value any, index int, fileInfo map[string]any, mapLines bool, rulesetLike bool, visibilityInfo map[string]any) *Anonymous {
+	node := NewNode()
+	node.TypeIndex = GetTypeIndexForNodeType("Anonymous")
+
 	anon := &Anonymous{
-		Node:       NewNode(),
-		Value:      value,
-		Index:      index,
-		FileInfo:   fileInfo,
-		MapLines:   mapLines,
+		Node:        node,
+		Value:       value,
+		Index:       index,
+		FileInfo:    fileInfo,
+		MapLines:    mapLines,
 		RulesetLike: rulesetLike,
-		AllowRoot:  true,
+		AllowRoot:   true,
 	}
 	if visibilityInfo != nil {
 		if blocks, ok := visibilityInfo["visibilityBlocks"].(int); ok {
@@ -36,6 +39,19 @@ func NewAnonymous(value any, index int, fileInfo map[string]any, mapLines bool, 
 		}
 	}
 	return anon
+}
+
+// GetType returns the type name of this node
+func (a *Anonymous) GetType() string {
+	return "Anonymous"
+}
+
+// GetTypeIndex returns the type index for visitor pattern
+func (a *Anonymous) GetTypeIndex() int {
+	if a.Node != nil && a.Node.TypeIndex != 0 {
+		return a.Node.TypeIndex
+	}
+	return GetTypeIndexForNodeType("Anonymous")
 }
 
 // Eval evaluates the anonymous value

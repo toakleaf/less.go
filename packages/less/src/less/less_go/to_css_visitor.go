@@ -702,22 +702,48 @@ func (v *ToCSSVisitor) VisitAnonymous(anonymousNode any, visitArgs *VisitArgs) a
 	if anonymousNode == nil {
 		return nil
 	}
-	
+
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		anonVal := "?"
+		if anon, ok := anonymousNode.(*Anonymous); ok {
+			anonVal = fmt.Sprintf("[type=%T]", anon.Value)
+			if str, ok := anon.Value.(string); ok {
+				if len(str) > 30 {
+					anonVal = str[:30] + "..."
+				} else {
+					anonVal = str
+				}
+			}
+		}
+		fmt.Fprintf(os.Stderr, "[ToCSSVisitor.VisitAnonymous] Processing Anonymous value=%q\n", anonVal)
+	}
+
 	if blockedNode, hasBlocked := anonymousNode.(interface{ BlocksVisibility() bool }); hasBlocked {
-		if !blockedNode.BlocksVisibility() {
+		blocksVis := blockedNode.BlocksVisibility()
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Fprintf(os.Stderr, "[ToCSSVisitor.VisitAnonymous] hasBlocked=true, blocksVisibility=%v\n", blocksVis)
+		}
+		if !blocksVis {
 			if acceptor, ok := anonymousNode.(interface{ Accept(any) }); ok {
 				acceptor.Accept(v.visitor)
 			}
 			return anonymousNode
 		}
+		// Blocked - return nil to filter out
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Fprintf(os.Stderr, "[ToCSSVisitor.VisitAnonymous] FILTERED - returning nil\n")
+		}
 	} else {
 		// If node doesn't have BlocksVisibility method, treat as not blocked
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Fprintf(os.Stderr, "[ToCSSVisitor.VisitAnonymous] hasBlocked=false, returning node\n")
+		}
 		if acceptor, ok := anonymousNode.(interface{ Accept(any) }); ok {
 			acceptor.Accept(v.visitor)
 		}
 		return anonymousNode
 	}
-	
+
 	return nil
 }
 
@@ -868,7 +894,31 @@ func (v *ToCSSVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitArgs) any {
 
 	if os.Getenv("LESS_GO_DEBUG") == "1" {
 		if rs, ok := rulesetNode.(*Ruleset); ok {
-			fmt.Fprintf(os.Stderr, "[ToCSSVisitor.VisitRuleset ENTRY] ruleset=%p, Rules count=%d\n", rs, len(rs.Rules))
+			fmt.Fprintf(os.Stderr, "[ToCSSVisitor.VisitRuleset ENTRY] ruleset=%p, Rules count=%d, Root=%v\n", rs, len(rs.Rules), rs.Root)
+			// Only log first 10 rules to avoid flooding
+			maxLog := 10
+			if len(rs.Rules) < maxLog {
+				maxLog = len(rs.Rules)
+			}
+			for i := 0; i < maxLog; i++ {
+				rule := rs.Rules[i]
+				if anon, ok := rule.(*Anonymous); ok {
+					anonVal := fmt.Sprintf("[type=%T]", anon.Value)
+					if str, ok := anon.Value.(string); ok {
+						if len(str) > 30 {
+							anonVal = str[:30] + "..."
+						} else {
+							anonVal = str
+						}
+					}
+					fmt.Fprintf(os.Stderr, "[ToCSSVisitor.VisitRuleset]   rule[%d] Anonymous value=%q blocksVis=%v\n", i, anonVal, anon.BlocksVisibility())
+				} else {
+					fmt.Fprintf(os.Stderr, "[ToCSSVisitor.VisitRuleset]   rule[%d] type=%T\n", i, rule)
+				}
+			}
+			if len(rs.Rules) > maxLog {
+				fmt.Fprintf(os.Stderr, "[ToCSSVisitor.VisitRuleset]   ... and %d more rules\n", len(rs.Rules)-maxLog)
+			}
 		}
 	}
 
