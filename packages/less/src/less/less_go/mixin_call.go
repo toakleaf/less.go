@@ -99,16 +99,16 @@ func (mc *MixinCall) Eval(context any) ([]any, error) {
 	var mixins []any
 	var mixin any
 	var mixinPath []any
-	args := []any{}
+	args := make([]any, 0, len(mc.Arguments)) // Pre-allocate with expected capacity
 	var arg any
 	var argValue any
-	rules := []any{}
+	rules := make([]any, 0, 16) // Pre-allocate with reasonable capacity
 	match := false
 	var i, m, f int
 	var isRecursive bool
 	var isOneFound bool
-	candidates := []any{}
-	conditionResult := []bool{}
+	candidates := make([]any, 0, 8) // Pre-allocate with reasonable capacity
+	conditionResult := make([]bool, 2) // Pre-allocate with exact size needed
 	var defaultResult int
 	const defFalseEitherCase = -1
 	const defNone = 0
@@ -160,9 +160,10 @@ func (mc *MixinCall) Eval(context any) ([]any, error) {
 			fmt.Printf("DEBUG: calcDefGroup for %s\n", mixinType)
 		}
 
-		// Reset conditionResult to exactly 2 elements for this calculation
+		// Reset conditionResult values for this calculation
 		// Match JavaScript: conditionResult[f] = true (array is reused but values are set)
-		conditionResult = []bool{false, false}
+		conditionResult[0] = false
+		conditionResult[1] = false
 
 		for f = 0; f < 2; f++ {
 			conditionResult[f] = true

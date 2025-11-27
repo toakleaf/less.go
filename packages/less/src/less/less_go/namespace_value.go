@@ -133,7 +133,7 @@ func (nv *NamespaceValue) Eval(context any) (any, error) {
 				}
 				if resultMap, ok := innerResult.(map[string]any); ok {
 					if value, ok := resultMap["value"]; ok {
-						name = "@" + fmt.Sprintf("%v", value)
+						name = "@" + AnyToString(value)
 					}
 				} else {
 					// Handle direct value returns - extract value from various node types
@@ -144,7 +144,7 @@ func (nv *NamespaceValue) Eval(context any) (any, error) {
 						if str, ok := v.Value.(string); ok {
 							name = "@" + str
 						} else {
-							name = "@" + fmt.Sprintf("%v", v.Value)
+							name = "@" + AnyToString(v.Value)
 						}
 					case *Keyword:
 						name = "@" + v.value
@@ -152,7 +152,7 @@ func (nv *NamespaceValue) Eval(context any) (any, error) {
 						name = "@" + v
 					default:
 						// Try to convert to string
-						name = "@" + fmt.Sprintf("%v", innerResult)
+						name = "@" + AnyToString(innerResult)
 					}
 				}
 			}
@@ -203,7 +203,7 @@ func (nv *NamespaceValue) Eval(context any) (any, error) {
 				}
 				if resultMap, ok := innerResult.(map[string]any); ok {
 					if value, ok := resultMap["value"]; ok {
-						name = "$" + fmt.Sprintf("%v", value)
+						name = "$" + AnyToString(value)
 					}
 				} else {
 					// Handle direct value returns - extract value from various node types
@@ -214,7 +214,7 @@ func (nv *NamespaceValue) Eval(context any) (any, error) {
 						if str, ok := v.Value.(string); ok {
 							name = "$" + str
 						} else {
-							name = "$" + fmt.Sprintf("%v", v.Value)
+							name = "$" + AnyToString(v.Value)
 						}
 					case *Keyword:
 						name = "$" + v.value
@@ -222,7 +222,7 @@ func (nv *NamespaceValue) Eval(context any) (any, error) {
 						name = "$" + v
 					default:
 						// Try to convert to string
-						name = "$" + fmt.Sprintf("%v", innerResult)
+						name = "$" + AnyToString(innerResult)
 					}
 				}
 			} else {
@@ -647,6 +647,6 @@ func (nv *NamespaceValue) GenCSS(context any, output *CSSOutput) {
 	} else if cssStr, ok := result.(interface{ ToCSS(any) string }); ok {
 		output.Add(cssStr.ToCSS(context), nv.FileInfo(), nv.GetIndex())
 	} else {
-		output.Add(fmt.Sprintf("%v", result), nv.FileInfo(), nv.GetIndex())
+		output.Add(AnyToString(result), nv.FileInfo(), nv.GetIndex())
 	}
 }

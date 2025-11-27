@@ -80,12 +80,12 @@ func (v *Variable) Eval(context any) (any, error) {
 					if str, ok := v.Value.(string); ok {
 						valueStr = str
 					} else {
-						valueStr = fmt.Sprintf("%v", v.Value)
+						valueStr = AnyToString(v.Value)
 					}
 				case string:
 					valueStr = v
 				default:
-					valueStr = fmt.Sprintf("%v", v)
+					valueStr = AnyToString(v)
 				}
 			}
 		case *Quoted:
@@ -106,14 +106,14 @@ func (v *Variable) Eval(context any) (any, error) {
 			} else if str, ok := res.Value.(string); ok {
 				valueStr = str
 			} else {
-				valueStr = fmt.Sprintf("%v", res.Value)
+				valueStr = AnyToString(res.Value)
 			}
 		case interface{ GetValue() any }:
 			if val := res.GetValue(); val != nil {
 				if str, ok := val.(string); ok {
 					valueStr = str
 				} else {
-					valueStr = fmt.Sprintf("%v", val)
+					valueStr = AnyToString(val)
 				}
 			}
 		default:
@@ -121,7 +121,7 @@ func (v *Variable) Eval(context any) (any, error) {
 			if valuer, ok := innerResult.(interface{ GetValue() string }); ok {
 				valueStr = valuer.GetValue()
 			} else {
-				valueStr = fmt.Sprintf("%v", innerResult)
+				valueStr = AnyToString(innerResult)
 			}
 		}
 		
@@ -347,7 +347,7 @@ func (v *Variable) ToCSS(context any) string {
 	} else if str, ok := result.(string); ok {
 		return str
 	} else {
-		return fmt.Sprintf("%v", result)
+		return AnyToString(result)
 	}
 }
 
@@ -368,7 +368,7 @@ func (v *Variable) GenCSS(context any, output *CSSOutput) {
 	} else if cssObj, ok := result.(interface{ ToCSS(any) string }); ok {
 		output.Add(cssObj.ToCSS(context), v.FileInfo(), v.GetIndex())
 	} else {
-		output.Add(fmt.Sprintf("%v", result), v.FileInfo(), v.GetIndex())
+		output.Add(AnyToString(result), v.FileInfo(), v.GetIndex())
 	}
 }
 

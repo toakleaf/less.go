@@ -2,6 +2,7 @@ package less_go
 
 import (
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -32,6 +33,40 @@ var nodePool = sync.Pool{
 	New: func() interface{} {
 		return &Node{}
 	},
+}
+
+// AnyToString efficiently converts any value to string with minimal allocations
+// This is optimized to avoid fmt.Sprintf in hot paths by using direct type assertions
+func AnyToString(v any) string {
+	if v == nil {
+		return ""
+	}
+	switch val := v.(type) {
+	case string:
+		return val
+	case int:
+		return strconv.Itoa(val)
+	case int64:
+		return strconv.FormatInt(val, 10)
+	case float64:
+		return strconv.FormatFloat(val, 'f', -1, 64)
+	case float32:
+		return strconv.FormatFloat(float64(val), 'f', -1, 32)
+	case bool:
+		if val {
+			return "true"
+		}
+		return "false"
+	case []byte:
+		return string(val)
+	default:
+		// Check for Stringer interface first
+		if s, ok := v.(interface{ String() string }); ok {
+			return s.String()
+		}
+		// Fall back to fmt.Sprintf for complex types
+		return fmt.Sprintf("%v", v)
+	}
 }
 
 // NewNode creates a new Node instance, potentially reusing from pool
@@ -188,23 +223,7 @@ func (n *Node) ToCSS(context any) string {
 	var strs []string
 	output := &CSSOutput{
 		Add: func(chunk any, fileInfo any, index any) {
-			// Optimize: Use direct type assertions instead of fmt.Sprintf
-			switch v := chunk.(type) {
-			case string:
-				strs = append(strs, v)
-			case int:
-				strs = append(strs, strconv.Itoa(v))
-			case float64:
-				strs = append(strs, strconv.FormatFloat(v, 'f', -1, 64))
-			case bool:
-				if v {
-					strs = append(strs, "true")
-				} else {
-					strs = append(strs, "false")
-				}
-			default:
-				strs = append(strs, fmt.Sprintf("%v", v))
-			}
+			strs = append(strs, AnyToString(chunk))
 		},
 		IsEmpty: func() bool {
 			return len(strs) == 0
@@ -295,7 +314,7 @@ func Compare(a, b *Node) int {
 		// of Quoted or Anonymous if either value is one of those
 		if bType, ok := b.Value.(string); ok {
 			if bType == "Quoted" || bType == "Anonymous" {
-				return strings.Compare(fmt.Sprintf("%v", a.Value), fmt.Sprintf("%v", b.Value))
+				return strings.Compare(AnyToString(a.Value), AnyToString(b.Value))
 			}
 		}
 		return aCompare.Compare(b)
@@ -304,8 +323,8 @@ func Compare(a, b *Node) int {
 		return -bCompare.Compare(a)
 	}
 
-	// Check type equality
-	if fmt.Sprintf("%T", a.Value) != fmt.Sprintf("%T", b.Value) {
+	// Check type equality using reflect.TypeOf for better performance
+	if reflect.TypeOf(a.Value) != reflect.TypeOf(b.Value) {
 		// If types don't match, they are generally considered incomparable
 		// unless a specific comparison method handles it (checked above).
 		// Return 999 to indicate incomparable types (like JavaScript's undefined)

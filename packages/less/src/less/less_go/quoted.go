@@ -109,7 +109,7 @@ func (q *Quoted) ToCSS(context any) string {
 	var strs []string
 	output := &CSSOutput{
 		Add: func(chunk any, fileInfo any, index any) {
-			strs = append(strs, fmt.Sprintf("%v", chunk))
+			strs = append(strs, AnyToString(chunk))
 		},
 		IsEmpty: func() bool {
 			return len(strs) == 0
@@ -201,13 +201,13 @@ func (q *Quoted) Eval(context any) (any, error) {
 						} else if cssable, ok := anon.Value.(interface{ ToCSS(any) string }); ok {
 							result = cssable.ToCSS(make(map[string]any))
 						} else {
-							result = fmt.Sprintf("%v", anon.Value)
+							result = AnyToString(anon.Value)
 						}
 					} else if value, ok := val.(*Value); ok {
 						// Handle Value objects by evaluating them
 						evaluated, err := value.Eval(context)
 						if err != nil {
-							result = fmt.Sprintf("%v", val)
+							result = AnyToString(val)
 						} else if anon, ok := evaluated.(*Anonymous); ok {
 							// Handle Anonymous results from Value eval
 							if str, ok := anon.Value.(string); ok {
@@ -215,7 +215,7 @@ func (q *Quoted) Eval(context any) (any, error) {
 							} else if cssable, ok := anon.Value.(interface{ ToCSS(any) string }); ok {
 								result = cssable.ToCSS(make(map[string]any))
 							} else {
-								result = fmt.Sprintf("%v", anon.Value)
+								result = AnyToString(anon.Value)
 							}
 						} else if quoted, ok := evaluated.(*Quoted); ok {
 							// Handle Quoted results from Value eval
@@ -231,12 +231,12 @@ func (q *Quoted) Eval(context any) (any, error) {
 						} else if cssable, ok := evaluated.(interface{ ToCSS(any) string }); ok {
 							result = cssable.ToCSS(make(map[string]any))
 						} else {
-							result = fmt.Sprintf("%v", evaluated)
+							result = AnyToString(evaluated)
 						}
 					} else if cssable, ok := val.(interface{ ToCSS(any) string }); ok {
 						result = cssable.ToCSS(make(map[string]any))
 					} else {
-						result = fmt.Sprintf("%v", val)
+						result = AnyToString(val)
 					}
 					return result, nil
 				}
@@ -257,8 +257,8 @@ func (q *Quoted) Eval(context any) (any, error) {
 		if cssable, ok := result.(interface{ ToCSS(any) string }); ok {
 			return cssable.ToCSS(make(map[string]any)), nil
 		}
-		
-		return fmt.Sprintf("%v", result), nil
+
+		return AnyToString(result), nil
 	}
 
 	// propertyReplacement handles ${name} syntax
@@ -279,7 +279,7 @@ func (q *Quoted) Eval(context any) (any, error) {
 			return cssable.ToCSS(make(map[string]any)), nil
 		}
 
-		return fmt.Sprintf("%v", result), nil
+		return AnyToString(result), nil
 	}
 
 	// Process variable and property replacements

@@ -292,9 +292,9 @@ func (c *Color) ToCSS(context any) string {
 		}
 		var strArgs []string
 		for _, arg := range args {
-			strArgs = append(strArgs, fmt.Sprintf("%v", arg))
+			strArgs = append(strArgs, AnyToString(arg))
 		}
-		return fmt.Sprintf("%s(%s)", colorFunction, strings.Join(strArgs, separator))
+		return colorFunction + "(" + strings.Join(strArgs, separator) + ")"
 	}
 
 	color := c.ToRGB()

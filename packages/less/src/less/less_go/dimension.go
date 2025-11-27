@@ -53,7 +53,7 @@ func NewDimension(value any, unit any) (*Dimension, error) {
 		case *Unit:
 			u = t
 		default:
-			str := fmt.Sprintf("%v", t)
+			str := AnyToString(t)
 			if str != "" {
 				u = NewUnit([]string{str}, nil, str)
 			} else {
@@ -194,7 +194,7 @@ func (d *Dimension) ToCSS(context any) string {
 	var strs []string
 	output := &CSSOutput{
 		Add: func(chunk any, fileInfo any, index any) {
-			strs = append(strs, fmt.Sprintf("%v", chunk))
+			strs = append(strs, AnyToString(chunk))
 		},
 		IsEmpty: func() bool {
 			return len(strs) == 0

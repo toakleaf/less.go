@@ -182,7 +182,7 @@ func (r *Ruleset) ToCSS(options map[string]any) (string, error) {
 	cssOutput := &CSSOutput{
 		Add: func(chunk, fileInfo, index any) {
 			if chunk != nil {
-				output.WriteString(fmt.Sprintf("%v", chunk))
+				output.WriteString(AnyToString(chunk))
 			}
 		},
 		IsEmpty: func() bool {
@@ -1145,7 +1145,7 @@ func (r *Ruleset) Properties() map[string][]any {
 					if kw, ok := nameSlice[0].(*Keyword); ok {
 						name = kw.value
 					} else {
-						name = fmt.Sprintf("%v", nameSlice[0])
+						name = AnyToString(nameSlice[0])
 					}
 				} else if len(nameSlice) > 1 {
 					// Multiple elements - concatenate their values
@@ -1160,10 +1160,10 @@ func (r *Ruleset) Properties() map[string][]any {
 							if val, ok := anon.Value.(string); ok {
 								parts = append(parts, val)
 							} else {
-								parts = append(parts, fmt.Sprintf("%v", anon.Value))
+								parts = append(parts, AnyToString(anon.Value))
 							}
 						} else {
-							parts = append(parts, fmt.Sprintf("%v", elem))
+							parts = append(parts, AnyToString(elem))
 						}
 					}
 					name = strings.Join(parts, "")
@@ -1171,7 +1171,7 @@ func (r *Ruleset) Properties() map[string][]any {
 			} else if nameStr, ok := decl.name.(string); ok {
 				name = nameStr
 			} else {
-				name = fmt.Sprintf("%v", decl.name)
+				name = AnyToString(decl.name)
 			}
 			
 			key := "$" + name
@@ -1435,7 +1435,7 @@ func (r *Ruleset) Find(selector any, self any, filter func(any) bool) []any {
 	} else if sel, ok := selector.(interface{ ToCSS(any) string }); ok {
 		key = sel.ToCSS(nil)
 	} else {
-		key = fmt.Sprintf("%v", selector)
+		key = AnyToString(selector)
 	}
 
 	if cached, exists := r.lookups[key]; exists {
@@ -1857,7 +1857,7 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 		if gen, ok := rule.(interface{ GenCSS(any, *CSSOutput) }); ok {
 			gen.GenCSS(childContext, output)
 		} else if val, ok := rule.(interface{ GetValue() any }); ok {
-			output.Add(fmt.Sprintf("%v", val.GetValue()), nil, nil)
+			output.Add(AnyToString(val.GetValue()), nil, nil)
 		}
 
 		ctx["lastRule"] = currentLastRule

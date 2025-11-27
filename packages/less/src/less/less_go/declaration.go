@@ -129,7 +129,7 @@ func (d *Declaration) GetName() string {
 	if nameStr, ok := d.name.(string); ok {
 		return nameStr
 	}
-	return fmt.Sprintf("%v", d.name)
+	return AnyToString(d.name)
 }
 
 // GetMerge returns the merge flag
@@ -189,7 +189,7 @@ func evalName(context any, name []any) (string, error) {
 				case *Keyword:
 					value += v.value
 				default:
-					value += fmt.Sprintf("%v", v)
+					value += AnyToString(v)
 				}
 			}
 		},
@@ -427,7 +427,7 @@ func (d *Declaration) GenCSS(context any, output *CSSOutput) {
 	case *Keyword:
 		nameStr = n.value
 	case *Anonymous:
-		nameStr = fmt.Sprintf("%v", n.Value)
+		nameStr = AnyToString(n.Value)
 	case []any:
 		evaluatedName, err := evalName(context, n)
 		if err != nil {
@@ -436,7 +436,7 @@ func (d *Declaration) GenCSS(context any, output *CSSOutput) {
 		}
 		nameStr = evaluatedName
 	default:
-		nameStr = fmt.Sprintf("%v", n)
+		nameStr = AnyToString(n)
 	}
 
 	// Add name
@@ -483,7 +483,7 @@ func (d *Declaration) GenCSS(context any, output *CSSOutput) {
 			if gen, ok := evaluated.(interface{ GenCSS(any, *CSSOutput) }); ok {
 				gen.GenCSS(context, output)
 			} else {
-				output.Add(fmt.Sprintf("%v", evaluated), d.FileInfo(), d.GetIndex())
+				output.Add(AnyToString(evaluated), d.FileInfo(), d.GetIndex())
 			}
 		} else {
 			// Fall back to normal GenCSS if evaluation fails
@@ -542,7 +542,7 @@ func (d *Declaration) ToCSS(context any) string {
 	var strs []string
 	output := &CSSOutput{
 		Add: func(chunk any, fileInfo any, index any) {
-			strs = append(strs, fmt.Sprintf("%v", chunk))
+			strs = append(strs, AnyToString(chunk))
 		},
 		IsEmpty: func() bool {
 			return len(strs) == 0

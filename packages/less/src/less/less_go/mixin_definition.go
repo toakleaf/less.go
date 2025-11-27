@@ -10,7 +10,7 @@ func toCSS(val any, context any) string {
 	if cssGenerator, ok := val.(interface{ ToCSS(any) string }); ok {
 		return cssGenerator.ToCSS(context)
 	}
-	return fmt.Sprintf("%v", val)
+	return AnyToString(val)
 }
 
 // continueEvaluatingVariables continues evaluating if the result is a Variable
@@ -83,7 +83,7 @@ func NewMixinDefinition(name string, params []any, rules []any, condition any, v
 
 	// Calculate required parameters and collect optional ones
 	required := 0
-	optionalParameters := []string{}
+	optionalParameters := make([]string, 0, len(params)) // Pre-allocate with max capacity
 	
 	for _, p := range params {
 		if param, ok := p.(map[string]any); ok {
@@ -191,7 +191,15 @@ func (md *MixinDefinition) EvalParams(context any, mixinEnv any, args []any, eva
 	}
 
 	// Create new evaluation context
-	newFrames := []any{frame}
+	// Pre-allocate newFrames with expected capacity
+	existingFrames := 0
+	if env, ok := mixinEnv.(map[string]any); ok {
+		if frames, ok := env["frames"].([]any); ok {
+			existingFrames = len(frames)
+		}
+	}
+	newFrames := make([]any, 1, 1+existingFrames)
+	newFrames[0] = frame
 	if env, ok := mixinEnv.(map[string]any); ok {
 		if frames, ok := env["frames"].([]any); ok {
 			newFrames = append(newFrames, frames...)
