@@ -7,6 +7,7 @@ import (
 )
 
 // TestMergeRulesTruthiness tests that mergeRules correctly handles JavaScript truthiness
+// JavaScript behavior: only rules WITH merge set are grouped - rules without merge stay separate
 func TestMergeRulesTruthiness(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -23,23 +24,22 @@ func TestMergeRulesTruthiness(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create two declarations with the same property name
-			// First declaration without merge
-			decl1, _ := NewDeclaration("color", "red", nil, false, 0, nil, false, false)
-			// Second declaration with the merge value we're testing
+			// Create two declarations with the same property name and SAME merge value
+			// This correctly tests JavaScript behavior: only rules with merge get grouped together
+			decl1, _ := NewDeclaration("color", "red", nil, tt.merge, 0, nil, false, false)
 			decl2, _ := NewDeclaration("color", "blue", nil, tt.merge, 0, nil, false, false)
 			rules := []any{decl1, decl2}
-			
+
 			// Create visitor
 			ctx := map[string]any{"compress": false}
 			visitor := NewToCSSVisitor(ctx)
-			
+
 			// Run mergeRules
 			result := visitor.mergeRules(rules)
-			
+
 			// Check if the rules were merged
 			if tt.shouldMerge {
-				// When merge is truthy, the second rule should be removed and merged into first
+				// When merge is truthy, both rules with merge should be combined into one
 				if len(result) != 1 {
 					t.Errorf("Expected 1 merged rule, but got %d rules", len(result))
 				}
@@ -52,12 +52,34 @@ func TestMergeRulesTruthiness(t *testing.T) {
 					}
 				}
 			} else {
-				// When merge is falsy, both rules should remain
+				// When merge is falsy, both rules should remain (not grouped)
 				if len(result) != 2 {
 					t.Errorf("Expected 2 unmerged rules, but got %d rules", len(result))
 				}
 			}
 		})
+	}
+}
+
+// TestMergeRulesDoesNotMixNonMergeWithMerge tests that non-merge rules stay separate from merge rules
+// This is the JavaScript behavior: src: url(a.eot); should NOT merge with src+: url(b.eot);
+func TestMergeRulesDoesNotMixNonMergeWithMerge(t *testing.T) {
+	// Create a declaration WITHOUT merge
+	declNoMerge, _ := NewDeclaration("src", "url(a.eot)", nil, false, 0, nil, false, false)
+	// Create a declaration WITH merge
+	declWithMerge, _ := NewDeclaration("src", "url(b.eot)", nil, "+", 0, nil, false, false)
+	rules := []any{declNoMerge, declWithMerge}
+
+	// Create visitor
+	ctx := map[string]any{"compress": false}
+	visitor := NewToCSSVisitor(ctx)
+
+	// Run mergeRules
+	result := visitor.mergeRules(rules)
+
+	// Both rules should remain separate - the non-merge rule should NOT be merged
+	if len(result) != 2 {
+		t.Errorf("Expected 2 separate rules (non-merge and merge should not combine), but got %d rules", len(result))
 	}
 }
 
