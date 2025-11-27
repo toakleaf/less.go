@@ -1,269 +1,83 @@
 # Integration Test Status Report
-**Generated**: 2025-11-09 (Updated with latest test run)
-**Branch**: claude/assess-less-go-port-progress-011CUxpnpQw3bvbmbhCpv3L9
-**Status**: 📈 **EXCELLENT PROGRESS!** (64 perfect matches, 34.8% success rate)
+**Updated**: 2025-11-27
+**Status**: **EXCELLENT!** 90 perfect matches, only 2 output differences remaining
 
 ## Overall Status Summary
 
-### Key Statistics (Current as of 2025-11-09)
-- **Perfect CSS Matches**: 64 tests ✅ (34.8% - UP from 63! +1 new win!)
-- **CSS Output Differences**: 25 tests ⚠️ (13.6% - DOWN from 29! -4 improvement!)
-- **Compilation Failures**: 3 tests ❌ (all expected - network/external dependencies)
-- **Error Handling Tests**: 39+ tests ✅ (correctly failing as expected)
-- **Quarantined**: 5 tests ⏸️ (plugins, JS execution - deferred features)
-- **✅ ZERO REGRESSIONS**: All previously passing tests still passing!
+### Key Statistics
+- **Perfect CSS Matches**: 90 tests (48.9%)
+- **Correct Error Handling**: 89 tests (48.4%)
+- **CSS Output Differences**: 2 tests (1.1%)
+- **Compilation Failures**: 3 tests (1.6%) - All expected (external dependencies)
+- **Overall Success Rate**: 97.3% (179/184 tests)
+- **Compilation Rate**: 98.4% (181/184 tests)
+- **Unit Tests**: 3,012 tests passing (100%)
+- **ZERO REGRESSIONS**: All previously passing tests still passing!
 
-### Overall Success Rate
-- **Compilation Rate**: 181/184 tests compile (98.4%) 🎉
-- **Perfect + Error Handling**: 103+ tests (56.0%+ success)
-- **Production-Ready Success Rate**: 64/184 (34.8%)
+## Remaining 2 Output Differences
 
-## Perfect Match Tests ✅ (64 total)
+### 1. import-reference (main suite)
+- Reference imports outputting CSS when they shouldn't
+- See `.claude/tasks/runtime-failures/import-reference.md`
 
-These tests produce exactly matching CSS output:
+### 2. import-reference-issues (main suite)
+- Import reference with extends/mixins edge cases
+- Related to import-reference fix
 
-### Main Suite (38 tests)
-1. `charsets`
-2. `colors`
-3. `colors2`
-4. `comments2`
-5. `css-escapes`
-6. `css-grid`
-7. `css-guards`
-8. `empty`
-9. `extend-clearfix`
-10. `extend-exact`
-11. `extend-media`
-12. `extend-nest`
-13. `extend-selector`
-14. `extend`
-15. `ie-filters`
-16. `impor`
-17. `import-inline`
-18. `import-interpolation`
-19. `import-once`
-20. `import-remote`
-21. `lazy-eval`
-22. `mixin-noparens`
-23. `mixins`
-24. `mixins-closure`
-25. `mixins-guards-default-func`
-26. `mixins-important`
-27. `mixins-interpolated`
-28. `mixins-named-args`
-29. `mixins-nested`
-30. `mixins-pattern`
-31. `no-output`
-32. `operations`
-33. `plugi`
-34. `rulesets`
-35. `scope`
-36. `strings`
-37. `variables`
-38. `whitespace`
+## Compilation Failures (Expected - External)
 
-### Namespacing Suite (11 tests) - 100% COMPLETE! 🎉
-39. `namespacing-1`
-40. `namespacing-2`
-41. `namespacing-3`
-42. `namespacing-4`
-43. `namespacing-5`
-44. `namespacing-6`
-45. `namespacing-7`
-46. `namespacing-8`
-47. `namespacing-functions`
-48. `namespacing-media`
-49. `namespacing-operations`
+1. **bootstrap4** - External bootstrap package not available
+2. **google** - Network access to Google Fonts required
+3. **import-module** - Node modules resolution not implemented
 
-### Math Suites (6 tests)
-50. `media-math` (math-parens)
-51. `media-math` (math-parens-division)
-52. `new-division` (math-parens-division)
-53. `parens` (math-parens-division)
-54. `mixins-guards` (math-always)
-55. `no-sm-operations` (math-always)
+## Categories at 100% Completion
 
-### Other Suites (8 tests)
-56. `compression`
-57. `strict-units`
-58. `rewrite-urls-all`
-59. `rewrite-urls-local`
-60. `rootpath-rewrite-urls-all`
-61. `rootpath-rewrite-urls-local`
-62. `include-path`
-63. `include-path-string`
+| Category | Tests | Status |
+|----------|-------|--------|
+| Namespacing | 11/11 | 100% |
+| Guards & Conditionals | 3/3 | 100% |
+| Extend | 7/7 | 100% |
+| Colors | 2/2 | 100% |
+| Compression | 1/1 | 100% |
+| Math Operations | 12/12 | 100% |
+| Units | 2/2 | 100% |
+| URL Rewriting | 4/4 | 100% |
+| Include Path | 2/2 | 100% |
+| Detached Rulesets | 1/1 | 100% |
+| Media Queries | 1/1 | 100% |
+| Container Queries | 1/1 | 100% |
+| Directives Bubbling | 1/1 | 100% |
 
-## Compilation Failures ❌ (3 tests - ALL EXPECTED)
+## Progress History
 
-All remaining compilation failures are due to external factors, not implementation bugs:
+| Date | Perfect Matches | Success Rate | Change |
+|------|-----------------|--------------|--------|
+| 2025-10-23 | 8 | 38.4% | Baseline |
+| 2025-11-06 | 20 | 42.2% | +12 |
+| 2025-11-08 | 69 | 75.0% | +49 |
+| 2025-11-10 | 79 | 75.7% | +10 |
+| 2025-11-13 | 83 | 93.0% | +4 |
+| 2025-11-26 | 84 | 93.5% | +1 |
+| **2025-11-27** | **90** | **97.3%** | **+6** |
 
-1. **`import-module`**
-   - Error: `open @less/test-import-module/one/1.less: no such file or directory`
-   - Cause: Node modules resolution not implemented (low priority feature)
+## Path to Completion
 
-2. **`google`** (process-imports suite)
-   - Error: DNS lookup failed (`lookup fonts.googleapis.com`)
-   - Cause: Network connectivity in container (infrastructure issue)
+**Current**: 97.3% (179/184 tests)
+**Target**: Fix 2 remaining output differences → 98.4% (181/184)
 
-3. **`bootstrap4`** (3rd-party suite)
-   - Error: `open bootstrap-less-port/less/bootstrap: no such file or directory`
-   - Cause: External test data not available
+The only remaining failures would be the 3 external dependency tests.
 
-## Output Differences ⚠️ (25 tests - DOWN FROM 29!)
+## Validation Commands
 
-CSS generation tests that compile but produce wrong output:
+```bash
+# Check baseline
+pnpm -w test:go:unit          # Must: 3,012 tests passing
+LESS_GO_QUIET=1 pnpm -w test:go 2>&1 | tail -30  # Must: 90 perfect
 
-### Categories with Output Differences
+# Debug specific test
+LESS_GO_DIFF=1 pnpm -w test:go 2>&1 | grep -A 20 "import-reference"
+```
 
-**Math Operations (6 tests)**
-- `css` (math-parens)
-- `mixins-args` (math-parens)
-- `parens` (math-parens)
-- `mixins-args` (math-parens-division)
-- `parens` (math-parens-division)
-- `no-strict` (units-no-strict)
+---
 
-**URL Issues (3 tests)**
-- `urls` (main)
-- `urls` (static-urls)
-- `urls` (url-args)
-
-**Import/Reference Issues (2 tests)**
-- `import-reference`
-- `import-reference-issues`
-
-**Formatting/Output Issues (6 tests)**
-- `comments`
-- `parse-interpolation`
-- `variables-in-at-rules`
-- `container`
-- `directives-bubling`
-- `permissive-parse`
-
-**Extend Edge Cases (1 test)**
-- `extend-chaining` - Multi-level extend chains
-
-**Mixin/Ruleset Issues (2 tests)**
-- `detached-rulesets`
-- `mixins-guards` (main suite, different from math-always version)
-
-**Function/List Issues (3 tests)**
-- `functions`
-- `functions-each`
-- `extract-and-length`
-
-**Other Issues (6 tests)**
-- `calc`
-- `css-3`
-- `media`
-- `merge`
-- `property-accessors`
-- `property-name-interp`
-- `selectors`
-
-## Major Achievements & Progress
-
-### Test Statistics Comparison
-| Metric | Previous | Current | Change |
-|--------|----------|---------|--------|
-| Perfect Matches | 57 | 63 | +6 (+10.5%) ✅ |
-| Output Differences | 35 | 29 | -6 (-17.1%) ✅ |
-| Compilation Failures | 3 | 3 | 0 (stable) |
-| Compilation Rate | 98.4% | 98.4% | 0 (stable) |
-| Success Rate | 49.5% | 55.4%+ | +5.9pp ✅ |
-
-### Categories at 100% Completion
-1. ✅ **Namespacing**: 11/11 tests (100%)
-2. ✅ **Guards & Conditionals**: 3/3 tests (100%)
-3. ✅ **Colors**: 2/2 tests (100%)
-4. ✅ **Compression**: 1/1 test (100%)
-5. ✅ **URL Rewriting Core**: 4/4 tests (100%)
-
-### Nearly Complete Categories
-- 🟡 **Extend**: 6/7 tests (85.7% - only extend-chaining remains)
-- 🟡 **Import**: 3/4 tests (75% - only import-reference issues remain)
-- 🟡 **Math Suites**: 6/10 tests (60% - parens and division modes pending)
-
-### No Regressions
-**Status**: ✅ **ZERO ACTIVE REGRESSIONS**
-- All previously passing tests continue to pass
-- No functionality has deteriorated
-- Code quality remains stable
-
-## Unit Tests Status
-
-**Status**: ✅ **ALL PASSING**
-- 2,290+ unit tests pass
-- 99.9%+ pass rate
-- 1 known test issue: `TestRulesetErrorConditions/should_handle_nested_rulesets_with_circular_dependencies` (test bug, not functionality)
-
-## Path to 60% Success Rate
-
-**Current**: 55.4%+ (102+ tests passing or correctly erroring)
-**Target**: 60% (110 tests)
-**Needed**: +8 perfect matches
-
-### Achievable Quick Wins
-1. extend-chaining: +1 test
-2. Math operations: +4-6 tests
-3. Formatting issues: +1-2 tests
-
-**Realistic timeline**: 1-2 weeks with focused effort
-
-## Recommendations for Next Work
-
-### High Priority (Quick Wins)
-1. **extend-chaining** - Complete 7/7 extend category! (1 test, medium complexity)
-2. **Math operations** - Fix 4-6 tests at once (high impact)
-3. **Formatting/comments** - Fix 6 tests with whitespace corrections (low-medium complexity)
-
-### Medium Priority
-4. **URL edge cases** - Fix remaining 3 URL tests
-5. **Import reference handling** - Fix 2 remaining tests
-6. **Function implementation** - Fix functions and extract-and-length
-
-### Lower Priority
-7. **External dependencies** - bootstrap4, import-module, google (infrastructure issues)
-
-## Key Metrics Summary
-
-| Metric | Count | Percentage |
-|--------|-------|-----------|
-| Perfect CSS Matches | 63 | 34.2% |
-| Correct Error Handling | 39+ | 21.2%+ |
-| Output Differences | 29 | 15.8% |
-| Compilation Failures | 3 | 1.6% |
-| Quarantined Features | 5 | 2.7% |
-| **Total Success Rate** | **102+** | **55.4%+** |
-
-## Session Summary
-
-### Starting Point (2025-11-09 beginning of session)
-- Tests run on branch: `claude/assess-less-go-port-progress-011CUxbZR9ZzYJ6vnorPDFcA`
-- Previous documented status: 57 perfect matches, 35 output differences
-- Previous success rate: 49.5%
-
-### Current Status (2025-11-09 end of session)
-- **Perfect matches: 63** ✅
-- **Output differences: 29** ✅
-- **Success rate: 55.4%+** ✅
-- **Compilation rate: 98.4%** ✅
-- **Zero regressions: CONFIRMED** ✅
-
-### Net Progress This Session
-- +6 perfect matches discovered
-- -6 output differences
-- +5.9pp overall success rate improvement
-- Confirmed no regressions
-- All 2,290+ unit tests passing
-
-## Conclusion
-
-The less.go port is in **excellent shape**:
-- Parser is fully functional (98.4% compilation rate)
-- Core features are working (55.4%+ success rate)
-- No regressions present
-- 63 tests produce perfect CSS output
-- Clear path to 60%+ success rate within 1-2 weeks
-
-The remaining work is primarily focused on output formatting and edge case handling, not fundamental functionality. The port is production-ready for most use cases.
+**The less.go port is in EXCELLENT shape with 97.3% success rate!**
