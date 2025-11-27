@@ -598,6 +598,18 @@ func (i *Import) DoEval(context any) (any, error) {
 
 	// Handle inline imports
 	if i.getBoolOption("inline") {
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			rootType := fmt.Sprintf("%T", i.root)
+			rootVal := ""
+			if str, ok := i.root.(string); ok {
+				if len(str) > 30 {
+					rootVal = str[:30] + "..."
+				} else {
+					rootVal = str
+				}
+			}
+			fmt.Fprintf(os.Stderr, "[Import.DoEval inline] root type=%s, value=%q, importedFilename=%s\n", rootType, rootVal, i.importedFilename)
+		}
 		contents := NewAnonymous(i.root, 0, map[string]any{
 			"filename":  i.importedFilename,
 			"reference": i.pathFileInfoReference(),

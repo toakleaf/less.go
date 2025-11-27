@@ -2,6 +2,7 @@ package less_go
 
 import (
 	"fmt"
+	"os"
 )
 
 // ImportVisitor processes import nodes in the AST
@@ -117,15 +118,32 @@ func (iv *ImportVisitor) VisitImport(importNode any, visitArgs *VisitArgs) {
 		// Pass parent context properties (including importMultiple) to child
 		frames := CopyArray(iv.context.Frames)
 		context := NewEvalFromEval(iv.context, frames)
-		
+
 		var importParent any
 		if len(context.Frames) > 0 {
 			importParent = context.Frames[0]
 		}
 
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			parentType := fmt.Sprintf("%T", importParent)
+			fmt.Fprintf(os.Stderr, "[ImportVisitor.VisitImport] Processing import=%p, css=%v, inline=%v, parent type=%s\n", importNode, css, inlineCSS, parentType)
+		}
+
+		// Skip processing VARIABLE imports inside mixin definitions during the initial visitor pass.
+		// These imports will be processed when the mixin is actually called/evaluated,
+		// at which point variables will be available for variable imports.
+		// Non-variable imports (like inline imports with known paths) should still be processed.
+		_, isMixinDef := importParent.(*MixinDefinition)
+		isVarImport := iv.isVariableImport(importNode)
+
+		if isMixinDef && isVarImport {
+			visitArgs.VisitDeeper = false
+			return
+		}
+
 		iv.importCount++
 
-		if iv.isVariableImport(importNode) {
+		if isVarImport {
 			iv.sequencer.AddVariableImport(func() {
 				iv.processImportNode(importNode, context, importParent)
 			})
@@ -154,6 +172,10 @@ func (iv *ImportVisitor) processImportNode(importNode any, context *Eval, import
 				inlineCSS = inline
 			}
 		}
+	}
+
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Fprintf(os.Stderr, "[ImportVisitor.processImportNode] importNode=%p, inlineCSS=%v\n", importNode, inlineCSS)
 	}
 
 	// For variable imports, update context frames to include variables from
@@ -220,6 +242,9 @@ func (iv *ImportVisitor) processImportNode(importNode any, context *Eval, import
 		tryAppendLessExtension := cssUndefined
 
 		// Replace import node in parent rules - matches JavaScript
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Fprintf(os.Stderr, "[ImportVisitor.processImportNode] Replacing importNode=%p with evaldImportNode=%p in parent\n", importNode, evaldImportNode)
+		}
 		iv.replaceRuleInParent(importParent, importNode, evaldImportNode)
 
 		onImported := func(args ...any) {
@@ -268,6 +293,12 @@ func (iv *ImportVisitor) onImported(importNode any, context *Eval, args ...any) 
 		}
 	}
 
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		inline := iv.getOptionBool(importNode, "inline", false)
+		rootType := fmt.Sprintf("%T", root)
+		fmt.Fprintf(os.Stderr, "[ImportVisitor.onImported] inline=%v, rootType=%s, fullPath=%q\n", inline, rootType, fullPath)
+	}
+
 	// Handle error - matches JavaScript
 	if e != nil {
 		if lessErr, ok := e.(*LessError); ok {
@@ -307,6 +338,9 @@ func (iv *ImportVisitor) onImported(importNode any, context *Eval, args ...any) 
 
 	// Process root if provided - matches JavaScript
 	if root != nil {
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Fprintf(os.Stderr, "[ImportVisitor.onImported] Setting root on importNode=%p type=%T\n", importNode, importNode)
+		}
 		iv.setProperty(importNode, "root", root)
 		iv.setProperty(importNode, "importedFilename", fullPath)
 
@@ -483,6 +517,16 @@ func (iv *ImportVisitor) replaceRuleInParent(parent any, oldRule any, newRule an
 				}
 			}
 		}
+	} else if mixin, ok := parent.(*MixinDefinition); ok {
+		// Handle *MixinDefinition parent
+		if mixin.Rules != nil {
+			for i, rule := range mixin.Rules {
+				if rule == oldRule {
+					mixin.Rules[i] = newRule
+					break
+				}
+			}
+		}
 	}
 }
 
@@ -492,6 +536,22 @@ func (iv *ImportVisitor) callImporterPush(importNode any, tryAppendLessExtension
 		path := iv.getPath(importNode)
 		fileInfo := iv.getFileInfo(importNode)
 		options := iv.getOptions(importNode)
+
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			inline := false
+			if opts := iv.getOptions(importNode); opts != nil {
+				if inl, ok := opts["inline"].(bool); ok {
+					inline = inl
+				}
+			}
+			currentDir := ""
+			if fileInfo != nil {
+				if cd, ok := fileInfo["currentDirectory"].(string); ok {
+					currentDir = cd
+				}
+			}
+			fmt.Fprintf(os.Stderr, "[ImportVisitor.callImporterPush] path=%q, inline=%v, currentDir=%q\n", path, inline, currentDir)
+		}
 		
 		// Convert fileInfo map to FileInfo struct
 		currentFileInfo := &FileInfo{}

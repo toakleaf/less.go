@@ -149,7 +149,16 @@ func (md *MixinDefinition) IsRuleset() bool {
 
 // Accept visits the mixin definition with a visitor
 func (md *MixinDefinition) Accept(visitor any) {
-	if v, ok := visitor.(interface{ VisitArray([]any) []any }); ok {
+	// Try the variadic signature first (matches Visitor.VisitArray signature)
+	if v, ok := visitor.(interface{ VisitArray([]any, ...bool) []any }); ok {
+		if len(md.Params) > 0 {
+			md.Params = v.VisitArray(md.Params)
+		}
+		if md.Rules != nil {
+			md.Rules = v.VisitArray(md.Rules)
+		}
+	} else if v, ok := visitor.(interface{ VisitArray([]any) []any }); ok {
+		// Fallback to non-variadic signature for compatibility
 		if len(md.Params) > 0 {
 			md.Params = v.VisitArray(md.Params)
 		}
@@ -157,7 +166,7 @@ func (md *MixinDefinition) Accept(visitor any) {
 			md.Rules = v.VisitArray(md.Rules)
 		}
 	}
-	
+
 	if v, ok := visitor.(interface{ Visit(any) any }); ok {
 		if md.Condition != nil {
 			md.Condition = v.Visit(md.Condition)
@@ -664,6 +673,28 @@ func (md *MixinDefinition) EvalCall(context any, args []any, important bool) (*R
 	frame.PrependRule(argDecl)
 
 	// Copy rules
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] %s: md.Rules has %d rules, md=%p\n", md.Name, len(md.Rules), md)
+		for i, rule := range md.Rules {
+			if imp, ok := rule.(*Import); ok {
+				rootType := fmt.Sprintf("%T", imp.root)
+				hasInline := imp.getBoolOption("inline")
+				fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall]   rule[%d] Import=%p: root type=%s, inline=%v, importedFilename=%s\n", i, imp, rootType, hasInline, imp.importedFilename)
+			} else if rs, ok := rule.(*Ruleset); ok {
+				fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall]   rule[%d] Ruleset=%p: %d rules, %d selectors\n", i, rs, len(rs.Rules), len(rs.Selectors))
+				// Check for imports inside the ruleset
+				for j, innerRule := range rs.Rules {
+					if innerImp, ok := innerRule.(*Import); ok {
+						innerRootType := fmt.Sprintf("%T", innerImp.root)
+						innerHasInline := innerImp.getBoolOption("inline")
+						fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall]     inner rule[%d] Import=%p: root type=%s, inline=%v\n", j, innerImp, innerRootType, innerHasInline)
+					}
+				}
+			} else {
+				fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall]   rule[%d] type=%T\n", i, rule)
+			}
+		}
+	}
 	rules := CopyArray(md.Rules)
 
 	// Create result ruleset
