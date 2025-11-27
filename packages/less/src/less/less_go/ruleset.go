@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"runtime"
 	"strings"
 )
 
@@ -269,6 +270,21 @@ func (r *Ruleset) GetPaths() []any {
 
 // SetPaths sets the paths array
 func (r *Ruleset) SetPaths(paths []any) {
+	// Debug: trace when paths are set
+	if os.Getenv("LESS_GO_DEBUG_VIS") == "1" && len(r.Selectors) > 0 {
+		if sel, ok := r.Selectors[0].(*Selector); ok && len(sel.Elements) > 0 {
+			if str, ok := sel.Elements[0].Value.(string); ok && str == "div" {
+				fmt.Fprintf(os.Stderr, "[Ruleset.SetPaths] div ruleset=%p, setting paths=%d\n", r, len(paths))
+				// Print stack trace to find caller when paths=0
+				if len(paths) == 0 {
+					buf := make([]byte, 2048)
+					n := runtime.Stack(buf, false)
+					fmt.Fprintf(os.Stderr, "[Ruleset.SetPaths] STACK TRACE:\n%s\n", buf[:n])
+				}
+			}
+		}
+	}
+
 	// Convert []any to [][]any
 	if paths == nil {
 		r.Paths = nil
@@ -513,6 +529,18 @@ func (r *Ruleset) Eval(context any) (any, error) {
 	// Create new ruleset
 	ruleset := NewRuleset(selectors, rules, r.StrictImports, r.VisibilityInfo(), r.SelectorsParseFunc, r.ValueParseFunc, r.ParseContext, r.ParseImports)
 	ruleset.OriginalRuleset = r
+
+	// Debug: trace creation of div rulesets
+	if os.Getenv("LESS_GO_DEBUG_VIS") == "1" && len(selectors) > 0 {
+		if sel, ok := selectors[0].(*Selector); ok && len(sel.Elements) > 0 {
+			elemVal := sel.Elements[0].Value
+			if str, ok := elemVal.(string); ok && str == "div" {
+				fmt.Fprintf(os.Stderr, "[Ruleset.Eval] Created div ruleset=%p from r=%p\n", ruleset, r)
+				fmt.Fprintf(os.Stderr, "[Ruleset.Eval]   r.Node=%p, r.BlocksVisibility=%v\n", r.Node, r.Node.BlocksVisibility())
+				fmt.Fprintf(os.Stderr, "[Ruleset.Eval]   ruleset.Node=%p, ruleset.BlocksVisibility=%v\n", ruleset.Node, ruleset.Node.BlocksVisibility())
+			}
+		}
+	}
 	ruleset.Root = r.Root
 	ruleset.FirstRoot = r.FirstRoot
 	ruleset.AllowImports = r.AllowImports
@@ -1123,6 +1151,109 @@ func ruleBlocksVisibility(rule any) bool {
 	return false
 }
 
+// isExtendOnlyRuleset checks if a ruleset contains only extend declarations.
+// Such rulesets don't output any CSS content and shouldn't add newlines.
+func isExtendOnlyRuleset(rs *Ruleset) bool {
+	if rs == nil || len(rs.Rules) == 0 {
+		return false
+	}
+	for _, rule := range rs.Rules {
+		if _, isExtend := rule.(*Extend); !isExtend {
+			// Found a non-extend rule
+			return false
+		}
+	}
+	return true
+}
+
+// atRuleHasOnlySilentContent checks if an AtRule has only silent content (line comments).
+// Such AtRules don't output any CSS and shouldn't add newlines.
+func atRuleHasOnlySilentContent(a *AtRule) bool {
+	if a == nil || a.Rules == nil {
+		return false
+	}
+	// Check if it's a keyframes rule (which should always be output)
+	if strings.Contains(a.Name, "keyframes") {
+		return false
+	}
+	// Check if all rulesets in this AtRule contain only silent content
+	for _, rule := range a.Rules {
+		if ruleset, ok := rule.(*Ruleset); ok {
+			if len(ruleset.Rules) > 0 {
+				hasVisibleContent := false
+				for _, r := range ruleset.Rules {
+					if comment, isComment := r.(*Comment); isComment {
+						if !comment.IsLineComment {
+							hasVisibleContent = true
+							break
+						}
+					} else {
+						hasVisibleContent = true
+						break
+					}
+				}
+				if hasVisibleContent {
+					return false
+				}
+			}
+		} else {
+			// Non-ruleset rule, might have visible content
+			return false
+		}
+	}
+	return true
+}
+
+// hasNoVisibleContent checks if a ruleset has no visible CSS content.
+// This includes rulesets where all children have bubbled up to the parent,
+// or rulesets that only contain variable declarations, comments, or other invisible content.
+func hasNoVisibleContent(rs *Ruleset) bool {
+	if rs == nil {
+		return true
+	}
+	// If no rules at all, no visible content
+	if len(rs.Rules) == 0 {
+		return true
+	}
+	// Check if any rule produces visible output
+	for _, rule := range rs.Rules {
+		switch r := rule.(type) {
+		case *Extend:
+			// Extends don't produce output
+			continue
+		case *MixinDefinition:
+			// Mixin definitions don't produce output
+			continue
+		case *Comment:
+			// Silent comments (// style) don't produce output
+			if r.IsLineComment {
+				continue
+			}
+			// Block comments (/* */) do produce output
+			return false
+		case *Declaration:
+			// Check if it's a variable declaration
+			if r.GetVariable() {
+				// Variable declaration - doesn't produce output
+				continue
+			}
+			// Regular declaration produces output
+			return false
+		case *Ruleset:
+			// Nested rulesets might have bubbled up, check if they still produce output here
+			// If the nested ruleset has paths set, it will output via its own GenCSS
+			// If it doesn't have visible content, it won't output
+			if !hasNoVisibleContent(r) {
+				return false
+			}
+		default:
+			// Any other rule type might produce output
+			return false
+		}
+	}
+	return true
+}
+
 // ResetCache resets all cached values
 func (r *Ruleset) ResetCache() {
 	r.rulesets = nil
@@ -1592,6 +1723,20 @@ func (r *Ruleset) Find(selector any, self any, filter func(any) bool) []any {
 
 // GenCSS generates CSS for the ruleset
 func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
+	// Debug: trace all div ruleset entries to GenCSS
+	if os.Getenv("LESS_GO_DEBUG_VIS") == "1" && len(r.Selectors) > 0 {
+		if sel, ok := r.Selectors[0].(*Selector); ok && len(sel.Elements) > 0 {
+			elemVal := sel.Elements[0].Value
+			if str, ok := elemVal.(string); ok && str == "div" {
+				fmt.Fprintf(os.Stderr, "[GenCSS ENTRY] div ruleset=%p, Node=%p, Paths=%v, Root=%v\n",
+					r, r.Node, r.Paths != nil && len(r.Paths) > 0, r.Root)
+				if r.Node != nil {
+					fmt.Fprintf(os.Stderr, "[GenCSS ENTRY]   BlocksVisibility=%v\n", r.Node.BlocksVisibility())
+				}
+			}
+		}
+	}
+
 	// Skip rulesets that are inside mixin definitions - they should only be output when the mixin is called
 	if r.InsideMixinDefinition {
 		return
@@ -1714,6 +1859,21 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 				// This prevents extra blank lines from being added
 				continue
 			} else if ruleBlocksVisibility(rule) {
+				// Debug: log when we skip a div ruleset
+				if os.Getenv("LESS_GO_DEBUG_VIS") == "1" {
+					if rs, ok := rule.(*Ruleset); ok && len(rs.Selectors) > 0 {
+						if sel, ok := rs.Selectors[0].(*Selector); ok && len(sel.Elements) > 0 {
+							elemVal := sel.Elements[0].Value
+							if str, ok := elemVal.(string); ok && str == "div" {
+								fmt.Fprintf(os.Stderr, "[GenCSS] SKIPPING div ruleset=%p, Node=%p\n", rs, rs.Node)
+								if rs.Node != nil {
+									fmt.Fprintf(os.Stderr, "[GenCSS] BlocksVisibility=%v, VisibilityBlocks=%v, IsVisible=%v\n",
+										rs.Node.BlocksVisibility(), rs.Node.VisibilityBlocks, rs.Node.IsVisible())
+								}
+							}
+						}
+					}
+				}
 				// Skip rules that block visibility and are not explicitly visible
 				// This handles rulesets from reference imports
 				continue
@@ -1779,6 +1939,17 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 				// If it does, paths need at least one explicitly visible selector (from extend)
 				// If it doesn't, all paths pass through
 				rulesetBlocksVisibility := r.Node != nil && r.Node.BlocksVisibility()
+
+				// Debug: log path visibility for div rulesets
+				if os.Getenv("LESS_GO_DEBUG_VIS") == "1" && len(r.Selectors) > 0 {
+					if sel, ok := r.Selectors[0].(*Selector); ok && len(sel.Elements) > 0 {
+						elemVal := sel.Elements[0].Value
+						if str, ok := elemVal.(string); ok && str == "div" {
+							fmt.Fprintf(os.Stderr, "[GenCSS path check] div ruleset=%p, Node=%p, BlocksVisibility=%v\n",
+								r, r.Node, rulesetBlocksVisibility)
+						}
+					}
+				}
 
 				pathIsVisible := true
 				if rulesetBlocksVisibility {
@@ -1974,11 +2145,26 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 				isRulesetLike = rl.IsRulesetLike()
 			}
 			if isRulesetLike {
-				// Only add newline if parent ruleset has no selectors (is a container)
-				// and we're not at the file-level root (tabLevel > 0)
-				isParentContainer := (r.Paths == nil || len(r.Paths) == 0) && (r.Selectors == nil || len(r.Selectors) == 0)
-				if isParentContainer && tabLevel > 0 {
-					shouldAddNewline = true
+				// Skip adding newlines for MixinDefinitions - they don't output anything
+				if _, isMixinDef := rule.(*MixinDefinition); isMixinDef {
+					// Don't add newline after mixin definitions
+				} else if rs, isRuleset := rule.(*Ruleset); isRuleset && isExtendOnlyRuleset(rs) {
+					// Don't add newline after extend-only rulesets - they don't output anything
+				} else if rs, isRuleset := rule.(*Ruleset); isRuleset && hasNoVisibleContent(rs) {
+					// Don't add newline after rulesets with no visible content (e.g., parent containers after children bubbled)
+				} else if at, isAtRule := rule.(*AtRule); isAtRule && atRuleHasOnlySilentContent(at) {
+					// Don't add newline after AtRules with only silent content (line comments)
+				} else {
+					// Only add newline if parent ruleset has no selectors (is a container)
+					// and we're not at the file-level root (tabLevel > 0)
+					isParentContainer := (r.Paths == nil || len(r.Paths) == 0) && (r.Selectors == nil || len(r.Selectors) == 0)
+					if isParentContainer && tabLevel > 0 {
+						shouldAddNewline = true
+					}
+					// Also add newline for top-level rulesets (children of root)
+					if r.Root && tabLevel == 0 {
+						shouldAddNewline = true
+					}
 				}
 			}
 
@@ -1988,6 +2174,14 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 				shouldAddNewline = true
 			}
 
+			// Special case: AtRules without rules (like @charset, @namespace) at root level need newlines
+			if at, isAtRule := rule.(*AtRule); isAtRule && r.Root && tabLevel == 0 {
+				// AtRules without rules produce output and need newlines
+				if at.Rules == nil || len(at.Rules) == 0 {
+					shouldAddNewline = true
+				}
+			}
+
 			if shouldAddNewline && !compress {
 				output.Add("\n"+tabRuleStr, nil, nil)
 			}
@@ -1995,13 +2189,6 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 			ctx["lastRule"] = false
 		}
 	}
-	}
-
-	// Save the lastRule flag set by parent before processing rules
-	// This determines if we should add a newline after this ruleset's closing brace
-	parentLastRule := false
-	if lr, ok := ctx["lastRule"].(bool); ok {
-		parentLastRule = lr
 	}
 
 	// Decrement tab level FIRST for correct newline logic
@@ -2021,15 +2208,6 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 			output.Add("}", nil, nil)
 		} else {
 			output.Add("\n"+tabSetStr+"}", nil, nil)
-		}
-
-		// Add newline after ruleset to separate from next ruleset
-		// Only add if we're not the last rule and not inside an at-rule container
-		// At-rule containers (Media, etc.) handle their own spacing via OutputRuleset
-		if !compress && !parentLastRule && tabLevel == 0 {
-			// We're a top-level ruleset (tabLevel was 1 before decrement, or 0 for isTopLevel)
-			// Add newline to separate from next top-level ruleset
-			output.Add("\n", nil, nil)
 		}
 	}
 	

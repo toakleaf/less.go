@@ -97,6 +97,22 @@ func (jsv *JoinSelectorVisitor) VisitMixinDefinition(mixinDefinitionNode any, vi
 
 // VisitRuleset processes ruleset nodes
 func (jsv *JoinSelectorVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitArgs) any {
+	// Debug: trace div rulesets
+	isDivRuleset := false
+	if os.Getenv("LESS_GO_DEBUG_VIS") == "1" {
+		if rs, ok := rulesetNode.(*Ruleset); ok && len(rs.Selectors) > 0 {
+			if sel, ok := rs.Selectors[0].(*Selector); ok && len(sel.Elements) > 0 {
+				elemVal := sel.Elements[0].Value
+				if str, ok := elemVal.(string); ok && str == "div" {
+					isDivRuleset = true
+					fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor.VisitRuleset] div ruleset=%p, Root=%v, Selectors=%d, EvaldCondition=%v\n",
+						rs, rs.Root, len(rs.Selectors), sel.EvaldCondition)
+				}
+			}
+		}
+	}
+	_ = isDivRuleset // Used later for more debug
+
 	contextItem := jsv.contexts[len(jsv.contexts)-1]
 	context := contextItem.paths
 	paths := make([]any, 0)
@@ -219,6 +235,10 @@ func (jsv *JoinSelectorVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitAr
 				rulesetInterface.SetRules(nil)
 			}
 			rulesetInterface.SetPaths(paths)
+			// Debug: trace when paths are set for div rulesets
+			if os.Getenv("LESS_GO_DEBUG_VIS") == "1" && isDivRuleset {
+				fmt.Fprintf(os.Stderr, "[JoinSelectorVisitor.VisitRuleset] Setting paths=%d for div ruleset\n", len(paths))
+			}
 		}
 	} else if ruleset, ok := rulesetNode.(*Ruleset); ok {
 		// Fallback to concrete type for backward compatibility
