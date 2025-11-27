@@ -464,9 +464,9 @@ func hasOnlyEmptyContent(rules []any) bool {
 			// Declarations are content
 			return false
 		} else if _, ok := rule.(*Comment); ok {
-			// Comments might be considered content in some contexts
-			// For now, we'll consider them as non-content for empty detection
-			continue
+			// Comments are visible content and should not be skipped
+			// Media blocks with only comments should still be output
+			return false
 		} else if _, ok := rule.(*VariableCall); ok {
 			// VariableCall nodes don't have GenCSS, so they output nothing
 			// They should have been evaluated during Eval, but if they're still here
