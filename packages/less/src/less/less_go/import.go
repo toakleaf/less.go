@@ -435,11 +435,17 @@ func (i *Import) Eval(context any) (any, error) {
 		return nil, err
 	}
 
-	// For reference imports, mark ALL nodes with visibility blocks recursively.
-	// This ensures that when nested rulesets are processed during GenCSS, they know
-	// they're from a reference import and should filter paths accordingly.
-	// This differs from JavaScript where the structure is preserved better during evaluation,
-	// but achieves the same result of hiding reference import content unless extended.
+	// For reference imports, add visibility blocks to ALL nodes recursively.
+	// This matches JavaScript's behavior where ToCSSVisitor.VisitRuleset calls ensureVisibility()
+	// on rulesets that don't block visibility. Without recursive blocking, nested content
+	// from reference imports would become visible when VisitRuleset processes them.
+	//
+	// Note: JavaScript only calls addVisibilityBlock() on top-level nodes, but JavaScript's
+	// VisitRuleset behavior differs from Go's - it filters based on selector visibility
+	// rather than calling ensureVisibility() unconditionally.
+	//
+	// When mixins are called with content from reference imports, ensureMixinContentVisibility()
+	// clears the visibility blocks recursively, making the mixin content visible.
 	if i.getBoolOption("reference") || i.BlocksVisibility() {
 		if resultSlice, ok := result.([]any); ok {
 			for _, node := range resultSlice {
@@ -493,6 +499,7 @@ func addVisibilityBlockRecursive(node any) {
 		}
 	}
 }
+
 
 // DoEval performs the actual evaluation logic
 func (i *Import) DoEval(context any) (any, error) {
