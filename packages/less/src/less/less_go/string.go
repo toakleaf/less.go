@@ -5,7 +5,43 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 )
+
+// regexCache provides thread-safe caching for dynamically compiled regexes.
+// This avoids recompiling the same regex pattern on every replace() call.
+var (
+	regexCache     = make(map[string]*regexp.Regexp)
+	regexCacheLock sync.RWMutex
+)
+
+// getOrCompileRegex returns a cached regex or compiles and caches a new one.
+// This is safe for concurrent use.
+func getOrCompileRegex(pattern string) (*regexp.Regexp, error) {
+	// Fast path: check if regex is already cached
+	regexCacheLock.RLock()
+	if re, exists := regexCache[pattern]; exists {
+		regexCacheLock.RUnlock()
+		return re, nil
+	}
+	regexCacheLock.RUnlock()
+
+	// Slow path: compile the regex and cache it
+	regexCacheLock.Lock()
+	defer regexCacheLock.Unlock()
+
+	// Double-check after acquiring write lock
+	if re, exists := regexCache[pattern]; exists {
+		return re, nil
+	}
+
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return nil, err
+	}
+	regexCache[pattern] = re
+	return re, nil
+}
 
 // StringFunctions provides all the string-related functions
 var StringFunctions = map[string]interface{}{
@@ -219,7 +255,8 @@ func Replace(stringArg, pattern, replacement interface{}, flags ...interface{}) 
 		regexStr = "(?i)" + regexStr
 	}
 
-	regex, err := regexp.Compile(regexStr)
+	// Use cached regex compilation for better performance
+	regex, err := getOrCompileRegex(regexStr)
 	if err != nil {
 		return NewQuoted(quote, stringVal, escaped, 0, nil), nil // Return original on error
 	}
