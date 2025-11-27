@@ -728,14 +728,13 @@ func (md *MixinDefinition) EvalCall(context any, args []any, important bool) (*R
 		return nil, fmt.Errorf("expected *Ruleset from Eval, got %T", evaluated)
 	}
 
-	// IMPORTANT: Ensure visibility for all output rules (including nested content)
-	// When a mixin from a reference import is called, the output should be visible.
-	// The MixinCall.setVisibilityToReplacement() will add visibility blocks back if needed
-	// (i.e., if the mixin CALL itself is from a reference import).
-	// This ensures that calling a mixin from a reference import makes its output visible.
-	// Use SetTreeVisibilityVisitor to recursively ensure visibility for all nested nodes.
-	visitor := NewSetTreeVisibilityVisitor(true)
-	visitor.Run(evaluatedRuleset)
+	// NOTE: Visibility handling for mixin content is done in MixinCall.Eval(), not here.
+	// This is because we need to know whether the mixin CALL blocks visibility
+	// (i.e., whether the call originates from a reference import).
+	//
+	// MixinCall.Eval() will:
+	// 1. Call ensureMixinContentVisibility() if the call does NOT block visibility
+	// 2. Call setVisibilityToReplacement() which adds blocks if the call DOES block visibility
 
 	if important {
 		importantResult := evaluatedRuleset.MakeImportant()
@@ -1045,4 +1044,44 @@ func (md *MixinDefinition) MatchArgs(args []any, context any) bool {
 // GenCSS for MixinDefinition - mixin definitions should not output any CSS
 func (md *MixinDefinition) GenCSS(context any, output *CSSOutput) {
 	// Mixin definitions do not generate CSS output
+}
+
+// ensureMixinContentVisibility recursively ensures visibility for mixin expansion content.
+// Unlike SetTreeVisibilityVisitor, this function clears visibility blocks first,
+// then ensures visibility. This is necessary because mixin content from reference imports
+// has visibility blocks that would cause SetTreeVisibilityVisitor to skip the nodes.
+func ensureMixinContentVisibility(node any) {
+	if node == nil {
+		return
+	}
+
+	// Clear visibility blocks first (so the node no longer blocks visibility)
+	if clearNode, ok := node.(interface{ ClearVisibilityBlocks() }); ok {
+		clearNode.ClearVisibilityBlocks()
+	}
+
+	// Then ensure visibility
+	if visNode, ok := node.(interface{ EnsureVisibility() }); ok {
+		visNode.EnsureVisibility()
+	}
+
+	// Recursively process children based on node type
+	switch n := node.(type) {
+	case *Ruleset:
+		for _, rule := range n.Rules {
+			ensureMixinContentVisibility(rule)
+		}
+	case *Media:
+		for _, rule := range n.Rules {
+			ensureMixinContentVisibility(rule)
+		}
+	case *AtRule:
+		for _, rule := range n.Rules {
+			ensureMixinContentVisibility(rule)
+		}
+	case []any:
+		for _, item := range n {
+			ensureMixinContentVisibility(item)
+		}
+	}
 } 

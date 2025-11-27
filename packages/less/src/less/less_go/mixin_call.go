@@ -526,6 +526,15 @@ func (mc *MixinCall) Eval(context any) ([]any, error) {
 											}
 										} else {
 											newRules := newRuleset.Rules
+											// If the mixin CALL does NOT block visibility, ensure visibility for the expanded content.
+											// This handles the case where a mixin defined in a reference import is called from
+											// a non-reference file - the expanded content should be visible.
+											// If the call DOES block visibility, setVisibilityToReplacement will add blocks.
+											if !mc.BlocksVisibility() {
+												for _, rule := range newRules {
+													ensureMixinContentVisibility(rule)
+												}
+											}
 											mc.setVisibilityToReplacement(newRules)
 											rules = append(rules, newRules...)
 										}
