@@ -405,7 +405,7 @@ func createRender(env any, parseTree any, importManager any) func(string, ...any
 					StrictUnits:   false,
 					NumPrecision:  8,  // Match less.js default precision
 					Functions:     functionsObj,
-					ProcessImports: true,  // Enable import processing
+					ProcessImports: true,  // Default: enable import processing
 					ImportManager: imports, // Pass the import manager
 					Math:          Math.ParensDivision, // Default math mode
 				}
@@ -433,6 +433,10 @@ func createRender(env any, parseTree any, importManager any) func(string, ...any
 					}
 					if urlArgs, ok := opts["urlArgs"].(string); ok {
 						toCSSOptions.UrlArgs = urlArgs
+					}
+					// Respect processImports option - when false, skip import processing
+					if processImports, ok := opts["processImports"].(bool); ok {
+						toCSSOptions.ProcessImports = processImports
 					}
 				}
 				

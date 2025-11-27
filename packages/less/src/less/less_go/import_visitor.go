@@ -96,6 +96,9 @@ func (iv *ImportVisitor) VisitNodeOut(node any) bool {
 
 // Run processes the root node
 func (iv *ImportVisitor) Run(root any) {
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Printf("[DEBUG ImportVisitor.Run] Called - processing imports\n")
+	}
 	defer func() {
 		iv.isFinished = true
 		iv.sequencer.TryRun()
