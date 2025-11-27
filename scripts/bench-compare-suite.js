@@ -41,6 +41,21 @@ for (let i = 0; i < ITERATIONS; i++) {
 process.stdout.write('\n');
 
 // Run Go benchmarks - multiple independent processes for fair comparison
+// First, pre-compile the test binary once to avoid compilation overhead on each iteration
+console.log('Compiling Go test binary (one-time)...');
+const goBinaryPath = path.join(__dirname, '..', 'less_go.test');
+try {
+    execSync(`go test -c -o ${goBinaryPath} ./packages/less/src/less/less_go`, {
+        encoding: 'utf8',
+        cwd: path.join(__dirname, '..'),
+        stdio: ['ignore', 'pipe', 'ignore']
+    });
+    console.log('  ✓ Go binary compiled successfully\n');
+} catch (error) {
+    console.error('  ✗ Failed to compile Go test binary:', error.message);
+    process.exit(1);
+}
+
 console.log(`Running Go benchmarks (${ITERATIONS} separate processes)...`);
 const goTimes = [];
 let goBytesPerOp = 0;
@@ -50,9 +65,10 @@ for (let i = 0; i < ITERATIONS; i++) {
     process.stdout.write(`\r  Go Progress: ${i + 1}/${ITERATIONS} (${((i + 1) / ITERATIONS * 100).toFixed(1)}%)`);
 
     try {
-        const goOutput = execSync('go test -bench=BenchmarkLargeSuite -benchmem -benchtime=1x ./packages/less/src/less/less_go', {
+        // Run the pre-compiled binary directly
+        const goOutput = execSync(`${goBinaryPath} -test.bench=BenchmarkLargeSuite -test.benchmem -test.benchtime=1x`, {
             encoding: 'utf8',
-            cwd: path.join(__dirname, '..'),
+            cwd: path.join(__dirname, '..', 'packages/less/src/less/less_go'),
             maxBuffer: 10 * 1024 * 1024,
             stdio: ['ignore', 'pipe', 'ignore'] // Suppress stderr
         });
@@ -74,6 +90,14 @@ for (let i = 0; i < ITERATIONS; i++) {
         console.error(`\n⚠️  Go iteration ${i + 1} failed`);
     }
 }
+
+// Clean up compiled binary
+try {
+    require('fs').unlinkSync(goBinaryPath);
+} catch (e) {
+    // Ignore cleanup errors
+}
+
 process.stdout.write('\n\n');
 
 // Calculate Go statistics
