@@ -812,9 +812,14 @@ func (p *Parsers) Declaration() any {
 	var merge string
 	var isVariable bool
 
-	tracer.TraceMode("Declaration: checking current char", fmt.Sprintf("char='%c' (0x%02x)", c, c), p.parser)
+	tracerEnabled := tracer.IsEnabled()
+	if tracerEnabled {
+		tracer.TraceMode("Declaration: checking current char", fmt.Sprintf("char='%c' (0x%02x)", c, c), p.parser)
+	}
 	if c == '.' || c == '#' || c == '&' || c == ':' {
-		tracer.TraceMode("Declaration: early return", fmt.Sprintf("current char is '%c'", c), p.parser)
+		if tracerEnabled {
+			tracer.TraceMode("Declaration: early return", fmt.Sprintf("current char is '%c'", c), p.parser)
+		}
 		return nil
 	}
 
@@ -824,7 +829,9 @@ func (p *Parsers) Declaration() any {
 	if name == nil {
 		name = p.RuleProperty()
 	}
-	tracer.TraceMode("Declaration: after parsing name", fmt.Sprintf("name=%v", name != nil), p.parser)
+	if tracerEnabled {
+		tracer.TraceMode("Declaration: after parsing name", fmt.Sprintf("name=%v", name != nil), p.parser)
+	}
 
 	if name != nil {
 		// Determine if this is a variable declaration
@@ -878,7 +885,9 @@ func (p *Parsers) Declaration() any {
 			// Try anonymousValue for performance
 			if value == nil {
 				value = p.AnonymousValue()
-				tracer.TraceMode("Declaration: after AnonymousValue()", fmt.Sprintf("value=%v", value != nil), p.parser)
+				if tracerEnabled {
+					tracer.TraceMode("Declaration: after AnonymousValue()", fmt.Sprintf("value=%v", value != nil), p.parser)
+				}
 			}
 
 			if value != nil {
@@ -914,23 +923,31 @@ func (p *Parsers) Declaration() any {
 			}
 
 			value = p.Value()
-			tracer.TraceMode("Declaration: after Value()", fmt.Sprintf("value=%v", value != nil), p.parser)
+			if tracerEnabled {
+				tracer.TraceMode("Declaration: after Value()", fmt.Sprintf("value=%v", value != nil), p.parser)
+			}
 			// Handle variable lookups in property values, e.g., @detached[@color]
 			if value == nil {
 				value = p.VariableCall()
-				tracer.TraceMode("Declaration: after VariableCall()", fmt.Sprintf("value=%v", value != nil), p.parser)
+				if tracerEnabled {
+					tracer.TraceMode("Declaration: after VariableCall()", fmt.Sprintf("value=%v", value != nil), p.parser)
+				}
 			}
 			if value != nil {
 				important = p.Important()
 			} else if isVariable {
 				// As fallback, try permissive value for variables
 				value = p.PermissiveValue(nil, false)
-				tracer.TraceMode("Declaration: after PermissiveValue()", fmt.Sprintf("value=%v", value != nil), p.parser)
+				if tracerEnabled {
+					tracer.TraceMode("Declaration: after PermissiveValue()", fmt.Sprintf("value=%v", value != nil), p.parser)
+				}
 			}
 		}
 
 		endResult := p.End()
-		tracer.TraceMode("Declaration: checking End()", fmt.Sprintf("value=%v, End()=%v, hasDR=%v", value != nil, endResult, hasDR), p.parser)
+		if tracerEnabled {
+			tracer.TraceMode("Declaration: checking End()", fmt.Sprintf("value=%v, End()=%v, hasDR=%v", value != nil, endResult, hasDR), p.parser)
+		}
 		if value != nil && (endResult || hasDR) {
 			p.parser.parserInput.Forget()
 			// Pass merge as-is (string "+" or "+_")
@@ -1210,13 +1227,20 @@ func (p *Parsers) BlockRuleset() any {
 // Block parses a { ... } block
 func (p *Parsers) Block() any {
 	tracer := GetParserTracer()
+	tracerEnabled := tracer.IsEnabled()
 	openBrace := p.parser.parserInput.Char('{') != nil
-	tracer.TraceMode("Block: after checking '{'", fmt.Sprintf("found={%v}", openBrace), p.parser)
+	if tracerEnabled {
+		tracer.TraceMode("Block: after checking '{'", fmt.Sprintf("found={%v}", openBrace), p.parser)
+	}
 	if openBrace {
 		content := p.Primary()
-		tracer.TraceMode("Block: after Primary()", fmt.Sprintf("content=%v", content != nil), p.parser)
+		if tracerEnabled {
+			tracer.TraceMode("Block: after Primary()", fmt.Sprintf("content=%v", content != nil), p.parser)
+		}
 		closeBrace := p.parser.parserInput.Char('}') != nil
-		tracer.TraceMode("Block: after checking '}'", fmt.Sprintf("found=%v}", closeBrace), p.parser)
+		if tracerEnabled {
+			tracer.TraceMode("Block: after checking '}'", fmt.Sprintf("found=%v}", closeBrace), p.parser)
+		}
 		if closeBrace {
 			return content
 		}
@@ -1357,44 +1381,61 @@ func (p *Parsers) Entity() any {
 	}
 
 	entities := p.entities
+	tracerEnabled := tracer.IsEnabled()
 
 	result := p.Comment()
-	tracer.TraceMode("Entity: Comment()", fmt.Sprintf("result=%v", result != nil), p.parser)
+	if tracerEnabled {
+		tracer.TraceMode("Entity: Comment()", fmt.Sprintf("result=%v", result != nil), p.parser)
+	}
 	if result != nil {
 		return result
 	}
 	result = entities.Literal()
-	tracer.TraceMode("Entity: Literal()", fmt.Sprintf("result=%v", result != nil), p.parser)
+	if tracerEnabled {
+		tracer.TraceMode("Entity: Literal()", fmt.Sprintf("result=%v", result != nil), p.parser)
+	}
 	if result != nil {
 		return result
 	}
 	result = entities.Variable()
-	tracer.TraceMode("Entity: Variable()", fmt.Sprintf("result=%v", result != nil), p.parser)
+	if tracerEnabled {
+		tracer.TraceMode("Entity: Variable()", fmt.Sprintf("result=%v", result != nil), p.parser)
+	}
 	if result != nil {
 		return result
 	}
 	result = entities.URL()
-	tracer.TraceMode("Entity: URL()", fmt.Sprintf("result=%v", result != nil), p.parser)
+	if tracerEnabled {
+		tracer.TraceMode("Entity: URL()", fmt.Sprintf("result=%v", result != nil), p.parser)
+	}
 	if result != nil {
 		return result
 	}
 	result = entities.Property()
-	tracer.TraceMode("Entity: Property()", fmt.Sprintf("result=%v", result != nil), p.parser)
+	if tracerEnabled {
+		tracer.TraceMode("Entity: Property()", fmt.Sprintf("result=%v", result != nil), p.parser)
+	}
 	if result != nil {
 		return result
 	}
 	result = entities.Call()
-	tracer.TraceMode("Entity: Call()", fmt.Sprintf("result=%v", result != nil), p.parser)
+	if tracerEnabled {
+		tracer.TraceMode("Entity: Call()", fmt.Sprintf("result=%v", result != nil), p.parser)
+	}
 	if result != nil {
 		return result
 	}
 	result = entities.Keyword()
-	tracer.TraceMode("Entity: Keyword()", fmt.Sprintf("result=%v", result != nil), p.parser)
+	if tracerEnabled {
+		tracer.TraceMode("Entity: Keyword()", fmt.Sprintf("result=%v", result != nil), p.parser)
+	}
 	if result != nil {
 		return result
 	}
 	result = p.mixin.Call(true, false)
-	tracer.TraceMode("Entity: mixin.Call()", fmt.Sprintf("result=%v", result != nil), p.parser)
+	if tracerEnabled {
+		tracer.TraceMode("Entity: mixin.Call()", fmt.Sprintf("result=%v", result != nil), p.parser)
+	}
 	if result != nil {
 		return result
 	}
@@ -1480,14 +1521,17 @@ func (e *EntityParsers) Quoted(forceEscaped bool) any {
 // Keyword parses keywords - black border-collapse
 func (e *EntityParsers) Keyword() any {
 	tracer := GetParserTracer()
-	if tracer.IsEnabled() {
+	tracerEnabled := tracer.IsEnabled()
+	if tracerEnabled {
 		defer tracer.TraceEnter("Keyword", e.parsers.parser)()
 	}
 
 	k := e.parsers.parser.parserInput.Char('%')
 	if k == nil {
 		k = e.parsers.parser.parserInput.Re(reEntityName)
-		tracer.TraceMode("Keyword: after regex", fmt.Sprintf("matched=%v, value=%v", k != nil, k), e.parsers.parser)
+		if tracerEnabled {
+			tracer.TraceMode("Keyword: after regex", fmt.Sprintf("matched=%v, value=%v", k != nil, k), e.parsers.parser)
+		}
 	}
 
 	if k != nil {
@@ -1686,7 +1730,8 @@ func (e *EntityParsers) JavaScript() any {
 // Ruleset parses CSS rulesets
 func (p *Parsers) Ruleset() any {
 	tracer := GetParserTracer()
-	if tracer.IsEnabled() {
+	tracerEnabled := tracer.IsEnabled()
+	if tracerEnabled {
 		defer tracer.TraceEnter("Ruleset", p.parser)()
 	}
 
@@ -1701,11 +1746,15 @@ func (p *Parsers) Ruleset() any {
 	}
 
 	selectors = p.Selectors()
-	tracer.TraceMode("After Selectors()", fmt.Sprintf("selectors=%v", selectors != nil), p.parser)
+	if tracerEnabled {
+		tracer.TraceMode("After Selectors()", fmt.Sprintf("selectors=%v", selectors != nil), p.parser)
+	}
 
 	if selectors != nil {
 		blockResult := p.Block()
-		tracer.TraceMode("After Block()", fmt.Sprintf("blockResult=%v", blockResult != nil), p.parser)
+		if tracerEnabled {
+			tracer.TraceMode("After Block()", fmt.Sprintf("blockResult=%v", blockResult != nil), p.parser)
+		}
 		if blockResult != nil {
 			if rulesSlice, ok := blockResult.([]any); ok {
 				rules = rulesSlice

@@ -181,7 +181,16 @@ func (r *Ruleset) ToCSS(options map[string]any) (string, error) {
 	// Create CSS output implementation
 	cssOutput := &CSSOutput{
 		Add: func(chunk, fileInfo, index any) {
-			if chunk != nil {
+			if chunk == nil {
+				return
+			}
+			// Optimize: use type switch to avoid fmt.Sprintf allocation for common types
+			switch v := chunk.(type) {
+			case string:
+				output.WriteString(v)
+			case fmt.Stringer:
+				output.WriteString(v.String())
+			default:
 				output.WriteString(fmt.Sprintf("%v", chunk))
 			}
 		},
