@@ -436,14 +436,18 @@ func (pev *ProcessExtendsVisitor) doExtendChaining(extendsList []*Extend, extend
 
 					// we found a match, so for each self selector..
 					for _, selfSelector := range extend.SelfSelectors {
-						// CRITICAL FIX: Use the ORIGINAL extend's visibility, not the target extend's visibility
+						// Use the TARGET extend's visibility info for the chained extend.
+						// This matches JavaScript extend-visitor.js line 194:
+						//   const info = targetExtend.visibilityInfo();
+						//
 						// When .c extends .b and .b extends .a (reference import):
 						// - extend = .c extends .b (visible, from main file)
 						// - targetExtend = .b extends .a (invisible, from reference import)
-						// The chained extend .c extends .a should inherit visibility from .c (visible)
-						// not from .b (invisible)
+						// The chained extend .c extends .a inherits visibility from targetExtend
+						// so it has visibilityBlocks > 0. When it later matches .a in visitRuleset,
+						// its isVisible() returns nil (falsy), marking new selectors invisible.
 						var info any
-						info = extend.VisibilityInfo()
+						info = targetExtend.VisibilityInfo()
 
 						// process the extend as usual
 						// Match JavaScript: use extend.isVisible() to preserve visibility in chaining
