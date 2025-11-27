@@ -50,6 +50,9 @@ func (u *CSSVisitorUtils) KeepOnlyVisibleChilds(owner any) {
 	if ownerWithRules, ok := owner.(interface{ GetRules() []any; SetRules([]any) }); ok {
 		rules := ownerWithRules.GetRules()
 		if rules != nil {
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Fprintf(os.Stderr, "[KeepOnlyVisibleChilds] Processing %d rules\n", len(rules))
+			}
 			var visibleRules []any
 			for _, rule := range rules {
 				// Try to get IsVisible() value - handle different ways a node might have this
@@ -73,6 +76,35 @@ func (u *CSSVisitorUtils) KeepOnlyVisibleChilds(owner any) {
 					// undefined (nil) or false = filter out
 					if vis != nil && *vis {
 						visibleRules = append(visibleRules, rule)
+						if os.Getenv("LESS_GO_DEBUG") == "1" {
+							ruleType := fmt.Sprintf("%T", rule)
+							ruleSel := "?"
+							if rs, ok := rule.(*Ruleset); ok && len(rs.Paths) > 0 && len(rs.Paths[0]) > 0 {
+								if sel, ok := rs.Paths[0][0].(*Selector); ok {
+									ruleSel = sel.ToCSS(nil)
+								}
+							}
+							fmt.Fprintf(os.Stderr, "[KeepOnlyVisibleChilds]   KEPT: type=%s selector=%s visibility=true\n", ruleType, ruleSel)
+						}
+					} else {
+						if os.Getenv("LESS_GO_DEBUG") == "1" {
+							ruleType := fmt.Sprintf("%T", rule)
+							ruleSel := "?"
+							if rs, ok := rule.(*Ruleset); ok && len(rs.Paths) > 0 && len(rs.Paths[0]) > 0 {
+								if sel, ok := rs.Paths[0][0].(*Selector); ok {
+									ruleSel = sel.ToCSS(nil)
+								}
+							}
+							visStr := "nil"
+							if vis != nil {
+								if *vis {
+									visStr = "true"
+								} else {
+									visStr = "false"
+								}
+							}
+							fmt.Fprintf(os.Stderr, "[KeepOnlyVisibleChilds]   FILTERED: type=%s selector=%s visibility=%s\n", ruleType, ruleSel, visStr)
+						}
 					}
 				} else {
 					// If rule doesn't have IsVisible method, keep it (for primitives, etc.)
@@ -80,6 +112,9 @@ func (u *CSSVisitorUtils) KeepOnlyVisibleChilds(owner any) {
 				}
 			}
 			ownerWithRules.SetRules(visibleRules)
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Fprintf(os.Stderr, "[KeepOnlyVisibleChilds] After filtering: %d rules remain\n", len(visibleRules))
+			}
 		}
 	}
 }
@@ -94,7 +129,7 @@ func (u *CSSVisitorUtils) IsEmpty(owner any) bool {
 		rules := ownerWithRules.GetRules()
 		isEmpty := rules == nil || len(rules) == 0
 		if !isEmpty {
-			// Check if all rules are nil, block visibility, or are variable declarations
+			// Check if all rules are nil, block visibility (and not explicitly visible), or are variable declarations
 			// A ruleset is considered empty if it contains only invisible content
 			allInsignificant := true
 			for _, r := range rules {
@@ -102,7 +137,21 @@ func (u *CSSVisitorUtils) IsEmpty(owner any) bool {
 					continue
 				}
 				// Check if rule blocks visibility (reference imports)
-				if blocksNode, ok := r.(interface{ BlocksVisibility() bool }); ok {
+				// BUT if the rule has been explicitly made visible (IsVisible() == true),
+				// it's significant even if it blocks visibility
+				if blocksNode, ok := r.(interface{ BlocksVisibility() bool; IsVisible() *bool }); ok {
+					if blocksNode.BlocksVisibility() {
+						// Check if explicitly visible (e.g., via extend)
+						vis := blocksNode.IsVisible()
+						if vis == nil || !*vis {
+							// Not explicitly visible - skip
+							continue
+						}
+						// Explicitly visible - this is significant
+						allInsignificant = false
+						break
+					}
+				} else if blocksNode, ok := r.(interface{ BlocksVisibility() bool }); ok {
 					if blocksNode.BlocksVisibility() {
 						continue
 					}
@@ -141,6 +190,68 @@ func (u *CSSVisitorUtils) HasVisibleSelector(rulesetNode any) bool {
 	return false
 }
 
+// ResolveVisibilityMedia resolves visibility for Media nodes.
+// Media nodes are special because VisitRuleset extracts nested rulesets
+// and places them as direct children of Media (m.Rules[1...]), not as
+// grandchildren through the wrapper ruleset (m.Rules[0]).
+// This function filters all direct children of Media, not just m.Rules[0].Rules.
+func (u *CSSVisitorUtils) ResolveVisibilityMedia(node any) any {
+	if node == nil {
+		return nil
+	}
+
+	// Check if node blocks visibility (reference import)
+	blocksVis := false
+	if blockedNode, hasBlocked := node.(interface{ BlocksVisibility() bool }); hasBlocked {
+		blocksVis = blockedNode.BlocksVisibility()
+	}
+
+	if !blocksVis {
+		// Non-reference import: just check if empty
+		if u.IsEmpty(node) {
+			return nil
+		}
+		return node
+	}
+
+	// Reference import: filter ALL direct children of Media to keep only visible ones
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		nodeType := fmt.Sprintf("%T", node)
+		features := ""
+		if m, ok := node.(*Media); ok && m.Features != nil {
+			if feat, ok := m.Features.(interface{ ToCSS(any) string }); ok {
+				features = feat.ToCSS(nil)
+			}
+		}
+		fmt.Fprintf(os.Stderr, "[ResolveVisibilityMedia] Processing blocked Media type=%s features=%s\n", nodeType, features)
+	}
+
+	// Apply KeepOnlyVisibleChilds directly to the Media node's rules
+	// This filters m.Rules to keep only visible rulesets (including extracted ones)
+	u.KeepOnlyVisibleChilds(node)
+
+	// Check if Media is empty after filtering
+	if u.IsEmpty(node) {
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Fprintf(os.Stderr, "[ResolveVisibilityMedia] Media is empty after filtering, returning nil\n")
+		}
+		return nil
+	}
+
+	// Media has visible content - make it visible and remove visibility block
+	if ensureVisNode, hasEnsure := node.(interface{ EnsureVisibility() }); hasEnsure {
+		ensureVisNode.EnsureVisibility()
+	}
+	if removeVisNode, hasRemove := node.(interface{ RemoveVisibilityBlock() }); hasRemove {
+		removeVisNode.RemoveVisibilityBlock()
+	}
+
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Fprintf(os.Stderr, "[ResolveVisibilityMedia] Returning Media (not nil)\n")
+	}
+	return node
+}
+
 // ResolveVisibility resolves visibility for a node
 func (u *CSSVisitorUtils) ResolveVisibility(node any) any {
 	if node == nil {
@@ -165,13 +276,33 @@ func (u *CSSVisitorUtils) ResolveVisibility(node any) any {
 	}
 
 	// Node blocks visibility, process it
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		nodeType := fmt.Sprintf("%T", node)
+		features := ""
+		if m, ok := node.(*Media); ok && m.Features != nil {
+			if feat, ok := m.Features.(interface{ ToCSS(any) string }); ok {
+				features = feat.ToCSS(nil)
+			}
+		}
+		if ar, ok := node.(*AtRule); ok {
+			features = ar.Name
+		}
+		fmt.Fprintf(os.Stderr, "[ResolveVisibility] Processing blocked node type=%s features=%s\n", nodeType, features)
+	}
+
 	if nodeWithRules, ok := node.(interface{ GetRules() []any }); ok {
 		rules := nodeWithRules.GetRules()
 		if len(rules) > 0 {
 			compiledRulesBody := rules[0]
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Fprintf(os.Stderr, "[ResolveVisibility] Calling KeepOnlyVisibleChilds on compiledRulesBody type=%T\n", compiledRulesBody)
+			}
 			u.KeepOnlyVisibleChilds(compiledRulesBody)
 
 			if u.IsEmpty(compiledRulesBody) {
+				if os.Getenv("LESS_GO_DEBUG") == "1" {
+					fmt.Fprintf(os.Stderr, "[ResolveVisibility] compiledRulesBody is empty after filtering, returning nil\n")
+				}
 				return nil
 			}
 
@@ -185,10 +316,16 @@ func (u *CSSVisitorUtils) ResolveVisibility(node any) any {
 				removeVisNode.RemoveVisibilityBlock()
 			}
 
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Fprintf(os.Stderr, "[ResolveVisibility] Returning node (not nil)\n")
+			}
 			return node
 		}
 	}
 
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Fprintf(os.Stderr, "[ResolveVisibility] Node has no rules or empty rules, returning nil\n")
+	}
 	return nil
 }
 
@@ -238,9 +375,23 @@ func (u *CSSVisitorUtils) IsVisibleRuleset(rulesetNode any) bool {
 				}
 				fmt.Fprintf(os.Stderr, "[IsVisibleRuleset] selector=%s blocksVisibility=true visibility=%s\n", sel, visVal)
 			}
-			// If visibility is undefined (nil) or explicitly false, hide the ruleset
+			// If visibility is undefined (nil) or explicitly false, check for visible paths
+			// before hiding the ruleset. Extends can add visible selectors to paths, and
+			// compileRulesetPaths has already filtered to only visible paths at this point.
 			if vis == nil || !*vis {
-				return false
+				// CRITICAL FIX: Check if the ruleset has visible paths from extends
+				// compileRulesetPaths has already run and filtered paths to only those
+				// with visible selectors. If there are paths remaining, the ruleset
+				// should be visible because those paths came from extend matching.
+				if u.HasVisibleSelector(rulesetNode) {
+					// Ruleset has visible paths from extends - make it visible
+					if os.Getenv("LESS_GO_DEBUG") == "1" {
+						fmt.Fprintf(os.Stderr, "[IsVisibleRuleset] Keeping ruleset with visible paths from extends\n")
+					}
+					// Continue to other checks instead of returning false
+				} else {
+					return false
+				}
 			}
 		}
 	}
@@ -465,16 +616,33 @@ func (v *ToCSSVisitor) VisitMedia(mediaNode any, visitArgs *VisitArgs) any {
 	if os.Getenv("LESS_GO_DEBUG") == "1" {
 		if m, ok := mediaNode.(*Media); ok {
 			fmt.Fprintf(os.Stderr, "[ToCSSVisitor.VisitMedia] After Accept, Rules count=%d\n", len(m.Rules))
-			if len(m.Rules) > 0 {
-				if innerRs, ok := m.Rules[0].(*Ruleset); ok {
-					fmt.Fprintf(os.Stderr, "[ToCSSVisitor.VisitMedia]   inner ruleset Rules count=%d\n", len(innerRs.Rules))
+			for i, rule := range m.Rules {
+				ruleType := fmt.Sprintf("%T", rule)
+				ruleSel := "?"
+				if rs, ok := rule.(*Ruleset); ok && len(rs.Paths) > 0 && len(rs.Paths[0]) > 0 {
+					if sel, ok := rs.Paths[0][0].(*Selector); ok {
+						ruleSel = sel.ToCSS(nil)
+					}
 				}
+				visStr := "?"
+				if visNode, ok := rule.(interface{ IsVisible() *bool }); ok {
+					if vis := visNode.IsVisible(); vis != nil {
+						if *vis {
+							visStr = "true"
+						} else {
+							visStr = "false"
+						}
+					} else {
+						visStr = "nil"
+					}
+				}
+				fmt.Fprintf(os.Stderr, "[ToCSSVisitor.VisitMedia]   rule[%d]: type=%s selector=%s visibility=%s\n", i, ruleType, ruleSel, visStr)
 			}
 		}
 	}
 	visitArgs.VisitDeeper = false
 
-	return v.utils.ResolveVisibility(mediaNode)
+	return v.utils.ResolveVisibilityMedia(mediaNode)
 }
 
 // VisitContainer visits a container node (same logic as media)
@@ -558,15 +726,13 @@ func (v *ToCSSVisitor) VisitAtRuleWithBody(atRuleNode any, visitArgs *VisitArgs)
 	if atRuleNode == nil {
 		return nil
 	}
-	
-	
-	
+
 	// Process children
 	if acceptor, ok := atRuleNode.(interface{ Accept(any) }); ok {
 		acceptor.Accept(v.visitor)
 	}
 	visitArgs.VisitDeeper = false
-	
+
 	if !v.utils.IsEmpty(atRuleNode) {
 		if nodeWithRules, ok := atRuleNode.(interface{ GetRules() []any }); ok {
 			rules := nodeWithRules.GetRules()
@@ -577,8 +743,10 @@ func (v *ToCSSVisitor) VisitAtRuleWithBody(atRuleNode any, visitArgs *VisitArgs)
 			}
 		}
 	}
-	
-	return v.utils.ResolveVisibility(atRuleNode)
+
+	// Use the same approach as Media for AtRule nodes with bodies
+	// After VisitRuleset extracts nested rulesets, they're direct children of AtRule
+	return v.utils.ResolveVisibilityMedia(atRuleNode)
 }
 
 // VisitAtRuleWithoutBody visits an at-rule without body

@@ -598,6 +598,18 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 	// Paths added during chaining have extends and should not be extended again
 	originalPathsLength := len(ruleset.Paths)
 
+	// DEBUG: Trace rulesets being visited and their paths count
+	if os.Getenv("LESS_GO_TRACE_EXTEND") == "1" {
+		var sel string = "?"
+		if len(ruleset.Selectors) > 0 {
+			if s, ok := ruleset.Selectors[0].(*Selector); ok {
+				sel = s.ToCSS(nil)
+			}
+		}
+		fmt.Fprintf(os.Stderr, "[EXTEND VisitRuleset] selector=%s, paths=%d, blocksVisibility=%v\n",
+			sel, originalPathsLength, ruleset.Node != nil && ruleset.Node.BlocksVisibility())
+	}
+
 	// Track which rulesets were modified so we can deduplicate their paths
 	modifiedRulesets := make(map[*Ruleset]bool)
 
@@ -738,9 +750,24 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 							pev.makeParentNodesVisible(targetRuleset.Node)
 						}
 
-						// NOTE: We intentionally do NOT mark the MATCHED ruleset as visible
-						// The extended selectors added to paths are already marked visible by extendSelector()
-						// Marking the matched ruleset visible would incorrectly output its original invisible selectors
+						// CRITICAL FIX: Also make the MATCHED ruleset's parent Media/AtRule nodes visible
+						// When extending into a @media block from a reference import, we need to make that
+						// @media block visible so the extended selectors inside it are output.
+						// Example: .class:extend(.class all) should make @media print { .class {...} } visible
+						if ruleset.Node != nil && rulesetHasVisibilityBlocks {
+							if os.Getenv("LESS_GO_DEBUG") == "1" {
+								var matchedSel string = "?"
+								if len(ruleset.Paths) > 0 && len(ruleset.Paths[0]) > 0 {
+									if sel, ok := ruleset.Paths[0][0].(*Selector); ok {
+										matchedSel = sel.ToCSS(nil)
+									}
+								}
+								fmt.Fprintf(os.Stderr, "[VISIBILITY] Making matched ruleset %p (selector=%s) parents visible due to extend\n",
+									ruleset, matchedSel)
+							}
+							// Make parent Media/AtRule nodes visible so they output the extended selectors
+							pev.makeParentNodesVisible(ruleset.Node)
+						}
 					}
 
 					for _, selfSelector := range allExtends[extendIndex].SelfSelectors {
@@ -751,6 +778,24 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 						ruleset.Paths = append(ruleset.Paths, extendedSelectors)
 						// Mark this ruleset as modified so we can deduplicate it later
 						modifiedRulesets[ruleset] = true
+					}
+
+					// CRITICAL FIX: When extending into a ruleset from a reference import,
+					// we must ensure the ruleset is visible so it passes the KeepOnlyVisibleChilds filter
+					// in ToCSSVisitor.ResolveVisibility. Without this, the ruleset would be filtered out
+					// even though it has visible paths from the extend.
+					if isVisible && rulesetHasVisibilityBlocks && ruleset.Node != nil {
+						ruleset.Node.EnsureVisibility()
+						if os.Getenv("LESS_GO_DEBUG") == "1" {
+							var matchedSel string = "?"
+							if len(ruleset.Paths) > 0 && len(ruleset.Paths[0]) > 0 {
+								if sel, ok := ruleset.Paths[0][0].(*Selector); ok {
+									matchedSel = sel.ToCSS(nil)
+								}
+							}
+							fmt.Fprintf(os.Stderr, "[VISIBILITY] Made matched ruleset %p (selector=%s) visible for KeepOnlyVisibleChilds\n",
+								ruleset, matchedSel)
+						}
 					}
 				}
 			}
@@ -1318,11 +1363,53 @@ func (pev *ProcessExtendsVisitor) makeParentNodesVisible(node *Node) {
 	// NOTE: The specific ruleset containing the extended selector has already been marked
 	// visible by the caller, so we don't need to mark child rulesets here.
 	// We only need to ensure the parent Media/AtRule containers are visible so they output.
+
+	// DEBUG: Trace what's in the mediaAtRuleStack
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Fprintf(os.Stderr, "[makeParentNodesVisible] Stack size=%d\n", len(pev.mediaAtRuleStack))
+		for i, containerNode := range pev.mediaAtRuleStack {
+			switch v := containerNode.(type) {
+			case *Media:
+				features := "?"
+				if feat, ok := v.Features.(interface{ ToCSS(any) string }); ok {
+					features = feat.ToCSS(nil)
+				}
+				fmt.Fprintf(os.Stderr, "  [%d] Media features=%s: blocksVisibility=%v\n", i, features, v.Node.BlocksVisibility())
+			case *AtRule:
+				fmt.Fprintf(os.Stderr, "  [%d] AtRule name=%s: blocksVisibility=%v\n", i, v.Name, v.Node.BlocksVisibility())
+			default:
+				fmt.Fprintf(os.Stderr, "  [%d] Unknown: %T\n", i, containerNode)
+			}
+		}
+	}
+
 	for _, containerNode := range pev.mediaAtRuleStack {
 		switch v := containerNode.(type) {
 		case *Media:
 			// Make the Media node visible
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				visBefore := "nil"
+				if vis := v.Node.IsVisible(); vis != nil {
+					if *vis {
+						visBefore = "true"
+					} else {
+						visBefore = "false"
+					}
+				}
+				fmt.Fprintf(os.Stderr, "[makeParentNodesVisible] Making Media visible: before=%s\n", visBefore)
+			}
 			v.Node.EnsureVisibility()
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				visAfter := "nil"
+				if vis := v.Node.IsVisible(); vis != nil {
+					if *vis {
+						visAfter = "true"
+					} else {
+						visAfter = "false"
+					}
+				}
+				fmt.Fprintf(os.Stderr, "[makeParentNodesVisible] Media after EnsureVisibility: visibility=%s\n", visAfter)
+			}
 			// IMPORTANT: DO NOT call RemoveVisibilityBlock() here!
 			// The Media node needs to keep BlocksVisibility() == true so that
 			// ToCSSVisitor.ResolveVisibility() takes the correct code path that
