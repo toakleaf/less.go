@@ -526,12 +526,27 @@ func (mc *MixinCall) Eval(context any) ([]any, error) {
 											}
 										} else {
 											newRules := newRuleset.Rules
-											// Match JavaScript: only call _setVisibilityToReplacement.
-											// JavaScript does NOT have ensureMixinContentVisibility - it simply
-											// leaves the rules with their existing visibility state.
-											// If the mixin CALL blocks visibility, setVisibilityToReplacement adds blocks.
-											// If not, the rules keep their visibility (including visibility blocks
-											// from reference imports INSIDE the mixin).
+											// Only clear visibility blocks if:
+											// 1. The mixin CALL does NOT block visibility, AND
+											// 2. The mixin DEFINITION (or its original ruleset) blocks visibility
+											//    (meaning the mixin is from a reference import)
+											//
+											// This ensures that:
+											// - Mixin content from reference imports becomes visible when called
+											// - Reference imports INSIDE mixins (defined in main file) stay invisible
+											if !mc.BlocksVisibility() {
+												// Check if the mixin definition is from a reference import
+												mixinBlocksVisibility := false
+												if blocksNode, ok := mixinCandidate.(interface{ BlocksVisibility() bool }); ok {
+													mixinBlocksVisibility = blocksNode.BlocksVisibility()
+												}
+												if mixinBlocksVisibility {
+													for _, rule := range newRules {
+														ensureMixinContentVisibility(rule)
+													}
+												}
+											}
+											// If the mixin CALL blocks visibility, add visibility blocks to the result.
 											mc.setVisibilityToReplacement(newRules)
 											rules = append(rules, newRules...)
 										}
