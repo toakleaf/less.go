@@ -1,19 +1,20 @@
 # Master Strategy: Parallelized Test Fixing for less.go
 
-## Current Status (Updated: 2025-11-10 - Latest Session)
+## Current Status (Updated: 2025-11-27)
 
 ### Test Results Summary
-- **Total Active Tests**: 191 (no quarantines in count)
-- **Perfect CSS Matches**: 79 tests (41.4%)
-- **Correct Error Handling**: 62 tests (32.5%)
-- **Output Differs (but compiles)**: 26 tests (13.6%) - Down from 40! ⬇️
+- **Total Active Tests**: 184
+- **Perfect CSS Matches**: 89 tests (48.4%)
+- **Correct Error Handling**: 89 tests (48.4%)
+- **Output Differs (but compiles)**: 3 tests (1.6%)
 - **Compilation Failures**: 3 tests (1.6%) - All external (network/packages)
-- **Tests Passing or Correctly Erroring**: 141 tests (73.8%) ✅
-- **Overall Success Rate**: 73.8% (141/191)
-- **Compilation Rate**: 98.4% (188/191) ⬆️
+- **Tests Passing or Correctly Erroring**: 178 tests (96.7%)
+- **Overall Success Rate**: 96.7% (178/184)
+- **Compilation Rate**: 98.4% (181/184)
+- **Unit Tests**: 3,012 tests passing (100%)
 
 ### Parser Status
-✅ **ALL PARSER BUGS FIXED!** The parser correctly handles full LESS syntax. All remaining work is in **runtime evaluation and CSS output generation**.
+**ALL PARSER BUGS FIXED!** The parser correctly handles full LESS syntax. All remaining work is in **CSS output edge cases** for 3 tests.
 
 ## Strategy Overview
 
@@ -29,57 +30,54 @@ This document outlines a strategy for **parallelizing the work** of fixing remai
 
 ## Work Breakdown Structure
 
-### Phase 1: Compilation Failures - ✅ COMPLETE!
-**Status**: ALL real compilation failures fixed! 🎉
+### Phase 1: Compilation Failures - COMPLETE!
+**Status**: ALL real compilation failures fixed!
 
 **Remaining expected failures** (infrastructure/external, not bugs):
 - `bootstrap4` - requires external bootstrap dependency
 - `google` - requires network access to Google Fonts
 - `import-module` - requires node_modules resolution (low priority)
 
-### Phase 2: Output Differences by Category (~45 tests remaining) - IN PROGRESS
+### Phase 2: Output Differences - NEARLY COMPLETE! (Only 3 remaining)
 **Impact**: Features work but produce incorrect output
-**Location**: `.claude/tasks/output-differences/`
+**Location**: `.claude/tasks/runtime-failures/`
 
-**Completed Categories** ✅:
-1. ~~**Namespacing**~~ - 10/10 tests passing! (namespacing-1 through 8, functions, operations)
-2. ~~**Guards and conditionals**~~ - 3/3 tests passing! (css-guards, mixins-guards, mixins-guards-default-func)
-3. ~~**Extend functionality**~~ - 6/7 tests passing! (only extend-chaining remains)
-4. ~~**Colors**~~ - 2/2 tests passing! (colors, colors2)
-5. ~~**Compression**~~ - 1/1 test passing! (compression)
+**Completed Categories** (13 categories at 100%):
+1. **Namespacing** - 11/11 tests
+2. **Guards & Conditionals** - 3/3 tests
+3. **Extend** - 7/7 tests
+4. **Colors** - 2/2 tests
+5. **Compression** - 1/1 test
+6. **Math Operations** - 12/12 tests (all variants)
+7. **Units** - 2/2 tests (strict and non-strict)
+8. **URL Rewriting** - 4/4 tests (rewrite-urls, url-args)
+9. **Include Path** - 2/2 tests
+10. **Detached Rulesets** - 1/1 test
+11. **Media Queries** - 1/1 test
+12. **Container Queries** - 1/1 test
+13. **Directives Bubbling** - 1/1 test
 
-**Remaining Categories**:
-1. **Math operations** (~6 tests: math suite tests with output diffs)
-2. **URL rewriting** (~7 tests: all `*urls*` tests)
-3. **Import handling** (~3 tests: `import-reference`, `import-reference-issues`, `import-inline`)
-4. **Formatting/Comments** (~6 tests: `comments`, `whitespace`, `parse-interpolation`, `variables-in-at-rules`)
-5. **Mixin issues** (~1 test: `mixins-nested`)
-6. **Detached rulesets** (~1 test: `detached-rulesets`)
-7. **Functions** (~2 tests: `functions`, `functions-each`)
-8. **Other** (~19 tests: various smaller issues)
+**Remaining (3 tests)**:
+1. **Import Reference** - 2 tests (`import-reference`, `import-reference-issues`)
+2. **URL Handling** - 1 test (`urls` main suite)
 
-### Phase 3: Polish & Edge Cases - LOWER PRIORITY
-**Impact**: Minor issues, edge cases
-**Location**: `.claude/tasks/polish/`
-
-Tasks TBD based on progress from Phases 1-2.
+### Phase 3: Polish & Edge Cases - MOSTLY DONE
+The remaining 3 tests are edge cases in import reference handling and URL processing.
 
 ## Task Assignment System
 
 ### How to Claim a Task
 
-1. Check `.claude/tracking/assignments.json` for available tasks
-2. Agent claims task by updating the JSON file
-3. Agent creates a feature branch: `claude/fix-{task-name}-{session-id}`
-4. Agent works on the task independently
-5. Agent runs tests to validate fix
-6. Agent commits, pushes, and creates PR
-7. Agent updates `assignments.json` to mark task complete
+1. Check `.claude/AGENT_WORK_QUEUE.md` for available tasks
+2. Create a feature branch: `claude/fix-{task-name}-{session-id}`
+3. Work on the task independently
+4. Run tests to validate fix
+5. Commit, push, and create PR
 
 ### Task States
 
 - `available`: No one working on this task yet
-- `in-progress`: Agent actively working (includes agent session ID and timestamp)
+- `in-progress`: Agent actively working
 - `completed`: PR created and merged
 - `blocked`: Depends on another task or has technical blockers
 
@@ -88,40 +86,34 @@ Tasks TBD based on progress from Phases 1-2.
 ### For Individual Tasks
 
 Each task must:
-- ✅ Fix the specific test(s) identified in the task
-- ✅ Pass all existing unit tests (no regressions)
-- ✅ Not break any currently passing integration tests
-- ✅ Include clear commit message explaining the fix
-- ✅ Follow the porting process (never modify original JS code)
+- Fix the specific test(s) identified in the task
+- Pass all existing unit tests (no regressions)
+- Not break any currently passing integration tests
+- Include clear commit message explaining the fix
+- Follow the porting process (never modify original JS code)
 
-### For Overall Project
+### Goals Progress
 
-**Short-term goals** (next 2 weeks):
-- [x] ~~Reduce compilation failures from 5 → 2~~ ✅ ACHIEVED!
-- [x] ~~Increase success rate to 42%~~ ✅ ACHIEVED!
-- [x] ~~Fix all guards and conditionals issues~~ ✅ ACHIEVED!
-- [x] ~~Complete all namespacing fixes~~ ✅ ACHIEVED! (11/11 tests)
-- [x] ~~Fix compilation failures from 2 → 0~~ ✅ ACHIEVED!
-- [x] ~~Complete extend functionality fixes~~ ✅ ACHIEVED! (7/7 tests)
-- [x] ~~Increase success rate from 42% → 46.7%~~ ✅ ACHIEVED!
-- [x] ~~Reach 50% success rate~~ ✅ ACHIEVED!
-- [x] ~~Fix all math operations issues~~ ✅ ACHIEVED! (8/8 tests)
-- [x] ~~Fix all URL rewriting issues~~ ✅ ACHIEVED! (4/4 tests)
-- [ ] Reach 80% success rate (need +9 perfect matches, currently 75.7%)
-- [ ] Fix all import reference functionality (2 tests)
-- [ ] Complete functions implementations (2-3 tests)
+**Completed Goals**:
+- [x] Reduce compilation failures from 5 to 0 (real bugs)
+- [x] Increase success rate to 42%
+- [x] Fix all guards and conditionals issues
+- [x] Complete all namespacing fixes (11/11 tests)
+- [x] Complete extend functionality fixes (7/7 tests)
+- [x] Reach 50% success rate
+- [x] Fix all math operations issues (12/12 tests)
+- [x] Fix all URL rewriting issues (4/4 tests)
+- [x] Reach 80% success rate
+- [x] Reach 90% success rate
+- [x] Reach 96% success rate
 
-**Medium-term goals** (next month):
-- [ ] Reduce output differences from 45 → <25
-- [ ] Increase success rate from 46.7% → 65%
-- [ ] Complete all import/reference handling fixes
-- [ ] Complete all formatting/comment fixes
-- [ ] Complete all function implementation gaps
+**Current Goal**:
+- [ ] Fix remaining 3 output differences (import-reference, urls)
+- [ ] Reach 98.4% success rate (181/184 tests)
 
-**Long-term goals** (next 2 months):
-- [ ] All 185 active tests passing (100%)
+**Stretch Goals**:
 - [ ] Implement quarantined features (plugins, JS execution)
-- [ ] All 190 tests passing
+- [ ] All 190+ tests passing
 
 ## Testing & Validation
 
@@ -133,11 +125,11 @@ Before creating PR, agents must run:
 # 1. All unit tests (must pass - no regressions allowed)
 pnpm -w test:go:unit
 
-# 2. Specific test being fixed (must show improvement)
-pnpm -w test:go:filter -- "test-name"
+# 2. Full integration suite summary (check overall impact)
+LESS_GO_QUIET=1 pnpm -w test:go 2>&1 | tail -30
 
-# 3. Full integration suite summary (check overall impact)
-pnpm -w test:go:summary
+# 3. Specific test being fixed
+LESS_GO_DIFF=1 pnpm -w test:go 2>&1 | grep -A 20 "test-name"
 ```
 
 ### Debug Tools Available
@@ -146,7 +138,6 @@ pnpm -w test:go:summary
 LESS_GO_TRACE=1   # Enhanced execution tracing with call stacks
 LESS_GO_DEBUG=1   # Enhanced error reporting
 LESS_GO_DIFF=1    # Visual CSS diffs
-pnpm -w test:go:debug  # All debug features combined
 ```
 
 ## Merge Conflict Prevention
@@ -154,7 +145,7 @@ pnpm -w test:go:debug  # All debug features combined
 ### Strategies
 
 1. **File-level isolation**: Each task focuses on specific Go files
-2. **Test-level isolation**: Different tests → different code paths
+2. **Test-level isolation**: Different tests use different code paths
 3. **Category-based grouping**: Related fixes grouped to share context
 4. **Clear ownership**: One agent per task at a time
 5. **Frequent syncs**: Agents pull latest changes before starting
@@ -162,7 +153,7 @@ pnpm -w test:go:debug  # All debug features combined
 
 ### High-Risk Files (coordinate carefully)
 
-These files are touched by many fixes - coordinate in `assignments.json`:
+These files are touched by many fixes:
 - `ruleset.go` - Core ruleset evaluation
 - `mixin_call.go` - Mixin resolution and calling
 - `import.go` / `import_visitor.go` - Import handling
@@ -176,7 +167,7 @@ See `.claude/templates/AGENT_PROMPT.md` for the standard prompt to use when spin
 
 ```
 less.go/
-├── .claude/                    # Project coordination (THIS IS WHERE YOU ARE)
+├── .claude/                    # Project coordination
 │   ├── strategy/              # High-level strategy docs
 │   ├── tasks/                 # Individual task specifications
 │   ├── templates/             # Agent prompts and templates
@@ -184,102 +175,38 @@ less.go/
 ├── packages/less/src/less/less_go/  # Go implementation (EDIT THESE)
 ├── packages/test-data/        # Test input/output (DON'T EDIT)
 ├── packages/less/src/less/    # Original JS (NEVER EDIT)
-├── RUNTIME_ISSUES.md          # Detailed issue tracking (DELETE when done)
 └── CLAUDE.md                  # Project overview for Claude
 ```
 
-## Communication & Updates
-
-### Status Updates
-
-Agents should update `.claude/tracking/assignments.json` at these milestones:
-- Task claimed
-- Significant progress (e.g., identified root cause)
-- Blockers encountered
-- PR created
-- PR merged
-
-### Human Escalation
-
-Contact human maintainer if:
-- Task blocked on architectural decision
-- Multiple approaches possible (need direction)
-- Merge conflict can't be resolved automatically
-- Test failure seems like test bug (not implementation bug)
-- Original JavaScript behavior unclear
-
 ## Historical Context
 
-### Recent Progress (Past 2 Weeks)
+### Progress Timeline
 
-**Week 1 (2025-10-23 to 2025-10-30)**:
-- ✅ Fixed `if()` function context passing (Issue #1)
-- ✅ Fixed type function wrapping (Issue #1b)
-- ✅ Fixed detached ruleset variable calls and scoping (Issue #2)
-- ✅ Fixed `each()` function context propagation (Issue #2b)
-- ✅ Fixed parenthesized expression evaluation (Issue #4)
-- ✅ Fixed `@arguments` variable population (Issue #5)
-- ✅ Fixed mixin closure frame capture (Issue #6)
-- ✅ Fixed mixin recursion detection (Issue #7)
-- 📈 Compilation rate improved from 90.3% → 92.4%
-- 📈 Runtime failures reduced from 18 → 12 tests
-- 📈 Perfect matches increased from 8 → 14 tests
+| Date | Perfect Matches | Success Rate | Notes |
+|------|-----------------|--------------|-------|
+| 2025-10-23 | 8 | 38.4% | Initial assessment |
+| 2025-10-30 | 14 | 42.2% | Week 1 fixes |
+| 2025-11-06 | 20 | 42.2% | Week 2 fixes |
+| 2025-11-08 | 69 | 75.0% | Major breakthrough |
+| 2025-11-09 | 69 | 75.0% | Stabilization |
+| 2025-11-10 | 79 | 75.7% | Week 4 wins |
+| 2025-11-13 | 83 | 93.0% | Continued progress |
+| 2025-11-26 | 84 | 93.5% | Minor fix |
+| **2025-11-27** | **89** | **96.7%** | **Current** |
 
-**Week 2 (2025-10-31 to 2025-11-06)**:
-- ✅ Fixed namespace variable resolution (Issue #8: namespacing-6)
-- ✅ Fixed DetachedRuleset missing methods regression (Issue #9)
-- ✅ Fixed mixin variadic parameter expansion (Issue #10)
-- ✅ Fixed guard evaluation for Keyword comparisons
-- ✅ Fixed import reference visibility filtering
-- ✅ Fixed mixin division matching
-- 📈 **Compilation rate improved from 92.4% → 97.3%** 🎉
-- 📈 **Compilation failures reduced from 12 → 5 tests (2 real bugs)**
-- 📈 **Perfect matches increased from 14 → 20 tests** 🎉
-- 📈 **Overall success rate improved from 38.4% → 42.2%**
+### Major Milestones
 
-**Week 3 (2025-11-07 to 2025-11-08)**:
-- ✅ **ALL NAMESPACING COMPLETE**: Fixed remaining 9 namespacing tests (11/11 now passing)
-- ✅ **ALL GUARDS COMPLETE**: Fixed css-guards and mixins-guards tests (3/3 now passing)
-- ✅ **EXTEND COMPLETE**: Fixed 5 additional extend tests (7/7 now passing)
-- ✅ Fixed selector interpolation and visibility issues
-- ✅ Fixed !important flag propagation in mixins
-- ✅ Fixed comment placement in @keyframes
-- ✅ Fixed variable interpolation in at-rules
-- ✅ Fixed each() function iteration
-- ✅ Fixed parser regression with @{} pattern
-- ✅ Fixed import-inline media query handling
-- 📈 **Compilation rate improved from 97.3% → 98.4%** 🎉
-- 📈 **Perfect matches increased from 20 → 69 tests** 🎉
-- 📈 **Overall success rate improved from 42.2% → 75.0%**
-
-**Week 4 (2025-11-09 to 2025-11-10)**:
-- ✅ **ADDITIONAL IMPROVEMENTS**: 9 more perfect matches discovered/fixed
-- ✅ Fixed colors, colors2, variables, variables-in-at-rules
-- ✅ Fixed property-accessors, parse-interpolation, permissive-parse
-- ✅ Fixed strings, extract-and-length
-- 📈 **Perfect matches increased from 69 → 78 tests (+13% improvement!)** 🎉
-- 📈 **Perfect CSS match rate increased from 37.5% → 42.2%** 🎉
-- 📈 **Overall success rate improved from 75.0% → 75.7%**
-- ✅ **ZERO REGRESSIONS MAINTAINED** - All previously passing tests still passing
-
-**Week 5 (2025-11-10 - Current Session)**:
-- ✅ **ASSESSMENT**: Comprehensive testing and analysis of current state
-- 📊 **Output Differs REDUCED significantly**: 40 → 26 tests (-35% reduction!) 🎉
-- 📊 **Perfect CSS Matches**: 79 tests (stable at 41.4%)
-- 📊 **Correct Error Handling**: 62 tests (stable at 32.5%)
-- ✅ **Compilation Rate**: 98.4% (improved from 97.8%)
-- ✅ **ALL Unit Tests Passing**: 2,290+ tests (99.9%+)
-- ✅ **ZERO REGRESSIONS DETECTED** - All major categories still passing
+- **Week 1-2**: Fixed core evaluation issues (`if()`, type functions, detached rulesets)
+- **Week 3**: MASSIVE BREAKTHROUGH - 69 perfect matches, all major categories fixed
+- **Week 4**: Continued progress - 79 perfect matches
+- **Week 5-6**: Polish and edge cases - 89 perfect matches
+- **Current**: Only 3 output differences remaining!
 
 ## Next Steps
 
-1. **Review task files** in `.claude/tasks/` to understand available work
-2. **Check assignments** in `.claude/tracking/assignments.json`
-3. **Claim a task** by updating the JSON file
-4. **Follow agent workflow** in `.claude/strategy/agent-workflow.md`
-5. **Use agent prompt** from `.claude/templates/AGENT_PROMPT.md`
-6. **Create PR** when task complete
-7. **Update tracking** when done
+1. **Fix import-reference** (2 tests) - See `.claude/tasks/runtime-failures/import-reference.md`
+2. **Fix urls main suite** (1 test) - URL edge case handling
+3. **Document completion** - Update all tracking when done
 
 ---
 

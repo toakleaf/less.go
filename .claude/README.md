@@ -2,155 +2,80 @@
 
 This directory contains all project coordination and task management documentation for the less.go port.
 
+**Last Updated**: 2025-11-27
+
+## Current Status
+
+- **Perfect CSS Matches**: 89 tests (48.4%)
+- **Output Differences**: 3 tests (1.6%)
+- **Overall Success Rate**: 96.7%
+- **Unit Tests**: 3,012 passing (100%)
+
+Only 3 output differences remain: `import-reference`, `import-reference-issues`, `urls`
+
 ## Directory Structure
 
 ```
 .claude/
 ├── README.md                      # This file
-├── strategy/                      # High-level planning and workflow
-│   ├── MASTER_PLAN.md            # Overall strategy and current status
-│   └── agent-workflow.md         # Step-by-step workflow for agents
-├── tasks/                         # Specific task specifications
-│   ├── runtime-failures/         # High-priority runtime errors (12 tests)
-│   │   ├── import-reference.md
-│   │   ├── namespace-resolution.md
-│   │   ├── url-processing.md
-│   │   └── [more tasks TBD]
-│   └── output-differences/        # Tests that compile but wrong output (102 tests)
-│       ├── extend-functionality.md
-│       └── [more tasks TBD]
-├── templates/                     # Templates for agents and PRs
-│   └── AGENT_PROMPT.md           # Onboarding prompt for new agents
-└── tracking/                      # Task assignment and progress tracking
-    └── assignments.json           # Current task assignments
-
+├── AGENT_WORK_QUEUE.md            # Current work items (START HERE)
+├── QUICK_START_AGENT_GUIDE.md     # Quick onboarding for agents
+├── SESSION_SUMMARY_2025-11-27.md  # Latest session summary
+├── INTEGRATION_TEST_GUIDE.md      # How to use integration tests
+├── VALIDATION_REQUIREMENTS.md     # Required validation before PRs
+├── strategy/                      # High-level planning
+│   ├── MASTER_PLAN.md            # Overall strategy and status
+│   └── agent-workflow.md         # Workflow for agents
+├── tasks/                         # Task specifications
+│   ├── runtime-failures/         # Active tasks (3 remaining)
+│   │   └── import-reference.md   # Import reference fix
+│   ├── error-handling/           # Error test documentation
+│   ├── performance/              # Performance analysis
+│   └── archived/                 # Completed task documentation
+├── templates/                     # Templates for agents
+│   └── AGENT_PROMPT.md           # Onboarding prompt
+├── tracking/                      # Progress tracking
+│   └── TEST_STATUS_REPORT.md     # Current test status
+├── benchmarks/                    # Performance benchmarks
+├── prompts/                       # Legacy prompts (archived)
+└── archived-reports/              # Historical status reports
 ```
 
 ## Quick Start
 
 ### For New AI Agents
 
-1. **Read** `.claude/strategy/MASTER_PLAN.md` - Understand the project status and strategy
-2. **Read** `.claude/strategy/agent-workflow.md` - Learn the development workflow
-3. **Check** `.claude/tracking/assignments.json` - Find available tasks
-4. **Claim** a task by updating assignments.json
-5. **Read** your task file in `.claude/tasks/*/your-task.md`
-6. **Follow** the workflow to fix the issue
-7. **Test** thoroughly before creating PR
-8. **Update** assignments.json when complete
+1. **Read** `AGENT_WORK_QUEUE.md` - See current work items
+2. **Read** `QUICK_START_AGENT_GUIDE.md` - Quick onboarding
+3. **Pick** a task (only 3 remaining!)
+4. **Follow** the workflow in `strategy/agent-workflow.md`
+5. **Test** thoroughly using commands in the task file
+6. **Create PR** when tests pass
 
-### For Humans Coordinating Agents
+### Remaining Tasks
 
-1. **Review** `.claude/tracking/assignments.json` to see what's in progress
-2. **Spin up** agents using prompts from `.claude/templates/AGENT_PROMPT.md`
-3. **Monitor** progress via assignments.json updates
-4. **Review** PRs and merge quickly to unblock dependent tasks
-5. **Update** task files based on learnings
+| Task | Tests | Priority |
+|------|-------|----------|
+| Import Reference | 2 tests | HIGH |
+| URL Handling | 1 test | MEDIUM |
 
-## File Organization Philosophy
+## Key Files
 
-- **Everything organized** - No scattered documentation
-- **Self-contained tasks** - Each task file has all context needed
-- **Clear workflow** - Step-by-step guides for consistency
-- **Easy tracking** - Single JSON file shows all task states
-- **Minimal root clutter** - Keep root clean for standard files
+| File | Purpose |
+|------|---------|
+| `AGENT_WORK_QUEUE.md` | Current tasks and priorities |
+| `strategy/MASTER_PLAN.md` | Overall strategy |
+| `tracking/TEST_STATUS_REPORT.md` | Test metrics |
+| `tasks/runtime-failures/import-reference.md` | Import reference task |
 
-## Relationship to Other Docs
+## Validation Commands
 
-### Root Directory Files
-
-- **`CLAUDE.md`** - Project overview, points to this directory for detailed tasks
-- **`RUNTIME_ISSUES.md`** - Detailed historical analysis (will be deleted once all runtime issues fixed)
-- **`IMPORT_*_INVESTIGATION.md`** - Historical investigation notes (can be deleted once import issues fixed)
-
-These root files provide historical context but `.claude/` is the source of truth for current work.
-
-## Contributing New Tasks
-
-When adding a new task file:
-
-1. **Create** the task file in appropriate subdirectory
-2. **Update** `.claude/tracking/assignments.json` with task metadata
-3. **Follow** the pattern of existing task files:
-   - Overview
-   - Failing tests
-   - Current vs expected behavior
-   - Investigation starting points
-   - Likely root causes
-   - Implementation hints
-   - Success criteria
-   - Validation checklist
-
-## Task File Template
-
-See existing task files for examples, but generally include:
-
-```markdown
-# Task: [Name]
-
-**Status**: Available
-**Priority**: High/Medium/Low
-**Estimated Time**: X-Y hours
-**Complexity**: Low/Medium/High
-
-## Overview
-Brief description of what needs to be fixed
-
-## Failing Tests
-List of affected tests
-
-## Current Behavior
-What happens now (errors, wrong output, etc.)
-
-## Expected Behavior
-What should happen (with examples)
-
-## Investigation Starting Points
-Where to look in JS and Go code
-
-## Likely Root Causes
-Hypotheses about what's wrong
-
-## Implementation Hints
-Suggestions for how to fix
-
-## Success Criteria
-How to know the fix is complete
-
-## Validation Checklist
-Commands to run before creating PR
+```bash
+# Check current state
+pnpm -w test:go:unit          # 3,012 tests passing
+LESS_GO_QUIET=1 pnpm -w test:go 2>&1 | tail -30  # 89 perfect matches
 ```
-
-## Maintenance
-
-### When a Task is Completed
-
-1. **Update** `assignments.json` status to "completed"
-2. **Keep** the task file (serves as documentation)
-3. **Update** `MASTER_PLAN.md` if it affects overall strategy
-
-### When All Tasks in a Category Complete
-
-1. **Update** `MASTER_PLAN.md` to reflect completed phase
-2. **Consider** creating a summary document for that category
-3. **Celebrate** the progress!
-
-### When All Runtime Issues Fixed
-
-1. **Delete** `/RUNTIME_ISSUES.md` from root
-2. **Update** `CLAUDE.md` to remove references to it
-3. **Keep** `.claude/tasks/runtime-failures/` as historical documentation
-
-## Questions?
-
-If you have questions about:
-- **Strategy**: See `.claude/strategy/MASTER_PLAN.md`
-- **Workflow**: See `.claude/strategy/agent-workflow.md`
-- **Specific task**: See `.claude/tasks/*/*.md`
-- **Task status**: See `.claude/tracking/assignments.json`
-- **Getting started**: See `.claude/templates/AGENT_PROMPT.md`
 
 ---
 
-**Last Updated**: 2025-11-05
 **Maintained By**: Project maintainers and contributing agents
