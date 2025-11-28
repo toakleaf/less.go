@@ -319,7 +319,6 @@ func createPromise(lessContext *LessContext, input string, options map[string]an
 				// Log stack trace for array bounds and nil pointer errors
 				if strings.Contains(errMsg, "index out of range") || strings.Contains(errMsg, "nil pointer") {
 					fmt.Fprintf(os.Stderr, "\n=== PANIC in parse goroutine ===\nError: %s\nStack:\n%s\n===\n", errMsg, stackTrace)
-					fmt.Printf("\n=== PANIC in parse goroutine ===\nError: %s\nStack:\n%s\n===\n", errMsg, stackTrace)
 				}
 
 				// Set error in promise
