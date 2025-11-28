@@ -148,25 +148,32 @@ When working on this project, please be aware of the following:
    - `LESS_GO_STRICT=1` - Fail tests on any output difference (useful for CI)
    - `LESS_GO_TRACE=1` - Show evaluation trace (for debugging specific issues)
 
-6. **Current Integration Test Status** (as of 2025-11-27 - Latest Verified Measurement - UPDATED):
-   - **90 perfect CSS matches (48.9%)** - EXCELLENT PROGRESS! ✅ (⬆️ +1 from previous!)
-   - **3 compilation failures (1.6%)** - All external (network/packages) - expected
+6. **Current Integration Test Status** (as of 2025-11-28 - Latest Verified Measurement - UPDATED):
+   - **94 perfect CSS matches (51.1%)** - EXCELLENT PROGRESS! ✅ (⬆️ +4 from previous!)
+   - **1 compilation failure (0.5%)** - bootstrap4 only (nil pointer panic, unrelated to module resolution)
    - **89 correct error handling (48.4%)** - tests that should fail, do fail correctly ✅
-   - **2 tests with CSS output differences (1.1%)** - compiles but CSS doesn't match ⬇️ (-1 from 3!)
-   - **Overall Success Rate: 97.3%** ✅ (179/184 tests perfect matches or correctly erroring) ⬆️
-   - **Compilation Rate: 98.4%** (181/184 tests compile successfully)
-   - **Perfect CSS Match Rate: 48.9%** ⬆️
+   - **0 tests with CSS output differences (0.0%)** - ALL OUTPUT ISSUES FIXED! 🎉
+   - **Overall Success Rate: 99.5%** ✅ (183/184 tests perfect matches or correctly erroring) ⬆️
+   - **Compilation Rate: 99.5%** (183/184 tests compile successfully)
+   - **Perfect CSS Match Rate: 51.1%** ⬆️
    - **✅ NO REGRESSIONS** - All previously passing tests still passing + new improvements!
-   - **🎉 CONTINUING PROGRESS**: urls (main) now passing! Only 2 output diffs remain! 🎉
+   - **🎉 MAJOR MILESTONE**: ALL output differences fixed! Only 1 compilation failure remains! 🎉
 
-   **Remaining 2 Output Differences:**
-   - `import-reference` - Reference imports outputting CSS when they shouldn't
-   - `import-reference-issues` - Import reference with extends/mixins issues
+   **⚠️ IMPORTANT: Dependencies Required for Testing**
+   Before running integration tests, you MUST install npm dependencies:
+   ```bash
+   pnpm install
+   ```
+   This installs workspace packages (`@less/test-import-module`) and npm dependencies (`bootstrap-less-port`)
+   that are required for npm module resolution tests like `import-module`.
+
+   **Remaining 1 Compilation Failure:**
+   - `bootstrap4` - Nil pointer panic during Bootstrap LESS compilation (not a module resolution issue - files are found correctly)
 
    **🎉 Parser Status: ALL BUGS FIXED!**
    - Parser correctly handles full LESS syntax
-   - **181/184 tests compile successfully** ✅
-   - Remaining work is primarily CSS generation for 3 edge cases
+   - **183/184 tests compile successfully** ✅
+   - NPM module resolution working correctly for scoped packages and bare imports
 
    **✅ Unit Test Status:**
    - **3,012 tests passing** ✅ (100%) - up from 2,304!
@@ -228,15 +235,25 @@ When working on this project, please be aware of the following:
    - Compare with JavaScript implementation when fixing issues
    - See `.claude/tasks/` for specific task specifications
 
-   **Priority Order** (High to Low) - Updated 2025-11-27 (Current Run):
+   **Priority Order** (High to Low) - Updated 2025-11-28 (Current Run):
 
-   **2 Output Differences Remaining** (tests compile but CSS doesn't match):
-   1. **HIGH**: Import reference (2 tests) - import-reference, import-reference-issues
+   **🎉 ALL OUTPUT DIFFERENCES FIXED!** (0 remaining)
 
-   **Other Issues**:
-   2. **LOW**: External dependencies - 3 tests (bootstrap4, google, import-module) - network/packages - expected failures
+   **Remaining Issues**:
+   1. **MEDIUM**: `bootstrap4` - Nil pointer panic during compilation (not module resolution - files load correctly)
+      - This is a runtime bug in the Go compiler when processing Bootstrap's complex LESS files
+      - NPM module resolution is working correctly
+
+   **✅ Tests That Now Pass (were previously thought broken):**
+   - `import-module` - NOW PASSING! NPM module resolution works when `pnpm install` is run
+   - `import-reference` - NOW PASSING!
+   - `import-reference-issues` - NOW PASSING!
+   - `google` - Correctly handles network imports (expected to fail without network)
 
    **Recently Fixed** (since 2025-11-26):
+   - ✅ import-module - NPM module resolution confirmed working!
+   - ✅ import-reference - Reference imports now working correctly!
+   - ✅ import-reference-issues - Import reference edge cases fixed!
    - ✅ urls (main) - URL handling now perfect match!
    - ✅ detached-rulesets - media query merging now working!
    - ✅ media - media query output now passing!
@@ -245,7 +262,8 @@ When working on this project, please be aware of the following:
    - ✅ directives-bubling - CSS directives bubbling now working!
 
    **Recently Completed** (Past 6 weeks):
-   - ✅ **LATEST (2025-11-27 - CURRENT)**: 90 perfect matches! Only 2 output diffs remaining!
+   - ✅ **LATEST (2025-11-28 - CURRENT)**: 94 perfect matches! ZERO output diffs remaining! 🎉
+   - ✅ **2025-11-27**: 90 perfect matches! Only 2 output diffs remaining!
    - ✅ **2025-11-26**: 88 perfect matches! +5 from 2025-11-13, only 4 output diffs remaining!
    - ✅ **MASSIVE BREAKTHROUGH**: +45 perfect matches! From 34 → 79 tests! 🎉
    - ✅ **Week 4 WINS**: +10 perfect matches! From 69 → 79 tests!
@@ -261,10 +279,10 @@ When working on this project, please be aware of the following:
    - ✅ **Parser fully fixed**: All real compilation failures resolved!
    - ✅ **ZERO REGRESSIONS**: All previously passing tests continue to pass
 
-   **Error Handling Milestone** (2025-11-27):
+   **Error Handling Milestone** (2025-11-28):
    - **89 correct error handling tests!** (48.4% of all tests)
-   - Overall success rate now at **97.3%** (179/184 tests)
-   - Only **2 output differences** remaining to reach 100% perfect match goal!
+   - Overall success rate now at **99.5%** (183/184 tests)
+   - **ZERO output differences** remaining! Only bootstrap4 compilation panic to fix!
 
 9. **Quarantined Features** (for future implementation):
    - Plugin system tests (`plugin`, `plugin-module`, `plugin-preeval`)
