@@ -411,7 +411,8 @@ func (r *Ruleset) Eval(context any) (any, error) {
 	} else if parentEval, ok := ctx["_evalContext"].(*Eval); ok {
 		pluginEvalCtx = parentEval
 	}
-	if pluginEvalCtx != nil && pluginEvalCtx.PluginBridge != nil {
+	// Check for both direct PluginBridge and LazyPluginBridge (which wraps PluginBridge)
+	if pluginEvalCtx != nil && (pluginEvalCtx.PluginBridge != nil || pluginEvalCtx.LazyPluginBridge != nil) {
 		pluginEvalCtx.EnterPluginScope()
 		defer pluginEvalCtx.ExitPluginScope()
 	}

@@ -28,11 +28,92 @@ try {
 
 // Plugin state
 const loadedPlugins = new Map();
-const registeredFunctions = new Map();
+const registeredFunctions = new Map(); // Legacy global registry (kept for compatibility)
 const registeredVisitors = [];
 const registeredPreProcessors = [];
 const registeredPostProcessors = [];
 const registeredFileManagers = [];
+
+// Function scope stack for proper scoping of plugin functions
+// Each scope is a Map of function name -> function
+// The stack represents nested scopes: [root, child1, child2, ...]
+// Function lookup traverses from current scope (end of array) to root
+const functionScopeStack = [new Map()]; // Start with root scope
+
+/**
+ * Enter a new function scope (called when entering a ruleset/mixin)
+ */
+function enterFunctionScope() {
+  functionScopeStack.push(new Map());
+  const depth = functionScopeStack.length - 1;
+  if (process.env.LESS_GO_DEBUG) {
+    console.error(`[plugin-host] enterFunctionScope -> depth=${depth}`);
+  }
+  return depth;
+}
+
+/**
+ * Exit the current function scope (called when exiting a ruleset/mixin)
+ */
+function exitFunctionScope() {
+  if (functionScopeStack.length > 1) {
+    functionScopeStack.pop();
+  }
+  const depth = functionScopeStack.length - 1;
+  if (process.env.LESS_GO_DEBUG) {
+    console.error(`[plugin-host] exitFunctionScope -> depth=${depth}`);
+  }
+  return depth;
+}
+
+/**
+ * Get the current scope (top of stack)
+ */
+function getCurrentScope() {
+  return functionScopeStack[functionScopeStack.length - 1];
+}
+
+/**
+ * Add a function to the current scope
+ */
+function addFunctionToScope(name, fn) {
+  const depth = functionScopeStack.length - 1;
+  getCurrentScope().set(name, fn);
+  // Also add to legacy global registry for backwards compatibility
+  registeredFunctions.set(name, fn);
+  if (process.env.LESS_GO_DEBUG) {
+    console.error(`[plugin-host] addFunctionToScope: ${name} at depth=${depth}`);
+  }
+}
+
+/**
+ * Look up a function by name, traversing from current scope to root
+ * Returns the function if found, undefined otherwise
+ */
+function lookupFunction(name) {
+  const currentDepth = functionScopeStack.length - 1;
+  // Search from current scope (end) to root (beginning)
+  for (let i = functionScopeStack.length - 1; i >= 0; i--) {
+    const fn = functionScopeStack[i].get(name);
+    if (fn !== undefined) {
+      if (process.env.LESS_GO_DEBUG) {
+        console.error(`[plugin-host] lookupFunction: ${name} found at depth=${i}, current depth=${currentDepth}`);
+      }
+      return fn;
+    }
+  }
+  if (process.env.LESS_GO_DEBUG) {
+    console.error(`[plugin-host] lookupFunction: ${name} NOT FOUND, current depth=${currentDepth}`);
+  }
+  return undefined;
+}
+
+/**
+ * Check if a function exists in any scope
+ */
+function hasFunction(name) {
+  return lookupFunction(name) !== undefined;
+}
 
 // Shared memory state
 const attachedBuffers = new Map(); // key -> { path, size, buffer }
@@ -186,10 +267,10 @@ const less = {
 // Create global references for legacy plugins that use `tree` and `functions` directly
 const tree = less.tree;
 
-// Function registry mock
+// Function registry - now uses scoped function management
 const functionRegistry = {
   add(name, fn) {
-    registeredFunctions.set(name, fn);
+    addFunctionToScope(name, fn);
   },
   addMultiple(functions) {
     for (const [name, fn] of Object.entries(functions)) {
@@ -197,10 +278,18 @@ const functionRegistry = {
     }
   },
   get(name) {
-    return registeredFunctions.get(name);
+    // Use scoped lookup for proper function resolution
+    return lookupFunction(name);
   },
   getAll() {
-    return Array.from(registeredFunctions.keys());
+    // Return all unique function names from all scopes
+    const allNames = new Set();
+    for (const scope of functionScopeStack) {
+      for (const name of scope.keys()) {
+        allNames.add(name);
+      }
+    }
+    return Array.from(allNames);
   },
 };
 
@@ -284,6 +373,18 @@ function handleCommand(cmd) {
 
       case 'getRegisteredFunctions':
         sendResponse(id, true, functionRegistry.getAll());
+        break;
+
+      case 'enterScope':
+        // Enter a new function scope (for plugin function scoping)
+        const scopeDepth = enterFunctionScope();
+        sendResponse(id, true, { depth: scopeDepth });
+        break;
+
+      case 'exitScope':
+        // Exit the current function scope
+        const newDepth = exitFunctionScope();
+        sendResponse(id, true, { depth: newDepth });
         break;
 
       case 'getVisitors':
@@ -398,23 +499,47 @@ function handleLoadPlugin(id, data) {
 
     if (isAbsolute) {
       resolvedPath = pluginPath;
+      // Try with .js extension if file doesn't exist
+      if (!fs.existsSync(resolvedPath) && fs.existsSync(resolvedPath + '.js')) {
+        resolvedPath = resolvedPath + '.js';
+      }
     } else if (isRelative) {
       const basePath = baseDir || process.cwd();
       resolvedPath = path.resolve(basePath, pluginPath);
-    } else {
-      // NPM module - use require.resolve to find it
-      const searchPaths = [];
-      if (baseDir) {
-        searchPaths.push(baseDir);
-        searchPaths.push(path.join(baseDir, 'node_modules'));
+      // Try with .js extension if file doesn't exist
+      if (!fs.existsSync(resolvedPath) && fs.existsSync(resolvedPath + '.js')) {
+        resolvedPath = resolvedPath + '.js';
       }
-      searchPaths.push(process.cwd());
-      searchPaths.push(path.join(process.cwd(), 'node_modules'));
+    } else {
+      // Not an explicit relative or absolute path
+      // First, try to find in baseDir (common for @plugin "name" without ./)
+      let foundInBaseDir = false;
+      if (baseDir) {
+        const baseDirPath = path.resolve(baseDir, pluginPath);
+        if (fs.existsSync(baseDirPath)) {
+          resolvedPath = baseDirPath;
+          foundInBaseDir = true;
+        } else if (fs.existsSync(baseDirPath + '.js')) {
+          resolvedPath = baseDirPath + '.js';
+          foundInBaseDir = true;
+        }
+      }
 
-      try {
-        resolvedPath = require.resolve(pluginPath, { paths: searchPaths });
-      } catch (resolveErr) {
-        throw new Error(`Cannot find module '${pluginPath}': ${resolveErr.message}`);
+      // If not found in baseDir, try NPM module resolution
+      if (!foundInBaseDir) {
+        const searchPaths = [];
+        if (baseDir) {
+          searchPaths.push(baseDir);
+          searchPaths.push(path.join(baseDir, 'node_modules'));
+        }
+        searchPaths.push(process.cwd());
+        searchPaths.push(path.join(process.cwd(), 'node_modules'));
+
+        try {
+          resolvedPath = require.resolve(pluginPath, { paths: searchPaths });
+        } catch (resolveErr) {
+          throw new Error(`Cannot find module '${pluginPath}': ${resolveErr.message}`);
+        }
       }
     }
 
@@ -451,6 +576,13 @@ function handleLoadPlugin(id, data) {
     } catch (requireErr) {
       // If require fails, try loading as raw JS code with vm
       const fileContent = fs.readFileSync(resolvedPath, 'utf8');
+
+      // Create a registerPlugin function to capture plugins using the v3+ API
+      let registeredPlugin = null;
+      const registerPlugin = (pluginObj) => {
+        registeredPlugin = pluginObj;
+      };
+
       const context = vm.createContext({
         functions: functionRegistry,
         tree: tree,
@@ -461,10 +593,17 @@ function handleLoadPlugin(id, data) {
         console: console,
         __filename: resolvedPath,
         __dirname: path.dirname(resolvedPath),
+        registerPlugin: registerPlugin, // Add registerPlugin for v3+ API
       });
 
       vm.runInContext(fileContent, context, { filename: resolvedPath });
-      plugin = context.module.exports;
+
+      // Check if plugin was registered via registerPlugin() API
+      if (registeredPlugin) {
+        plugin = registeredPlugin;
+      } else {
+        plugin = context.module.exports;
+      }
     }
 
     // Handle plugin as either an object or a function (constructor)
@@ -476,26 +615,38 @@ function handleLoadPlugin(id, data) {
     // Legacy plugins call functions.add() directly during require()
     const hasLegacyRegistrations = registeredFunctions.size > functionsBefore;
 
-    // If no legacy registrations and plugin has an install method, call it
-    if (!hasLegacyRegistrations && plugin && plugin.install) {
-      // Validate minVersion if specified
-      if (plugin.minVersion) {
-        const minVer = Array.isArray(plugin.minVersion) ? plugin.minVersion : plugin.minVersion.split('.').map(Number);
-        const lessVer = less.version;
-        for (let i = 0; i < minVer.length; i++) {
-          if ((minVer[i] || 0) > (lessVer[i] || 0)) {
-            throw new Error(`Plugin requires Less.js version ${minVer.join('.')} or higher`);
-          } else if ((minVer[i] || 0) < (lessVer[i] || 0)) {
-            break;
-          }
+    // Determine plugin version (used to decide order of setOptions vs install)
+    // In less.js, the default behavior when options are provided is:
+    // - If minVersion is specified as 3.x+: setOptions AFTER install
+    // - Otherwise (no minVersion or minVersion < 3): setOptions BEFORE install
+    let isV3Plus = false; // Default to pre-v3 behavior (setOptions before install)
+    if (plugin && plugin.minVersion) {
+      const minVer = Array.isArray(plugin.minVersion) ? plugin.minVersion : plugin.minVersion.split('.').map(Number);
+      isV3Plus = (minVer[0] || 0) >= 3;
+
+      // Validate minVersion
+      const lessVer = less.version;
+      for (let i = 0; i < minVer.length; i++) {
+        if ((minVer[i] || 0) > (lessVer[i] || 0)) {
+          throw new Error(`Plugin requires Less.js version ${minVer.join('.')} or higher`);
+        } else if ((minVer[i] || 0) < (lessVer[i] || 0)) {
+          break;
         }
       }
+    }
 
+    // For pre-v3 plugins (or no minVersion): setOptions is called BEFORE install
+    if (!isV3Plus && options && plugin && plugin.setOptions) {
+      plugin.setOptions(options);
+    }
+
+    // If no legacy registrations and plugin has an install method, call it
+    if (!hasLegacyRegistrations && plugin && plugin.install) {
       plugin.install(less, pluginManager, functionRegistry);
     }
 
-    // Set options if provided (for version 3.x+, options are set after install)
-    if (options && plugin && plugin.setOptions) {
+    // For v3+ plugins: setOptions is called AFTER install
+    if (isV3Plus && options && plugin && plugin.setOptions) {
       plugin.setOptions(options);
     }
 
@@ -766,7 +917,8 @@ function handleCallFunction(id, data) {
     return;
   }
 
-  const fn = registeredFunctions.get(name);
+  // Use scoped lookup for proper function resolution
+  const fn = lookupFunction(name);
   if (!fn) {
     sendResponse(id, false, null, `Function not found: ${name}`);
     return;
@@ -779,8 +931,18 @@ function handleCallFunction(id, data) {
     // Call the function with converted arguments
     const result = fn.apply(null, convertedArgs);
 
+    // Debug: log the raw result for detached-ruleset
+    if (name === 'test-detached-ruleset' && process.env.LESS_GO_DEBUG) {
+      console.error('[DEBUG plugin-host] test-detached-ruleset raw result:', JSON.stringify(result, null, 2));
+    }
+
     // Convert the result back to Go-compatible format
     const goResult = convertJSResultToGo(result);
+
+    // Debug: log the converted result
+    if (name === 'test-detached-ruleset' && process.env.LESS_GO_DEBUG) {
+      console.error('[DEBUG plugin-host] test-detached-ruleset converted result:', JSON.stringify(goResult, null, 2));
+    }
 
     sendResponse(id, true, goResult);
   } catch (err) {
@@ -1252,7 +1414,8 @@ function handleCallFunctionSharedMem(id, data) {
     return;
   }
 
-  const fn = registeredFunctions.get(name);
+  // Use scoped lookup for proper function resolution
+  const fn = lookupFunction(name);
   if (!fn) {
     sendResponse(id, false, null, `Function not found: ${name}`);
     return;

@@ -94,6 +94,16 @@ func (d *Dimension) GetType() string {
 	return "Dimension"
 }
 
+// GetValue returns the numeric value of the dimension
+func (d *Dimension) GetValue() float64 {
+	return d.Value
+}
+
+// GetUnit returns the unit of the dimension
+func (d *Dimension) GetUnit() any {
+	return d.Unit
+}
+
 // Accept accepts a visitor and updates the unit.
 func (d *Dimension) Accept(visitor any) {
 	// Handle both *Visitor and interface{ Visit(any) any }

@@ -2,6 +2,7 @@ package less_go
 
 import (
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/toakleaf/less.go/packages/less/src/less/less_go/runtime"
@@ -29,6 +30,9 @@ func NewLazyNodeJSPluginBridge() *LazyNodeJSPluginBridge {
 // This is thread-safe and will only initialize once.
 func (lb *LazyNodeJSPluginBridge) ensureInitialized() error {
 	lb.initOnce.Do(func() {
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Printf("[LazyNodeJSPluginBridge] ensureInitialized called, initializing bridge...\n")
+		}
 		lb.mu.Lock()
 		defer lb.mu.Unlock()
 
@@ -40,9 +44,15 @@ func (lb *LazyNodeJSPluginBridge) ensureInitialized() error {
 		bridge, err := NewNodeJSPluginBridge()
 		if err != nil {
 			lb.initErr = err
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Printf("[LazyNodeJSPluginBridge] Failed to initialize: %v\n", err)
+			}
 			return
 		}
 		lb.bridge = bridge
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Printf("[LazyNodeJSPluginBridge] Successfully initialized bridge=%p\n", bridge)
+		}
 	})
 
 	return lb.initErr

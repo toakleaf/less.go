@@ -79,10 +79,20 @@ func (pl *JSPluginLoader) LoadPluginSync(path, currentDirectory string, context 
 	pl.mu.RUnlock()
 
 	// Extract options from context if present
-	var options map[string]any
+	// Plugin options can be either:
+	// - A map with "_args" key containing the raw plugin args string
+	// - A full options map
+	var options any
 	if context != nil {
 		if opts, ok := context["options"].(map[string]any); ok {
-			options = opts
+			// Check if this is the _args wrapper format
+			if argsStr, ok := opts["_args"].(string); ok {
+				options = argsStr // Pass the raw string to setOptions
+			} else {
+				options = opts // Pass the full map
+			}
+		} else if opts, ok := context["options"].(string); ok {
+			options = opts // Direct string value
 		}
 	}
 

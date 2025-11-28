@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -370,9 +371,15 @@ func (rt *NodeJSRuntime) readStderr() {
 	scanner := bufio.NewScanner(rt.stderr)
 	for scanner.Scan() {
 		line := scanner.Text()
-		// For now, just store errors. In the future, we could log them.
 		if line != "" {
-			rt.setError(fmt.Errorf("Node.js stderr: %s", line))
+			// Print debug output if LESS_GO_DEBUG is set
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Fprintf(os.Stderr, "%s\n", line)
+			}
+			// Store errors (non-debug lines)
+			if !strings.HasPrefix(line, "[plugin-host]") && !strings.HasPrefix(line, "[DEBUG") {
+				rt.setError(fmt.Errorf("Node.js stderr: %s", line))
+			}
 		}
 	}
 }

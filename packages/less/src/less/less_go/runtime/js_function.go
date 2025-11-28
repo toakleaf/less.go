@@ -65,7 +65,10 @@ func (m JSIPCMode) String() string {
 }
 
 // getDefaultIPCMode returns the default IPC mode based on the LESS_JS_IPC_MODE
-// environment variable. If not set or unrecognized, defaults to shared memory.
+// environment variable. If not set or unrecognized, defaults to JSON mode.
+// Note: Shared memory mode currently has a bug where complex nested objects
+// (like DetachedRuleset with rules) are not fully transferred. JSON mode
+// works reliably for all node types.
 func getDefaultIPCMode() JSIPCMode {
 	mode := os.Getenv("LESS_JS_IPC_MODE")
 	switch mode {
@@ -74,8 +77,8 @@ func getDefaultIPCMode() JSIPCMode {
 	case "sharedmem", "shm", "shared", "SHM", "SHARED":
 		return JSIPCModeSharedMemory
 	default:
-		// Default to shared memory
-		return JSIPCModeSharedMemory
+		// Default to JSON mode (shared memory has bugs with complex objects)
+		return JSIPCModeJSON
 	}
 }
 
@@ -671,7 +674,12 @@ func serializeUnit(unit any) any {
 	if stringer, ok := unit.(fmt.Stringer); ok {
 		return stringer.String()
 	}
-	return fmt.Sprintf("%v", unit)
+	// Check for ToString method (for Unit type)
+	if toStringer, ok := unit.(interface{ ToString() string }); ok {
+		return toStringer.ToString()
+	}
+	// Fallback - but avoid printing Go struct syntax
+	return ""
 }
 
 // deserializeNodeMap deserializes a JavaScript node map to a JSResultNode.

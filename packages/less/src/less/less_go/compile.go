@@ -174,6 +174,9 @@ func compileWithContext(lessContext *LessContext, input string, options map[stri
 	// Create environment and parseTree
 	env := createEnvironment(nil, nil)
 
+	// Create plugin manager early so it can be passed to import manager
+	pluginManager := NewPluginManager(lessContext)
+
 	// Create parse function
 	parseFunc := CreateParse(env, nil, func(environment any, context *Parse, rootFileInfo map[string]any) *ImportManager {
 		factory := NewImportManager(&SimpleImportManagerEnvironment{})
@@ -191,6 +194,7 @@ func compileWithContext(lessContext *LessContext, input string, options map[stri
 			"parserFactory": func(parserContext map[string]any, parserImports map[string]any, parserFileInfo map[string]any, currentIndex int) ParserInterface {
 				return NewParser(parserContext, parserImports, parserFileInfo, currentIndex)
 			},
+			"pluginManager": pluginManager, // Pass plugin manager to import manager
 		}
 
 		if context != nil && context.Paths != nil && len(context.Paths) > 0 {
@@ -225,6 +229,14 @@ func compileWithContext(lessContext *LessContext, input string, options map[stri
 	}
 	for k, v := range options {
 		mergedOptions[k] = v
+	}
+
+	// Pass the plugin manager to the parse function
+	mergedOptions["pluginManager"] = pluginManager
+
+	// Pass the plugin bridge through options for use in TransformTree/Eval
+	if lessContext.PluginBridge != nil {
+		mergedOptions["pluginBridge"] = lessContext.PluginBridge
 	}
 
 	// Call parse with callback
@@ -301,8 +313,9 @@ func compileWithContext(lessContext *LessContext, input string, options map[stri
 				if processImports, ok := opts["processImports"].(bool); ok {
 					toCSSOptions.ProcessImports = processImports
 				}
-				// Pass the plugin bridge if present
+				// Pass the plugin bridge and plugin manager if present
 				if pluginBridge := opts["pluginBridge"]; pluginBridge != nil {
+					toCSSOptions.PluginBridge = pluginBridge
 					toCSSOptions.PluginManager = opts["pluginManager"]
 				}
 			}

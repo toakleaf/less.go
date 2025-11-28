@@ -47,6 +47,7 @@ type ToCSSOptions struct {
 	NumPrecision     int
 	SourceMap        any
 	PluginManager    any
+	PluginBridge     any      // *LazyNodeJSPluginBridge or *NodeJSPluginBridge for JS plugin function lookup
 	Functions        any
 	ProcessImports   bool
 	ImportManager    any
@@ -74,6 +75,7 @@ func (pt *ParseTree) ToCSS(options *ToCSSOptions) (*ToCSSResult, error) {
 			"numPrecision":     options.NumPrecision,
 			"sourceMap":        options.SourceMap,
 			"pluginManager":    options.PluginManager,
+			"pluginBridge":     options.PluginBridge,
 			"functions":        options.Functions,
 			"processImports":   options.ProcessImports,
 			"importManager":    options.ImportManager,

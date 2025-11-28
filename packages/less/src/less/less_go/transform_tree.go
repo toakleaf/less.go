@@ -24,17 +24,32 @@ func TransformTree(root any, options map[string]any) any {
 	evalEnv.DefaultFunc = NewDefaultFunc()
 
 	// Set up the plugin bridge for JavaScript plugin function lookup
-	if pluginBridge, ok := options["pluginBridge"].(*LazyNodeJSPluginBridge); ok {
-		// Get the underlying NodeJSPluginBridge if it's been initialized
-		// This allows function lookups to work during evaluation
-		if pluginBridge.IsInitialized() {
-			if bridge, err := pluginBridge.GetBridge(); err == nil {
-				evalEnv.PluginBridge = bridge
+	if bridgeVal := options["pluginBridge"]; bridgeVal != nil {
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Printf("[TransformTree] pluginBridge type: %T\n", bridgeVal)
+		}
+		if pluginBridge, ok := bridgeVal.(*LazyNodeJSPluginBridge); ok {
+			// Store the lazy bridge directly - it will initialize when functions are called
+			evalEnv.LazyPluginBridge = pluginBridge
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Printf("[TransformTree] Set LazyPluginBridge on evalEnv\n")
+			}
+			// Also try to get the direct bridge if already initialized
+			if pluginBridge.IsInitialized() {
+				if bridge, err := pluginBridge.GetBridge(); err == nil {
+					evalEnv.PluginBridge = bridge
+					if os.Getenv("LESS_GO_DEBUG") == "1" {
+						fmt.Printf("[TransformTree] Also set direct PluginBridge (already initialized)\n")
+					}
+				}
+			}
+		} else if bridge, ok := bridgeVal.(*NodeJSPluginBridge); ok {
+			// Direct NodeJSPluginBridge (for testing or direct usage)
+			evalEnv.PluginBridge = bridge
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Printf("[TransformTree] Set PluginBridge from direct NodeJSPluginBridge\n")
 			}
 		}
-	} else if bridge, ok := options["pluginBridge"].(*NodeJSPluginBridge); ok {
-		// Direct NodeJSPluginBridge (for testing or direct usage)
-		evalEnv.PluginBridge = bridge
 	}
 	
 	// Add function registry support - check if functions are provided in options

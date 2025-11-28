@@ -652,8 +652,13 @@ func (iv *ImportVisitor) callImporterPush(importNode any, tryAppendLessExtension
 			if plugin, ok := options["isPlugin"].(bool); ok {
 				importOptions.IsPlugin = plugin
 			}
+			// Handle pluginArgs - can be a string or map
 			if args, ok := options["pluginArgs"].(map[string]any); ok {
 				importOptions.PluginArgs = args
+			} else if argsStr, ok := options["pluginArgs"].(string); ok && argsStr != "" {
+				// Convert string args to the expected format
+				// The string value is passed directly as the options to setOptions()
+				importOptions.PluginArgs = map[string]any{"_args": argsStr}
 			}
 		}
 		
