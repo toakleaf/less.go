@@ -14,6 +14,7 @@
 
 const readline = require('readline');
 const path = require('path');
+const fs = require('fs');
 
 // Plugin state
 const loadedPlugins = new Map();
@@ -22,6 +23,9 @@ const registeredVisitors = [];
 const registeredPreProcessors = [];
 const registeredPostProcessors = [];
 const registeredFileManagers = [];
+
+// Shared memory state
+const attachedBuffers = new Map(); // key -> { path, size, buffer }
 
 // Less API mock (to be expanded)
 const less = {
@@ -141,6 +145,22 @@ function handleCommand(cmd) {
         );
         break;
 
+      case 'attachBuffer':
+        handleAttachBuffer(id, data);
+        break;
+
+      case 'detachBuffer':
+        handleDetachBuffer(id, data);
+        break;
+
+      case 'readBuffer':
+        handleReadBuffer(id, data);
+        break;
+
+      case 'getBufferInfo':
+        handleGetBufferInfo(id, data);
+        break;
+
       default:
         sendResponse(id, false, null, `Unknown command: ${command}`);
     }
@@ -237,6 +257,250 @@ function handleCallFunction(id, data) {
   } catch (err) {
     sendResponse(id, false, null, `Function error: ${err.message}`);
   }
+}
+
+/**
+ * Attach to a shared memory buffer from Go
+ * @param {number} id - Command ID
+ * @param {Object} data - Buffer data { key, path, size }
+ */
+function handleAttachBuffer(id, data) {
+  const { key, path: bufferPath, size } = data || {};
+
+  if (!key || !bufferPath) {
+    sendResponse(id, false, null, 'Buffer key and path are required');
+    return;
+  }
+
+  try {
+    // Check if already attached
+    if (attachedBuffers.has(key)) {
+      sendResponse(id, true, { cached: true, key, size });
+      return;
+    }
+
+    // Read the file into a buffer
+    // Note: We read the entire file for now. For very large files,
+    // we could use memory mapping via native modules if needed.
+    const buffer = fs.readFileSync(bufferPath);
+
+    attachedBuffers.set(key, {
+      path: bufferPath,
+      size: buffer.length,
+      buffer,
+    });
+
+    sendResponse(id, true, {
+      cached: false,
+      key,
+      size: buffer.length,
+    });
+  } catch (err) {
+    sendResponse(id, false, null, `Failed to attach buffer: ${err.message}`);
+  }
+}
+
+/**
+ * Detach from a shared memory buffer
+ * @param {number} id - Command ID
+ * @param {Object} data - Buffer data { key }
+ */
+function handleDetachBuffer(id, data) {
+  const { key } = data || {};
+
+  if (!key) {
+    sendResponse(id, false, null, 'Buffer key is required');
+    return;
+  }
+
+  if (!attachedBuffers.has(key)) {
+    sendResponse(id, false, null, `Buffer not found: ${key}`);
+    return;
+  }
+
+  attachedBuffers.delete(key);
+  sendResponse(id, true, { detached: true, key });
+}
+
+/**
+ * Read data from an attached buffer
+ * @param {number} id - Command ID
+ * @param {Object} data - Read data { key, offset, length }
+ */
+function handleReadBuffer(id, data) {
+  const { key, offset = 0, length } = data || {};
+
+  if (!key) {
+    sendResponse(id, false, null, 'Buffer key is required');
+    return;
+  }
+
+  const bufInfo = attachedBuffers.get(key);
+  if (!bufInfo) {
+    sendResponse(id, false, null, `Buffer not found: ${key}`);
+    return;
+  }
+
+  const { buffer } = bufInfo;
+  const readLength = length || buffer.length - offset;
+
+  if (offset < 0 || offset + readLength > buffer.length) {
+    sendResponse(id, false, null, `Read out of bounds: offset=${offset}, length=${readLength}, size=${buffer.length}`);
+    return;
+  }
+
+  // Return the data as base64 for JSON transport
+  const slice = buffer.slice(offset, offset + readLength);
+  sendResponse(id, true, {
+    data: slice.toString('base64'),
+    offset,
+    length: readLength,
+  });
+}
+
+/**
+ * Get info about an attached buffer
+ * @param {number} id - Command ID
+ * @param {Object} data - Buffer data { key }
+ */
+function handleGetBufferInfo(id, data) {
+  const { key } = data || {};
+
+  if (!key) {
+    sendResponse(id, false, null, 'Buffer key is required');
+    return;
+  }
+
+  const bufInfo = attachedBuffers.get(key);
+  if (!bufInfo) {
+    sendResponse(id, false, null, `Buffer not found: ${key}`);
+    return;
+  }
+
+  sendResponse(id, true, {
+    key,
+    path: bufInfo.path,
+    size: bufInfo.size,
+  });
+}
+
+/**
+ * Parse the FlatAST binary format from a buffer
+ * This is the JavaScript equivalent of FromBytes in Go
+ */
+function parseFlatAST(buffer) {
+  if (buffer.length < 28) {
+    throw new Error('Buffer too small for FlatAST header');
+  }
+
+  let offset = 0;
+
+  // Read and verify magic
+  const magic = buffer.readUInt32LE(offset);
+  offset += 4;
+  if (magic !== 0x4C455353) { // "LESS"
+    throw new Error(`Invalid magic: expected 0x4C455353, got 0x${magic.toString(16)}`);
+  }
+
+  // Read header
+  const version = buffer.readUInt32LE(offset);
+  offset += 4;
+  const nodeCount = buffer.readUInt32LE(offset);
+  offset += 4;
+  const rootIndex = buffer.readUInt32LE(offset);
+  offset += 4;
+  const nodesOffset = buffer.readUInt32LE(offset);
+  offset += 4;
+  const stringTableOffset = buffer.readUInt32LE(offset);
+  offset += 4;
+  const typeTableOffset = buffer.readUInt32LE(offset);
+  offset += 4;
+
+  // Read nodes (each node is 24 bytes)
+  const nodes = [];
+  offset = nodesOffset;
+  for (let i = 0; i < nodeCount; i++) {
+    const node = {
+      typeID: buffer.readUInt16LE(offset),
+      flags: buffer.readUInt16LE(offset + 2),
+      childIndex: buffer.readUInt32LE(offset + 4),
+      nextIndex: buffer.readUInt32LE(offset + 8),
+      parentIndex: buffer.readUInt32LE(offset + 12),
+      propsOffset: buffer.readUInt32LE(offset + 16),
+      propsLength: buffer.readUInt32LE(offset + 20),
+    };
+    nodes.push(node);
+    offset += 24;
+  }
+
+  // Read string table
+  offset = stringTableOffset;
+  const stringCount = buffer.readUInt32LE(offset);
+  offset += 4;
+  const stringTable = [];
+  for (let i = 0; i < stringCount; i++) {
+    const strLen = buffer.readUInt32LE(offset);
+    offset += 4;
+    const str = buffer.slice(offset, offset + strLen).toString('utf8');
+    stringTable.push(str);
+    offset += strLen;
+  }
+
+  // Read type table
+  offset = typeTableOffset;
+  const typeCount = buffer.readUInt32LE(offset);
+  offset += 4;
+  const typeTable = [];
+  for (let i = 0; i < typeCount; i++) {
+    const strLen = buffer.readUInt32LE(offset);
+    offset += 4;
+    const str = buffer.slice(offset, offset + strLen).toString('utf8');
+    typeTable.push(str);
+    offset += strLen;
+  }
+
+  // Read prop buffer
+  const propLen = buffer.readUInt32LE(offset);
+  offset += 4;
+  const propBuffer = buffer.slice(offset, offset + propLen);
+
+  return {
+    version,
+    nodeCount,
+    rootIndex,
+    nodes,
+    stringTable,
+    typeTable,
+    propBuffer,
+  };
+}
+
+/**
+ * Get an attached buffer's parsed AST
+ * @param {string} key - Buffer key
+ * @returns {Object} Parsed FlatAST
+ */
+function getAttachedAST(key) {
+  const bufInfo = attachedBuffers.get(key);
+  if (!bufInfo) {
+    throw new Error(`Buffer not found: ${key}`);
+  }
+
+  // Cache the parsed AST
+  if (!bufInfo.ast) {
+    bufInfo.ast = parseFlatAST(bufInfo.buffer);
+  }
+
+  return bufInfo.ast;
+}
+
+// Export for testing
+if (typeof module !== 'undefined') {
+  module.exports = {
+    parseFlatAST,
+    getAttachedAST,
+    attachedBuffers,
+  };
 }
 
 // Set up readline interface for stdin

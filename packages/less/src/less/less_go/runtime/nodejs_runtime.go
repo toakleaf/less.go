@@ -58,6 +58,9 @@ type NodeJSRuntime struct {
 	// Configuration
 	pluginHostPath string
 	nodeCommand    string
+
+	// Shared memory for zero-copy AST transfer
+	shmManager *SharedMemoryManager
 }
 
 // RuntimeOption configures a NodeJSRuntime.
@@ -140,12 +143,18 @@ func (rt *NodeJSRuntime) Start() error {
 		return fmt.Errorf("runtime already started")
 	}
 
+	// Initialize shared memory manager
+	shmManager, err := NewSharedMemoryManager()
+	if err != nil {
+		return fmt.Errorf("failed to create shared memory manager: %w", err)
+	}
+	rt.shmManager = shmManager
+
 	// Create the Node.js process
 	rt.process = exec.Command(rt.nodeCommand, rt.pluginHostPath)
 	rt.process.Env = append(os.Environ(), "LESS_PLUGIN_HOST=1")
 
 	// Set up stdio pipes
-	var err error
 	rt.stdin, err = rt.process.StdinPipe()
 	if err != nil {
 		return fmt.Errorf("failed to create stdin pipe: %w", err)
@@ -209,6 +218,12 @@ func (rt *NodeJSRuntime) Stop() error {
 
 	rt.alive.Store(false)
 	close(rt.done)
+
+	// Clean up shared memory
+	if rt.shmManager != nil {
+		rt.shmManager.DestroyAll()
+		rt.shmManager = nil
+	}
 
 	// Send shutdown command (best effort)
 	if rt.stdin != nil {
@@ -435,4 +450,114 @@ func contextWithTimeout(timeout time.Duration) (*timeoutContext, func()) {
 
 func (c *timeoutContext) done() <-chan struct{} {
 	return c.ch
+}
+
+// SharedMemoryManager returns the shared memory manager for this runtime.
+func (rt *NodeJSRuntime) SharedMemoryManager() *SharedMemoryManager {
+	return rt.shmManager
+}
+
+// CreateSharedMemory creates a new shared memory segment of the specified size.
+func (rt *NodeJSRuntime) CreateSharedMemory(size int) (*SharedMemory, error) {
+	if rt.shmManager == nil {
+		return nil, fmt.Errorf("shared memory manager not initialized")
+	}
+	return rt.shmManager.Create(size)
+}
+
+// DestroySharedMemory destroys a shared memory segment by key.
+func (rt *NodeJSRuntime) DestroySharedMemory(shm *SharedMemory) error {
+	if rt.shmManager == nil {
+		return fmt.Errorf("shared memory manager not initialized")
+	}
+	return rt.shmManager.Destroy(shm.Key())
+}
+
+// WriteASTBuffer writes a FlatAST to shared memory and returns the segment.
+// This enables zero-copy transfer of AST data to Node.js.
+func (rt *NodeJSRuntime) WriteASTBuffer(flat *FlatAST) (*SharedMemory, error) {
+	if rt.shmManager == nil {
+		return nil, fmt.Errorf("shared memory manager not initialized")
+	}
+
+	// Serialize the AST to bytes
+	data, err := flat.ToBytes()
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize AST: %w", err)
+	}
+
+	// Create shared memory segment
+	shm, err := rt.shmManager.Create(len(data))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create shared memory: %w", err)
+	}
+
+	// Write data to shared memory
+	if err := shm.WriteAll(data); err != nil {
+		rt.shmManager.Destroy(shm.Key())
+		return nil, fmt.Errorf("failed to write to shared memory: %w", err)
+	}
+
+	// Sync to ensure data is visible to other processes
+	if err := shm.Sync(); err != nil {
+		rt.shmManager.Destroy(shm.Key())
+		return nil, fmt.Errorf("failed to sync shared memory: %w", err)
+	}
+
+	return shm, nil
+}
+
+// ReadASTBuffer reads a FlatAST from a shared memory segment.
+// This reads the AST data that was written by Node.js.
+func (rt *NodeJSRuntime) ReadASTBuffer(shm *SharedMemory) (*FlatAST, error) {
+	// Read all data from shared memory
+	data, err := shm.ReadAll()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read from shared memory: %w", err)
+	}
+
+	// Deserialize the AST
+	flat, err := FromBytes(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to deserialize AST: %w", err)
+	}
+
+	return flat, nil
+}
+
+// AttachBuffer sends a command to Node.js to attach to a shared memory buffer.
+// Returns the path to the shared memory file for Node.js to map.
+func (rt *NodeJSRuntime) AttachBuffer(shm *SharedMemory) error {
+	resp, err := rt.SendCommand(Command{
+		Cmd: "attachBuffer",
+		Data: map[string]any{
+			"key":  shm.Key(),
+			"path": shm.Path(),
+			"size": shm.Size(),
+		},
+	})
+	if err != nil {
+		return err
+	}
+	if !resp.Success {
+		return fmt.Errorf("attachBuffer failed: %s", resp.Error)
+	}
+	return nil
+}
+
+// DetachBuffer sends a command to Node.js to detach from a shared memory buffer.
+func (rt *NodeJSRuntime) DetachBuffer(key string) error {
+	resp, err := rt.SendCommand(Command{
+		Cmd: "detachBuffer",
+		Data: map[string]any{
+			"key": key,
+		},
+	})
+	if err != nil {
+		return err
+	}
+	if !resp.Success {
+		return fmt.Errorf("detachBuffer failed: %s", resp.Error)
+	}
+	return nil
 }
