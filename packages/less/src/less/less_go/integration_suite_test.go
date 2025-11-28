@@ -299,6 +299,8 @@ var quarantinedTests = map[string][]string{
 		"javascript",
 		// Import test that depends on plugins
 		"import",
+		// Requires less-plugin-clean-css NPM module and less-plugin- prefix resolution
+		"plugin-module",
 	},
 	"third-party": {
 		// Bootstrap 4 uses JavaScript plugins for custom functions
