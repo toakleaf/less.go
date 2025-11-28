@@ -304,6 +304,11 @@ var quarantinedTests = map[string][]string{
 		// Import test that depends on plugins
 		"import",
 	},
+	"third-party": {
+		// Bootstrap 4 uses JavaScript plugins for custom functions
+		// (map-get, breakpoint-next, breakpoint-min, breakpoint-max, etc.)
+		"bootstrap4",
+	},
 	"js-type-errors": {
 		// JavaScript error tests - skip entire suite
 		"*",

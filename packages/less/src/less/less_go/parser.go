@@ -507,7 +507,9 @@ func (p *Parser) parseInternal(str string, callback func(*LessError, *Ruleset), 
 	contents[filename] = str
 
 	// Start parsing
-	chunkInput := true // Default to true for main parsing (comments should be stripped)
+	// Default to false to match JavaScript behavior - chunking causes parse issues
+	// with comments inside parentheses (e.g., mixin calls with detached rulesets)
+	chunkInput := false
 	if val, ok := p.context["chunkInput"].(bool); ok {
 		chunkInput = val
 	}
