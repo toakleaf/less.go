@@ -398,6 +398,24 @@ func (r *Ruleset) Eval(context any) (any, error) {
 		return nil, fmt.Errorf("context must be *Eval or map[string]any, got %T", context)
 	}
 
+	// Enter a new plugin scope for this ruleset.
+	// This ensures that any @plugin directives inside this ruleset only affect
+	// this scope and its children, not parent scopes.
+	// We use defer to ensure ExitPluginScope is called even if an error occurs.
+	//
+	// We check for the plugin bridge in both *Eval contexts and map contexts.
+	// Map contexts may have _evalContext which references the parent *Eval.
+	var pluginEvalCtx *Eval
+	if evalCtx != nil {
+		pluginEvalCtx = evalCtx
+	} else if parentEval, ok := ctx["_evalContext"].(*Eval); ok {
+		pluginEvalCtx = parentEval
+	}
+	if pluginEvalCtx != nil && pluginEvalCtx.PluginBridge != nil {
+		pluginEvalCtx.EnterPluginScope()
+		defer pluginEvalCtx.ExitPluginScope()
+	}
+
 	// NOTE: JavaScript does not have circular dependency checking for ruleset evaluation.
 	// Recursive mixin calls are valid and should be allowed. The check was removed because
 	// it was causing false positives for valid recursive calls where the same mixin definition

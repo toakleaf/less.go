@@ -141,6 +141,7 @@ func (dr *DetachedRuleset) CallEval(context any) any {
 				InCalc:            ctx.InCalc,
 				MathOn:            ctx.MathOn,
 				DefaultFunc:       ctx.DefaultFunc,
+				PluginBridge:      ctx.PluginBridge, // Share plugin bridge for scope management
 				// MediaBlocks: nil - intentionally not copied, see comment above
 				// MediaPath: nil - intentionally not copied, see comment above
 			}
@@ -297,6 +298,7 @@ func evalContextToMap(context any) map[string]any {
 			"rewriteUrls":       ctx.RewriteUrls,
 			"mediaBlocks":       ctx.MediaBlocks,
 			"mediaPath":         ctx.MediaPath,
+			"_evalContext":      ctx, // Preserve reference to *Eval for plugin scope management
 		}
 	default:
 		// Fallback for unknown types
