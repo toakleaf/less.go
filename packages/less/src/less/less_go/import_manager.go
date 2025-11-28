@@ -105,6 +105,16 @@ type ImportOptions struct {
 	Multiple    bool           `json:"multiple"`
 }
 
+// DeferredPluginInfo holds information needed to load a plugin during evaluation.
+// This allows plugins to be loaded at the correct scope depth instead of globally
+// during the import phase. The plugin is loaded when Import.DoEval() is called.
+type DeferredPluginInfo struct {
+	Path             string         // Plugin path
+	CurrentDirectory string         // Directory of the importing file
+	PluginArgs       map[string]any // Plugin arguments/options
+	FullPath         string         // Resolved full path
+}
+
 // ImportManagerEnvironment represents the environment interface
 type ImportManagerEnvironment interface {
 	GetFileManager(path, currentDirectory string, context map[string]any, environment ImportManagerEnvironment) FileManager
@@ -449,54 +459,43 @@ func (im *ImportManager) Push(path string, tryAppendExtension bool, currentFileI
 			fileParsedFunc(fmt.Errorf("plugin imports are not supported: no plugin loader available for '%s'", path), nil, path)
 			return
 		}
-		context["mime"] = "application/javascript"
 
-		// Pass plugin args as options to the plugin loader
-		if importOptions.PluginArgs != nil {
-			context["options"] = importOptions.PluginArgs
+		// DEFERRED PLUGIN LOADING:
+		// Instead of loading the plugin immediately during the import phase (which would
+		// register all functions at scope depth 0), we defer loading until the Import node
+		// is evaluated. This ensures plugin functions are registered at the correct scope
+		// depth, respecting local vs global plugin visibility.
+		//
+		// The DeferredPluginInfo is stored as the "root" of the Import node. When
+		// Import.DoEval() is called during evaluation, it detects this and loads the
+		// plugin at the current scope depth.
+		deferredInfo := &DeferredPluginInfo{
+			Path:             path,
+			CurrentDirectory: currentFileInfo.CurrentDirectory,
+			PluginArgs:       importOptions.PluginArgs,
+			FullPath:         path, // Will be resolved during DoEval
 		}
 
-		if syncImport, exists := context["syncImport"]; exists && syncImport.(bool) {
-			result := pluginLoader.LoadPluginSync(path, currentFileInfo.CurrentDirectory, context, im.environment, fileManager)
-			if lf, ok := result.(*LoadedFile); ok {
-				loadedFile = lf
-			} else if err, ok := result.(error); ok {
-				// Handle error returned from sync plugin load
-				fileParsedFunc(err, nil, path)
-				return
-			} else if result != nil {
-				// Plugin loaded successfully (returns *runtime.Plugin or similar)
-				// For plugin imports, the "root" is the plugin result
-				fileParsedFunc(nil, result, path)
-				return
-			}
-		} else {
-			result := pluginLoader.LoadPlugin(path, currentFileInfo.CurrentDirectory, context, im.environment, fileManager)
-			// Handle direct error or result from plugin loader (not a promise)
-			if err, ok := result.(error); ok {
-				fileParsedFunc(err, nil, path)
-				return
-			} else if result != nil {
-				// Plugin loaded successfully
-				fileParsedFunc(nil, result, path)
-				return
-			}
-			// If result is a real promise, use promise handling
-			promise = result
+		// Use the full resolved path for caching
+		if fileManager != nil {
+			deferredInfo.FullPath = fileManager.Join(currentFileInfo.CurrentDirectory, path)
 		}
+
+		fileParsedFunc(nil, deferredInfo, deferredInfo.FullPath)
+		return
+	}
+
+	if syncImport, exists := context["syncImport"]; exists && syncImport.(bool) {
+		loadedFile = fileManager.LoadFileSync(path, currentFileInfo.CurrentDirectory, context, im.environment)
 	} else {
-		if syncImport, exists := context["syncImport"]; exists && syncImport.(bool) {
-			loadedFile = fileManager.LoadFileSync(path, currentFileInfo.CurrentDirectory, context, im.environment)
-		} else {
-			promise = fileManager.LoadFile(path, currentFileInfo.CurrentDirectory, context, im.environment,
-				func(err error, file *LoadedFile) {
-					if err != nil {
-						fileParsedFunc(err, nil, "")
-					} else {
-						loadFileCallback(file)
-					}
-				})
-		}
+		promise = fileManager.LoadFile(path, currentFileInfo.CurrentDirectory, context, im.environment,
+			func(err error, file *LoadedFile) {
+				if err != nil {
+					fileParsedFunc(err, nil, "")
+				} else {
+					loadFileCallback(file)
+				}
+			})
 	}
 
 	if loadedFile != nil {

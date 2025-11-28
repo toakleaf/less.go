@@ -236,6 +236,13 @@ func (e *Eval) CopyEvalToMap(target map[string]any, includeMediaContext bool) {
 		target["mediaBlocks"] = e.MediaBlocks
 		target["mediaPath"] = e.MediaPath
 	}
+
+	// Copy plugin bridges so that mixin bodies can access plugin functions
+	if e.PluginBridge != nil {
+		target["pluginBridge"] = e.PluginBridge
+	} else if e.LazyPluginBridge != nil {
+		target["pluginBridge"] = e.LazyPluginBridge
+	}
 }
 
 // IsMathOn determines if math operations are enabled (EvalContext interface)

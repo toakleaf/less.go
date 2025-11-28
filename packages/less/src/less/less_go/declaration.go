@@ -246,6 +246,10 @@ func (d *Declaration) Eval(context any) (any, error) {
 		return nil, fmt.Errorf("context is required for Declaration.Eval")
 	}
 
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Fprintf(os.Stderr, "[Declaration.Eval] name=%v, value type=%T\n", d.name, d.Value)
+	}
+
 	mathBypass := false
 	var prevMath any
 	var name any = d.name

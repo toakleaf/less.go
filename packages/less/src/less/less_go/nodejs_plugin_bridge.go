@@ -147,31 +147,25 @@ func (b *NodeJSPluginBridge) LookupFunction(name string) (*runtime.JSFunctionDef
 	return b.scope.LookupFunction(name)
 }
 
-// HasFunction checks if a function exists in the current scope or Node.js registry.
+// HasFunction checks if a function exists in the current scope hierarchy.
+// This respects plugin scoping - local plugins are only visible in their scope.
 func (b *NodeJSPluginBridge) HasFunction(name string) bool {
-	// Check scope first
-	if _, ok := b.scope.LookupFunction(name); ok {
-		return true
-	}
-	// Check registry
-	return b.funcRegistry.HasJSFunction(name)
+	// Only check scope hierarchy - this respects local vs global plugin visibility
+	// The scope hierarchy is: current scope -> parent scope -> ... -> root scope
+	// Functions registered in child scopes are NOT visible from parent scopes
+	_, ok := b.scope.LookupFunction(name)
+	return ok
 }
 
 // CallFunction calls a JavaScript function by name.
+// Only functions visible in the current scope hierarchy can be called.
 func (b *NodeJSPluginBridge) CallFunction(name string, args ...any) (any, error) {
-	// Look up function in scope
+	// Only look up function in scope hierarchy - respects plugin scoping
 	if fn, ok := b.scope.LookupFunction(name); ok {
 		return fn.Call(args...)
 	}
 
-	// Fall back to function registry
-	if fnDef := b.funcRegistry.Get(name); fnDef != nil {
-		if jsFn, ok := fnDef.(*runtime.JSFunctionDefinition); ok {
-			return jsFn.Call(args...)
-		}
-	}
-
-	return nil, fmt.Errorf("function '%s' not found", name)
+	return nil, fmt.Errorf("function '%s' not found in current scope", name)
 }
 
 // EnterScope creates and enters a new child scope.
@@ -210,6 +204,28 @@ func (b *NodeJSPluginBridge) ExitScope() *runtime.PluginScope {
 	}
 
 	return b.scope
+}
+
+// AddFunctionToCurrentScope registers a function name at the current scope depth.
+// This is used when re-registering plugin functions inherited from ancestor frames
+// (e.g., when a mixin defined inside a namespace with @plugin is called).
+// The function must already exist in the Node.js runtime - this just makes it
+// visible at the current scope level.
+func (b *NodeJSPluginBridge) AddFunctionToCurrentScope(name string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	// Add to Go scope
+	fn := runtime.NewJSFunctionDefinition(name, b.runtime)
+	b.scope.AddFunction(name, fn)
+
+	// Notify Node.js to add function to current scope
+	if b.runtime != nil {
+		_, _ = b.runtime.SendCommand(runtime.Command{
+			Cmd:  "addFunctionToScope",
+			Data: map[string]any{"name": name},
+		})
+	}
 }
 
 // SetScope sets the current scope directly.

@@ -387,6 +387,11 @@ function handleCommand(cmd) {
         sendResponse(id, true, { depth: newDepth });
         break;
 
+      case 'addFunctionToScope':
+        // Add a function to the current scope (used for inheriting plugin functions from parent frames)
+        handleAddFunctionToScope(id, data);
+        break;
+
       case 'getVisitors':
         sendResponse(
           id,
@@ -476,6 +481,39 @@ function handleCommand(cmd) {
 }
 
 /**
+ * Add a function to the current scope by name.
+ * This is used when mixins inherit plugin functions from parent frames.
+ * The function must already exist in the registry (loaded by a previous @plugin).
+ * @param {number} id - Command ID
+ * @param {Object} args - { name: string }
+ */
+function handleAddFunctionToScope(id, args) {
+  const { name } = args || {};
+
+  if (!name) {
+    sendResponse(id, false, null, 'Function name is required');
+    return;
+  }
+
+  // Look up the function from the legacy global registry
+  // (functions are stored there when first loaded)
+  const fn = registeredFunctions.get(name);
+  if (!fn) {
+    // Function not found in registry - this shouldn't happen normally
+    // but we'll silently succeed since the function might be available at a different scope
+    if (process.env.LESS_GO_DEBUG) {
+      console.error(`[plugin-host] handleAddFunctionToScope: function '${name}' not found in registry`);
+    }
+    sendResponse(id, true, { added: false, name, reason: 'not found in registry' });
+    return;
+  }
+
+  // Add the function to the current scope
+  addFunctionToScope(name, fn);
+  sendResponse(id, true, { added: true, name, depth: functionScopeStack.length - 1 });
+}
+
+/**
  * Load a plugin from a file path
  * @param {number} id - Command ID
  * @param {Object} data - Plugin data
@@ -543,8 +581,23 @@ function handleLoadPlugin(id, data) {
       }
     }
 
+    console.error(`[plugin-host] Checking cache for resolvedPath: ${resolvedPath}, has=${loadedPlugins.has(resolvedPath)}`);
     // Check if already loaded (by resolved path)
     if (loadedPlugins.has(resolvedPath)) {
+      // IMPORTANT: Even when cached, we need to register the plugin's functions
+      // in the CURRENT scope. This is essential for proper plugin scoping -
+      // when the same plugin is loaded in different scopes (e.g., in mixins),
+      // its functions should be available in that scope.
+      const cachedPlugin = loadedPlugins.get(resolvedPath);
+      console.error(`[plugin-host] Cache hit for ${resolvedPath}, functions: ${cachedPlugin && cachedPlugin.functions ? Object.keys(cachedPlugin.functions).join(', ') : 'none'}`);
+      if (cachedPlugin && cachedPlugin.functions) {
+        // Re-register all functions from the cached plugin in the current scope
+        const funcNames = Object.keys(cachedPlugin.functions);
+        for (const name of funcNames) {
+          addFunctionToScope(name, cachedPlugin.functions[name]);
+        }
+      }
+
       sendResponse(id, true, {
         cached: true,
         path: resolvedPath,
@@ -563,6 +616,17 @@ function handleLoadPlugin(id, data) {
     const preProcessorsBefore = registeredPreProcessors.length;
     const postProcessorsBefore = registeredPostProcessors.length;
     const fileManagersBefore = registeredFileManagers.length;
+
+    // Track which functions were registered during this plugin load
+    // This is needed for proper scope-aware caching
+    const functionsBeforeLoad = new Map();
+    for (const scope of functionScopeStack) {
+      for (const [name, fn] of scope.entries()) {
+        if (!functionsBeforeLoad.has(name)) {
+          functionsBeforeLoad.set(name, fn);
+        }
+      }
+    }
 
     // Set global references for legacy plugins that use `functions` and `tree` directly
     // These need to be set before require() is called so legacy plugins can use them
@@ -655,8 +719,24 @@ function handleLoadPlugin(id, data) {
       plugin.use(plugin);
     }
 
-    // Cache the plugin
-    loadedPlugins.set(resolvedPath, plugin || {});
+    // Capture which functions were newly registered by this plugin
+    // This enables proper re-registration when loading from cache in different scopes
+    const pluginFunctions = {};
+    const currentScope = functionScopeStack[functionScopeStack.length - 1];
+    if (currentScope) {
+      for (const [name, fn] of currentScope.entries()) {
+        // Only capture functions that weren't present before loading
+        if (!functionsBeforeLoad.has(name) || functionsBeforeLoad.get(name) !== fn) {
+          pluginFunctions[name] = fn;
+        }
+      }
+    }
+
+    // Cache the plugin with its registered functions
+    loadedPlugins.set(resolvedPath, {
+      plugin: plugin || {},
+      functions: pluginFunctions,
+    });
 
     // Count new registrations
     const newFunctions = registeredFunctions.size - functionsBefore;
