@@ -3,41 +3,172 @@ package runtime
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"sync"
 )
 
+// ====================================================================================
+// JS Function IPC Mode Configuration
+// ====================================================================================
+//
+// JavaScript plugin functions can communicate with Go using two different IPC modes:
+//
+// 1. SHARED MEMORY MODE (default):
+//    - Arguments and results are serialized to FlatAST binary format
+//    - Data is written to a memory-mapped file shared between Go and Node.js
+//    - Node.js reads arguments directly from the buffer (zero-copy on read)
+//    - Results are written back to the same buffer
+//    - Best for: Complex AST trees, large data structures, high-frequency calls
+//
+// 2. JSON MODE:
+//    - Arguments and results are serialized to JSON
+//    - Data is passed through stdio pipes between Go and Node.js
+//    - Simpler implementation, easier to debug
+//    - Best for: Simple function calls, debugging, environments without shared memory
+//
+// The mode can be controlled in three ways (in order of precedence):
+//
+// 1. Per-function option: NewJSFunctionDefinition("fn", rt, WithJSONMode())
+// 2. Environment variable: LESS_JS_IPC_MODE=json or LESS_JS_IPC_MODE=sharedmem
+// 3. Default: Shared memory mode
+//
+// Environment variable values:
+//   - "json" or "JSON": Use JSON mode for all functions
+//   - "sharedmem", "shm", or "shared": Use shared memory mode (default)
+//
+// ====================================================================================
+
+// JSIPCMode represents the IPC mode for JS function calls.
+type JSIPCMode int
+
+const (
+	// JSIPCModeSharedMemory uses shared memory for zero-copy data transfer.
+	// Arguments are serialized to FlatAST format and written to a memory-mapped file.
+	// This is the default mode.
+	JSIPCModeSharedMemory JSIPCMode = iota
+
+	// JSIPCModeJSON uses JSON serialization over stdio pipes.
+	// Simpler but involves serialization/deserialization overhead.
+	JSIPCModeJSON
+)
+
+// String returns a human-readable name for the IPC mode.
+func (m JSIPCMode) String() string {
+	switch m {
+	case JSIPCModeSharedMemory:
+		return "shared-memory"
+	case JSIPCModeJSON:
+		return "json"
+	default:
+		return "unknown"
+	}
+}
+
+// getDefaultIPCMode returns the default IPC mode based on the LESS_JS_IPC_MODE
+// environment variable. If not set or unrecognized, defaults to shared memory.
+func getDefaultIPCMode() JSIPCMode {
+	mode := os.Getenv("LESS_JS_IPC_MODE")
+	switch mode {
+	case "json", "JSON":
+		return JSIPCModeJSON
+	case "sharedmem", "shm", "shared", "SHM", "SHARED":
+		return JSIPCModeSharedMemory
+	default:
+		// Default to shared memory
+		return JSIPCModeSharedMemory
+	}
+}
+
 // JSFunctionDefinition implements the FunctionDefinition interface for JavaScript functions.
 // It calls JavaScript functions registered by plugins via the Node.js runtime.
+//
+// The function supports two IPC modes for communicating with Node.js:
+//   - Shared Memory: Zero-copy transfer using memory-mapped files (default)
+//   - JSON: Traditional JSON serialization over stdio
+//
+// See the package-level documentation for details on configuring the IPC mode.
 type JSFunctionDefinition struct {
-	name            string
-	runtime         *NodeJSRuntime
-	useSharedMemory bool // If true (default), use shared memory for zero-copy transfer
+	name    string
+	runtime *NodeJSRuntime
+	ipcMode JSIPCMode
 }
 
 // JSFunctionOption configures a JSFunctionDefinition.
 type JSFunctionOption func(*JSFunctionDefinition)
 
-// WithJSONFallback disables shared memory and uses JSON IPC instead.
-// This can be useful for debugging or when shared memory is unavailable.
-func WithJSONFallback() JSFunctionOption {
+// WithJSONMode configures the function to use JSON serialization for IPC.
+// This mode serializes arguments and results as JSON, which is simpler
+// but has serialization overhead compared to shared memory mode.
+//
+// Use this when:
+//   - Debugging IPC issues (JSON is easier to inspect)
+//   - Running in environments without shared memory support
+//   - Working with simple function calls where overhead doesn't matter
+func WithJSONMode() JSFunctionOption {
 	return func(jf *JSFunctionDefinition) {
-		jf.useSharedMemory = false
+		jf.ipcMode = JSIPCModeJSON
 	}
 }
 
-// NewJSFunctionDefinition creates a new JSFunctionDefinition.
-// By default, shared memory is used for zero-copy argument and result transfer.
-// Use WithJSONFallback() to disable shared memory and use JSON IPC instead.
+// WithSharedMemoryMode configures the function to use shared memory for IPC.
+// This is the default mode but can be explicitly set to override environment
+// variable configuration.
+//
+// This mode serializes arguments to FlatAST binary format and writes them
+// to a memory-mapped file that Node.js can read directly.
+//
+// Use this when:
+//   - Working with complex AST trees
+//   - Performance is critical
+//   - Making many function calls
+func WithSharedMemoryMode() JSFunctionOption {
+	return func(jf *JSFunctionDefinition) {
+		jf.ipcMode = JSIPCModeSharedMemory
+	}
+}
+
+// WithIPCMode configures the function to use the specified IPC mode.
+// This allows programmatic control over the IPC mode.
+func WithIPCMode(mode JSIPCMode) JSFunctionOption {
+	return func(jf *JSFunctionDefinition) {
+		jf.ipcMode = mode
+	}
+}
+
+// NewJSFunctionDefinition creates a new JSFunctionDefinition for calling
+// JavaScript functions registered by plugins.
+//
+// The default IPC mode is determined by:
+//  1. Any options passed (WithJSONMode, WithSharedMemoryMode, WithIPCMode)
+//  2. The LESS_JS_IPC_MODE environment variable
+//  3. Shared memory mode (if nothing else is specified)
+//
+// Example usage:
+//
+//	// Use default mode (shared memory, or env var override)
+//	fn := NewJSFunctionDefinition("myFunc", runtime)
+//
+//	// Explicitly use JSON mode
+//	fn := NewJSFunctionDefinition("myFunc", runtime, WithJSONMode())
+//
+//	// Explicitly use shared memory mode
+//	fn := NewJSFunctionDefinition("myFunc", runtime, WithSharedMemoryMode())
 func NewJSFunctionDefinition(name string, runtime *NodeJSRuntime, opts ...JSFunctionOption) *JSFunctionDefinition {
 	jf := &JSFunctionDefinition{
-		name:            name,
-		runtime:         runtime,
-		useSharedMemory: true, // Default to shared memory
+		name:    name,
+		runtime: runtime,
+		ipcMode: getDefaultIPCMode(), // Respects LESS_JS_IPC_MODE env var
 	}
+	// Options override the default/env var setting
 	for _, opt := range opts {
 		opt(jf)
 	}
 	return jf
+}
+
+// IPCMode returns the current IPC mode for this function.
+func (jf *JSFunctionDefinition) IPCMode() JSIPCMode {
+	return jf.ipcMode
 }
 
 // Name returns the function name.
@@ -51,22 +182,37 @@ func (jf *JSFunctionDefinition) NeedsEvalArgs() bool {
 }
 
 // Call calls the JavaScript function with the given arguments.
-// By default, uses shared memory for zero-copy transfer.
-// Falls back to JSON IPC when shared memory is disabled via WithJSONFallback().
+//
+// The IPC mode (shared memory or JSON) is determined by the function's
+// configuration. See NewJSFunctionDefinition for details on mode selection.
+//
 // Returns the result node or error.
 func (jf *JSFunctionDefinition) Call(args ...any) (any, error) {
 	if jf.runtime == nil {
 		return nil, fmt.Errorf("Node.js runtime not initialized")
 	}
 
-	if jf.useSharedMemory {
+	switch jf.ipcMode {
+	case JSIPCModeSharedMemory:
+		return jf.callViaSharedMemory(args...)
+	case JSIPCModeJSON:
+		return jf.callViaJSON(args...)
+	default:
+		// Default to shared memory if somehow an invalid mode is set
 		return jf.callViaSharedMemory(args...)
 	}
-	return jf.callViaJSON(args...)
 }
 
 // callViaJSON calls the JavaScript function using JSON serialization for IPC.
-// This is the fallback when shared memory is disabled.
+//
+// This mode:
+//   - Serializes arguments to JSON format
+//   - Sends data through the stdio pipe to Node.js
+//   - Receives JSON response back through stdio
+//   - Deserializes the response to Go types
+//
+// Pros: Simple, easy to debug, no shared memory setup
+// Cons: Serialization overhead for large/complex data
 func (jf *JSFunctionDefinition) callViaJSON(args ...any) (any, error) {
 	// Serialize arguments for transfer
 	serializedArgs, err := jf.serializeArgs(args)
@@ -100,9 +246,22 @@ func (jf *JSFunctionDefinition) callViaJSON(args ...any) (any, error) {
 	return result, nil
 }
 
-// callViaSharedMemory calls the JavaScript function using shared memory for zero-copy transfer.
-// Arguments are flattened to FlatAST format and written to shared memory.
-// Node.js reads arguments directly from the buffer and writes results back.
+// callViaSharedMemory calls the JavaScript function using shared memory for IPC.
+//
+// This mode:
+//  1. Flattens arguments to FlatAST binary format
+//  2. Creates a memory-mapped file (shared memory segment)
+//  3. Writes the FlatAST data to the shared memory
+//  4. Attaches the buffer to Node.js (sends only the file path, not the data)
+//  5. Node.js reads arguments directly from the memory-mapped file
+//  6. Node.js writes results back to the same buffer
+//  7. Go reads the results from shared memory
+//
+// Pros: Zero-copy on read, efficient for complex AST trees
+// Cons: Setup overhead, more complex implementation
+//
+// Note: If shared memory operations fail, this method automatically falls back
+// to JSON mode to ensure the function call succeeds.
 func (jf *JSFunctionDefinition) callViaSharedMemory(args ...any) (any, error) {
 	// If no arguments, use a simplified path
 	if len(args) == 0 {

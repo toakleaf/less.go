@@ -527,22 +527,71 @@ func TestJSResultNode_ToCSS(t *testing.T) {
 }
 
 // ============================================
-// Shared Memory vs JSON Tests
+// IPC Mode Tests (Shared Memory vs JSON)
+// ============================================
+//
+// These tests verify both IPC modes work correctly and produce equivalent results.
+// The mode can be controlled via:
+//   - WithJSONMode() / WithSharedMemoryMode() options
+//   - LESS_JS_IPC_MODE environment variable
+//
 // ============================================
 
-func TestJSFunctionDefinition_SharedMemoryDefault(t *testing.T) {
-	// By default, shared memory should be enabled
+func TestJSFunctionDefinition_DefaultIPCMode(t *testing.T) {
+	// By default (without env var), shared memory should be used
+	os.Unsetenv("LESS_JS_IPC_MODE")
 	jsFn := NewJSFunctionDefinition("test", nil)
-	if !jsFn.useSharedMemory {
-		t.Error("expected useSharedMemory to be true by default")
+	if jsFn.IPCMode() != JSIPCModeSharedMemory {
+		t.Errorf("expected default IPC mode to be shared-memory, got %s", jsFn.IPCMode())
 	}
 }
 
-func TestJSFunctionDefinition_JSONFallbackOption(t *testing.T) {
-	// WithJSONFallback should disable shared memory
-	jsFn := NewJSFunctionDefinition("test", nil, WithJSONFallback())
-	if jsFn.useSharedMemory {
-		t.Error("expected useSharedMemory to be false with WithJSONFallback()")
+func TestJSFunctionDefinition_WithJSONModeOption(t *testing.T) {
+	// WithJSONMode() should set JSON mode
+	jsFn := NewJSFunctionDefinition("test", nil, WithJSONMode())
+	if jsFn.IPCMode() != JSIPCModeJSON {
+		t.Errorf("expected IPC mode to be json, got %s", jsFn.IPCMode())
+	}
+}
+
+func TestJSFunctionDefinition_WithSharedMemoryModeOption(t *testing.T) {
+	// WithSharedMemoryMode() should set shared memory mode
+	jsFn := NewJSFunctionDefinition("test", nil, WithSharedMemoryMode())
+	if jsFn.IPCMode() != JSIPCModeSharedMemory {
+		t.Errorf("expected IPC mode to be shared-memory, got %s", jsFn.IPCMode())
+	}
+}
+
+func TestJSFunctionDefinition_EnvVarJSON(t *testing.T) {
+	// LESS_JS_IPC_MODE=json should set JSON mode as default
+	os.Setenv("LESS_JS_IPC_MODE", "json")
+	defer os.Unsetenv("LESS_JS_IPC_MODE")
+
+	jsFn := NewJSFunctionDefinition("test", nil)
+	if jsFn.IPCMode() != JSIPCModeJSON {
+		t.Errorf("expected IPC mode from env var to be json, got %s", jsFn.IPCMode())
+	}
+}
+
+func TestJSFunctionDefinition_EnvVarSharedMem(t *testing.T) {
+	// LESS_JS_IPC_MODE=shm should set shared memory mode
+	os.Setenv("LESS_JS_IPC_MODE", "shm")
+	defer os.Unsetenv("LESS_JS_IPC_MODE")
+
+	jsFn := NewJSFunctionDefinition("test", nil)
+	if jsFn.IPCMode() != JSIPCModeSharedMemory {
+		t.Errorf("expected IPC mode from env var to be shared-memory, got %s", jsFn.IPCMode())
+	}
+}
+
+func TestJSFunctionDefinition_OptionOverridesEnvVar(t *testing.T) {
+	// Explicit option should override env var
+	os.Setenv("LESS_JS_IPC_MODE", "json")
+	defer os.Unsetenv("LESS_JS_IPC_MODE")
+
+	jsFn := NewJSFunctionDefinition("test", nil, WithSharedMemoryMode())
+	if jsFn.IPCMode() != JSIPCModeSharedMemory {
+		t.Errorf("expected option to override env var, got %s", jsFn.IPCMode())
 	}
 }
 
@@ -551,11 +600,11 @@ func TestJSFunctionDefinition_SharedMemoryCall(t *testing.T) {
 	rt, _, cleanup := setupRuntimeWithPlugin(t, pluginPath)
 	defer cleanup()
 
-	// Create function definition with shared memory (default)
-	jsFn := NewJSFunctionDefinition("pi", rt)
+	// Create function definition with shared memory mode
+	jsFn := NewJSFunctionDefinition("pi", rt, WithSharedMemoryMode())
 
-	if !jsFn.useSharedMemory {
-		t.Error("expected useSharedMemory to be true")
+	if jsFn.IPCMode() != JSIPCModeSharedMemory {
+		t.Errorf("expected IPC mode to be shared-memory, got %s", jsFn.IPCMode())
 	}
 
 	// Call the function - should use shared memory path
@@ -592,22 +641,22 @@ func TestJSFunctionDefinition_SharedMemoryCall(t *testing.T) {
 	}
 }
 
-func TestJSFunctionDefinition_JSONFallbackCall(t *testing.T) {
+func TestJSFunctionDefinition_JSONModeCall(t *testing.T) {
 	pluginPath := getTestPluginPath(t, "plugin-simple.js")
 	rt, _, cleanup := setupRuntimeWithPlugin(t, pluginPath)
 	defer cleanup()
 
-	// Create function definition with JSON fallback
-	jsFn := NewJSFunctionDefinition("pi", rt, WithJSONFallback())
+	// Create function definition with JSON mode
+	jsFn := NewJSFunctionDefinition("pi", rt, WithJSONMode())
 
-	if jsFn.useSharedMemory {
-		t.Error("expected useSharedMemory to be false")
+	if jsFn.IPCMode() != JSIPCModeJSON {
+		t.Errorf("expected IPC mode to be json, got %s", jsFn.IPCMode())
 	}
 
 	// Call the function - should use JSON path
 	result, err := jsFn.Call()
 	if err != nil {
-		t.Fatalf("Call with JSON fallback failed: %v", err)
+		t.Fatalf("Call with JSON mode failed: %v", err)
 	}
 
 	// Result should be a Dimension node with value ~3.14159
@@ -636,8 +685,8 @@ func TestJSFunctionDefinition_SharedMemoryWithArgs(t *testing.T) {
 	rt, _, cleanup := setupRuntimeWithPlugin(t, pluginPath)
 	defer cleanup()
 
-	// Create function definition with shared memory (default)
-	jsFn := NewJSFunctionDefinition("test-atrule", rt)
+	// Create function definition with shared memory mode
+	jsFn := NewJSFunctionDefinition("test-atrule", rt, WithSharedMemoryMode())
 
 	// Create test arguments
 	arg1 := map[string]any{
@@ -677,15 +726,15 @@ func TestJSFunctionDefinition_SharedMemoryWithArgs(t *testing.T) {
 	}
 }
 
-func TestJSFunctionDefinition_BothPathsEquivalent(t *testing.T) {
-	// Test that both paths produce equivalent results
+func TestJSFunctionDefinition_BothModesEquivalent(t *testing.T) {
+	// Test that both IPC modes produce equivalent results
 	pluginPath := getTestPluginPath(t, "plugin-tree-nodes.js")
 	rt, _, cleanup := setupRuntimeWithPlugin(t, pluginPath)
 	defer cleanup()
 
-	// Create two function definitions - one with shared memory, one with JSON
-	jsFnShm := NewJSFunctionDefinition("test-dimension", rt)
-	jsFnJSON := NewJSFunctionDefinition("test-dimension", rt, WithJSONFallback())
+	// Create two function definitions - one with each mode
+	jsFnShm := NewJSFunctionDefinition("test-dimension", rt, WithSharedMemoryMode())
+	jsFnJSON := NewJSFunctionDefinition("test-dimension", rt, WithJSONMode())
 
 	// Call both
 	resultShm, errShm := jsFnShm.Call()
@@ -728,11 +777,39 @@ func TestJSFunctionDefinition_BothPathsEquivalent(t *testing.T) {
 	}
 }
 
+func TestJSIPCMode_String(t *testing.T) {
+	// Test the String() method for IPC modes
+	tests := []struct {
+		mode     JSIPCMode
+		expected string
+	}{
+		{JSIPCModeSharedMemory, "shared-memory"},
+		{JSIPCModeJSON, "json"},
+		{JSIPCMode(99), "unknown"},
+	}
+
+	for _, tt := range tests {
+		if got := tt.mode.String(); got != tt.expected {
+			t.Errorf("JSIPCMode(%d).String() = %s, want %s", tt.mode, got, tt.expected)
+		}
+	}
+}
+
 // ============================================
 // Benchmark Tests
 // ============================================
+//
+// These benchmarks compare the performance of the two IPC modes.
+//
+// Run with: go test -bench=BenchmarkJSFunction -benchmem
+//
+// Expected characteristics:
+//   - JSON mode: Lower per-call overhead for simple functions
+//   - Shared memory mode: Better for complex AST trees and large data
+//
+// ============================================
 
-func BenchmarkJSFunction_SharedMemory(b *testing.B) {
+func BenchmarkJSFunction_SharedMemoryMode(b *testing.B) {
 	hostPath := getPluginHostPathBench(b)
 	rt, err := NewNodeJSRuntime(WithPluginHostPath(hostPath))
 	if err != nil {
@@ -752,8 +829,8 @@ func BenchmarkJSFunction_SharedMemory(b *testing.B) {
 		b.Fatalf("LoadPlugin failed: %v", err)
 	}
 
-	// Create function definition with shared memory (default)
-	jsFn := NewJSFunctionDefinition("pi", rt)
+	// Create function definition with shared memory mode
+	jsFn := NewJSFunctionDefinition("pi", rt, WithSharedMemoryMode())
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -764,7 +841,7 @@ func BenchmarkJSFunction_SharedMemory(b *testing.B) {
 	}
 }
 
-func BenchmarkJSFunction_JSONFallback(b *testing.B) {
+func BenchmarkJSFunction_JSONMode(b *testing.B) {
 	hostPath := getPluginHostPathBench(b)
 	rt, err := NewNodeJSRuntime(WithPluginHostPath(hostPath))
 	if err != nil {
@@ -784,8 +861,8 @@ func BenchmarkJSFunction_JSONFallback(b *testing.B) {
 		b.Fatalf("LoadPlugin failed: %v", err)
 	}
 
-	// Create function definition with JSON fallback
-	jsFn := NewJSFunctionDefinition("pi", rt, WithJSONFallback())
+	// Create function definition with JSON mode
+	jsFn := NewJSFunctionDefinition("pi", rt, WithJSONMode())
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
