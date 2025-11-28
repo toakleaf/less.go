@@ -19,6 +19,9 @@ type LessContext struct {
 	ImportManager *ImportManager
 	PluginLoader  PluginLoaderFactory
 	Functions     Functions
+	// PluginBridge provides lazy access to the Node.js plugin system.
+	// It is initialized on first use and should be closed after compilation.
+	PluginBridge  *LazyNodeJSPluginBridge
 }
 
 // NewLessContext creates a new LessContext
@@ -30,6 +33,26 @@ func NewLessContext(options map[string]any) *LessContext {
 		},
 		Functions: &DefaultFunctions{},
 	}
+}
+
+// NewLessContextWithPlugins creates a LessContext with JavaScript plugin support.
+// The context includes a lazy plugin bridge that only starts Node.js when plugins are used.
+// The returned cleanup function should be called after compilation to shut down Node.js.
+func NewLessContextWithPlugins(options map[string]any) (*LessContext, func() error) {
+	bridge := NewLazyNodeJSPluginBridge()
+
+	ctx := &LessContext{
+		Options: options,
+		PluginLoader: LazyPluginLoaderFactory(bridge),
+		Functions: &DefaultFunctions{},
+		PluginBridge: bridge,
+	}
+
+	cleanup := func() error {
+		return bridge.Close()
+	}
+
+	return ctx, cleanup
 }
 
 // GetPluginLoader implements LessInterface
@@ -124,6 +147,11 @@ func performParse(lessContext *LessContext, input string, options map[string]any
 	// Note: reUsePluginManager affects plugin manager creation behavior in JavaScript
 	pluginManager := NewPluginManager(lessContext)
 	actualOptions["pluginManager"] = pluginManager
+
+	// Pass the plugin bridge through options for use in TransformTree/Eval
+	if lessContext.PluginBridge != nil {
+		actualOptions["pluginBridge"] = lessContext.PluginBridge
+	}
 	
 	// Create parsing context (equivalent to: context = new contexts.Parse(options))
 	if os.Getenv("LESS_GO_DEBUG") == "1" {
