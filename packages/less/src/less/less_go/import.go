@@ -5,6 +5,8 @@ import (
 	"math"
 	"os"
 	"regexp"
+
+	"github.com/toakleaf/less.go/packages/less/src/less/less_go/runtime"
 )
 
 // CSS pattern regex for detecting CSS files
@@ -541,7 +543,120 @@ func (i *Import) DoEval(context any) (any, error) {
 
 	// Handle plugin imports
 	if i.getBoolOption("isPlugin") {
-		if i.root != nil {
+		debug := os.Getenv("LESS_GO_DEBUG") == "1"
+		if debug {
+			fmt.Fprintf(os.Stderr, "[Import.DoEval] isPlugin=true, root type=%T\n", i.root)
+		}
+
+		// DEFERRED PLUGIN LOADING:
+		// If root is a DeferredPluginInfo, the plugin was deferred during import phase
+		// and needs to be loaded now during evaluation. This ensures the plugin's functions
+		// are registered at the current scope depth (not globally at depth 0).
+		if deferredInfo, ok := i.root.(*DeferredPluginInfo); ok {
+			if debug {
+				fmt.Fprintf(os.Stderr, "[Import.DoEval] DeferredPluginInfo: path=%s, dir=%s\n", deferredInfo.Path, deferredInfo.CurrentDirectory)
+			}
+
+			// Get the plugin bridge from context to load the plugin
+			var pluginBridge *NodeJSPluginBridge
+			if evalCtx, ok := context.(*Eval); ok {
+				pluginBridge = evalCtx.PluginBridge
+				// Also check LazyPluginBridge
+				if pluginBridge == nil && evalCtx.LazyPluginBridge != nil {
+					var err error
+					pluginBridge, err = evalCtx.LazyPluginBridge.GetBridge()
+					if err != nil && os.Getenv("LESS_GO_DEBUG") == "1" {
+						fmt.Fprintf(os.Stderr, "[Import.DoEval] LazyPluginBridge.GetBridge error: %v\n", err)
+					}
+				}
+			} else if ctxMap, ok := context.(map[string]any); ok {
+				if parentEval, ok := ctxMap["_evalContext"].(*Eval); ok {
+					pluginBridge = parentEval.PluginBridge
+					if pluginBridge == nil && parentEval.LazyPluginBridge != nil {
+						var err error
+						pluginBridge, err = parentEval.LazyPluginBridge.GetBridge()
+						if err != nil && os.Getenv("LESS_GO_DEBUG") == "1" {
+							fmt.Fprintf(os.Stderr, "[Import.DoEval] LazyPluginBridge.GetBridge error: %v\n", err)
+						}
+					}
+				}
+			}
+
+			if pluginBridge != nil {
+				if debug {
+					fmt.Fprintf(os.Stderr, "[Import.DoEval] Found pluginBridge, loading plugin at current scope\n")
+				}
+
+				// Load the plugin at the current scope depth
+				// The scope depth is already managed by Ruleset.Eval() calling EnterPluginScope()
+				loadContext := map[string]any{
+					"syncImport": true,
+				}
+				if deferredInfo.PluginArgs != nil {
+					loadContext["options"] = deferredInfo.PluginArgs
+				}
+
+				result := pluginBridge.LoadPluginSync(
+					deferredInfo.Path,
+					deferredInfo.CurrentDirectory,
+					loadContext,
+					nil, // environment
+					nil, // fileManager
+				)
+
+				if err, ok := result.(error); ok {
+					lessErr := &LessError{
+						Type:     "Plugin",
+						Message:  fmt.Sprintf("Plugin error during loading: %v", err),
+						Filename: deferredInfo.FullPath,
+						Index:    i.GetIndex(),
+					}
+					return nil, lessErr
+				}
+
+				if debug {
+					fmt.Fprintf(os.Stderr, "[Import.DoEval] Plugin loaded successfully: %T\n", result)
+				}
+
+				// Store the loaded plugin as root for potential future reference
+				i.root = result
+
+				// Store loaded function names on the containing Ruleset.
+				// This enables mixin calls to inherit plugin functions from ancestor frames.
+				if plugin, ok := result.(*runtime.Plugin); ok && len(plugin.Functions) > 0 {
+					// Find the first Ruleset in the context frames
+					var frames []any
+					if evalCtx, ok := context.(*Eval); ok {
+						frames = evalCtx.Frames
+					} else if ctxMap, ok := context.(map[string]any); ok {
+						if f, ok := ctxMap["frames"].([]any); ok {
+							frames = f
+						}
+					}
+
+					for _, frame := range frames {
+						if rs, ok := frame.(*Ruleset); ok {
+							if rs.LoadedPluginFunctions == nil {
+								rs.LoadedPluginFunctions = make(map[string]bool)
+							}
+							for _, funcName := range plugin.Functions {
+								rs.LoadedPluginFunctions[funcName] = true
+								if debug {
+									fmt.Fprintf(os.Stderr, "[Import.DoEval] Stored function '%s' on Ruleset=%p\n", funcName, rs)
+								}
+							}
+							break // Only store on the first (innermost) Ruleset
+						}
+					}
+				}
+			} else {
+				// No plugin bridge available - plugin loading not supported
+				if os.Getenv("LESS_GO_DEBUG") == "1" {
+					fmt.Fprintf(os.Stderr, "[Import.DoEval] No plugin bridge available for deferred plugin: %s\n", deferredInfo.Path)
+				}
+			}
+		} else if i.root != nil {
+			// Handle already-loaded plugins (from previous evaluation or pre-loaded)
 			if rootEval, ok := i.root.(interface{ Eval(any) (any, error) }); ok {
 				_, err := rootEval.Eval(context)
 				if err != nil {
@@ -565,6 +680,8 @@ func (i *Import) DoEval(context any) (any, error) {
 		}
 
 		// Handle function registry - register plugin functions
+		// Note: For deferred plugins loaded via NodeJS bridge, functions are already
+		// registered in the Node.js scope stack. This registry is for Go-native plugins.
 		if ctx, ok := context.(map[string]any); ok {
 			if frames, ok := ctx["frames"].([]any); ok && len(frames) > 0 {
 				if frameRuleset, ok := frames[0].(*Ruleset); ok && frameRuleset.FunctionRegistry != nil {

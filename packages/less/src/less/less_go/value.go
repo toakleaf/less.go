@@ -2,6 +2,7 @@ package less_go
 
 import (
 	"fmt"
+	"os"
 	"strings"
 )
 
@@ -73,6 +74,13 @@ func (v *Value) Accept(visitor any) {
 
 // Eval evaluates the value node
 func (v *Value) Eval(context any) (any, error) {
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		if len(v.Value) > 0 {
+			fmt.Fprintf(os.Stderr, "[Value.Eval] v.Value[0] type=%T\n", v.Value[0])
+		} else {
+			fmt.Fprintf(os.Stderr, "[Value.Eval] v.Value is empty\n")
+		}
+	}
 	if len(v.Value) == 1 {
 		// Check for Variable specifically first
 		if variable, ok := v.Value[0].(*Variable); ok {

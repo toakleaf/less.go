@@ -73,6 +73,9 @@ type Ruleset struct {
 	// InsideMixinDefinition marks rulesets that are nested inside mixin definitions
 	// These should not be output directly, only when the mixin is called
 	InsideMixinDefinition bool
+	// LoadedPluginFunctions stores function names loaded via @plugin in this ruleset's scope
+	// This is used for function lookup when this ruleset is in the frames of a mixin call
+	LoadedPluginFunctions map[string]bool
 }
 
 // NewRuleset creates a new Ruleset instance
@@ -412,10 +415,21 @@ func (r *Ruleset) Eval(context any) (any, error) {
 		pluginEvalCtx = parentEval
 	}
 	// Check for both direct PluginBridge and LazyPluginBridge (which wraps PluginBridge)
+	scopeEntered := false
 	if pluginEvalCtx != nil && (pluginEvalCtx.PluginBridge != nil || pluginEvalCtx.LazyPluginBridge != nil) {
 		pluginEvalCtx.EnterPluginScope()
-		defer pluginEvalCtx.ExitPluginScope()
+		scopeEntered = true
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Fprintf(os.Stderr, "[Ruleset.Eval] Entered plugin scope, r=%p\n", r)
+		}
+		defer func() {
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Fprintf(os.Stderr, "[Ruleset.Eval] Exiting plugin scope (defer), r=%p\n", r)
+			}
+			pluginEvalCtx.ExitPluginScope()
+		}()
 	}
+	_ = scopeEntered // suppress unused warning
 
 	// NOTE: JavaScript does not have circular dependency checking for ruleset evaluation.
 	// Recursive mixin calls are valid and should be allowed. The check was removed because
@@ -789,9 +803,16 @@ func (r *Ruleset) Eval(context any) (any, error) {
 	}
 
 	// Evaluate everything else
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Fprintf(os.Stderr, "[Ruleset.Eval] Evaluating %d rules, r=%p\n", len(rsRules), r)
+	}
 	for i, rule := range rsRules {
 		if r, ok := rule.(interface{ EvalFirst() bool }); ok && r.EvalFirst() {
 			continue // Already evaluated
+		}
+
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Fprintf(os.Stderr, "[Ruleset.Eval]   Rule %d type=%T, r=%p\n", i, rule, r)
 		}
 
 		// Try different Eval signatures
@@ -991,13 +1012,21 @@ func (r *Ruleset) EvalImports(context any) error {
 	rules := r.Rules
 	var i int
 	var importRules any
-	
+
 	if rules == nil {
 		return nil
 	}
 
+	debug := os.Getenv("LESS_GO_DEBUG") == "1"
+	if debug {
+		fmt.Fprintf(os.Stderr, "[EvalImports] Processing %d rules\n", len(rules))
+	}
+
 	for i = 0; i < len(rules); i++ {
 		if ruleType, ok := rules[i].(interface{ GetType() string }); ok && ruleType.GetType() == "Import" {
+			if debug {
+				fmt.Fprintf(os.Stderr, "[EvalImports] Found Import at index %d\n", i)
+			}
 			if eval, ok := rules[i].(interface{ Eval(any) (any, error) }); ok {
 				evaluated, err := eval.Eval(context)
 				if err != nil {

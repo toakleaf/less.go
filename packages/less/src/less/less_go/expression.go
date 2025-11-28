@@ -131,6 +131,9 @@ func (e *Expression) Eval(context any) (any, error) {
 			if debugTrace {
 				fmt.Printf("[TRACE] Expression.Eval: single value type=%T\n", val0)
 			}
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Fprintf(os.Stderr, "[Expression.Eval] single value type=%T\n", val0)
+			}
 
 			// Check if val0 has parens and !parensInOp
 			// This handles nodes with embedded Node struct

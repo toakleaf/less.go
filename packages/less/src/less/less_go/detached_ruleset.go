@@ -141,7 +141,8 @@ func (dr *DetachedRuleset) CallEval(context any) any {
 				InCalc:            ctx.InCalc,
 				MathOn:            ctx.MathOn,
 				DefaultFunc:       ctx.DefaultFunc,
-				PluginBridge:      ctx.PluginBridge, // Share plugin bridge for scope management
+				PluginBridge:      ctx.PluginBridge,      // Share plugin bridge for scope management
+				LazyPluginBridge:  ctx.LazyPluginBridge,  // Share lazy plugin bridge
 				// MediaBlocks: nil - intentionally not copied, see comment above
 				// MediaPath: nil - intentionally not copied, see comment above
 			}
@@ -283,7 +284,7 @@ func evalContextToMap(context any) map[string]any {
 		return ctx
 	case *Eval:
 		// Convert Eval to map, preserving all necessary properties
-		return map[string]any{
+		result := map[string]any{
 			"frames":            ctx.Frames,
 			"compress":          ctx.Compress,
 			"math":              ctx.Math,
@@ -300,6 +301,13 @@ func evalContextToMap(context any) map[string]any {
 			"mediaPath":         ctx.MediaPath,
 			"_evalContext":      ctx, // Preserve reference to *Eval for plugin scope management
 		}
+		// Copy plugin bridges so that detached ruleset bodies can access plugin functions
+		if ctx.PluginBridge != nil {
+			result["pluginBridge"] = ctx.PluginBridge
+		} else if ctx.LazyPluginBridge != nil {
+			result["pluginBridge"] = ctx.LazyPluginBridge
+		}
+		return result
 	default:
 		// Fallback for unknown types
 		return map[string]any{

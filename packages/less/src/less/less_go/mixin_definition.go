@@ -742,6 +742,56 @@ func (md *MixinDefinition) EvalCall(context any, args []any, important bool) (*R
 		}
 	}
 
+	// Re-load plugins from ancestor frames so that mixin body can access plugin functions
+	// This is needed because when #ns { @plugin "..."; .mixin() { ... } } is called,
+	// the mixin inherits functions from the parent namespace's @plugin
+	//
+	// We check for Rulesets that have LoadedPluginFunctions stored on them (set during
+	// Ruleset.Eval when plugins are loaded).
+	debug := os.Getenv("LESS_GO_DEBUG") == "1"
+	if debug {
+		fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] Checking %d mixinFrames for plugins\n", len(mixinFrames))
+	}
+	if pluginBridge, ok := evalContext["pluginBridge"]; ok && pluginBridge != nil {
+		for frameIdx, frameAny := range mixinFrames {
+			if rs, ok := frameAny.(*Ruleset); ok {
+				if debug {
+					fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall]   Frame %d is *Ruleset, LoadedPluginFunctions=%v\n", frameIdx, rs.LoadedPluginFunctions)
+				}
+				// If this ruleset loaded plugins, re-load them at the current scope depth
+				if rs.LoadedPluginFunctions != nil && len(rs.LoadedPluginFunctions) > 0 {
+					if debug {
+						fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] Found %d loaded plugin functions in frame %d\n", len(rs.LoadedPluginFunctions), frameIdx)
+					}
+					// The plugin functions are already registered in the Node.js runtime,
+					// we just need to re-add them at the current scope depth
+					if lazyBridge, ok := pluginBridge.(*LazyNodeJSPluginBridge); ok {
+						if bridge, err := lazyBridge.GetBridge(); err == nil && bridge != nil {
+							for funcName := range rs.LoadedPluginFunctions {
+								if debug {
+									fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] Re-registering function '%s' at current scope\n", funcName)
+								}
+								// Register the function at the current scope depth
+								bridge.AddFunctionToCurrentScope(funcName)
+							}
+						}
+					} else if bridge, ok := pluginBridge.(*NodeJSPluginBridge); ok {
+						for funcName := range rs.LoadedPluginFunctions {
+							if debug {
+								fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] Re-registering function '%s' at current scope\n", funcName)
+							}
+							bridge.AddFunctionToCurrentScope(funcName)
+						}
+					}
+				}
+			} else if debug {
+				fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall]   Frame %d is type %T (not *Ruleset)\n", frameIdx, frameAny)
+			}
+		}
+	} else if debug {
+		fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] No pluginBridge in evalContext\n")
+	}
+
 	evaluated, err := ruleset.Eval(evalContext)
 	if err != nil {
 		return nil, err

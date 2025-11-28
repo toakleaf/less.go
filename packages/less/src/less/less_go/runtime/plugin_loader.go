@@ -54,29 +54,20 @@ func (pl *JSPluginLoader) LoadPlugin(path, currentDirectory string, context map[
 }
 
 // LoadPluginSync synchronously loads a plugin from the specified path.
+// IMPORTANT: We always call Node.js even for cached plugins, because plugin
+// functions need to be registered in the CURRENT scope. The scope changes
+// during evaluation (e.g., when entering mixins), so each @plugin directive
+// needs to register its functions at the current scope depth.
 func (pl *JSPluginLoader) LoadPluginSync(path, currentDirectory string, context map[string]any, environment any, fileManager any) any {
 	if pl.runtime == nil {
 		return fmt.Errorf("Node.js runtime not initialized")
 	}
 
-	// Check if already loaded in Go-side cache
+	// Note: We intentionally do NOT return early for cached plugins here.
+	// We always need to call Node.js to register the plugin's functions
+	// in the current scope. The Node.js side handles caching and will
+	// re-register the cached functions in the current scope.
 	cacheKey := pl.getCacheKey(path, currentDirectory)
-	pl.mu.RLock()
-	if plugin, ok := pl.loadedPlugins[cacheKey]; ok {
-		pl.mu.RUnlock()
-		// Return a copy with Cached flag set
-		return &Plugin{
-			Path:           plugin.Path,
-			Filename:       plugin.Filename,
-			Functions:      plugin.Functions,
-			Visitors:       plugin.Visitors,
-			PreProcessors:  plugin.PreProcessors,
-			PostProcessors: plugin.PostProcessors,
-			FileManagers:   plugin.FileManagers,
-			Cached:         true,
-		}
-	}
-	pl.mu.RUnlock()
 
 	// Extract options from context if present
 	// Plugin options can be either:
