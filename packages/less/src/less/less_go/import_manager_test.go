@@ -1996,3 +1996,173 @@ func TestImportManagerFullPipeline(t *testing.T) {
 		t.Errorf("Expected parse count to remain %d for cached import, got %d", initialParseCount, len(parsedFiles))
 	}
 }
+
+// TestImportManagerPluginLoaderFromStruct verifies that ImportManager correctly extracts
+// the plugin loader from a *PluginManager struct (not just a map[string]any).
+// This is a regression test for the fix that connects NodeJSPluginBridge to ImportManager.
+func TestImportManagerPluginLoaderFromStruct(t *testing.T) {
+	t.Run("should extract plugin loader from *PluginManager struct", func(t *testing.T) {
+		// Create a mock plugin loader that tracks if it was called
+		loadPluginCalled := false
+		mockLoader := &MockImportPluginLoader{
+			LoadPluginSyncFunc: func(path, currentDirectory string, context map[string]any, environment any, fileManager any) any {
+				loadPluginCalled = true
+				return &LoadedFile{Filename: "/resolved/test.js", Contents: "module.exports = {};"}
+			},
+			EvalPluginFunc: func(contents string, newEnv *Parse, importManager any, pluginArgs map[string]any, newFileInfo any) any {
+				return map[string]string{"name": "test-plugin"}
+			},
+		}
+
+		// Create a LessContext that will be used by PluginManager
+		lessContext := &LessContext{
+			Options: map[string]any{},
+			PluginLoader: func(less LessInterface) PluginLoader {
+				return mockLoader
+			},
+			Functions: &DefaultFunctions{},
+		}
+
+		// Create a PluginManager struct (the actual type stored in context)
+		pluginManager := NewPluginManager(lessContext)
+
+		// Verify the loader is set correctly
+		if pluginManager.Loader == nil {
+			t.Fatal("PluginManager.Loader should be set")
+		}
+
+		// Create context with the PluginManager struct (not a map)
+		context := map[string]any{
+			"paths":         []string{"/mock/path"},
+			"syncImport":    true,
+			"pluginManager": pluginManager, // This is a *PluginManager, not map[string]any
+			"parserFactory": func(ctx map[string]any, imports map[string]any, fileInfo map[string]any, index int) ParserInterface {
+				return &MockParserInterface{}
+			},
+		}
+
+		// Create mock environment with file manager
+		mockFileManager := &MockImportFileManager{
+			LoadFileSyncFunc: func(path, currentDirectory string, ctx map[string]any, environment ImportManagerEnvironment) *LoadedFile {
+				return &LoadedFile{Filename: "/resolved/test.js", Contents: "module.exports = {};"}
+			},
+		}
+		mockEnv := &MockEnvironment{FileManager: mockFileManager}
+
+		// Create import manager with the context
+		rootFileInfo := &FileInfo{
+			Filename:         "/test/main.less",
+			CurrentDirectory: "/test/",
+			RootFilename:     "/test/main.less",
+			EntryPath:        "/test/",
+		}
+
+		importManagerFactory := NewImportManager(mockEnv)
+		im := importManagerFactory(nil, context, rootFileInfo)
+
+		// Create file info for the import
+		currentFileInfo := &FileInfo{
+			Filename:         "/test/main.less",
+			CurrentDirectory: "/test/",
+			RootFilename:     "/test/main.less",
+			EntryPath:        "/test/",
+		}
+
+		// Create import options for a plugin import
+		importOptions := &ImportOptions{
+			IsPlugin: true,
+		}
+
+		// Push a plugin import
+		callbackCalled := false
+		im.Push("test.js", true, currentFileInfo, importOptions, func(err error, root any, importedEqualsRoot bool, fullPath string) {
+			callbackCalled = true
+			if err != nil {
+				t.Errorf("Expected no error, got: %v", err)
+			}
+		})
+
+		// Verify the callback was called
+		if !callbackCalled {
+			t.Error("Expected callback to be called")
+		}
+
+		// Verify the plugin loader was called
+		if !loadPluginCalled {
+			t.Error("Expected LoadPluginSync to be called on the plugin loader")
+		}
+	})
+
+	t.Run("should still work with legacy map-based pluginManager", func(t *testing.T) {
+		// Create a mock plugin loader
+		loadPluginCalled := false
+		mockLoader := &MockImportPluginLoader{
+			LoadPluginSyncFunc: func(path, currentDirectory string, context map[string]any, environment any, fileManager any) any {
+				loadPluginCalled = true
+				return &LoadedFile{Filename: "/resolved/test.js", Contents: "module.exports = {};"}
+			},
+			EvalPluginFunc: func(contents string, newEnv *Parse, importManager any, pluginArgs map[string]any, newFileInfo any) any {
+				return map[string]string{"name": "test-plugin"}
+			},
+		}
+
+		// Create context with map-based pluginManager (legacy format)
+		context := map[string]any{
+			"paths":      []string{"/mock/path"},
+			"syncImport": true,
+			"pluginManager": map[string]any{
+				"Loader": mockLoader,
+			},
+			"parserFactory": func(ctx map[string]any, imports map[string]any, fileInfo map[string]any, index int) ParserInterface {
+				return &MockParserInterface{}
+			},
+		}
+
+		// Create mock environment
+		mockFileManager := &MockImportFileManager{
+			LoadFileSyncFunc: func(path, currentDirectory string, ctx map[string]any, environment ImportManagerEnvironment) *LoadedFile {
+				return &LoadedFile{Filename: "/resolved/test.js", Contents: "module.exports = {};"}
+			},
+		}
+		mockEnv := &MockEnvironment{FileManager: mockFileManager}
+
+		// Create import manager
+		rootFileInfo := &FileInfo{
+			Filename:         "/test/main.less",
+			CurrentDirectory: "/test/",
+			RootFilename:     "/test/main.less",
+			EntryPath:        "/test/",
+		}
+
+		importManagerFactory := NewImportManager(mockEnv)
+		im := importManagerFactory(nil, context, rootFileInfo)
+
+		// Create file info and import options
+		currentFileInfo := &FileInfo{
+			Filename:         "/test/main.less",
+			CurrentDirectory: "/test/",
+			RootFilename:     "/test/main.less",
+			EntryPath:        "/test/",
+		}
+
+		importOptions := &ImportOptions{
+			IsPlugin: true,
+		}
+
+		// Push a plugin import
+		callbackCalled := false
+		im.Push("test.js", true, currentFileInfo, importOptions, func(err error, root any, importedEqualsRoot bool, fullPath string) {
+			callbackCalled = true
+		})
+
+		// Verify the callback was called
+		if !callbackCalled {
+			t.Error("Expected callback to be called")
+		}
+
+		// Verify the plugin loader was called
+		if !loadPluginCalled {
+			t.Error("Expected LoadPluginSync to be called on the plugin loader")
+		}
+	})
+}
