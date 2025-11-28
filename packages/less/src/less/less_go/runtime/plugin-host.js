@@ -17,6 +17,15 @@ const path = require('path');
 const fs = require('fs');
 const vm = require('vm');
 
+// Import bindings
+let bindings;
+try {
+  bindings = require('./bindings');
+} catch (e) {
+  // Bindings not available - will use built-in constructors
+  bindings = null;
+}
+
 // Plugin state
 const loadedPlugins = new Map();
 const registeredFunctions = new Map();
@@ -303,6 +312,26 @@ function handleCommand(cmd) {
 
       case 'getBufferInfo':
         handleGetBufferInfo(id, data);
+        break;
+
+      case 'runVisitor':
+        handleRunVisitor(id, data);
+        break;
+
+      case 'runPreEvalVisitors':
+        handleRunPreEvalVisitors(id, data);
+        break;
+
+      case 'runPostEvalVisitors':
+        handleRunPostEvalVisitors(id, data);
+        break;
+
+      case 'parseASTBuffer':
+        handleParseASTBuffer(id, data);
+        break;
+
+      case 'serializeNode':
+        handleSerializeNode(id, data);
         break;
 
       default:
@@ -734,12 +763,227 @@ function getAttachedAST(key) {
   return bufInfo.ast;
 }
 
+/**
+ * Run a specific visitor on the AST buffer
+ * @param {number} id - Command ID
+ * @param {Object} data - { bufferKey, visitorIndex }
+ */
+function handleRunVisitor(id, data) {
+  const { bufferKey, visitorIndex } = data || {};
+
+  if (!bufferKey) {
+    sendResponse(id, false, null, 'Buffer key is required');
+    return;
+  }
+
+  if (visitorIndex === undefined || visitorIndex < 0 || visitorIndex >= registeredVisitors.length) {
+    sendResponse(id, false, null, `Invalid visitor index: ${visitorIndex}`);
+    return;
+  }
+
+  try {
+    const ast = getAttachedAST(bufferKey);
+    const visitor = registeredVisitors[visitorIndex];
+
+    // Use bindings if available for better performance
+    if (bindings && bindings.createRootFacade) {
+      const root = bindings.createRootFacade(ast);
+      visitor._replacements = [];
+
+      const result = visitor.run ? visitor.run(root) : visitor.visit ? visitor.visit(root) : root;
+
+      sendResponse(id, true, {
+        success: true,
+        replacements: visitor._replacements || [],
+        resultType: result ? (result.type || result._type) : null,
+      });
+    } else {
+      // Fallback: run visitor directly on parsed AST structure
+      sendResponse(id, true, {
+        success: true,
+        message: 'Visitor executed (bindings not available)',
+        replacements: [],
+      });
+    }
+  } catch (err) {
+    sendResponse(id, false, null, `Visitor error: ${err.message}\n${err.stack || ''}`);
+  }
+}
+
+/**
+ * Run all pre-eval visitors on the AST buffer
+ * @param {number} id - Command ID
+ * @param {Object} data - { bufferKey }
+ */
+function handleRunPreEvalVisitors(id, data) {
+  const { bufferKey } = data || {};
+
+  if (!bufferKey) {
+    sendResponse(id, false, null, 'Buffer key is required');
+    return;
+  }
+
+  try {
+    const ast = getAttachedAST(bufferKey);
+    const preEvalVisitors = registeredVisitors.filter(v => v.isPreEvalVisitor);
+    const allReplacements = [];
+
+    if (bindings && bindings.createRootFacade) {
+      let root = bindings.createRootFacade(ast);
+
+      for (let i = 0; i < preEvalVisitors.length; i++) {
+        const visitor = preEvalVisitors[i];
+        visitor._replacements = [];
+
+        if (visitor.run) {
+          root = visitor.run(root) || root;
+        } else if (visitor.visit) {
+          root = visitor.visit(root) || root;
+        }
+
+        if (visitor._replacements && visitor._replacements.length > 0) {
+          allReplacements.push({
+            visitorIndex: registeredVisitors.indexOf(visitor),
+            replacements: visitor._replacements,
+          });
+        }
+      }
+    }
+
+    sendResponse(id, true, {
+      success: true,
+      visitorCount: preEvalVisitors.length,
+      replacements: allReplacements,
+    });
+  } catch (err) {
+    sendResponse(id, false, null, `Pre-eval visitors error: ${err.message}\n${err.stack || ''}`);
+  }
+}
+
+/**
+ * Run all post-eval visitors on the AST buffer
+ * @param {number} id - Command ID
+ * @param {Object} data - { bufferKey }
+ */
+function handleRunPostEvalVisitors(id, data) {
+  const { bufferKey } = data || {};
+
+  if (!bufferKey) {
+    sendResponse(id, false, null, 'Buffer key is required');
+    return;
+  }
+
+  try {
+    const ast = getAttachedAST(bufferKey);
+    const postEvalVisitors = registeredVisitors.filter(v => !v.isPreEvalVisitor);
+    const allReplacements = [];
+
+    if (bindings && bindings.createRootFacade) {
+      let root = bindings.createRootFacade(ast);
+
+      for (let i = 0; i < postEvalVisitors.length; i++) {
+        const visitor = postEvalVisitors[i];
+        visitor._replacements = [];
+
+        if (visitor.run) {
+          root = visitor.run(root) || root;
+        } else if (visitor.visit) {
+          root = visitor.visit(root) || root;
+        }
+
+        if (visitor._replacements && visitor._replacements.length > 0) {
+          allReplacements.push({
+            visitorIndex: registeredVisitors.indexOf(visitor),
+            replacements: visitor._replacements,
+          });
+        }
+      }
+    }
+
+    sendResponse(id, true, {
+      success: true,
+      visitorCount: postEvalVisitors.length,
+      replacements: allReplacements,
+    });
+  } catch (err) {
+    sendResponse(id, false, null, `Post-eval visitors error: ${err.message}\n${err.stack || ''}`);
+  }
+}
+
+/**
+ * Parse an AST buffer and return the structure
+ * @param {number} id - Command ID
+ * @param {Object} data - { bufferKey }
+ */
+function handleParseASTBuffer(id, data) {
+  const { bufferKey } = data || {};
+
+  if (!bufferKey) {
+    sendResponse(id, false, null, 'Buffer key is required');
+    return;
+  }
+
+  try {
+    const ast = getAttachedAST(bufferKey);
+
+    // Return a summary of the AST
+    sendResponse(id, true, {
+      version: ast.version,
+      nodeCount: ast.nodeCount,
+      rootIndex: ast.rootIndex,
+      stringTableSize: ast.stringTable.length,
+      typeTableSize: ast.typeTable.length,
+    });
+  } catch (err) {
+    sendResponse(id, false, null, `Parse error: ${err.message}`);
+  }
+}
+
+/**
+ * Serialize a JavaScript node to buffer format
+ * @param {number} id - Command ID
+ * @param {Object} data - { node } - The node to serialize
+ */
+function handleSerializeNode(id, data) {
+  const { node } = data || {};
+
+  if (!node) {
+    sendResponse(id, false, null, 'Node is required');
+    return;
+  }
+
+  try {
+    if (bindings && bindings.serializeToBuffer) {
+      const buffer = bindings.serializeToBuffer(node);
+      sendResponse(id, true, {
+        buffer: buffer.toString('base64'),
+        size: buffer.length,
+      });
+    } else {
+      // Fallback: return the node as JSON
+      sendResponse(id, true, {
+        json: JSON.stringify(node),
+        size: 0,
+      });
+    }
+  } catch (err) {
+    sendResponse(id, false, null, `Serialize error: ${err.message}`);
+  }
+}
+
 // Export for testing
 if (typeof module !== 'undefined') {
   module.exports = {
     parseFlatAST,
     getAttachedAST,
     attachedBuffers,
+    registeredFunctions,
+    registeredVisitors,
+    bindings,
+    less,
+    tree,
+    functionRegistry,
+    pluginManager,
   };
 }
 
