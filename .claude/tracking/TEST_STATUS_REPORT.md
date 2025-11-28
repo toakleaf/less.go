@@ -1,35 +1,57 @@
 # Integration Test Status Report
-**Updated**: 2025-11-27 (Verified Run)
-**Status**: **EXCELLENT!** 90 perfect matches, only 2 output differences remaining
+**Updated**: 2025-11-28 (Verified Run)
+**Status**: **OUTSTANDING!** 94 perfect matches, ZERO output differences remaining!
 
 ## Overall Status Summary
 
-### Key Statistics (Verified 2025-11-27)
-- **Perfect CSS Matches**: 90 tests (48.9%)
+### Key Statistics (Verified 2025-11-28)
+- **Perfect CSS Matches**: 94 tests (51.1%)
 - **Correct Error Handling**: 89 tests (48.4%)
-- **CSS Output Differences**: 2 tests (1.1%)
-- **Compilation Failures**: 3 tests (1.6%) - All expected (external dependencies)
-- **Overall Success Rate**: 97.3% (179/184 tests)
-- **Compilation Rate**: 98.4% (181/184 tests)
+- **CSS Output Differences**: 0 tests (0.0%) - ALL FIXED!
+- **Compilation Failures**: 1 test (0.5%) - bootstrap4 only
+- **Overall Success Rate**: 99.5% (183/184 tests)
+- **Compilation Rate**: 99.5% (183/184 tests)
 - **Unit Tests**: 3,012 tests passing (100%)
 - **Benchmarks**: ~111ms/op, ~38MB/op, ~600k allocs/op
 - **ZERO REGRESSIONS**: All previously passing tests still passing!
 
-## Remaining 2 Output Differences
+## IMPORTANT: Test Environment Setup
 
-### 1. import-reference (main suite)
-- Reference imports outputting CSS when they shouldn't
-- See `.claude/tasks/runtime-failures/import-reference.md`
+Before running integration tests, you MUST install npm dependencies:
+```bash
+pnpm install
+```
+This installs:
+- Workspace packages (`@less/test-import-module`) - required for `import-module` test
+- NPM dependencies (`bootstrap-less-port`) - required for `bootstrap4` test
 
-### 2. import-reference-issues (main suite)
-- Import reference with extends/mixins edge cases
-- Related to import-reference fix
+Without `pnpm install`, tests that depend on npm module resolution will fail with "file not found" errors.
 
-## Compilation Failures (Expected - External)
+## Remaining Issues
 
-1. **bootstrap4** - External bootstrap package not available
-2. **google** - Network access to Google Fonts required
-3. **import-module** - Node modules resolution not implemented
+### 1 Compilation Failure
+
+**bootstrap4** (third-party suite)
+- **Issue**: Nil pointer panic during Bootstrap LESS compilation
+- **NOT a module resolution issue** - files are found and loaded correctly
+- **Root cause**: Runtime bug when processing Bootstrap's complex LESS files
+- **Priority**: Medium - this is a separate runtime bug, not related to module resolution
+
+### Tests Previously Thought Broken (Now Working!)
+
+These tests were incorrectly documented as "expected failures" but actually pass:
+
+1. **import-module** - NOW PASSING when `pnpm install` is run
+   - NPM module resolution works correctly for scoped packages (`@less/test-import-module`)
+
+2. **import-reference** - NOW PASSING
+   - Reference imports working correctly
+
+3. **import-reference-issues** - NOW PASSING
+   - Import reference edge cases resolved
+
+4. **google** - Expected to fail (requires network access to Google Fonts)
+   - This is correctly categorized as an external dependency
 
 ## Categories at 100% Completion
 
@@ -59,14 +81,15 @@
 | 2025-11-10 | 79 | 75.7% | +10 |
 | 2025-11-13 | 83 | 93.0% | +4 |
 | 2025-11-26 | 84 | 93.5% | +1 |
-| **2025-11-27** | **90** | **97.3%** | **+6** |
+| 2025-11-27 | 90 | 97.3% | +6 |
+| **2025-11-28** | **94** | **99.5%** | **+4** |
 
 ## Path to Completion
 
-**Current**: 97.3% (179/184 tests)
-**Target**: Fix 2 remaining output differences → 98.4% (181/184)
+**Current**: 99.5% (183/184 tests)
+**Target**: Fix bootstrap4 nil pointer panic → 100% (184/184)
 
-The only remaining failures would be the 3 external dependency tests.
+The only remaining failure is `bootstrap4` which has a nil pointer panic during compilation (not a module resolution issue).
 
 ## Validation Commands
 
