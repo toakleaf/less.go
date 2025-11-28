@@ -1,0 +1,438 @@
+package runtime
+
+import (
+	"bufio"
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"sync"
+	"sync/atomic"
+	"time"
+)
+
+// Command represents a command sent to the Node.js process.
+type Command struct {
+	ID   int64  `json:"id"`
+	Cmd  string `json:"cmd"`
+	Data any    `json:"data,omitempty"`
+}
+
+// Response represents a response from the Node.js process.
+type Response struct {
+	ID      int64  `json:"id"`
+	Success bool   `json:"success"`
+	Result  any    `json:"result,omitempty"`
+	Error   string `json:"error,omitempty"`
+}
+
+// NodeJSRuntime manages a Node.js process for JavaScript plugin execution.
+type NodeJSRuntime struct {
+	process *exec.Cmd
+	stdin   io.WriteCloser
+	stdout  io.ReadCloser
+	stderr  io.ReadCloser
+
+	// Response handling
+	responses   map[int64]chan Response
+	responsesMu sync.RWMutex
+
+	// Command ID counter
+	cmdID atomic.Int64
+
+	// State
+	alive   atomic.Bool
+	started atomic.Bool
+
+	// Shutdown coordination
+	done     chan struct{}
+	wg       sync.WaitGroup
+	stderrWg sync.WaitGroup
+
+	// Error from background goroutines
+	errMu sync.RWMutex
+	err   error
+
+	// Configuration
+	pluginHostPath string
+	nodeCommand    string
+}
+
+// RuntimeOption configures a NodeJSRuntime.
+type RuntimeOption func(*NodeJSRuntime)
+
+// WithPluginHostPath sets the path to the plugin-host.js file.
+func WithPluginHostPath(path string) RuntimeOption {
+	return func(rt *NodeJSRuntime) {
+		rt.pluginHostPath = path
+	}
+}
+
+// WithNodeCommand sets the Node.js command to use (default: "node").
+func WithNodeCommand(cmd string) RuntimeOption {
+	return func(rt *NodeJSRuntime) {
+		rt.nodeCommand = cmd
+	}
+}
+
+// NewNodeJSRuntime creates a new Node.js runtime instance.
+//
+// The runtime is not started automatically. Call Start() to spawn the Node.js process.
+func NewNodeJSRuntime(opts ...RuntimeOption) (*NodeJSRuntime, error) {
+	rt := &NodeJSRuntime{
+		responses:   make(map[int64]chan Response),
+		done:        make(chan struct{}),
+		nodeCommand: "node",
+	}
+
+	// Apply options
+	for _, opt := range opts {
+		opt(rt)
+	}
+
+	// Find plugin-host.js if not specified
+	if rt.pluginHostPath == "" {
+		// Look for plugin-host.js relative to this package
+		candidates := []string{
+			"plugin-host.js",
+			filepath.Join("runtime", "plugin-host.js"),
+		}
+
+		// Try to find it relative to the executable or working directory
+		execPath, err := os.Executable()
+		if err == nil {
+			execDir := filepath.Dir(execPath)
+			candidates = append(candidates,
+				filepath.Join(execDir, "plugin-host.js"),
+				filepath.Join(execDir, "runtime", "plugin-host.js"),
+			)
+		}
+
+		// Also check relative to current working directory
+		cwd, err := os.Getwd()
+		if err == nil {
+			candidates = append(candidates,
+				filepath.Join(cwd, "packages", "less", "src", "less", "less_go", "runtime", "plugin-host.js"),
+			)
+		}
+
+		// Find first existing file
+		for _, candidate := range candidates {
+			if _, err := os.Stat(candidate); err == nil {
+				rt.pluginHostPath = candidate
+				break
+			}
+		}
+
+		if rt.pluginHostPath == "" {
+			return nil, fmt.Errorf("plugin-host.js not found; tried: %v", candidates)
+		}
+	}
+
+	return rt, nil
+}
+
+// Start spawns the Node.js process and begins handling IPC.
+func (rt *NodeJSRuntime) Start() error {
+	if rt.started.Load() {
+		return fmt.Errorf("runtime already started")
+	}
+
+	// Create the Node.js process
+	rt.process = exec.Command(rt.nodeCommand, rt.pluginHostPath)
+	rt.process.Env = append(os.Environ(), "LESS_PLUGIN_HOST=1")
+
+	// Set up stdio pipes
+	var err error
+	rt.stdin, err = rt.process.StdinPipe()
+	if err != nil {
+		return fmt.Errorf("failed to create stdin pipe: %w", err)
+	}
+
+	rt.stdout, err = rt.process.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("failed to create stdout pipe: %w", err)
+	}
+
+	rt.stderr, err = rt.process.StderrPipe()
+	if err != nil {
+		return fmt.Errorf("failed to create stderr pipe: %w", err)
+	}
+
+	// Start the process
+	if err := rt.process.Start(); err != nil {
+		return fmt.Errorf("failed to start Node.js process: %w", err)
+	}
+
+	rt.started.Store(true)
+	rt.alive.Store(true)
+
+	// Start response reader goroutine
+	rt.wg.Add(1)
+	go rt.readResponses()
+
+	// Start stderr reader goroutine
+	rt.stderrWg.Add(1)
+	go rt.readStderr()
+
+	// Wait for process to be ready with a ping
+	ctx, cancel := contextWithTimeout(5 * time.Second)
+	defer cancel()
+
+	if err := rt.waitReady(ctx); err != nil {
+		rt.Stop()
+		return fmt.Errorf("Node.js process failed to start: %w", err)
+	}
+
+	return nil
+}
+
+// waitReady sends a ping and waits for a response to verify the process is ready.
+func (rt *NodeJSRuntime) waitReady(ctx context) error {
+	resp, err := rt.SendCommandWithContext(ctx, Command{Cmd: "ping"})
+	if err != nil {
+		return err
+	}
+	if !resp.Success {
+		return fmt.Errorf("ping failed: %s", resp.Error)
+	}
+	return nil
+}
+
+// Stop gracefully shuts down the Node.js process.
+func (rt *NodeJSRuntime) Stop() error {
+	if !rt.started.Load() {
+		return nil
+	}
+
+	rt.alive.Store(false)
+	close(rt.done)
+
+	// Send shutdown command (best effort)
+	if rt.stdin != nil {
+		cmd := Command{ID: rt.cmdID.Add(1), Cmd: "shutdown"}
+		data, _ := json.Marshal(cmd)
+		rt.stdin.Write(append(data, '\n'))
+	}
+
+	// Close stdin to signal EOF
+	if rt.stdin != nil {
+		rt.stdin.Close()
+	}
+
+	// Wait for response reader to finish
+	rt.wg.Wait()
+
+	// Wait for stderr reader to finish
+	rt.stderrWg.Wait()
+
+	// Wait for process to exit (with timeout)
+	done := make(chan error, 1)
+	go func() {
+		done <- rt.process.Wait()
+	}()
+
+	select {
+	case err := <-done:
+		// Process exited normally or with error
+		if err != nil {
+			// Check if it's just a non-zero exit code (normal for shutdown)
+			if _, ok := err.(*exec.ExitError); ok {
+				return nil
+			}
+			return err
+		}
+		return nil
+	case <-time.After(5 * time.Second):
+		// Force kill if it doesn't exit gracefully
+		rt.process.Process.Kill()
+		return fmt.Errorf("Node.js process did not exit gracefully, killed")
+	}
+}
+
+// IsAlive returns true if the Node.js process is running.
+func (rt *NodeJSRuntime) IsAlive() bool {
+	return rt.alive.Load()
+}
+
+// SendCommand sends a command to the Node.js process and waits for a response.
+func (rt *NodeJSRuntime) SendCommand(cmd Command) (Response, error) {
+	ctx, cancel := contextWithTimeout(30 * time.Second)
+	defer cancel()
+	return rt.SendCommandWithContext(ctx, cmd)
+}
+
+// SendCommandWithContext sends a command with a context for timeout/cancellation.
+func (rt *NodeJSRuntime) SendCommandWithContext(ctx context, cmd Command) (Response, error) {
+	if !rt.alive.Load() {
+		return Response{}, fmt.Errorf("runtime not alive")
+	}
+
+	// Assign command ID
+	cmd.ID = rt.cmdID.Add(1)
+
+	// Create response channel
+	respChan := make(chan Response, 1)
+	rt.responsesMu.Lock()
+	rt.responses[cmd.ID] = respChan
+	rt.responsesMu.Unlock()
+
+	defer func() {
+		rt.responsesMu.Lock()
+		delete(rt.responses, cmd.ID)
+		rt.responsesMu.Unlock()
+	}()
+
+	// Serialize and send command
+	data, err := json.Marshal(cmd)
+	if err != nil {
+		return Response{}, fmt.Errorf("failed to marshal command: %w", err)
+	}
+
+	// Write command with newline delimiter
+	if _, err := rt.stdin.Write(append(data, '\n')); err != nil {
+		return Response{}, fmt.Errorf("failed to send command: %w", err)
+	}
+
+	// Wait for response
+	select {
+	case resp := <-respChan:
+		return resp, nil
+	case <-ctx.done():
+		return Response{}, fmt.Errorf("command timed out")
+	case <-rt.done:
+		return Response{}, fmt.Errorf("runtime shutting down")
+	}
+}
+
+// readResponses reads responses from stdout and dispatches them.
+func (rt *NodeJSRuntime) readResponses() {
+	defer rt.wg.Done()
+
+	scanner := bufio.NewScanner(rt.stdout)
+	// Increase buffer size for large responses
+	const maxScanTokenSize = 10 * 1024 * 1024 // 10MB
+	buf := make([]byte, 64*1024)
+	scanner.Buffer(buf, maxScanTokenSize)
+
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+
+		var resp Response
+		if err := json.Unmarshal(line, &resp); err != nil {
+			rt.setError(fmt.Errorf("failed to parse response: %w", err))
+			continue
+		}
+
+		// Dispatch response to waiting goroutine
+		rt.responsesMu.RLock()
+		if ch, ok := rt.responses[resp.ID]; ok {
+			select {
+			case ch <- resp:
+			default:
+				// Channel full, response was probably already timed out
+			}
+		}
+		rt.responsesMu.RUnlock()
+	}
+
+	if err := scanner.Err(); err != nil && rt.alive.Load() {
+		rt.setError(fmt.Errorf("stdout read error: %w", err))
+	}
+
+	rt.alive.Store(false)
+}
+
+// readStderr reads and logs stderr output from the Node.js process.
+func (rt *NodeJSRuntime) readStderr() {
+	defer rt.stderrWg.Done()
+
+	scanner := bufio.NewScanner(rt.stderr)
+	for scanner.Scan() {
+		line := scanner.Text()
+		// For now, just store errors. In the future, we could log them.
+		if line != "" {
+			rt.setError(fmt.Errorf("Node.js stderr: %s", line))
+		}
+	}
+}
+
+// setError sets the runtime error in a thread-safe manner.
+func (rt *NodeJSRuntime) setError(err error) {
+	rt.errMu.Lock()
+	defer rt.errMu.Unlock()
+	if rt.err == nil {
+		rt.err = err
+	}
+}
+
+// Error returns any error from the runtime's background operations.
+func (rt *NodeJSRuntime) Error() error {
+	rt.errMu.RLock()
+	defer rt.errMu.RUnlock()
+	return rt.err
+}
+
+// Ping sends a ping command to verify the Node.js process is responsive.
+func (rt *NodeJSRuntime) Ping() error {
+	resp, err := rt.SendCommand(Command{Cmd: "ping"})
+	if err != nil {
+		return err
+	}
+	if !resp.Success {
+		return fmt.Errorf("ping failed: %s", resp.Error)
+	}
+	return nil
+}
+
+// Echo sends a value to Node.js and expects it back (for testing).
+func (rt *NodeJSRuntime) Echo(value any) (any, error) {
+	resp, err := rt.SendCommand(Command{
+		Cmd:  "echo",
+		Data: value,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if !resp.Success {
+		return nil, fmt.Errorf("echo failed: %s", resp.Error)
+	}
+	return resp.Result, nil
+}
+
+// Simple context interface to avoid importing context package
+// (for environments where context is not available)
+type context interface {
+	done() <-chan struct{}
+}
+
+type timeoutContext struct {
+	ch      chan struct{}
+	timeout time.Duration
+}
+
+func contextWithTimeout(timeout time.Duration) (*timeoutContext, func()) {
+	ctx := &timeoutContext{
+		ch:      make(chan struct{}),
+		timeout: timeout,
+	}
+
+	timer := time.AfterFunc(timeout, func() {
+		close(ctx.ch)
+	})
+
+	cancel := func() {
+		timer.Stop()
+	}
+
+	return ctx, cancel
+}
+
+func (c *timeoutContext) done() <-chan struct{} {
+	return c.ch
+}
