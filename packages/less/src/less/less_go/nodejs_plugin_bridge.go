@@ -26,6 +26,11 @@ func NewNodeJSPluginBridge() (*NodeJSPluginBridge, error) {
 		return nil, fmt.Errorf("failed to create Node.js runtime: %w", err)
 	}
 
+	// Start the runtime (spawns the Node.js process)
+	if err := rt.Start(); err != nil {
+		return nil, fmt.Errorf("failed to start Node.js runtime: %w", err)
+	}
+
 	return &NodeJSPluginBridge{
 		runtime:        rt,
 		loader:         runtime.NewJSPluginLoader(rt),
@@ -171,21 +176,39 @@ func (b *NodeJSPluginBridge) CallFunction(name string, args ...any) (any, error)
 
 // EnterScope creates and enters a new child scope.
 // This is used when entering a ruleset or mixin that might have local plugins.
+// It also notifies the Node.js runtime to enter a new function scope for proper scoping.
 func (b *NodeJSPluginBridge) EnterScope() *runtime.PluginScope {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.scope = b.scope.CreateChild()
+
+	// Synchronize with Node.js function scope
+	if b.runtime != nil {
+		_, _ = b.runtime.SendCommand(runtime.Command{
+			Cmd: "enterScope",
+		})
+	}
+
 	return b.scope
 }
 
 // ExitScope exits the current scope and returns to the parent.
 // Returns the parent scope, or nil if already at root.
+// It also notifies the Node.js runtime to exit the current function scope.
 func (b *NodeJSPluginBridge) ExitScope() *runtime.PluginScope {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if parent := b.scope.Parent(); parent != nil {
 		b.scope = parent
 	}
+
+	// Synchronize with Node.js function scope
+	if b.runtime != nil {
+		_, _ = b.runtime.SendCommand(runtime.Command{
+			Cmd: "exitScope",
+		})
+	}
+
 	return b.scope
 }
 

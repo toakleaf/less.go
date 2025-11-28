@@ -538,11 +538,12 @@ func TestJSResultNode_ToCSS(t *testing.T) {
 // ============================================
 
 func TestJSFunctionDefinition_DefaultIPCMode(t *testing.T) {
-	// By default (without env var), shared memory should be used
+	// By default (without env var), JSON mode should be used for better compatibility
+	// JSON mode was made the default because shared memory has platform-specific issues
 	os.Unsetenv("LESS_JS_IPC_MODE")
 	jsFn := NewJSFunctionDefinition("test", nil)
-	if jsFn.IPCMode() != JSIPCModeSharedMemory {
-		t.Errorf("expected default IPC mode to be shared-memory, got %s", jsFn.IPCMode())
+	if jsFn.IPCMode() != JSIPCModeJSON {
+		t.Errorf("expected default IPC mode to be json, got %s", jsFn.IPCMode())
 	}
 }
 

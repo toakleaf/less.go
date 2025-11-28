@@ -451,13 +451,38 @@ func (im *ImportManager) Push(path string, tryAppendExtension bool, currentFileI
 		}
 		context["mime"] = "application/javascript"
 
+		// Pass plugin args as options to the plugin loader
+		if importOptions.PluginArgs != nil {
+			context["options"] = importOptions.PluginArgs
+		}
+
 		if syncImport, exists := context["syncImport"]; exists && syncImport.(bool) {
 			result := pluginLoader.LoadPluginSync(path, currentFileInfo.CurrentDirectory, context, im.environment, fileManager)
 			if lf, ok := result.(*LoadedFile); ok {
 				loadedFile = lf
+			} else if err, ok := result.(error); ok {
+				// Handle error returned from sync plugin load
+				fileParsedFunc(err, nil, path)
+				return
+			} else if result != nil {
+				// Plugin loaded successfully (returns *runtime.Plugin or similar)
+				// For plugin imports, the "root" is the plugin result
+				fileParsedFunc(nil, result, path)
+				return
 			}
 		} else {
-			promise = pluginLoader.LoadPlugin(path, currentFileInfo.CurrentDirectory, context, im.environment, fileManager)
+			result := pluginLoader.LoadPlugin(path, currentFileInfo.CurrentDirectory, context, im.environment, fileManager)
+			// Handle direct error or result from plugin loader (not a promise)
+			if err, ok := result.(error); ok {
+				fileParsedFunc(err, nil, path)
+				return
+			} else if result != nil {
+				// Plugin loaded successfully
+				fileParsedFunc(nil, result, path)
+				return
+			}
+			// If result is a real promise, use promise handling
+			promise = result
 		}
 	} else {
 		if syncImport, exists := context["syncImport"]; exists && syncImport.(bool) {

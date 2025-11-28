@@ -70,6 +70,7 @@ type Eval struct {
 
 	// Plugin support - bridge to Node.js plugin system for scoped function lookup
 	PluginBridge     *NodeJSPluginBridge
+	LazyPluginBridge *LazyNodeJSPluginBridge // Lazy bridge for deferred initialization
 }
 
 // NewEval creates a new Eval context with the given options and frames
@@ -601,6 +602,10 @@ func (e *Eval) EnterPluginScope() any {
 	if e.PluginBridge != nil {
 		return e.PluginBridge.EnterScope()
 	}
+	// Also check LazyPluginBridge if PluginBridge is nil
+	if e.LazyPluginBridge != nil {
+		return e.LazyPluginBridge.EnterScope()
+	}
 	return nil
 }
 
@@ -609,6 +614,11 @@ func (e *Eval) EnterPluginScope() any {
 func (e *Eval) ExitPluginScope() {
 	if e.PluginBridge != nil {
 		e.PluginBridge.ExitScope()
+		return
+	}
+	// Also check LazyPluginBridge if PluginBridge is nil
+	if e.LazyPluginBridge != nil {
+		e.LazyPluginBridge.ExitScope()
 	}
 }
 
@@ -618,6 +628,10 @@ func (e *Eval) LookupPluginFunction(name string) (any, bool) {
 	if e.PluginBridge != nil {
 		return e.PluginBridge.LookupFunction(name)
 	}
+	// Also check LazyPluginBridge if PluginBridge is nil
+	if e.LazyPluginBridge != nil {
+		return e.LazyPluginBridge.LookupFunction(name)
+	}
 	return nil, false
 }
 
@@ -626,6 +640,10 @@ func (e *Eval) HasPluginFunction(name string) bool {
 	if e.PluginBridge != nil {
 		return e.PluginBridge.HasFunction(name)
 	}
+	// Also check LazyPluginBridge if PluginBridge is nil
+	if e.LazyPluginBridge != nil {
+		return e.LazyPluginBridge.HasFunction(name)
+	}
 	return false
 }
 
@@ -633,6 +651,10 @@ func (e *Eval) HasPluginFunction(name string) bool {
 func (e *Eval) CallPluginFunction(name string, args ...any) (any, error) {
 	if e.PluginBridge != nil {
 		return e.PluginBridge.CallFunction(name, args...)
+	}
+	// Also check LazyPluginBridge if PluginBridge is nil
+	if e.LazyPluginBridge != nil {
+		return e.LazyPluginBridge.CallFunction(name, args...)
 	}
 	return nil, fmt.Errorf("no plugin bridge available")
 }

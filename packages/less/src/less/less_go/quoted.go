@@ -8,11 +8,14 @@ import (
 
 // Compile regex patterns once at package level
 var (
-	// Match both @{variable} and @variable syntax
-	variableRegex = regexp.MustCompile(`@\{([\w-]+)\}|@([\w-]+)`)
-	// Match both ${property} and $property syntax
-	// Note: $property must start with a letter (not a digit) to avoid matching regex capture groups like $1, $2, etc.
-	propRegex     = regexp.MustCompile(`\$\{([\w-]+)\}|\$([a-zA-Z][\w-]*)`)
+	// Match @{variable} syntax only - this is the correct behavior for regular quoted strings
+	// In LESS, only @{variable} syntax triggers interpolation in normal strings, not bare @variable
+	variableRegex = regexp.MustCompile(`@\{([\w-]+)\}`)
+	// Match bare @variable syntax - used for escaped/permissive content (e.g., custom CSS properties)
+	// Permissive-parsed content uses Quoted with escaped=true and needs bare @variable replacement
+	escapedVariableRegex = regexp.MustCompile(`@([\w-]+)`)
+	// Match ${property} syntax only for quoted strings
+	propRegex = regexp.MustCompile(`\$\{([\w-]+)\}`)
 )
 
 // Quoted represents a quoted string in the Less AST
@@ -167,12 +170,8 @@ func (q *Quoted) Eval(context any) (any, error) {
 				if len(matches) < 2 {
 					return match
 				}
-				// Handle both @{name} (group 1) and @name (group 2) syntax
-				// Use first non-empty capture group
+				// Handle @{name} syntax - only one capture group
 				name := matches[1]
-				if name == "" && len(matches) > 2 {
-					name = matches[2]
-				}
 				replacement, e := replacementFn(matches[0], name)
 				if e != nil {
 					err = e
@@ -291,10 +290,25 @@ func (q *Quoted) Eval(context any) (any, error) {
 	}
 
 	// Process variable and property replacements
+	// Variable interpolation strategy:
+	// 1. Always try @{variable} syntax first (standard LESS syntax for all quoted strings)
+	// 2. For escaped content (permissive-parsed like custom CSS properties),
+	//    also try bare @variable syntax after @{variable} processing
 	var err error
+
+	// First pass: always try @{variable} syntax
 	value, err = iterativeReplace(value, variableRegex, variableReplacement)
 	if err != nil {
 		return nil, err
+	}
+
+	// Second pass: for escaped content, also try bare @variable syntax
+	// This handles permissive-parsed content like `--custom: @var`
+	if q.escaped {
+		value, err = iterativeReplace(value, escapedVariableRegex, variableReplacement)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// WORKAROUND NO LONGER NEEDED: Parser now correctly handles parenthesized

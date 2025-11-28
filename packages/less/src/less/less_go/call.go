@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/toakleaf/less.go/packages/less/src/less/less_go/runtime"
 )
 
 // EvalContext represents the interface needed for evaluation context
@@ -133,7 +135,9 @@ func (c *PluginFunctionCaller) Call(args []any) (any, error) {
 		return nil, fmt.Errorf("error calling plugin function '%s': %w", c.name, err)
 	}
 
-	return result, nil
+	// Convert JSResultNode to proper Go AST nodes
+	converted := convertJSResultToAST(result, c.context)
+	return converted, nil
 }
 
 // DefaultParserFunctionCaller implements ParserFunctionCaller
@@ -626,7 +630,19 @@ func (c *Call) Eval(context any) (any, error) {
 
 	// Check if we have a function caller factory
 	if c.CallerFactory == nil {
-		// No function caller, evaluate args and return
+		// No Go function caller - try JS plugin functions first
+		result, err = c.tryJSPluginFunction(context, evalContext)
+		if err != nil {
+			exitCalc()
+			return nil, err
+		}
+		if result != nil {
+			// JS plugin function returned a result
+			exitCalc()
+			return result, nil
+		}
+
+		// No JS plugin function either - evaluate args and return as CSS function call
 		exitCalc()
 		evaledArgs := make([]any, len(c.Args))
 		for i, arg := range c.Args {
@@ -653,6 +669,16 @@ func (c *Call) Eval(context any) (any, error) {
 		// Preprocess arguments to match JavaScript behavior
 		processedArgs := c.preprocessArgs(c.Args)
 		result, err = funcCaller.Call(processedArgs)
+	} else {
+		// Function not found in Go registry - try JS plugin functions
+		result, err = c.tryJSPluginFunction(context, evalContext)
+		if err != nil {
+			exitCalc()
+			return nil, err
+		}
+	}
+
+	if result != nil || funcCaller.IsValid() {
 
 		if err != nil {
 			exitCalc()
@@ -766,6 +792,165 @@ func (c *Call) Eval(context any) (any, error) {
 	return NewCall(c.Name, evaledArgs, c.GetIndex(), c.FileInfo()), nil
 }
 
+// tryJSPluginFunction attempts to call a JavaScript plugin function.
+// Returns (nil, nil) if no plugin function was found.
+func (c *Call) tryJSPluginFunction(context any, evalContext EvalContext) (any, error) {
+	// Try to get pluginBridge from context
+	var pluginBridge *NodeJSPluginBridge
+	var lazyBridge *LazyNodeJSPluginBridge
+
+	debug := os.Getenv("LESS_GO_DEBUG") == "1"
+	if debug {
+		fmt.Printf("[tryJSPluginFunction] Checking function '%s', context type: %T\n", c.Name, context)
+	}
+
+	// Check Eval context - check both PluginBridge and LazyPluginBridge
+	if evalCtx, ok := context.(*Eval); ok {
+		if evalCtx.PluginBridge != nil {
+			pluginBridge = evalCtx.PluginBridge
+			if debug {
+				fmt.Printf("[tryJSPluginFunction] Found PluginBridge in Eval context\n")
+			}
+		} else if evalCtx.LazyPluginBridge != nil {
+			lazyBridge = evalCtx.LazyPluginBridge
+			if debug {
+				fmt.Printf("[tryJSPluginFunction] Found LazyPluginBridge in Eval context (initialized=%v)\n", lazyBridge.IsInitialized())
+			}
+		} else if debug {
+			fmt.Printf("[tryJSPluginFunction] Eval context has nil PluginBridge and nil LazyPluginBridge\n")
+		}
+	}
+
+	// Check map context for various bridge types
+	if pluginBridge == nil && lazyBridge == nil {
+		if ctxMap, ok := context.(map[string]any); ok {
+			if pb, exists := ctxMap["pluginBridge"]; exists {
+				if lazy, ok := pb.(*LazyNodeJSPluginBridge); ok {
+					lazyBridge = lazy
+					if debug {
+						fmt.Printf("[tryJSPluginFunction] Found LazyPluginBridge in map context\n")
+					}
+				} else if bridge, ok := pb.(*NodeJSPluginBridge); ok {
+					pluginBridge = bridge
+					if debug {
+						fmt.Printf("[tryJSPluginFunction] Found PluginBridge in map context\n")
+					}
+				}
+			}
+		}
+	}
+
+	// No plugin bridge available
+	if pluginBridge == nil && lazyBridge == nil {
+		if debug {
+			fmt.Printf("[tryJSPluginFunction] No plugin bridge available for '%s'\n", c.Name)
+		}
+		return nil, nil
+	}
+
+	// Use the lazy bridge if available (it handles initialization internally)
+	if lazyBridge != nil {
+		// Check if this function exists - this will return false if bridge isn't initialized yet
+		if !lazyBridge.HasFunction(c.Name) {
+			if debug {
+				fmt.Printf("[tryJSPluginFunction] Function '%s' not found in lazy plugin bridge\n", c.Name)
+			}
+			return nil, nil
+		}
+
+		if debug {
+			fmt.Printf("[tryJSPluginFunction] Calling JS function '%s' via LazyBridge\n", c.Name)
+		}
+
+		// Evaluate arguments
+		evaledArgs := make([]any, 0, len(c.Args))
+		for i, arg := range c.Args {
+			// Filter out comments
+			if c.isComment(arg) {
+				continue
+			}
+
+			if evalable, ok := arg.(interface{ Eval(any) (any, error) }); ok {
+				evaledVal, err := evalable.Eval(context)
+				if err != nil {
+					if debug {
+						fmt.Printf("[tryJSPluginFunction] Error evaluating arg %d for '%s': %v\n", i, c.Name, err)
+					}
+					return nil, err
+				}
+				if debug {
+					fmt.Printf("[tryJSPluginFunction] Evaluated arg %d for '%s': %T = %+v\n", i, c.Name, evaledVal, evaledVal)
+				}
+				evaledArgs = append(evaledArgs, evaledVal)
+			} else {
+				evaledArgs = append(evaledArgs, arg)
+			}
+		}
+
+		// Call the JS function via the lazy bridge
+		result, err := lazyBridge.CallFunction(c.Name, evaledArgs...)
+		if err != nil {
+			if debug {
+				fmt.Printf("[tryJSPluginFunction] JS function '%s' returned error: %v\n", c.Name, err)
+			}
+			return nil, err
+		}
+		if debug {
+			fmt.Printf("[tryJSPluginFunction] JS function '%s' returned: %T = %+v\n", c.Name, result, result)
+		}
+		// Convert JSResultNode to proper Go AST nodes
+		converted := convertJSResultToAST(result, context)
+		if debug && converted != result {
+			fmt.Printf("[tryJSPluginFunction] Converted result to: %T\n", converted)
+		}
+		return converted, nil
+	}
+
+	// Check if this function exists in the plugin bridge
+	if !pluginBridge.HasFunction(c.Name) {
+		if debug {
+			fmt.Printf("[tryJSPluginFunction] Function '%s' not found in plugin bridge\n", c.Name)
+		}
+		return nil, nil
+	}
+
+	if debug {
+		fmt.Printf("[tryJSPluginFunction] Calling JS function '%s'\n", c.Name)
+	}
+
+	// Evaluate arguments
+	evaledArgs := make([]any, 0, len(c.Args))
+	for _, arg := range c.Args {
+		// Filter out comments
+		if c.isComment(arg) {
+			continue
+		}
+
+		if evalable, ok := arg.(interface{ Eval(any) (any, error) }); ok {
+			evaledVal, err := evalable.Eval(context)
+			if err != nil {
+				return nil, err
+			}
+			evaledArgs = append(evaledArgs, evaledVal)
+		} else {
+			evaledArgs = append(evaledArgs, arg)
+		}
+	}
+
+	// Call the JS function
+	result, err := pluginBridge.CallFunction(c.Name, evaledArgs...)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert JSResultNode to proper Go AST nodes
+	converted := convertJSResultToAST(result, context)
+	if debug && converted != result {
+		fmt.Printf("[tryJSPluginFunction] Converted result to: %T\n", converted)
+	}
+	return converted, nil
+}
+
 // GenCSS generates CSS representation of the function call.
 func (c *Call) GenCSS(context any, output *CSSOutput) {
 	// Special case: _SELF should output its argument directly, not as a function call
@@ -872,4 +1057,277 @@ func (c *Call) isComment(node any) bool {
 		return hasType.GetType() == "Comment"
 	}
 	return false
+}
+
+// convertJSResultToAST converts a JSResultNode to proper Go AST nodes.
+// This is needed because JS functions return generic JSResultNode objects
+// that need to be converted to actual AST node types for proper evaluation.
+func convertJSResultToAST(result any, context any) any {
+	jsNode, ok := result.(*runtime.JSResultNode)
+	if !ok {
+		return result
+	}
+
+	debug := os.Getenv("LESS_GO_DEBUG") == "1"
+
+	switch jsNode.NodeType {
+	case "DetachedRuleset":
+		// Convert to Go *DetachedRuleset
+		rulesetData, ok := jsNode.Properties["ruleset"].(map[string]any)
+		if !ok {
+			if debug {
+				fmt.Printf("[convertJSResultToAST] DetachedRuleset missing ruleset property\n")
+			}
+			return result
+		}
+		ruleset := convertRulesetData(rulesetData, context)
+		if ruleset == nil {
+			if debug {
+				fmt.Printf("[convertJSResultToAST] Failed to convert ruleset data\n")
+			}
+			return result
+		}
+		// Get frames from context if available
+		var frames []any
+		if evalCtx, ok := context.(*Eval); ok {
+			frames = evalCtx.Frames
+		}
+		detached := NewDetachedRuleset(ruleset, frames)
+		if debug {
+			fmt.Printf("[convertJSResultToAST] Created DetachedRuleset with %d rules\n", len(ruleset.Rules))
+		}
+		return detached
+
+	case "Anonymous":
+		value := jsNode.Properties["value"]
+		if value == nil {
+			value = ""
+		}
+		return NewAnonymous(fmt.Sprintf("%v", value), 0, nil, false, false, nil)
+
+	case "Dimension":
+		val := 0.0
+		if v, ok := jsNode.Properties["value"].(float64); ok {
+			val = v
+		}
+		unit := ""
+		if u, ok := jsNode.Properties["unit"].(string); ok {
+			unit = u
+		}
+		// Create proper unit - use empty numerator for no unit
+		var dimensionUnit *Unit
+		if unit != "" {
+			dimensionUnit = &Unit{Numerator: []string{unit}}
+		} else {
+			dimensionUnit = &Unit{Numerator: []string{}, Denominator: []string{}}
+		}
+		return NewDimensionFrom(val, dimensionUnit)
+
+	case "Keyword":
+		value := ""
+		if v, ok := jsNode.Properties["value"].(string); ok {
+			value = v
+		}
+		return NewKeyword(value)
+
+	case "Quoted":
+		value := ""
+		quote := "\""
+		escaped := false
+		if v, ok := jsNode.Properties["value"].(string); ok {
+			value = v
+		}
+		if q, ok := jsNode.Properties["quote"].(string); ok {
+			quote = q
+		}
+		if e, ok := jsNode.Properties["escaped"].(bool); ok {
+			escaped = e
+		}
+		return NewQuoted(quote, value, escaped, 0, nil)
+
+	case "Color":
+		rgb := []float64{0, 0, 0}
+		alpha := 1.0
+		if r, ok := jsNode.Properties["rgb"].([]any); ok && len(r) >= 3 {
+			for i := 0; i < 3 && i < len(r); i++ {
+				if v, ok := r[i].(float64); ok {
+					rgb[i] = v
+				}
+			}
+		}
+		if a, ok := jsNode.Properties["alpha"].(float64); ok {
+			alpha = a
+		}
+		return NewColor(rgb, alpha, "")
+
+	case "AtRule":
+		name := ""
+		if n, ok := jsNode.Properties["name"].(string); ok {
+			name = n
+		}
+		value := jsNode.Properties["value"]
+		// Convert value if needed
+		if valueStr, ok := value.(string); ok {
+			value = NewAnonymous(valueStr, 0, nil, false, false, nil)
+		}
+		if debug {
+			fmt.Printf("[convertJSResultToAST] Creating AtRule: name=%s, value=%v\n", name, value)
+		}
+		return NewAtRule(name, value, nil, 0, nil, nil, false, nil)
+
+	case "Combinator":
+		value := " "
+		if v, ok := jsNode.Properties["value"].(string); ok {
+			value = v
+		}
+		return NewCombinator(value)
+
+	case "Value":
+		// Convert Value's children array to Go values
+		if valueArr, ok := jsNode.Properties["value"].([]any); ok {
+			convertedValues := make([]any, 0, len(valueArr))
+			for _, item := range valueArr {
+				if itemMap, ok := item.(map[string]any); ok {
+					if nodeType, ok := itemMap["_type"].(string); ok {
+						// Convert nested nodes
+						nestedNode := &runtime.JSResultNode{
+							NodeType:   nodeType,
+							Properties: itemMap,
+						}
+						converted := convertJSResultToAST(nestedNode, context)
+						convertedValues = append(convertedValues, converted)
+					} else {
+						convertedValues = append(convertedValues, item)
+					}
+				} else {
+					convertedValues = append(convertedValues, item)
+				}
+			}
+			if len(convertedValues) > 0 {
+				val, err := NewValue(convertedValues)
+				if err == nil {
+					return val
+				}
+			}
+		}
+		return result
+
+	default:
+		// For unhandled types, return as-is
+		if debug {
+			fmt.Printf("[convertJSResultToAST] Unhandled node type: %s\n", jsNode.NodeType)
+		}
+		return result
+	}
+}
+
+// convertRulesetData converts a ruleset map to a *Ruleset
+func convertRulesetData(data map[string]any, context any) *Ruleset {
+	var selectors []any
+	var rules []any
+
+	// Convert selectors
+	if sels, ok := data["selectors"].([]any); ok {
+		for _, sel := range sels {
+			if selData, ok := sel.(map[string]any); ok {
+				selector := convertSelectorData(selData)
+				if selector != nil {
+					selectors = append(selectors, selector)
+				}
+			}
+		}
+	}
+
+	// Convert rules
+	if rs, ok := data["rules"].([]any); ok {
+		for _, r := range rs {
+			if ruleData, ok := r.(map[string]any); ok {
+				rule := convertRuleData(ruleData, context)
+				if rule != nil {
+					rules = append(rules, rule)
+				}
+			}
+		}
+	}
+
+	return NewRuleset(selectors, rules, false, nil)
+}
+
+// convertSelectorData converts a selector map to a *Selector
+func convertSelectorData(data map[string]any) *Selector {
+	var elements []*Element
+
+	if elems, ok := data["elements"].([]any); ok {
+		for _, e := range elems {
+			if elemData, ok := e.(map[string]any); ok {
+				elem := convertElementData(elemData)
+				if elem != nil {
+					elements = append(elements, elem)
+				}
+			}
+		}
+	}
+
+	selector, _ := NewSelector(elements, nil, nil, 0, nil, nil)
+	return selector
+}
+
+// convertElementData converts an element map to an *Element
+func convertElementData(data map[string]any) *Element {
+	combinator := " "
+	value := ""
+
+	if c, ok := data["combinator"].(map[string]any); ok {
+		if v, ok := c["value"].(string); ok {
+			combinator = v
+		}
+	} else if c, ok := data["combinator"].(string); ok {
+		combinator = c
+	}
+
+	if v, ok := data["value"].(string); ok {
+		value = v
+	}
+
+	return NewElement(combinator, value, false, 0, nil, nil)
+}
+
+// convertRuleData converts a rule map to an AST node
+func convertRuleData(data map[string]any, context any) any {
+	nodeType, ok := data["_type"].(string)
+	if !ok {
+		return nil
+	}
+
+	switch nodeType {
+	case "Declaration":
+		name := ""
+		value := ""
+		if n, ok := data["name"].(string); ok {
+			name = n
+		}
+		if v, ok := data["value"].(string); ok {
+			value = v
+		} else if vMap, ok := data["value"].(map[string]any); ok {
+			// Value is a complex node - convert it
+			converted := convertJSResultToAST(&runtime.JSResultNode{
+				NodeType:   vMap["_type"].(string),
+				Properties: vMap,
+			}, context)
+			if converted != nil {
+				// Create declaration with converted value
+				decl, _ := NewDeclaration(name, converted, false, false, 0, nil, false, nil)
+				return decl
+			}
+		}
+		// Simple string value
+		decl, _ := NewDeclaration(name, NewAnonymous(value, 0, nil, false, false, nil), false, false, 0, nil, false, nil)
+		return decl
+
+	case "Ruleset":
+		return convertRulesetData(data, context)
+
+	default:
+		return nil
+	}
 }

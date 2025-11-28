@@ -295,10 +295,6 @@ type TestResult struct {
 // Quarantined tests - features not yet implemented that we're punting on for now
 var quarantinedTests = map[string][]string{
 	"main": {
-		// Plugin system - to be implemented later
-		"plugin",
-		"plugin-module",
-		"plugin-preeval",
 		// JavaScript execution - to be implemented later
 		"javascript",
 		// Import test that depends on plugins
@@ -448,11 +444,17 @@ func runTestSuite(t *testing.T, suite TestSuite, lessRoot, cssRoot string) {
 
 			options["paths"] = paths
 
-			// Create Less factory
-			factory := Factory(nil, nil)
+			// Compile with appropriate method based on test type
+			var actualResult string
 
-			// Compile with debugging
-			actualResult, err := compileLessWithDebug(factory, string(lessContent), options)
+			if isPluginTest(testName) {
+				// Use plugin-enabled compilation for plugin tests
+				actualResult, err = compileLessWithPlugins(string(lessContent), options)
+			} else {
+				// Use standard compilation
+				factory := Factory(nil, nil)
+				actualResult, err = compileLessWithDebug(factory, string(lessContent), options)
+			}
 			if err != nil {
 				result.Status = "fail"
 				result.Category = "compilation_failed"
@@ -752,28 +754,94 @@ func enhancedErrorReport(t *testing.T, err error, lessFile string, lessContent s
 // compileLessWithDebug wraps the compilation with additional debugging
 func compileLessWithDebug(factory map[string]any, content string, options map[string]any) (string, error) {
 	startTime := time.Now()
-	
+
 	debugLog("Starting compilation with options: %+v", options)
-	
+
 	// Add debug hooks if enabled
 	if showAST {
 		// This would require modification to the actual compiler
 		// to expose AST - placeholder for now
 		debugLog("AST output enabled (requires compiler support)")
 	}
-	
+
 	result, err := compileLessForTest(factory, content, options)
-	
+
 	duration := time.Since(startTime)
 	debugLog("Compilation completed in %v", duration)
-	
+
 	if err != nil {
 		debugLog("Compilation failed: %v", err)
 	} else {
 		debugLog("Compilation successful, output length: %d", len(result))
 	}
-	
+
 	return result, err
+}
+
+// compileLessWithPlugins compiles LESS with JavaScript plugin support enabled.
+// This uses the Compile API with EnableJavaScriptPlugins=true.
+func compileLessWithPlugins(content string, options map[string]any) (string, error) {
+	startTime := time.Now()
+
+	debugLog("Starting plugin-enabled compilation with options: %+v", options)
+
+	// Convert options map to CompileOptions struct
+	compileOpts := &CompileOptions{
+		EnableJavaScriptPlugins: true,
+	}
+
+	// Extract relevant options
+	if filename, ok := options["filename"].(string); ok {
+		compileOpts.Filename = filename
+	}
+	if paths, ok := options["paths"].([]string); ok {
+		compileOpts.Paths = paths
+	}
+	if compress, ok := options["compress"].(bool); ok {
+		compileOpts.Compress = compress
+	}
+	if strictUnits, ok := options["strictUnits"].(bool); ok {
+		compileOpts.StrictUnits = strictUnits
+	}
+	if math, ok := options["math"].(MathType); ok {
+		compileOpts.Math = math
+	} else if mathStr, ok := options["math"].(string); ok {
+		switch mathStr {
+		case "always":
+			compileOpts.Math = Math.Always
+		case "parens-division":
+			compileOpts.Math = Math.ParensDivision
+		case "parens":
+			compileOpts.Math = Math.Parens
+		}
+	}
+	if rewriteUrls, ok := options["rewriteUrls"].(RewriteUrlsType); ok {
+		compileOpts.RewriteUrls = rewriteUrls
+	}
+	if rootpath, ok := options["rootpath"].(string); ok {
+		compileOpts.Rootpath = rootpath
+	}
+	if urlArgs, ok := options["urlArgs"].(string); ok {
+		compileOpts.UrlArgs = urlArgs
+	}
+
+	result, err := Compile(content, compileOpts)
+
+	duration := time.Since(startTime)
+	debugLog("Plugin-enabled compilation completed in %v", duration)
+
+	if err != nil {
+		debugLog("Compilation failed: %v", err)
+		return "", err
+	}
+
+	debugLog("Compilation successful, output length: %d", len(result.CSS))
+	return result.CSS, nil
+}
+
+// isPluginTest returns true if the test requires JavaScript plugin support.
+func isPluginTest(testName string) bool {
+	return strings.HasPrefix(testName, "plugin")
 }
 
 // printTestSummary prints a comprehensive, LLM-friendly summary of test results
