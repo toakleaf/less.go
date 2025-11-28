@@ -526,6 +526,325 @@ func TestJSResultNode_ToCSS(t *testing.T) {
 	}
 }
 
+// ============================================
+// Shared Memory vs JSON Tests
+// ============================================
+
+func TestJSFunctionDefinition_SharedMemoryDefault(t *testing.T) {
+	// By default, shared memory should be enabled
+	jsFn := NewJSFunctionDefinition("test", nil)
+	if !jsFn.useSharedMemory {
+		t.Error("expected useSharedMemory to be true by default")
+	}
+}
+
+func TestJSFunctionDefinition_JSONFallbackOption(t *testing.T) {
+	// WithJSONFallback should disable shared memory
+	jsFn := NewJSFunctionDefinition("test", nil, WithJSONFallback())
+	if jsFn.useSharedMemory {
+		t.Error("expected useSharedMemory to be false with WithJSONFallback()")
+	}
+}
+
+func TestJSFunctionDefinition_SharedMemoryCall(t *testing.T) {
+	pluginPath := getTestPluginPath(t, "plugin-simple.js")
+	rt, _, cleanup := setupRuntimeWithPlugin(t, pluginPath)
+	defer cleanup()
+
+	// Create function definition with shared memory (default)
+	jsFn := NewJSFunctionDefinition("pi", rt)
+
+	if !jsFn.useSharedMemory {
+		t.Error("expected useSharedMemory to be true")
+	}
+
+	// Call the function - should use shared memory path
+	result, err := jsFn.Call()
+	if err != nil {
+		t.Fatalf("Call with shared memory failed: %v", err)
+	}
+
+	// Result should be a Dimension node with value ~3.14159
+	if result == nil {
+		t.Fatal("result is nil")
+	}
+
+	// Check if it's a JSResultNode
+	jsNode, ok := result.(*JSResultNode)
+	if !ok {
+		// Might return a float64 directly for simple values
+		if f, ok := result.(float64); ok {
+			if math.Abs(f-math.Pi) > 0.0001 {
+				t.Errorf("expected value ~%f, got %f", math.Pi, f)
+			}
+			return
+		}
+		t.Fatalf("expected *JSResultNode or float64, got %T", result)
+	}
+
+	if jsNode.NodeType != "Dimension" {
+		t.Errorf("expected type Dimension, got %s", jsNode.NodeType)
+	}
+
+	value := jsNode.getFloat("value")
+	if math.Abs(value-math.Pi) > 0.0001 {
+		t.Errorf("expected value ~%f, got %f", math.Pi, value)
+	}
+}
+
+func TestJSFunctionDefinition_JSONFallbackCall(t *testing.T) {
+	pluginPath := getTestPluginPath(t, "plugin-simple.js")
+	rt, _, cleanup := setupRuntimeWithPlugin(t, pluginPath)
+	defer cleanup()
+
+	// Create function definition with JSON fallback
+	jsFn := NewJSFunctionDefinition("pi", rt, WithJSONFallback())
+
+	if jsFn.useSharedMemory {
+		t.Error("expected useSharedMemory to be false")
+	}
+
+	// Call the function - should use JSON path
+	result, err := jsFn.Call()
+	if err != nil {
+		t.Fatalf("Call with JSON fallback failed: %v", err)
+	}
+
+	// Result should be a Dimension node with value ~3.14159
+	if result == nil {
+		t.Fatal("result is nil")
+	}
+
+	// Check if it's a JSResultNode
+	jsNode, ok := result.(*JSResultNode)
+	if !ok {
+		t.Fatalf("expected *JSResultNode, got %T", result)
+	}
+
+	if jsNode.NodeType != "Dimension" {
+		t.Errorf("expected type Dimension, got %s", jsNode.NodeType)
+	}
+
+	value := jsNode.getFloat("value")
+	if math.Abs(value-math.Pi) > 0.0001 {
+		t.Errorf("expected value ~%f, got %f", math.Pi, value)
+	}
+}
+
+func TestJSFunctionDefinition_SharedMemoryWithArgs(t *testing.T) {
+	pluginPath := getTestPluginPath(t, "plugin-tree-nodes.js")
+	rt, _, cleanup := setupRuntimeWithPlugin(t, pluginPath)
+	defer cleanup()
+
+	// Create function definition with shared memory (default)
+	jsFn := NewJSFunctionDefinition("test-atrule", rt)
+
+	// Create test arguments
+	arg1 := map[string]any{
+		"_type": "Keyword",
+		"value": "media",
+	}
+	arg2 := map[string]any{
+		"_type": "Keyword",
+		"value": "screen",
+	}
+
+	// Call the function with arguments
+	result, err := jsFn.Call(arg1, arg2)
+	if err != nil {
+		t.Fatalf("Call with shared memory failed: %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("result is nil")
+	}
+
+	// Should return an AtRule node
+	jsNode, ok := result.(*JSResultNode)
+	if !ok {
+		t.Logf("result type: %T, value: %v", result, result)
+		// Might be a map instead
+		if nodeMap, ok := result.(map[string]any); ok {
+			if nodeMap["_type"] != "AtRule" {
+				t.Errorf("expected type AtRule, got %v", nodeMap["_type"])
+			}
+			return
+		}
+	}
+
+	if jsNode != nil && jsNode.NodeType != "AtRule" {
+		t.Errorf("expected type AtRule, got %s", jsNode.NodeType)
+	}
+}
+
+func TestJSFunctionDefinition_BothPathsEquivalent(t *testing.T) {
+	// Test that both paths produce equivalent results
+	pluginPath := getTestPluginPath(t, "plugin-tree-nodes.js")
+	rt, _, cleanup := setupRuntimeWithPlugin(t, pluginPath)
+	defer cleanup()
+
+	// Create two function definitions - one with shared memory, one with JSON
+	jsFnShm := NewJSFunctionDefinition("test-dimension", rt)
+	jsFnJSON := NewJSFunctionDefinition("test-dimension", rt, WithJSONFallback())
+
+	// Call both
+	resultShm, errShm := jsFnShm.Call()
+	resultJSON, errJSON := jsFnJSON.Call()
+
+	if errShm != nil {
+		t.Fatalf("Shared memory call failed: %v", errShm)
+	}
+	if errJSON != nil {
+		t.Fatalf("JSON call failed: %v", errJSON)
+	}
+
+	// Both should return a Dimension node with value 1 and unit "px"
+	jsNodeShm, okShm := resultShm.(*JSResultNode)
+	jsNodeJSON, okJSON := resultJSON.(*JSResultNode)
+
+	if !okShm || !okJSON {
+		t.Logf("Shared memory result: %T, JSON result: %T", resultShm, resultJSON)
+		// Both should at least be non-nil
+		if resultShm == nil || resultJSON == nil {
+			t.Error("One or both results are nil")
+		}
+		return
+	}
+
+	if jsNodeShm.NodeType != jsNodeJSON.NodeType {
+		t.Errorf("Types differ: shared memory=%s, JSON=%s", jsNodeShm.NodeType, jsNodeJSON.NodeType)
+	}
+
+	valueShm := jsNodeShm.getFloat("value")
+	valueJSON := jsNodeJSON.getFloat("value")
+	if valueShm != valueJSON {
+		t.Errorf("Values differ: shared memory=%f, JSON=%f", valueShm, valueJSON)
+	}
+
+	unitShm := jsNodeShm.getString("unit")
+	unitJSON := jsNodeJSON.getString("unit")
+	if unitShm != unitJSON {
+		t.Errorf("Units differ: shared memory=%s, JSON=%s", unitShm, unitJSON)
+	}
+}
+
+// ============================================
+// Benchmark Tests
+// ============================================
+
+func BenchmarkJSFunction_SharedMemory(b *testing.B) {
+	hostPath := getPluginHostPathBench(b)
+	rt, err := NewNodeJSRuntime(WithPluginHostPath(hostPath))
+	if err != nil {
+		b.Fatalf("NewNodeJSRuntime failed: %v", err)
+	}
+
+	if err := rt.Start(); err != nil {
+		b.Fatalf("Start failed: %v", err)
+	}
+	defer rt.Stop()
+
+	// Load the plugin
+	pluginPath := getTestPluginPathBench(b, "plugin-simple.js")
+	loader := NewJSPluginLoader(rt)
+	result := loader.LoadPlugin(pluginPath, "", nil, nil, nil)
+	if err, ok := result.(error); ok {
+		b.Fatalf("LoadPlugin failed: %v", err)
+	}
+
+	// Create function definition with shared memory (default)
+	jsFn := NewJSFunctionDefinition("pi", rt)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := jsFn.Call()
+		if err != nil {
+			b.Fatalf("Call failed: %v", err)
+		}
+	}
+}
+
+func BenchmarkJSFunction_JSONFallback(b *testing.B) {
+	hostPath := getPluginHostPathBench(b)
+	rt, err := NewNodeJSRuntime(WithPluginHostPath(hostPath))
+	if err != nil {
+		b.Fatalf("NewNodeJSRuntime failed: %v", err)
+	}
+
+	if err := rt.Start(); err != nil {
+		b.Fatalf("Start failed: %v", err)
+	}
+	defer rt.Stop()
+
+	// Load the plugin
+	pluginPath := getTestPluginPathBench(b, "plugin-simple.js")
+	loader := NewJSPluginLoader(rt)
+	result := loader.LoadPlugin(pluginPath, "", nil, nil, nil)
+	if err, ok := result.(error); ok {
+		b.Fatalf("LoadPlugin failed: %v", err)
+	}
+
+	// Create function definition with JSON fallback
+	jsFn := NewJSFunctionDefinition("pi", rt, WithJSONFallback())
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := jsFn.Call()
+		if err != nil {
+			b.Fatalf("Call failed: %v", err)
+		}
+	}
+}
+
+// Helper functions for benchmarks
+
+func getPluginHostPathBench(b *testing.B) string {
+	candidates := []string{
+		"plugin-host.js",
+		"./plugin-host.js",
+	}
+
+	wd, err := os.Getwd()
+	if err == nil {
+		candidates = append(candidates, filepath.Join(wd, "plugin-host.js"))
+	}
+
+	for _, candidate := range candidates {
+		if _, err := os.Stat(candidate); err == nil {
+			absPath, _ := filepath.Abs(candidate)
+			return absPath
+		}
+	}
+
+	b.Fatalf("plugin-host.js not found; tried: %v", candidates)
+	return ""
+}
+
+func getTestPluginPathBench(b *testing.B, pluginName string) string {
+	candidates := []string{
+		filepath.Join("..", "..", "..", "..", "..", "test-data", "plugin", pluginName),
+		filepath.Join("..", "..", "..", "..", "..", "..", "test-data", "plugin", pluginName),
+	}
+
+	wd, err := os.Getwd()
+	if err == nil {
+		candidates = append(candidates,
+			filepath.Join(wd, "..", "..", "..", "..", "..", "test-data", "plugin", pluginName),
+			filepath.Join(wd, "packages", "test-data", "plugin", pluginName),
+		)
+	}
+
+	for _, candidate := range candidates {
+		if _, err := os.Stat(candidate); err == nil {
+			absPath, _ := filepath.Abs(candidate)
+			return absPath
+		}
+	}
+
+	b.Fatalf("plugin %s not found; tried: %v", pluginName, candidates)
+	return ""
+}
+
 // Mock types for testing
 
 type mockRegistry struct {

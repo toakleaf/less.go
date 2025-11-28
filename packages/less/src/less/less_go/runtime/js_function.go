@@ -9,16 +9,35 @@ import (
 // JSFunctionDefinition implements the FunctionDefinition interface for JavaScript functions.
 // It calls JavaScript functions registered by plugins via the Node.js runtime.
 type JSFunctionDefinition struct {
-	name    string
-	runtime *NodeJSRuntime
+	name            string
+	runtime         *NodeJSRuntime
+	useSharedMemory bool // If true (default), use shared memory for zero-copy transfer
+}
+
+// JSFunctionOption configures a JSFunctionDefinition.
+type JSFunctionOption func(*JSFunctionDefinition)
+
+// WithJSONFallback disables shared memory and uses JSON IPC instead.
+// This can be useful for debugging or when shared memory is unavailable.
+func WithJSONFallback() JSFunctionOption {
+	return func(jf *JSFunctionDefinition) {
+		jf.useSharedMemory = false
+	}
 }
 
 // NewJSFunctionDefinition creates a new JSFunctionDefinition.
-func NewJSFunctionDefinition(name string, runtime *NodeJSRuntime) *JSFunctionDefinition {
-	return &JSFunctionDefinition{
-		name:    name,
-		runtime: runtime,
+// By default, shared memory is used for zero-copy argument and result transfer.
+// Use WithJSONFallback() to disable shared memory and use JSON IPC instead.
+func NewJSFunctionDefinition(name string, runtime *NodeJSRuntime, opts ...JSFunctionOption) *JSFunctionDefinition {
+	jf := &JSFunctionDefinition{
+		name:            name,
+		runtime:         runtime,
+		useSharedMemory: true, // Default to shared memory
 	}
+	for _, opt := range opts {
+		opt(jf)
+	}
+	return jf
 }
 
 // Name returns the function name.
@@ -32,13 +51,23 @@ func (jf *JSFunctionDefinition) NeedsEvalArgs() bool {
 }
 
 // Call calls the JavaScript function with the given arguments.
-// Arguments are serialized to JSON for IPC transfer.
+// By default, uses shared memory for zero-copy transfer.
+// Falls back to JSON IPC when shared memory is disabled via WithJSONFallback().
 // Returns the result node or error.
 func (jf *JSFunctionDefinition) Call(args ...any) (any, error) {
 	if jf.runtime == nil {
 		return nil, fmt.Errorf("Node.js runtime not initialized")
 	}
 
+	if jf.useSharedMemory {
+		return jf.callViaSharedMemory(args...)
+	}
+	return jf.callViaJSON(args...)
+}
+
+// callViaJSON calls the JavaScript function using JSON serialization for IPC.
+// This is the fallback when shared memory is disabled.
+func (jf *JSFunctionDefinition) callViaJSON(args ...any) (any, error) {
 	// Serialize arguments for transfer
 	serializedArgs, err := jf.serializeArgs(args)
 	if err != nil {
@@ -69,6 +98,286 @@ func (jf *JSFunctionDefinition) Call(args ...any) (any, error) {
 	}
 
 	return result, nil
+}
+
+// callViaSharedMemory calls the JavaScript function using shared memory for zero-copy transfer.
+// Arguments are flattened to FlatAST format and written to shared memory.
+// Node.js reads arguments directly from the buffer and writes results back.
+func (jf *JSFunctionDefinition) callViaSharedMemory(args ...any) (any, error) {
+	// If no arguments, use a simplified path
+	if len(args) == 0 {
+		return jf.callViaSharedMemoryNoArgs()
+	}
+
+	// 1. Flatten args to FlatAST format
+	argsFlat := NewFlatAST()
+	argIndices := make([]uint32, len(args))
+
+	for i, arg := range args {
+		if arg == nil {
+			argIndices[i] = 0
+			continue
+		}
+
+		flattener := NewASTFlattener()
+		flattener.flat = argsFlat // Use the same flat AST for all args
+
+		idx, err := flattener.FlattenNode(arg, 0)
+		if err != nil {
+			// Fall back to JSON for non-node arguments
+			return jf.callViaJSON(args...)
+		}
+		argIndices[i] = idx
+	}
+
+	// Set the root index to 0 since we have multiple roots (one per arg)
+	argsFlat.RootIndex = 0
+
+	// 2. Write to shared memory buffer
+	argsBytes, err := argsFlat.ToBytes()
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize args: %w", err)
+	}
+
+	// Create shared memory segment with extra space for result
+	// We allocate 2x the args size to leave room for the result
+	bufferSize := len(argsBytes) * 2
+	if bufferSize < 4096 {
+		bufferSize = 4096 // Minimum buffer size
+	}
+
+	shm, err := jf.runtime.CreateSharedMemory(bufferSize)
+	if err != nil {
+		// Fall back to JSON if shared memory fails
+		return jf.callViaJSON(args...)
+	}
+	defer jf.runtime.DestroySharedMemory(shm)
+
+	if err := shm.WriteAll(argsBytes); err != nil {
+		return nil, fmt.Errorf("failed to write to shared memory: %w", err)
+	}
+
+	// 3. Attach buffer to Node.js
+	if err := jf.runtime.AttachBuffer(shm); err != nil {
+		return nil, fmt.Errorf("failed to attach buffer: %w", err)
+	}
+	defer jf.runtime.DetachBuffer(shm.Key())
+
+	// 4. Send command with buffer reference (not data)
+	resp, err := jf.runtime.SendCommand(Command{
+		Cmd: "callFunctionSharedMem",
+		Data: map[string]any{
+			"name":       jf.name,
+			"bufferKey":  shm.Key(),
+			"argIndices": argIndices,
+			"argsSize":   len(argsBytes),
+		},
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("function call failed: %w", err)
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("JavaScript function error: %s", resp.Error)
+	}
+
+	// 5. Read result from response
+	// The result can come back in two ways:
+	// - As a JSON result (for simple types or when buffer writing fails)
+	// - As a buffer offset (for complex nodes written to shared memory)
+	resultMap, ok := resp.Result.(map[string]any)
+	if !ok {
+		// Simple result, use JSON deserialization
+		return jf.deserializeResult(resp.Result)
+	}
+
+	// Check if result is in shared memory
+	if resultOffset, ok := resultMap["resultOffset"]; ok {
+		offset := int(resultOffset.(float64))
+		resultSize := int(resultMap["resultSize"].(float64))
+
+		// Read the result from shared memory
+		resultData, err := shm.Read(offset, resultSize)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read result from shared memory: %w", err)
+		}
+
+		// Parse the result FlatAST
+		resultFlat, err := FromBytes(resultData)
+		if err != nil {
+			return nil, fmt.Errorf("failed to deserialize result: %w", err)
+		}
+
+		// Unflatten result to GenericNode
+		result, err := UnflattenAST(resultFlat)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unflatten result: %w", err)
+		}
+
+		return convertGenericNodeToResult(result, resultFlat), nil
+	}
+
+	// Result came back as JSON
+	if jsonResult, ok := resultMap["jsonResult"]; ok {
+		return jf.deserializeResult(jsonResult)
+	}
+
+	return jf.deserializeResult(resp.Result)
+}
+
+// callViaSharedMemoryNoArgs is an optimized path for functions with no arguments.
+func (jf *JSFunctionDefinition) callViaSharedMemoryNoArgs() (any, error) {
+	// Create a minimal shared memory buffer for the result
+	bufferSize := 4096 // Should be enough for most results
+	shm, err := jf.runtime.CreateSharedMemory(bufferSize)
+	if err != nil {
+		// Fall back to JSON if shared memory fails
+		return jf.callViaJSON()
+	}
+	defer jf.runtime.DestroySharedMemory(shm)
+
+	// Write an empty FlatAST as a placeholder
+	emptyFlat := NewFlatAST()
+	emptyBytes, _ := emptyFlat.ToBytes()
+	if err := shm.WriteAll(emptyBytes); err != nil {
+		return nil, fmt.Errorf("failed to write to shared memory: %w", err)
+	}
+
+	// Attach buffer to Node.js
+	if err := jf.runtime.AttachBuffer(shm); err != nil {
+		return nil, fmt.Errorf("failed to attach buffer: %w", err)
+	}
+	defer jf.runtime.DetachBuffer(shm.Key())
+
+	// Send command with buffer reference
+	resp, err := jf.runtime.SendCommand(Command{
+		Cmd: "callFunctionSharedMem",
+		Data: map[string]any{
+			"name":       jf.name,
+			"bufferKey":  shm.Key(),
+			"argIndices": []uint32{},
+			"argsSize":   len(emptyBytes),
+		},
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("function call failed: %w", err)
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("JavaScript function error: %s", resp.Error)
+	}
+
+	// Handle result
+	resultMap, ok := resp.Result.(map[string]any)
+	if !ok {
+		return jf.deserializeResult(resp.Result)
+	}
+
+	if resultOffset, ok := resultMap["resultOffset"]; ok {
+		offset := int(resultOffset.(float64))
+		resultSize := int(resultMap["resultSize"].(float64))
+
+		resultData, err := shm.Read(offset, resultSize)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read result from shared memory: %w", err)
+		}
+
+		resultFlat, err := FromBytes(resultData)
+		if err != nil {
+			return nil, fmt.Errorf("failed to deserialize result: %w", err)
+		}
+
+		result, err := UnflattenAST(resultFlat)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unflatten result: %w", err)
+		}
+
+		return convertGenericNodeToResult(result, resultFlat), nil
+	}
+
+	if jsonResult, ok := resultMap["jsonResult"]; ok {
+		return jf.deserializeResult(jsonResult)
+	}
+
+	return jf.deserializeResult(resp.Result)
+}
+
+// convertGenericNodeToResult converts a GenericNode to a JSResultNode.
+// It resolves string indices using the FlatAST's string table.
+func convertGenericNodeToResult(node *GenericNode, flat *FlatAST) any {
+	if node == nil {
+		return nil
+	}
+
+	// Convert GenericNode properties to JSResultNode format
+	// Resolve string table indices to actual strings
+	props := make(map[string]any)
+	if node.Properties != nil {
+		for k, v := range node.Properties {
+			// Check if the value might be a string table index
+			if idx, ok := v.(float64); ok {
+				// Try to resolve as string index for known string properties
+				if isStringProperty(node.Type, k) {
+					if resolved := flat.GetString(uint32(idx)); resolved != "" {
+						props[k] = resolved
+						continue
+					}
+				}
+			}
+			props[k] = v
+		}
+	}
+
+	// Add flags if set
+	if node.Parens {
+		props["parens"] = true
+	}
+	if node.ParensInOp {
+		props["parensInOp"] = true
+	}
+
+	// Convert children recursively if needed
+	if len(node.Children) > 0 {
+		children := make([]any, len(node.Children))
+		for i, child := range node.Children {
+			children[i] = convertGenericNodeToResult(child, flat)
+		}
+		props["children"] = children
+	}
+
+	return &JSResultNode{
+		NodeType:   node.Type,
+		Properties: props,
+	}
+}
+
+// isStringProperty returns true if the given property of the given node type
+// is expected to be a string value (and thus might be stored as a string table index).
+func isStringProperty(nodeType, propName string) bool {
+	stringProps := map[string]map[string]bool{
+		"Dimension": {"Unit": true, "unit": true},
+		"Quoted":    {"Value": true, "value": true, "Quote": true, "quote": true},
+		"Keyword":   {"Value": true, "value": true},
+		"Anonymous": {"Value": true, "value": true},
+		"Variable":  {"Name": true, "name": true},
+		"URL":       {"Value": true, "value": true},
+		"Call":      {"Name": true, "name": true},
+		"Combinator": {"Value": true, "value": true},
+		"Element":   {"Value": true, "value": true},
+		"AtRule":    {"Name": true, "name": true},
+		"Comment":   {"Value": true, "value": true},
+		"Assignment": {"Key": true, "key": true},
+		"Attribute": {"Key": true, "key": true, "Op": true, "op": true},
+		"Operation": {"Op": true, "op": true},
+		"Condition": {"Op": true, "op": true},
+	}
+
+	if props, ok := stringProps[nodeType]; ok {
+		return props[propName]
+	}
+	return false
 }
 
 // CallCtx calls the JavaScript function with context.
