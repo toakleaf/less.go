@@ -15,6 +15,7 @@
 const readline = require('readline');
 const path = require('path');
 const fs = require('fs');
+const vm = require('vm');
 
 // Plugin state
 const loadedPlugins = new Map();
@@ -27,11 +28,154 @@ const registeredFileManagers = [];
 // Shared memory state
 const attachedBuffers = new Map(); // key -> { path, size, buffer }
 
-// Less API mock (to be expanded)
+// Node constructor helpers
+// These create simple object representations that will be serialized back to Go
+function createNode(type, props = {}) {
+  return {
+    _type: type,
+    ...props,
+  };
+}
+
+// Less API with node constructors
 const less = {
   version: [4, 0, 0],
-  // Node constructors will be added later
+
+  // Node constructors (matching less.js tree API)
+  dimension: (value, unit) => createNode('Dimension', { value, unit: unit || '' }),
+  color: (rgb, alpha) => {
+    // Handle both [r,g,b] array and {r,g,b} object
+    if (Array.isArray(rgb)) {
+      return createNode('Color', { rgb, alpha: alpha !== undefined ? alpha : 1 });
+    }
+    return createNode('Color', { rgb: [rgb.r || 0, rgb.g || 0, rgb.b || 0], alpha: alpha !== undefined ? alpha : 1 });
+  },
+  quoted: (quote, value, escaped) => createNode('Quoted', { quote, value, escaped: escaped || false }),
+  keyword: (value) => createNode('Keyword', { value }),
+  anonymous: (value) => createNode('Anonymous', { value }),
+  url: (value, paths) => createNode('URL', { value, paths }),
+  call: (name, args) => createNode('Call', { name, args: args || [] }),
+  variable: (name) => createNode('Variable', { name }),
+  value: (value) => createNode('Value', { value: Array.isArray(value) ? value : [value] }),
+  expression: (value) => createNode('Expression', { value: Array.isArray(value) ? value : [value] }),
+  operation: (op, operands) => createNode('Operation', { op, operands }),
+  combinator: (value) => createNode('Combinator', { value }),
+  element: (combinator, value) => createNode('Element', { combinator, value }),
+  selector: (elements) => createNode('Selector', { elements: Array.isArray(elements) ? elements : [elements] }),
+  ruleset: (selectors, rules) => createNode('Ruleset', { selectors, rules }),
+  declaration: (name, value, important, merge, inline, variable) =>
+    createNode('Declaration', { name, value, important, merge, inline, variable }),
+  detachedruleset: (ruleset) => createNode('DetachedRuleset', { ruleset }),
+  paren: (node) => createNode('Paren', { value: node }),
+  negative: (node) => createNode('Negative', { value: node }),
+  atrule: (name, value, rules, index, isRooted) =>
+    createNode('AtRule', { name, value, rules, index, isRooted }),
+  assignment: (key, val) => createNode('Assignment', { key, value: val }),
+  attribute: (key, op, value) => createNode('Attribute', { key, op, value }),
+  condition: (op, lvalue, rvalue, negate) => createNode('Condition', { op, lvalue, rvalue, negate }),
+
+  // Visitor base class
+  visitors: {
+    Visitor: class Visitor {
+      constructor(implementation) {
+        this._implementation = implementation;
+        this._visitFnCache = {};
+      }
+
+      visit(node) {
+        if (!node) return node;
+
+        const type = node._type || node.type;
+        if (!type) return node;
+
+        const funcName = 'visit' + type;
+        if (this._implementation[funcName]) {
+          return this._implementation[funcName](node);
+        }
+        return node;
+      }
+    },
+  },
+
+  // Tree namespace (for compatibility with plugins that use less.tree)
+  tree: {
+    Anonymous: function (value) {
+      return createNode('Anonymous', { value });
+    },
+    Dimension: function (value, unit) {
+      return createNode('Dimension', { value, unit: unit || '' });
+    },
+    Color: function (rgb, alpha) {
+      if (Array.isArray(rgb)) {
+        return createNode('Color', { rgb, alpha: alpha !== undefined ? alpha : 1 });
+      }
+      return createNode('Color', { rgb: [rgb.r || 0, rgb.g || 0, rgb.b || 0], alpha: alpha !== undefined ? alpha : 1 });
+    },
+    Quoted: function (quote, value, escaped) {
+      return createNode('Quoted', { quote, value, escaped: escaped || false });
+    },
+    Keyword: function (value) {
+      return createNode('Keyword', { value });
+    },
+    URL: function (value, paths) {
+      return createNode('URL', { value, paths });
+    },
+    Call: function (name, args) {
+      return createNode('Call', { name, args: args || [] });
+    },
+    Variable: function (name) {
+      return createNode('Variable', { name });
+    },
+    Value: function (value) {
+      return createNode('Value', { value: Array.isArray(value) ? value : [value] });
+    },
+    Expression: function (value) {
+      return createNode('Expression', { value: Array.isArray(value) ? value : [value] });
+    },
+    Operation: function (op, operands) {
+      return createNode('Operation', { op, operands });
+    },
+    Combinator: function (value) {
+      return createNode('Combinator', { value });
+    },
+    Element: function (combinator, value) {
+      return createNode('Element', { combinator, value });
+    },
+    Selector: function (elements) {
+      return createNode('Selector', { elements: Array.isArray(elements) ? elements : [elements] });
+    },
+    Ruleset: function (selectors, rules) {
+      return createNode('Ruleset', { selectors, rules });
+    },
+    Declaration: function (name, value, important, merge, inline, variable) {
+      return createNode('Declaration', { name, value, important, merge, inline, variable });
+    },
+    DetachedRuleset: function (ruleset) {
+      return createNode('DetachedRuleset', { ruleset });
+    },
+    Paren: function (node) {
+      return createNode('Paren', { value: node });
+    },
+    Negative: function (node) {
+      return createNode('Negative', { value: node });
+    },
+    AtRule: function (name, value, rules, index, isRooted) {
+      return createNode('AtRule', { name, value, rules, index, isRooted });
+    },
+    Assignment: function (key, val) {
+      return createNode('Assignment', { key, value: val });
+    },
+    Attribute: function (key, op, value) {
+      return createNode('Attribute', { key, op, value });
+    },
+    Condition: function (op, lvalue, rvalue, negate) {
+      return createNode('Condition', { op, lvalue, rvalue, negate });
+    },
+  },
 };
+
+// Create global references for legacy plugins that use `tree` and `functions` directly
+const tree = less.tree;
 
 // Function registry mock
 const functionRegistry = {
@@ -183,52 +327,148 @@ function handleLoadPlugin(id, data) {
   }
 
   try {
-    // Resolve the plugin path
+    // Resolve the plugin path using Node.js require resolution
     let resolvedPath;
-    if (path.isAbsolute(pluginPath)) {
+    let plugin;
+
+    // Try to resolve the plugin path
+    const isRelative = pluginPath.startsWith('.') || pluginPath.startsWith('/');
+    const isAbsolute = path.isAbsolute(pluginPath);
+
+    if (isAbsolute) {
       resolvedPath = pluginPath;
-    } else if (baseDir) {
-      resolvedPath = path.resolve(baseDir, pluginPath);
+    } else if (isRelative) {
+      const basePath = baseDir || process.cwd();
+      resolvedPath = path.resolve(basePath, pluginPath);
     } else {
-      resolvedPath = path.resolve(process.cwd(), pluginPath);
+      // NPM module - use require.resolve to find it
+      const searchPaths = [];
+      if (baseDir) {
+        searchPaths.push(baseDir);
+        searchPaths.push(path.join(baseDir, 'node_modules'));
+      }
+      searchPaths.push(process.cwd());
+      searchPaths.push(path.join(process.cwd(), 'node_modules'));
+
+      try {
+        resolvedPath = require.resolve(pluginPath, { paths: searchPaths });
+      } catch (resolveErr) {
+        throw new Error(`Cannot find module '${pluginPath}': ${resolveErr.message}`);
+      }
     }
 
-    // Check if already loaded
+    // Check if already loaded (by resolved path)
     if (loadedPlugins.has(resolvedPath)) {
-      const plugin = loadedPlugins.get(resolvedPath);
       sendResponse(id, true, {
         cached: true,
+        path: resolvedPath,
         functions: functionRegistry.getAll(),
+        visitors: registeredVisitors.length,
+        preProcessors: registeredPreProcessors.length,
+        postProcessors: registeredPostProcessors.length,
+        fileManagers: registeredFileManagers.length,
       });
       return;
     }
 
-    // Load the plugin using require
-    const plugin = require(resolvedPath);
+    // Count functions before loading to track new ones
+    const functionsBefore = registeredFunctions.size;
+    const visitorsBefore = registeredVisitors.length;
+    const preProcessorsBefore = registeredPreProcessors.length;
+    const postProcessorsBefore = registeredPostProcessors.length;
+    const fileManagersBefore = registeredFileManagers.length;
 
-    // Call install if it exists
-    if (plugin.install) {
+    // Set global references for legacy plugins that use `functions` and `tree` directly
+    // These need to be set before require() is called so legacy plugins can use them
+    global.functions = functionRegistry;
+    global.tree = tree;
+    global.less = less;
+
+    // Try to load via require() first
+    try {
+      plugin = require(resolvedPath);
+    } catch (requireErr) {
+      // If require fails, try loading as raw JS code with vm
+      const fileContent = fs.readFileSync(resolvedPath, 'utf8');
+      const context = vm.createContext({
+        functions: functionRegistry,
+        tree: tree,
+        less: less,
+        module: { exports: {} },
+        exports: {},
+        require: require,
+        console: console,
+        __filename: resolvedPath,
+        __dirname: path.dirname(resolvedPath),
+      });
+
+      vm.runInContext(fileContent, context, { filename: resolvedPath });
+      plugin = context.module.exports;
+    }
+
+    // Handle plugin as either an object or a function (constructor)
+    if (typeof plugin === 'function') {
+      plugin = new plugin();
+    }
+
+    // Check if the plugin registered anything already (legacy format)
+    // Legacy plugins call functions.add() directly during require()
+    const hasLegacyRegistrations = registeredFunctions.size > functionsBefore;
+
+    // If no legacy registrations and plugin has an install method, call it
+    if (!hasLegacyRegistrations && plugin && plugin.install) {
+      // Validate minVersion if specified
+      if (plugin.minVersion) {
+        const minVer = Array.isArray(plugin.minVersion) ? plugin.minVersion : plugin.minVersion.split('.').map(Number);
+        const lessVer = less.version;
+        for (let i = 0; i < minVer.length; i++) {
+          if ((minVer[i] || 0) > (lessVer[i] || 0)) {
+            throw new Error(`Plugin requires Less.js version ${minVer.join('.')} or higher`);
+          } else if ((minVer[i] || 0) < (lessVer[i] || 0)) {
+            break;
+          }
+        }
+      }
+
       plugin.install(less, pluginManager, functionRegistry);
     }
 
-    // Set options if provided
-    if (options && plugin.setOptions) {
+    // Set options if provided (for version 3.x+, options are set after install)
+    if (options && plugin && plugin.setOptions) {
       plugin.setOptions(options);
     }
 
+    // Call use() if it exists (called every time plugin is loaded)
+    if (plugin && plugin.use) {
+      plugin.use(plugin);
+    }
+
     // Cache the plugin
-    loadedPlugins.set(resolvedPath, plugin);
+    loadedPlugins.set(resolvedPath, plugin || {});
+
+    // Count new registrations
+    const newFunctions = registeredFunctions.size - functionsBefore;
+    const newVisitors = registeredVisitors.length - visitorsBefore;
+    const newPreProcessors = registeredPreProcessors.length - preProcessorsBefore;
+    const newPostProcessors = registeredPostProcessors.length - postProcessorsBefore;
+    const newFileManagers = registeredFileManagers.length - fileManagersBefore;
 
     sendResponse(id, true, {
       cached: false,
+      path: resolvedPath,
       functions: functionRegistry.getAll(),
       visitors: registeredVisitors.length,
       preProcessors: registeredPreProcessors.length,
       postProcessors: registeredPostProcessors.length,
       fileManagers: registeredFileManagers.length,
+      newFunctions,
+      newVisitors,
+      newPreProcessors,
+      newPostProcessors,
+      newFileManagers,
     });
   } catch (err) {
-    sendResponse(id, false, null, `Failed to load plugin: ${err.message}`);
+    sendResponse(id, false, null, `Failed to load plugin: ${err.message}\n${err.stack || ''}`);
   }
 }
 
