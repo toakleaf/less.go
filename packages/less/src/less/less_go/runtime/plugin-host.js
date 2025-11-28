@@ -338,6 +338,34 @@ function handleCommand(cmd) {
         handleCallFunctionSharedMem(id, data);
         break;
 
+      case 'getPreProcessors':
+        handleGetPreProcessors(id, data);
+        break;
+
+      case 'getPostProcessors':
+        handleGetPostProcessors(id, data);
+        break;
+
+      case 'runPreProcessor':
+        handleRunPreProcessor(id, data);
+        break;
+
+      case 'runPostProcessor':
+        handleRunPostProcessor(id, data);
+        break;
+
+      case 'getFileManagers':
+        handleGetFileManagers(id, data);
+        break;
+
+      case 'fileManagerSupports':
+        handleFileManagerSupports(id, data);
+        break;
+
+      case 'fileManagerLoad':
+        handleFileManagerLoad(id, data);
+        break;
+
       default:
         sendResponse(id, false, null, `Unknown command: ${command}`);
     }
@@ -1435,6 +1463,257 @@ function getTypeNameFromID(typeID) {
   return typeNames[typeID] || 'Unknown';
 }
 
+/**
+ * Get the list of registered pre-processors
+ * @param {number} id - Command ID
+ * @param {Object} data - Unused
+ */
+function handleGetPreProcessors(id, data) {
+  try {
+    const processors = registeredPreProcessors.map((p, index) => ({
+      index,
+      priority: p.priority,
+    }));
+    sendResponse(id, true, processors);
+  } catch (err) {
+    sendResponse(id, false, null, `Failed to get pre-processors: ${err.message}`);
+  }
+}
+
+/**
+ * Get the list of registered post-processors
+ * @param {number} id - Command ID
+ * @param {Object} data - Unused
+ */
+function handleGetPostProcessors(id, data) {
+  try {
+    const processors = registeredPostProcessors.map((p, index) => ({
+      index,
+      priority: p.priority,
+    }));
+    sendResponse(id, true, processors);
+  } catch (err) {
+    sendResponse(id, false, null, `Failed to get post-processors: ${err.message}`);
+  }
+}
+
+/**
+ * Run a pre-processor on the input source
+ * @param {number} id - Command ID
+ * @param {Object} data - { processorIndex, input, options }
+ */
+function handleRunPreProcessor(id, data) {
+  const { processorIndex, input, options } = data || {};
+
+  if (processorIndex === undefined || processorIndex < 0) {
+    sendResponse(id, false, null, 'Processor index is required');
+    return;
+  }
+
+  if (processorIndex >= registeredPreProcessors.length) {
+    sendResponse(id, false, null, `Pre-processor index out of range: ${processorIndex}`);
+    return;
+  }
+
+  try {
+    const proc = registeredPreProcessors[processorIndex];
+    const processor = proc.processor;
+
+    // Build extra context object (matching less.js behavior)
+    const extra = {
+      context: options || {},
+      fileInfo: options?.fileInfo || {},
+      imports: options?.imports || {},
+    };
+
+    // Call the processor's process method
+    let output;
+    if (typeof processor.process === 'function') {
+      output = processor.process(input, extra);
+    } else if (typeof processor === 'function') {
+      output = processor(input, extra);
+    } else {
+      sendResponse(id, false, null, 'Pre-processor does not have a process method');
+      return;
+    }
+
+    // Handle promise result
+    if (output && typeof output.then === 'function') {
+      output.then((result) => {
+        sendResponse(id, true, { output: result });
+      }).catch((err) => {
+        sendResponse(id, false, null, `Pre-processor error: ${err.message}`);
+      });
+    } else {
+      sendResponse(id, true, { output });
+    }
+  } catch (err) {
+    sendResponse(id, false, null, `Pre-processor error: ${err.message}\n${err.stack || ''}`);
+  }
+}
+
+/**
+ * Run a post-processor on the CSS output
+ * @param {number} id - Command ID
+ * @param {Object} data - { processorIndex, input, options }
+ */
+function handleRunPostProcessor(id, data) {
+  const { processorIndex, input, options } = data || {};
+
+  if (processorIndex === undefined || processorIndex < 0) {
+    sendResponse(id, false, null, 'Processor index is required');
+    return;
+  }
+
+  if (processorIndex >= registeredPostProcessors.length) {
+    sendResponse(id, false, null, `Post-processor index out of range: ${processorIndex}`);
+    return;
+  }
+
+  try {
+    const proc = registeredPostProcessors[processorIndex];
+    const processor = proc.processor;
+
+    // Build extra context object (matching less.js behavior)
+    const extra = {
+      context: options || {},
+      fileInfo: options?.fileInfo || {},
+      imports: options?.imports || {},
+    };
+
+    // Call the processor's process method
+    let output;
+    if (typeof processor.process === 'function') {
+      output = processor.process(input, extra);
+    } else if (typeof processor === 'function') {
+      output = processor(input, extra);
+    } else {
+      sendResponse(id, false, null, 'Post-processor does not have a process method');
+      return;
+    }
+
+    // Handle promise result
+    if (output && typeof output.then === 'function') {
+      output.then((result) => {
+        sendResponse(id, true, { output: result });
+      }).catch((err) => {
+        sendResponse(id, false, null, `Post-processor error: ${err.message}`);
+      });
+    } else {
+      sendResponse(id, true, { output });
+    }
+  } catch (err) {
+    sendResponse(id, false, null, `Post-processor error: ${err.message}\n${err.stack || ''}`);
+  }
+}
+
+/**
+ * Get the list of registered file managers
+ * @param {number} id - Command ID
+ * @param {Object} data - Unused
+ */
+function handleGetFileManagers(id, data) {
+  try {
+    const managers = registeredFileManagers.map((fm, index) => ({
+      index,
+    }));
+    sendResponse(id, true, managers);
+  } catch (err) {
+    sendResponse(id, false, null, `Failed to get file managers: ${err.message}`);
+  }
+}
+
+/**
+ * Check if a file manager supports a given file
+ * @param {number} id - Command ID
+ * @param {Object} data - { managerIndex, filename, currentDirectory, options }
+ */
+function handleFileManagerSupports(id, data) {
+  const { managerIndex, filename, currentDirectory, options } = data || {};
+
+  if (managerIndex === undefined || managerIndex < 0) {
+    sendResponse(id, false, null, 'File manager index is required');
+    return;
+  }
+
+  if (managerIndex >= registeredFileManagers.length) {
+    sendResponse(id, false, null, `File manager index out of range: ${managerIndex}`);
+    return;
+  }
+
+  try {
+    const fileManager = registeredFileManagers[managerIndex];
+
+    // Call the supports method if it exists
+    let supports = false;
+    if (typeof fileManager.supports === 'function') {
+      supports = fileManager.supports(filename, currentDirectory, options || {}, {});
+    } else if (typeof fileManager.supportsSync === 'function') {
+      supports = fileManager.supportsSync(filename, currentDirectory, options || {}, {});
+    } else {
+      // If no supports method, assume it supports all files
+      supports = true;
+    }
+
+    sendResponse(id, true, { supports: !!supports });
+  } catch (err) {
+    sendResponse(id, false, null, `File manager supports check error: ${err.message}`);
+  }
+}
+
+/**
+ * Load a file using a file manager
+ * @param {number} id - Command ID
+ * @param {Object} data - { managerIndex, filename, currentDirectory, options }
+ */
+function handleFileManagerLoad(id, data) {
+  const { managerIndex, filename, currentDirectory, options } = data || {};
+
+  if (managerIndex === undefined || managerIndex < 0) {
+    sendResponse(id, false, null, 'File manager index is required');
+    return;
+  }
+
+  if (managerIndex >= registeredFileManagers.length) {
+    sendResponse(id, false, null, `File manager index out of range: ${managerIndex}`);
+    return;
+  }
+
+  try {
+    const fileManager = registeredFileManagers[managerIndex];
+
+    // Try loadFile or loadFileSync
+    let result;
+    if (typeof fileManager.loadFile === 'function') {
+      result = fileManager.loadFile(filename, currentDirectory, options || {}, {});
+    } else if (typeof fileManager.loadFileSync === 'function') {
+      result = fileManager.loadFileSync(filename, currentDirectory, options || {}, {});
+    } else {
+      sendResponse(id, false, null, 'File manager does not have a loadFile method');
+      return;
+    }
+
+    // Handle promise result
+    if (result && typeof result.then === 'function') {
+      result.then((data) => {
+        sendResponse(id, true, {
+          filename: data.filename || filename,
+          contents: data.contents || '',
+        });
+      }).catch((err) => {
+        sendResponse(id, false, null, `File load error: ${err.message}`);
+      });
+    } else {
+      sendResponse(id, true, {
+        filename: result.filename || filename,
+        contents: result.contents || '',
+      });
+    }
+  } catch (err) {
+    sendResponse(id, false, null, `File manager load error: ${err.message}\n${err.stack || ''}`);
+  }
+}
+
 // Export for testing
 if (typeof module !== 'undefined') {
   module.exports = {
@@ -1443,6 +1722,9 @@ if (typeof module !== 'undefined') {
     attachedBuffers,
     registeredFunctions,
     registeredVisitors,
+    registeredPreProcessors,
+    registeredPostProcessors,
+    registeredFileManagers,
     bindings,
     less,
     tree,
