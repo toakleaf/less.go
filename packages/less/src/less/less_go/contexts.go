@@ -67,6 +67,9 @@ type Eval struct {
 	FunctionRegistry *Registry    // Function registry for built-in and custom functions
 	MediaBlocks      []any        // Stack of media blocks for media query merging
 	MediaPath        []any        // Path of nested media queries for merging
+
+	// Plugin support - bridge to Node.js plugin system for scoped function lookup
+	PluginBridge     *NodeJSPluginBridge
 }
 
 // NewEval creates a new Eval context with the given options and frames
@@ -112,6 +115,7 @@ func NewEvalFromEval(parent *Eval, frames []any) *Eval {
 		FunctionRegistry:  parent.FunctionRegistry,
 		MediaBlocks:       parent.MediaBlocks,
 		MediaPath:         parent.MediaPath,
+		PluginBridge:      parent.PluginBridge, // Share plugin bridge across contexts
 	}
 }
 
@@ -583,5 +587,52 @@ func copyFromOriginal(original map[string]any, destination any) {
 		if numPrecision, ok := original["numPrecision"].(int); ok {
 			d.NumPrecision = numPrecision
 		}
+		// Handle pluginBridge option
+		if pluginBridge, ok := original["pluginBridge"].(*NodeJSPluginBridge); ok {
+			d.PluginBridge = pluginBridge
+		}
 	}
-} 
+}
+
+// EnterPluginScope creates and enters a new child plugin scope.
+// This should be called when entering a ruleset or mixin that might have local @plugin directives.
+// Returns the new scope, or nil if no plugin bridge is available.
+func (e *Eval) EnterPluginScope() any {
+	if e.PluginBridge != nil {
+		return e.PluginBridge.EnterScope()
+	}
+	return nil
+}
+
+// ExitPluginScope exits the current plugin scope and returns to the parent.
+// This should be called when exiting a ruleset or mixin.
+func (e *Eval) ExitPluginScope() {
+	if e.PluginBridge != nil {
+		e.PluginBridge.ExitScope()
+	}
+}
+
+// LookupPluginFunction looks up a function by name in the plugin scope hierarchy.
+// Returns the function definition and true if found, nil and false otherwise.
+func (e *Eval) LookupPluginFunction(name string) (any, bool) {
+	if e.PluginBridge != nil {
+		return e.PluginBridge.LookupFunction(name)
+	}
+	return nil, false
+}
+
+// HasPluginFunction checks if a function exists in the plugin scope hierarchy.
+func (e *Eval) HasPluginFunction(name string) bool {
+	if e.PluginBridge != nil {
+		return e.PluginBridge.HasFunction(name)
+	}
+	return false
+}
+
+// CallPluginFunction calls a JavaScript plugin function by name.
+func (e *Eval) CallPluginFunction(name string, args ...any) (any, error) {
+	if e.PluginBridge != nil {
+		return e.PluginBridge.CallFunction(name, args...)
+	}
+	return nil, fmt.Errorf("no plugin bridge available")
+}

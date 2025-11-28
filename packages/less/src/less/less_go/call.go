@@ -18,6 +18,14 @@ type EvalContext interface {
 	GetDefaultFunc() *DefaultFunc
 }
 
+// PluginFunctionProvider is an interface for looking up plugin functions.
+// This allows the function caller to access JavaScript plugin functions.
+type PluginFunctionProvider interface {
+	LookupPluginFunction(name string) (any, bool)
+	HasPluginFunction(name string) bool
+	CallPluginFunction(name string, args ...any) (any, error)
+}
+
 // ParserFunctionCaller represents the interface needed to call functions
 type ParserFunctionCaller interface {
 	IsValid() bool
@@ -46,9 +54,23 @@ func (f *DefaultFunctionCallerFactory) NewFunctionCaller(name string, context Ev
 	// Get function definition from registry via adapter
 	lowerName := strings.ToLower(name)
 	funcDef := f.adapter.Get(lowerName)
-	
+
 
 	if funcDef == nil {
+		// Check if this might be a plugin function
+		if pluginProvider, ok := context.(PluginFunctionProvider); ok {
+			if pluginProvider.HasPluginFunction(lowerName) {
+				// Return a plugin function caller
+				return &PluginFunctionCaller{
+					name:     lowerName,
+					provider: pluginProvider,
+					context:  context,
+					index:    index,
+					fileInfo: fileInfo,
+				}, nil
+			}
+		}
+
 		// Return an invalid caller - this matches JavaScript behavior where unknown functions are not called
 		return &DefaultParserFunctionCaller{
 			name:     lowerName,
@@ -71,6 +93,47 @@ func (f *DefaultFunctionCallerFactory) NewFunctionCaller(name string, context Ev
 		index:    index,
 		fileInfo: fileInfo,
 	}, nil
+}
+
+// PluginFunctionCaller calls JavaScript plugin functions
+type PluginFunctionCaller struct {
+	name     string
+	provider PluginFunctionProvider
+	context  EvalContext
+	index    int
+	fileInfo map[string]any
+}
+
+// IsValid returns true because plugin functions are always valid if we get here
+func (c *PluginFunctionCaller) IsValid() bool {
+	return true
+}
+
+// Call calls the JavaScript plugin function with the given arguments
+func (c *PluginFunctionCaller) Call(args []any) (any, error) {
+	// Evaluate arguments first (match JavaScript behavior)
+	evaluatedArgs := make([]any, 0, len(args))
+	for _, arg := range args {
+		if evaluable, ok := arg.(interface{ Eval(any) any }); ok {
+			evaluatedArgs = append(evaluatedArgs, evaluable.Eval(c.context))
+		} else if evaluableWithErr, ok := arg.(interface{ Eval(any) (any, error) }); ok {
+			result, err := evaluableWithErr.Eval(c.context)
+			if err != nil {
+				return nil, err
+			}
+			evaluatedArgs = append(evaluatedArgs, result)
+		} else {
+			evaluatedArgs = append(evaluatedArgs, arg)
+		}
+	}
+
+	// Call the plugin function
+	result, err := c.provider.CallPluginFunction(c.name, evaluatedArgs...)
+	if err != nil {
+		return nil, fmt.Errorf("error calling plugin function '%s': %w", c.name, err)
+	}
+
+	return result, nil
 }
 
 // DefaultParserFunctionCaller implements ParserFunctionCaller
