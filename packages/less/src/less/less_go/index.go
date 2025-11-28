@@ -264,7 +264,7 @@ func createRender(env any, parseTree any, importManager any) func(string, ...any
 				buf := make([]byte, 4096)
 				n := runtime.Stack(buf, false)
 				stackTrace := string(buf[:n])
-				
+
 				// Format the error message
 				var errMsg string
 				if err, ok := r.(error); ok {
@@ -272,7 +272,7 @@ func createRender(env any, parseTree any, importManager any) func(string, ...any
 				} else {
 					errMsg = fmt.Sprintf("%v", r)
 				}
-				
+
 				// Return error in the format expected by the test framework
 				filename := "input"
 				if len(args) > 0 {
@@ -282,12 +282,12 @@ func createRender(env any, parseTree any, importManager any) func(string, ...any
 						}
 					}
 				}
-				
-				// Always log stack trace for debugging nil pointers and array bounds errors
+
+				// Log stack trace for debugging nil pointers and array bounds errors
 				if strings.Contains(errMsg, "nil pointer dereference") || strings.Contains(errMsg, "invalid memory address") || strings.Contains(errMsg, "index out of range") {
 					fmt.Fprintf(os.Stderr, "\n=== DEBUG: Runtime error in render ===\nError: %s\nFile: %s\nStack trace:\n%s\n===\n", errMsg, filename, stackTrace)
 				}
-				
+
 				// Create a proper error response
 				result = map[string]any{
 					"error": fmt.Sprintf("Syntax: %s in %s", errMsg, filename),

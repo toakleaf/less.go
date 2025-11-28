@@ -440,6 +440,11 @@ func (im *ImportManager) Push(path string, tryAppendExtension bool, currentFileI
 	var promise any
 
 	if importOptions.IsPlugin {
+		// Check if pluginLoader is available
+		if pluginLoader == nil {
+			fileParsedFunc(fmt.Errorf("plugin imports are not supported: no plugin loader available for '%s'", path), nil, path)
+			return
+		}
 		context["mime"] = "application/javascript"
 
 		if syncImport, exists := context["syncImport"]; exists && syncImport.(bool) {
