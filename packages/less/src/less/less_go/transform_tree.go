@@ -22,6 +22,20 @@ func TransformTree(root any, options map[string]any) any {
 
 	// Initialize defaultFunc for mixin guards
 	evalEnv.DefaultFunc = NewDefaultFunc()
+
+	// Set up the plugin bridge for JavaScript plugin function lookup
+	if pluginBridge, ok := options["pluginBridge"].(*LazyNodeJSPluginBridge); ok {
+		// Get the underlying NodeJSPluginBridge if it's been initialized
+		// This allows function lookups to work during evaluation
+		if pluginBridge.IsInitialized() {
+			if bridge, err := pluginBridge.GetBridge(); err == nil {
+				evalEnv.PluginBridge = bridge
+			}
+		}
+	} else if bridge, ok := options["pluginBridge"].(*NodeJSPluginBridge); ok {
+		// Direct NodeJSPluginBridge (for testing or direct usage)
+		evalEnv.PluginBridge = bridge
+	}
 	
 	// Add function registry support - check if functions are provided in options
 	var functionRegistry *Registry
