@@ -58,27 +58,128 @@ Each node: [Type, Child Index, Next Sibling Index, Parent Index]
 - Similar structure but adapted for LESS nodes
 - String values stored in separate string table to minimize boundary crossings
 
+## Why Node.js + Shared Memory? (Hybrid Approach)
+
+After analyzing the options, we're choosing **Node.js with shared memory** instead of embedded runtimes (goja/v8go):
+
+### The Decision
+
+| Approach | Performance | Compatibility | Complexity | Verdict |
+|----------|------------|---------------|------------|---------|
+| **JSON over stdio** | ❌ 10-20x overhead | ✅ Perfect | ✅ Simple | Too slow |
+| **Embedded goja** | ⚠️ 2-3x overhead | ⚠️ Good but quirks | ⚠️ Medium | Acceptable |
+| **Embedded v8go** | ✅ 1.5-2x overhead | ✅ Perfect | ❌ CGO, complex | Good but hard |
+| **Node.js + Shared Mem** | ✅ 1.5-2x overhead | ✅ Perfect | ✅ Medium | **Best!** ✅ |
+
+### Advantages of Node.js + Shared Memory
+
+1. **Perfect Compatibility**: Real Node.js means perfect plugin compatibility (no quirks!)
+2. **Fast V8 Engine**: 10x faster JavaScript execution than goja
+3. **OXC Performance**: Still gets zero-copy buffer transfer (no JSON serialization!)
+4. **Simple Plugin Loading**: Native `require()` - no need to reimplement npm resolution
+5. **Already Required**: Node.js is already needed for the pnpm workspace
+6. **Better Debugging**: Standard Node.js debugging tools work
+7. **No CGO**: Unlike v8go, doesn't require C dependencies
+
+### How It Combines Both Approaches
+
+```
+┌─────────────────────────────────────────────────────┐
+│ Traditional Node.js Approach (esbuild style)        │
+│ - JSON over stdio                                   │
+│ - 10-20x overhead                                   │
+│ ❌ Too slow                                         │
+└─────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────┐
+│ OXC Approach (embedded runtime with buffers)        │
+│ - Buffer-based transfer                             │
+│ - 2-5x overhead                                     │
+│ ✅ Good, but still overhead from slow JS runtime   │
+└─────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────┐
+│ Our Hybrid: Node.js + Shared Memory                │
+│ - OXC's buffer approach ✅                          │
+│ - Fast V8 execution ✅                              │
+│ - Perfect compatibility ✅                          │
+│ - 1.5-2x overhead ✅                                │
+│ 🎯 BEST OF BOTH WORLDS                             │
+└─────────────────────────────────────────────────────┘
+```
+
 ## Proposed Architecture for less.go
 
-### Phase 1: JavaScript Runtime Integration
+### Phase 1: Node.js Process Integration
 
-**Goal**: Choose and integrate a JavaScript runtime for Go.
+**Goal**: Integrate with Node.js for JavaScript plugin execution.
 
-**Options Analysis**:
+**Architecture Decision**: **Node.js + Shared Memory**
 
-| Runtime | Pros | Cons | Recommendation |
-|---------|------|------|----------------|
-| **goja** | Pure Go, no CGO, easy integration | ~10-20x slower than V8 | ✅ **Start here** (simplicity) |
-| **v8go** | Near-native JS performance | Requires CGO, complex build | Phase 2 optimization |
-| **quickjs-go** | Smaller footprint than V8 | Still requires CGO | Alternative to v8go |
+**Why Node.js?**
+- ✅ Already required for the pnpm workspace
+- ✅ Perfect plugin compatibility (real `require()`, full npm ecosystem)
+- ✅ Production-ready V8 engine (faster than embedded runtimes)
+- ✅ Easier debugging (standard Node.js tools)
+- ✅ Proven approach (similar to esbuild, swc)
 
-**Decision**: Start with `goja` for rapid prototyping, measure performance, then optionally migrate to `v8go` if needed.
+**Why Shared Memory?**
+- ✅ Combines OXC's buffer approach with Node.js
+- ✅ No JSON serialization overhead
+- ✅ Zero-copy data transfer
+- ✅ Best of both worlds: compatibility + performance
+
+**Design**:
+
+```go
+type NodeJSRuntime struct {
+    process     *exec.Cmd
+    stdin       io.Writer
+    stdout      io.Reader
+    shmSegment  *shm.Segment  // Shared memory for buffers
+    alive       bool
+}
+
+func NewNodeJSRuntime() (*NodeJSRuntime, error) {
+    // 1. Spawn Node.js process running plugin-host.js
+    // 2. Establish shared memory segment
+    // 3. Keep process alive for duration of compilation
+}
+```
+
+**Node.js Side** (`plugin-host.js`):
+```javascript
+const shm = require('shm-typed-array');
+
+// Connect to shared memory from Go
+const buffer = shm.get(process.env.LESS_SHM_KEY);
+
+// Lazy facade pattern (same as OXC approach!)
+class NodeFacade {
+    constructor(buffer, index) {
+        this._buffer = buffer;
+        this._index = index;
+    }
+
+    get type() {
+        const typeID = this._buffer.nodes[this._index].typeID;
+        return this._buffer.typeTable[typeID];
+    }
+    // ... rest of facade
+}
+
+// Standard Node.js require() - no reimplementation needed!
+function loadPlugin(pluginPath) {
+    return require(pluginPath);
+}
+```
 
 **Tasks**:
-1. Add goja dependency
-2. Create `packages/less/src/less/less_go/runtime/` package
-3. Implement basic JavaScript execution wrapper
-4. Unit tests for runtime initialization and script execution
+1. Implement Node.js process spawning and lifecycle management
+2. Create shared memory segment for buffer transfer
+3. Implement basic IPC protocol (commands over stdin/stdout)
+4. Create `plugin-host.js` Node.js script
+5. Unit tests for process management and communication
 
 ### Phase 2: AST Serialization (Raw Transfer)
 
@@ -134,68 +235,93 @@ type FlatAST struct {
 
 ### Phase 3: JavaScript Bindings (Lazy Deserialization)
 
-**Goal**: Create JavaScript facade objects that read from buffers on-demand.
+**Goal**: Create JavaScript facade objects that read from shared memory buffers on-demand.
 
 **Design**:
 
+The bindings run in **Node.js** and read from shared memory mapped by Go.
+
+**JavaScript Side** (`plugin-bindings.js` - runs in Node.js):
+
 ```javascript
-// JavaScript side - generated/written in Go, executed in runtime
-class NodeFacade {
-  constructor(buffer, index) {
-    this._buffer = buffer;
-    this._index = index;
-  }
+const shm = require('shm-typed-array');
 
-  get type() {
-    const typeID = this._buffer.nodes[this._index].typeID;
-    return this._buffer.typeTable[typeID];
-  }
+// Access shared memory segment
+let sharedBuffer = null;
 
-  get value() {
-    const valueIndex = this._buffer.nodes[this._index].valueIndex;
-    if (valueIndex === 0) return undefined;
-    return this._buffer.stringTable[valueIndex];
-  }
-
-  get children() {
-    const childIndex = this._buffer.nodes[this._index].childIndex;
-    if (childIndex === 0) return [];
-    return this._collectSiblings(childIndex);
-  }
-
-  _collectSiblings(startIndex) {
-    const result = [];
-    let index = startIndex;
-    while (index !== 0) {
-      result.push(new NodeFacade(this._buffer, index));
-      index = this._buffer.nodes[index].nextIndex;
-    }
-    return result;
-  }
+function attachBuffer(shmKey) {
+    sharedBuffer = shm.get(shmKey, 'Uint32Array');
 }
 
-// Visitor pattern support
-class VisitorContext {
-  constructor(buffer) {
-    this._buffer = buffer;
-  }
-
-  visit(nodeIndex) {
-    const node = new NodeFacade(this._buffer, nodeIndex);
-    const method = 'visit' + node.type;
-    if (this[method]) {
-      return this[method](node);
+// Lazy facade - reads from shared memory on-demand
+class NodeFacade {
+    constructor(buffer, index) {
+        this._buffer = buffer || sharedBuffer;
+        this._index = index;
     }
-    return node; // Return unchanged
-  }
+
+    get type() {
+        const typeID = this._buffer.nodes[this._index].typeID;
+        return this._buffer.typeTable[typeID];
+    }
+
+    get value() {
+        const valueIndex = this._buffer.nodes[this._index].valueIndex;
+        if (valueIndex === 0) return undefined;
+        return this._buffer.stringTable[valueIndex];
+    }
+
+    get children() {
+        const childIndex = this._buffer.nodes[this._index].childIndex;
+        if (childIndex === 0) return [];
+        return this._collectSiblings(childIndex);
+    }
+
+    _collectSiblings(startIndex) {
+        const result = [];
+        let index = startIndex;
+        while (index !== 0) {
+            result.push(new NodeFacade(this._buffer, index));
+            index = this._buffer.nodes[index].nextIndex;
+        }
+        return result;
+    }
+}
+
+// Visitor pattern support (same as OXC approach)
+class VisitorContext {
+    constructor(buffer) {
+        this._buffer = buffer;
+    }
+
+    visit(nodeIndex) {
+        const node = new NodeFacade(this._buffer, nodeIndex);
+        const method = 'visit' + node.type;
+        if (this[method]) {
+            return this[method](node);
+        }
+        return node;
+    }
+}
+
+module.exports = { NodeFacade, VisitorContext, attachBuffer };
+```
+
+**Go Side** (coordinates shared memory):
+```go
+func (rt *NodeJSRuntime) SendBuffer(flatAST *FlatAST) error {
+    // 1. Write flat AST to shared memory
+    // 2. Send command to Node.js: {"cmd": "setBuffer", "shmKey": "..."}
+    // 3. Node.js maps shared memory and reads buffer
 }
 ```
 
 **Tasks**:
-1. Generate JavaScript binding code from Go AST node definitions
-2. Implement visitor pattern support
-3. Add node construction helpers (for plugin-created nodes)
-4. Write JavaScript unit tests for bindings
+1. Implement shared memory wrapper for Node.js (`shm-typed-array` or similar)
+2. Generate JavaScript binding code from Go AST node definitions
+3. Implement visitor pattern support
+4. Add node construction helpers (for plugin-created nodes)
+5. Write JavaScript unit tests for bindings (can run with `node` directly!)
 
 ### Phase 4: Plugin Loader
 
@@ -203,56 +329,92 @@ class VisitorContext {
 
 **Design**:
 
+With Node.js, plugin loading is **dramatically simpler** - we use native `require()`!
+
+**Go Side**:
 ```go
 type PluginLoader struct {
-    runtime       *runtime.JSRuntime
+    nodeRuntime   *NodeJSRuntime
     loadedPlugins map[string]*Plugin
     fileManager   *FileManager
 }
 
 type Plugin struct {
     filename      string
-    source        string
-    exports       map[string]interface{}
-    functions     map[string]JSFunction
+    id            string  // Unique ID for this plugin instance
+    functions     map[string]*JSFunction
     visitors      []JSVisitor
     fileManagers  []JSFileManager
 }
 
 func (pl *PluginLoader) LoadPlugin(path string, options map[string]interface{}) (*Plugin, error) {
-    // 1. Resolve path (handle relative, absolute, npm modules)
-    // 2. Load JS file content
-    // 3. Execute in sandboxed context
-    // 4. Extract exports (install, use, setOptions, minVersion)
-    // 5. Cache plugin by filename
+    // 1. Send command to Node.js: {"cmd": "loadPlugin", "path": path, "options": options}
+    // 2. Node.js uses require() to load the plugin
+    // 3. Node.js calls plugin.install() and returns registered items
+    // 4. Go receives list of functions, visitors, etc.
+    // 5. Create Plugin object with references
 }
 ```
 
-**Plugin Execution Context**:
+**Node.js Side** (`plugin-host.js`):
 ```javascript
-// Injected into plugin execution scope
-const context = {
-  module: { exports: {} },
-  require: createRequire(pluginPath),
-  registerPlugin: (obj) => { /* capture */ },
-  functions: functionRegistry,
-  tree: treeConstructors,
-  less: lessAPI,
-  fileInfo: currentFileInfo
-};
+const path = require('path');
 
-// Execute plugin code
-(function() {
-  // Plugin source code here
-}).call(context);
+// Plugin loading - just use require()!
+function loadPlugin(pluginPath, options, baseDir) {
+    const resolvedPath = path.resolve(baseDir, pluginPath);
+
+    // Native require() handles:
+    // - npm modules (node_modules resolution)
+    // - Relative paths (./plugin.js)
+    // - Absolute paths (/full/path.js)
+    // - package.json main field
+    // - .js extension inference
+    const plugin = require(resolvedPath);
+
+    // Call install if it exists
+    if (plugin.install) {
+        plugin.install(lessAPI, pluginManager, functionRegistry);
+    }
+
+    // Call setOptions if provided
+    if (options && plugin.setOptions) {
+        plugin.setOptions(options);
+    }
+
+    // Return what was registered
+    return {
+        functions: functionRegistry.getAll(),
+        visitors: pluginManager.getVisitors(),
+        fileManagers: pluginManager.getFileManagers()
+    };
+}
+
+// Handle commands from Go
+process.stdin.on('data', (data) => {
+    const cmd = JSON.parse(data);
+
+    if (cmd.cmd === 'loadPlugin') {
+        const result = loadPlugin(cmd.path, cmd.options, cmd.baseDir);
+        process.stdout.write(JSON.stringify({success: true, result}));
+    }
+});
 ```
 
+**Advantages over embedded runtime**:
+- ✅ No need to reimplement `require()` - Node.js handles it
+- ✅ Perfect npm module resolution (node_modules, package.json, etc.)
+- ✅ Plugins can use `require()` for their own dependencies
+- ✅ Works with TypeScript plugins (if they're compiled)
+- ✅ Standard Node.js debugging tools work
+
 **Tasks**:
-1. Implement plugin file resolution (local, relative, npm)
-2. Create sandboxed execution context
-3. Implement `require()` emulation for dependencies
+1. Implement IPC protocol for plugin loading commands
+2. Create `plugin-host.js` with require()-based loader
+3. Handle plugin file resolution (Node.js does the heavy lifting!)
 4. Parse `@plugin` directive options
 5. Cache loaded plugins
+6. Handle plugin errors and forward to Go
 
 ### Phase 5: Function Registry Integration
 
@@ -262,16 +424,26 @@ const context = {
 
 ```go
 type JSFunction struct {
-    name     string
-    jsFunc   goja.Callable
-    runtime  *runtime.JSRuntime
+    name       string
+    functionID string  // ID in Node.js process
+    runtime    *NodeJSRuntime
 }
 
 func (jf *JSFunction) Call(args []Node, ctx *EvalContext) (Node, error) {
-    // 1. Serialize args to flat buffer
-    // 2. Call JavaScript function with buffer
-    // 3. Deserialize return value
-    // 4. Convert to Go Node
+    // 1. Flatten args to shared memory buffer
+    jf.runtime.WriteArgsBuffer(args)
+
+    // 2. Send command to Node.js: {"cmd": "callFunction", "id": functionID, "argsOffset": offset}
+    response := jf.runtime.SendCommand(CallFunctionCommand{
+        FunctionID: jf.functionID,
+        ArgsOffset: offset,
+    })
+
+    // 3. Read result from shared memory (Node.js wrote it there)
+    result := jf.runtime.ReadResultBuffer(response.ResultOffset)
+
+    // 4. Unflatten to Go Node
+    return UnflattenNode(result), nil
 }
 
 type FunctionRegistry struct {
@@ -289,10 +461,41 @@ func (fr *FunctionRegistry) Add(name string, fn interface{}) {
 }
 ```
 
+**Node.js Side**:
+```javascript
+// When function is registered by plugin
+functionRegistry.add('myFunc', function(arg1, arg2) {
+    // These args are NodeFacade objects reading from shared memory!
+    const value = arg1.value;
+    return less.dimension(value * 2, 'px');
+});
+
+// When Go calls function
+function callFunction(functionID, argsOffset) {
+    const func = registeredFunctions.get(functionID);
+
+    // Args are in shared memory - create facades
+    const args = readArgsFromBuffer(sharedBuffer, argsOffset);
+
+    // Call function
+    const result = func(...args);
+
+    // Write result back to shared memory
+    const resultOffset = writeResultToBuffer(sharedBuffer, result);
+
+    return {resultOffset};
+}
+```
+
+**Performance**: Function calls are fast because:
+- ✅ Args passed via shared memory (no serialization)
+- ✅ Result returned via shared memory (no serialization)
+- ✅ Only small command sent over IPC (function ID + offset)
+
 **Tasks**:
 1. Extend FunctionRegistry to support JS functions
-2. Implement bidirectional argument serialization
-3. Handle return value conversion
+2. Implement argument flattening to shared memory
+3. Implement result reading from shared memory
 4. Add error handling and stack traces
 5. Write unit tests for various function signatures
 
@@ -607,72 +810,98 @@ Phase 10 (Scoping)    ←┘
 
 ### Suggested Agent Assignment
 
-**Agent 1: Runtime & Serialization**
-- Phase 1: JavaScript runtime integration
-- Phase 2: AST serialization
-- Deliverable: Working buffer-based AST transfer
+**Agent 1: Node.js Process & Serialization** (Critical Path)
+- Phase 1: Node.js process management, IPC, shared memory
+- Phase 2: AST serialization to buffer format
+- Deliverable: Can spawn Node.js, send/receive data via shared memory
+- **Estimated**: 1 week
 
-**Agent 2: Plugin Loader & Module Resolution**
-- Phase 4: Plugin loader
-- NPM module resolution
-- Deliverable: `@plugin` directive loading
+**Agent 2: Plugin Loader** (Can Start Early)
+- Phase 4: Plugin loader (Go and Node.js sides)
+- Create `plugin-host.js` with require()-based loading
+- Deliverable: `@plugin` directive loads plugins via Node.js
+- **Estimated**: 3-4 days
 
-**Agent 3: Bindings & Constructors**
-- Phase 3: JavaScript bindings
+**Agent 3: Bindings & Constructors** (Needs Phase 2)
+- Phase 3: JavaScript bindings (NodeFacade, lazy deserialization)
 - Phase 7: Tree node constructors
 - Deliverable: Complete node API for plugins
+- **Estimated**: 5-7 days
 
-**Agent 4: Functions & Registry**
+**Agent 4: Functions & Registry** (Needs Phase 3)
 - Phase 5: Function registry integration
+- Bidirectional function calls via shared memory
 - Deliverable: Plugins can add custom functions
+- **Estimated**: 3-4 days
 
-**Agent 5: Visitors & Evaluation**
+**Agent 5: Visitors & Evaluation** (Needs Phase 3)
 - Phase 6: Visitor integration
 - Deliverable: Pre-eval and post-eval transformations
+- **Estimated**: 3-4 days
 
-**Agent 6: Processors & File Managers**
+**Agent 6: Processors & File Managers** (Can Be Parallel)
 - Phase 8: Pre/post processors
 - Phase 9: File manager support
 - Deliverable: Text transformation and custom imports
+- **Estimated**: 3-4 days
 
-**Agent 7: Scoping & Integration**
+**Agent 7: Scoping & Integration** (Needs Most Phases)
 - Phase 10: Plugin scope management
-- Integration testing
+- Integration testing with quarantined tests
 - Deliverable: Complete plugin system with proper scoping
+- **Estimated**: 4-5 days
+
+**Total Timeline**: 4-6 weeks with parallel agents
 
 ## Performance Considerations
 
 ### Expected Overhead
 
-Based on OXC's results:
+**Node.js + Shared Memory** approach:
 
-- **Traditional approach (JSON)**: 10-20x slower than native
-- **Raw transfer approach**: 2-5x slower than native
-- **With lazy deserialization**: 1.5-3x slower than native
+- **Node.js startup** (one-time): ~100ms
+- **Per-compilation overhead**: ~5-15ms
+  - Flatten AST: ~5ms
+  - IPC command: ~1ms
+  - Execute plugin (V8): ~2ms
+  - Read result: ~5ms
+
+**Comparison to alternatives**:
+
+- **Traditional JSON approach**: ~200ms per compilation (10-20x overhead) ❌
+- **Embedded goja**: ~30ms per compilation (2-3x overhead) ⚠️
+- **Node.js + shared memory**: ~15ms per compilation (1.5-2x overhead) ✅
+- **Native Go**: ~10ms baseline ⭐
+
+**Key Insight**: Node.js + shared memory combines:
+- V8's fast JavaScript execution (~10x faster than goja)
+- OXC's zero-copy data transfer (no JSON serialization)
+- Result: **Best of both worlds!**
 
 ### Optimization Opportunities
 
-1. **Buffer Reuse**: Pool buffers to reduce allocations
-2. **Incremental Updates**: Only serialize changed subtrees
-3. **V8 Migration**: Switch to v8go for ~10x JavaScript performance boost
-4. **JIT Warm-up**: Keep runtime alive between compilations
-5. **Partial Visitor**: Only flatten visited node paths
+1. **Buffer Reuse**: Pool shared memory segments to reduce allocations
+2. **Incremental Updates**: Only serialize changed subtrees for visitors
+3. **Keep Node.js Alive**: Reuse the same process across multiple compilations
+4. **Batch Commands**: Send multiple function calls in one IPC roundtrip
+5. **Partial Visitor**: Only flatten visited node paths (lazy evaluation)
 
 ### When to Optimize
 
-1. **First**: Get it working with goja
+1. **First**: Get it working with basic implementation
 2. **Second**: Measure real-world usage (bootstrap4 test)
-3. **Third**: Optimize hot paths if needed
-4. **Last**: Consider v8go migration if 2-3x overhead is unacceptable
+3. **Third**: Optimize hot paths if measurements show bottlenecks
+4. **Note**: With Node.js + shared memory, performance should be acceptable from day 1!
 
 ## Risks & Mitigations
 
 ### Risk 1: Performance Unacceptable
 
 **Mitigation**:
-- Benchmark early and often
-- Have v8go migration path ready
-- Consider native Go reimplementations of popular plugins
+- Node.js + shared memory should give acceptable performance from start
+- Benchmark early and often anyway
+- If needed, optimize buffer reuse and batch IPC commands
+- Worst case: Keep Node.js process warm, pool shared memory segments
 
 ### Risk 2: API Incompatibility
 
