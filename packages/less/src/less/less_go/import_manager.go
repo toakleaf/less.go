@@ -194,7 +194,11 @@ func (im *ImportManager) Push(path string, tryAppendExtension bool, currentFileI
 	// Get plugin loader from context
 	var pluginLoader PluginLoader
 	if pluginManager, exists := im.context["pluginManager"]; exists {
-		if pm, ok := pluginManager.(map[string]any); ok {
+		// Handle *PluginManager struct (the actual type stored in context)
+		if pm, ok := pluginManager.(*PluginManager); ok && pm != nil && pm.Loader != nil {
+			pluginLoader = pm.Loader
+		} else if pm, ok := pluginManager.(map[string]any); ok {
+			// Fallback for map-based context (legacy/testing)
 			if loader, exists := pm["Loader"]; exists {
 				if pl, ok := loader.(PluginLoader); ok {
 					pluginLoader = pl
