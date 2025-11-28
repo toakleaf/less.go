@@ -502,6 +502,226 @@ function handleLoadPlugin(id, data) {
 }
 
 /**
+ * Convert a Go-serialized node argument to a JavaScript node object.
+ * Go sends nodes as maps with _type and properties.
+ * @param {*} arg - The argument from Go
+ * @returns {*} The converted argument
+ */
+function convertGoNodeToJS(arg) {
+  if (arg === null || arg === undefined) {
+    return arg;
+  }
+
+  // Primitive types pass through
+  if (typeof arg !== 'object') {
+    return arg;
+  }
+
+  // Arrays need recursive conversion
+  if (Array.isArray(arg)) {
+    return arg.map(convertGoNodeToJS);
+  }
+
+  // Check if it's a typed node from Go
+  const nodeType = arg._type;
+  if (!nodeType) {
+    // Plain object, convert values recursively
+    const result = {};
+    for (const [key, value] of Object.entries(arg)) {
+      result[key] = convertGoNodeToJS(value);
+    }
+    return result;
+  }
+
+  // Create a node-like object that plugin functions can use
+  // This matches the structure that less.js plugins expect
+  const node = {
+    _type: nodeType,
+    type: nodeType,
+  };
+
+  // Copy all properties from the Go node
+  for (const [key, value] of Object.entries(arg)) {
+    if (key !== '_type') {
+      node[key] = convertGoNodeToJS(value);
+    }
+  }
+
+  // Add common getter methods that plugins might use
+  Object.defineProperty(node, 'value', {
+    get() {
+      return this._value !== undefined ? this._value : (this.val !== undefined ? this.val : this._internalValue);
+    },
+    set(v) {
+      this._internalValue = v;
+    },
+    enumerable: true,
+    configurable: true,
+  });
+
+  // Initialize _internalValue from existing value property
+  if (arg.value !== undefined) {
+    node._internalValue = convertGoNodeToJS(arg.value);
+  }
+
+  return node;
+}
+
+/**
+ * Convert a JavaScript result node to Go-compatible format.
+ * @param {*} result - The JavaScript result
+ * @returns {*} The Go-compatible result
+ */
+function convertJSResultToGo(result) {
+  if (result === null || result === undefined) {
+    return result;
+  }
+
+  // Primitive types pass through
+  if (typeof result !== 'object') {
+    return result;
+  }
+
+  // Arrays need recursive conversion
+  if (Array.isArray(result)) {
+    return result.map(convertJSResultToGo);
+  }
+
+  // Get the type from _type or type property
+  const nodeType = result._type || result.type;
+  if (!nodeType) {
+    // Plain object, convert values recursively
+    const converted = {};
+    for (const [key, value] of Object.entries(result)) {
+      converted[key] = convertJSResultToGo(value);
+    }
+    return converted;
+  }
+
+  // Create a clean node representation for Go
+  const goNode = {
+    _type: nodeType,
+  };
+
+  // Copy relevant properties based on node type
+  switch (nodeType) {
+    case 'Dimension':
+      goNode.value = typeof result.value === 'number' ? result.value : parseFloat(result.value) || 0;
+      goNode.unit = result.unit || '';
+      break;
+
+    case 'Color':
+      goNode.rgb = result.rgb || [0, 0, 0];
+      goNode.alpha = result.alpha !== undefined ? result.alpha : 1;
+      break;
+
+    case 'Quoted':
+      goNode.value = result.value || '';
+      goNode.quote = result.quote || '"';
+      goNode.escaped = result.escaped || false;
+      break;
+
+    case 'Keyword':
+      goNode.value = result.value || '';
+      break;
+
+    case 'Anonymous':
+      goNode.value = result.value !== undefined ? String(result.value) : '';
+      break;
+
+    case 'URL':
+      goNode.value = convertJSResultToGo(result.value);
+      if (result.paths) {
+        goNode.paths = result.paths;
+      }
+      break;
+
+    case 'Expression':
+    case 'Value':
+      if (result.value) {
+        goNode.value = Array.isArray(result.value)
+          ? result.value.map(convertJSResultToGo)
+          : [convertJSResultToGo(result.value)];
+      }
+      break;
+
+    case 'Call':
+      goNode.name = result.name || '';
+      goNode.args = result.args ? result.args.map(convertJSResultToGo) : [];
+      break;
+
+    case 'Combinator':
+      goNode.value = result.value || '';
+      break;
+
+    case 'Element':
+      goNode.combinator = convertJSResultToGo(result.combinator);
+      goNode.value = result.value || '';
+      break;
+
+    case 'Selector':
+      goNode.elements = result.elements ? result.elements.map(convertJSResultToGo) : [];
+      break;
+
+    case 'Ruleset':
+      goNode.selectors = result.selectors ? result.selectors.map(convertJSResultToGo) : [];
+      goNode.rules = result.rules ? result.rules.map(convertJSResultToGo) : [];
+      break;
+
+    case 'Declaration':
+      goNode.name = result.name || '';
+      goNode.value = convertJSResultToGo(result.value);
+      goNode.important = result.important || '';
+      break;
+
+    case 'DetachedRuleset':
+      goNode.ruleset = convertJSResultToGo(result.ruleset);
+      break;
+
+    case 'AtRule':
+      goNode.name = result.name || '';
+      goNode.value = convertJSResultToGo(result.value);
+      if (result.rules) {
+        goNode.rules = result.rules.map(convertJSResultToGo);
+      }
+      break;
+
+    case 'Operation':
+      goNode.op = result.op || '';
+      goNode.operands = result.operands ? result.operands.map(convertJSResultToGo) : [];
+      break;
+
+    case 'Condition':
+      goNode.op = result.op || '';
+      goNode.lvalue = convertJSResultToGo(result.lvalue);
+      goNode.rvalue = convertJSResultToGo(result.rvalue);
+      goNode.negate = result.negate || false;
+      break;
+
+    case 'Assignment':
+      goNode.key = result.key || '';
+      goNode.value = result.value;
+      break;
+
+    case 'Attribute':
+      goNode.key = result.key || '';
+      goNode.op = result.op || '';
+      goNode.value = result.value;
+      break;
+
+    default:
+      // For unknown types, copy all enumerable properties
+      for (const [key, value] of Object.entries(result)) {
+        if (key !== '_type' && key !== 'type') {
+          goNode[key] = convertJSResultToGo(value);
+        }
+      }
+  }
+
+  return goNode;
+}
+
+/**
  * Call a registered function
  * @param {number} id - Command ID
  * @param {Object} data - Function call data
@@ -521,10 +741,18 @@ function handleCallFunction(id, data) {
   }
 
   try {
-    const result = fn.apply(null, args || []);
-    sendResponse(id, true, result);
+    // Convert Go node arguments to JavaScript format
+    const convertedArgs = (args || []).map(convertGoNodeToJS);
+
+    // Call the function with converted arguments
+    const result = fn.apply(null, convertedArgs);
+
+    // Convert the result back to Go-compatible format
+    const goResult = convertJSResultToGo(result);
+
+    sendResponse(id, true, goResult);
   } catch (err) {
-    sendResponse(id, false, null, `Function error: ${err.message}`);
+    sendResponse(id, false, null, `Function error: ${err.message}\n${err.stack || ''}`);
   }
 }
 
