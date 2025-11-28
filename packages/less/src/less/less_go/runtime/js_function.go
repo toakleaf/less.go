@@ -3,22 +3,172 @@ package runtime
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"sync"
 )
 
+// ====================================================================================
+// JS Function IPC Mode Configuration
+// ====================================================================================
+//
+// JavaScript plugin functions can communicate with Go using two different IPC modes:
+//
+// 1. SHARED MEMORY MODE (default):
+//    - Arguments and results are serialized to FlatAST binary format
+//    - Data is written to a memory-mapped file shared between Go and Node.js
+//    - Node.js reads arguments directly from the buffer (zero-copy on read)
+//    - Results are written back to the same buffer
+//    - Best for: Complex AST trees, large data structures, high-frequency calls
+//
+// 2. JSON MODE:
+//    - Arguments and results are serialized to JSON
+//    - Data is passed through stdio pipes between Go and Node.js
+//    - Simpler implementation, easier to debug
+//    - Best for: Simple function calls, debugging, environments without shared memory
+//
+// The mode can be controlled in three ways (in order of precedence):
+//
+// 1. Per-function option: NewJSFunctionDefinition("fn", rt, WithJSONMode())
+// 2. Environment variable: LESS_JS_IPC_MODE=json or LESS_JS_IPC_MODE=sharedmem
+// 3. Default: Shared memory mode
+//
+// Environment variable values:
+//   - "json" or "JSON": Use JSON mode for all functions
+//   - "sharedmem", "shm", or "shared": Use shared memory mode (default)
+//
+// ====================================================================================
+
+// JSIPCMode represents the IPC mode for JS function calls.
+type JSIPCMode int
+
+const (
+	// JSIPCModeSharedMemory uses shared memory for zero-copy data transfer.
+	// Arguments are serialized to FlatAST format and written to a memory-mapped file.
+	// This is the default mode.
+	JSIPCModeSharedMemory JSIPCMode = iota
+
+	// JSIPCModeJSON uses JSON serialization over stdio pipes.
+	// Simpler but involves serialization/deserialization overhead.
+	JSIPCModeJSON
+)
+
+// String returns a human-readable name for the IPC mode.
+func (m JSIPCMode) String() string {
+	switch m {
+	case JSIPCModeSharedMemory:
+		return "shared-memory"
+	case JSIPCModeJSON:
+		return "json"
+	default:
+		return "unknown"
+	}
+}
+
+// getDefaultIPCMode returns the default IPC mode based on the LESS_JS_IPC_MODE
+// environment variable. If not set or unrecognized, defaults to shared memory.
+func getDefaultIPCMode() JSIPCMode {
+	mode := os.Getenv("LESS_JS_IPC_MODE")
+	switch mode {
+	case "json", "JSON":
+		return JSIPCModeJSON
+	case "sharedmem", "shm", "shared", "SHM", "SHARED":
+		return JSIPCModeSharedMemory
+	default:
+		// Default to shared memory
+		return JSIPCModeSharedMemory
+	}
+}
+
 // JSFunctionDefinition implements the FunctionDefinition interface for JavaScript functions.
 // It calls JavaScript functions registered by plugins via the Node.js runtime.
+//
+// The function supports two IPC modes for communicating with Node.js:
+//   - Shared Memory: Zero-copy transfer using memory-mapped files (default)
+//   - JSON: Traditional JSON serialization over stdio
+//
+// See the package-level documentation for details on configuring the IPC mode.
 type JSFunctionDefinition struct {
 	name    string
 	runtime *NodeJSRuntime
+	ipcMode JSIPCMode
 }
 
-// NewJSFunctionDefinition creates a new JSFunctionDefinition.
-func NewJSFunctionDefinition(name string, runtime *NodeJSRuntime) *JSFunctionDefinition {
-	return &JSFunctionDefinition{
+// JSFunctionOption configures a JSFunctionDefinition.
+type JSFunctionOption func(*JSFunctionDefinition)
+
+// WithJSONMode configures the function to use JSON serialization for IPC.
+// This mode serializes arguments and results as JSON, which is simpler
+// but has serialization overhead compared to shared memory mode.
+//
+// Use this when:
+//   - Debugging IPC issues (JSON is easier to inspect)
+//   - Running in environments without shared memory support
+//   - Working with simple function calls where overhead doesn't matter
+func WithJSONMode() JSFunctionOption {
+	return func(jf *JSFunctionDefinition) {
+		jf.ipcMode = JSIPCModeJSON
+	}
+}
+
+// WithSharedMemoryMode configures the function to use shared memory for IPC.
+// This is the default mode but can be explicitly set to override environment
+// variable configuration.
+//
+// This mode serializes arguments to FlatAST binary format and writes them
+// to a memory-mapped file that Node.js can read directly.
+//
+// Use this when:
+//   - Working with complex AST trees
+//   - Performance is critical
+//   - Making many function calls
+func WithSharedMemoryMode() JSFunctionOption {
+	return func(jf *JSFunctionDefinition) {
+		jf.ipcMode = JSIPCModeSharedMemory
+	}
+}
+
+// WithIPCMode configures the function to use the specified IPC mode.
+// This allows programmatic control over the IPC mode.
+func WithIPCMode(mode JSIPCMode) JSFunctionOption {
+	return func(jf *JSFunctionDefinition) {
+		jf.ipcMode = mode
+	}
+}
+
+// NewJSFunctionDefinition creates a new JSFunctionDefinition for calling
+// JavaScript functions registered by plugins.
+//
+// The default IPC mode is determined by:
+//  1. Any options passed (WithJSONMode, WithSharedMemoryMode, WithIPCMode)
+//  2. The LESS_JS_IPC_MODE environment variable
+//  3. Shared memory mode (if nothing else is specified)
+//
+// Example usage:
+//
+//	// Use default mode (shared memory, or env var override)
+//	fn := NewJSFunctionDefinition("myFunc", runtime)
+//
+//	// Explicitly use JSON mode
+//	fn := NewJSFunctionDefinition("myFunc", runtime, WithJSONMode())
+//
+//	// Explicitly use shared memory mode
+//	fn := NewJSFunctionDefinition("myFunc", runtime, WithSharedMemoryMode())
+func NewJSFunctionDefinition(name string, runtime *NodeJSRuntime, opts ...JSFunctionOption) *JSFunctionDefinition {
+	jf := &JSFunctionDefinition{
 		name:    name,
 		runtime: runtime,
+		ipcMode: getDefaultIPCMode(), // Respects LESS_JS_IPC_MODE env var
 	}
+	// Options override the default/env var setting
+	for _, opt := range opts {
+		opt(jf)
+	}
+	return jf
+}
+
+// IPCMode returns the current IPC mode for this function.
+func (jf *JSFunctionDefinition) IPCMode() JSIPCMode {
+	return jf.ipcMode
 }
 
 // Name returns the function name.
@@ -32,13 +182,38 @@ func (jf *JSFunctionDefinition) NeedsEvalArgs() bool {
 }
 
 // Call calls the JavaScript function with the given arguments.
-// Arguments are serialized to JSON for IPC transfer.
+//
+// The IPC mode (shared memory or JSON) is determined by the function's
+// configuration. See NewJSFunctionDefinition for details on mode selection.
+//
 // Returns the result node or error.
 func (jf *JSFunctionDefinition) Call(args ...any) (any, error) {
 	if jf.runtime == nil {
 		return nil, fmt.Errorf("Node.js runtime not initialized")
 	}
 
+	switch jf.ipcMode {
+	case JSIPCModeSharedMemory:
+		return jf.callViaSharedMemory(args...)
+	case JSIPCModeJSON:
+		return jf.callViaJSON(args...)
+	default:
+		// Default to shared memory if somehow an invalid mode is set
+		return jf.callViaSharedMemory(args...)
+	}
+}
+
+// callViaJSON calls the JavaScript function using JSON serialization for IPC.
+//
+// This mode:
+//   - Serializes arguments to JSON format
+//   - Sends data through the stdio pipe to Node.js
+//   - Receives JSON response back through stdio
+//   - Deserializes the response to Go types
+//
+// Pros: Simple, easy to debug, no shared memory setup
+// Cons: Serialization overhead for large/complex data
+func (jf *JSFunctionDefinition) callViaJSON(args ...any) (any, error) {
 	// Serialize arguments for transfer
 	serializedArgs, err := jf.serializeArgs(args)
 	if err != nil {
@@ -69,6 +244,299 @@ func (jf *JSFunctionDefinition) Call(args ...any) (any, error) {
 	}
 
 	return result, nil
+}
+
+// callViaSharedMemory calls the JavaScript function using shared memory for IPC.
+//
+// This mode:
+//  1. Flattens arguments to FlatAST binary format
+//  2. Creates a memory-mapped file (shared memory segment)
+//  3. Writes the FlatAST data to the shared memory
+//  4. Attaches the buffer to Node.js (sends only the file path, not the data)
+//  5. Node.js reads arguments directly from the memory-mapped file
+//  6. Node.js writes results back to the same buffer
+//  7. Go reads the results from shared memory
+//
+// Pros: Zero-copy on read, efficient for complex AST trees
+// Cons: Setup overhead, more complex implementation
+//
+// Note: If shared memory operations fail, this method automatically falls back
+// to JSON mode to ensure the function call succeeds.
+func (jf *JSFunctionDefinition) callViaSharedMemory(args ...any) (any, error) {
+	// If no arguments, use a simplified path
+	if len(args) == 0 {
+		return jf.callViaSharedMemoryNoArgs()
+	}
+
+	// 1. Flatten args to FlatAST format
+	argsFlat := NewFlatAST()
+	argIndices := make([]uint32, len(args))
+
+	for i, arg := range args {
+		if arg == nil {
+			argIndices[i] = 0
+			continue
+		}
+
+		flattener := NewASTFlattener()
+		flattener.flat = argsFlat // Use the same flat AST for all args
+
+		idx, err := flattener.FlattenNode(arg, 0)
+		if err != nil {
+			// Fall back to JSON for non-node arguments
+			return jf.callViaJSON(args...)
+		}
+		argIndices[i] = idx
+	}
+
+	// Set the root index to 0 since we have multiple roots (one per arg)
+	argsFlat.RootIndex = 0
+
+	// 2. Write to shared memory buffer
+	argsBytes, err := argsFlat.ToBytes()
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize args: %w", err)
+	}
+
+	// Create shared memory segment with extra space for result
+	// We allocate 2x the args size to leave room for the result
+	bufferSize := len(argsBytes) * 2
+	if bufferSize < 4096 {
+		bufferSize = 4096 // Minimum buffer size
+	}
+
+	shm, err := jf.runtime.CreateSharedMemory(bufferSize)
+	if err != nil {
+		// Fall back to JSON if shared memory fails
+		return jf.callViaJSON(args...)
+	}
+	defer jf.runtime.DestroySharedMemory(shm)
+
+	if err := shm.WriteAll(argsBytes); err != nil {
+		return nil, fmt.Errorf("failed to write to shared memory: %w", err)
+	}
+
+	// 3. Attach buffer to Node.js
+	if err := jf.runtime.AttachBuffer(shm); err != nil {
+		return nil, fmt.Errorf("failed to attach buffer: %w", err)
+	}
+	defer jf.runtime.DetachBuffer(shm.Key())
+
+	// 4. Send command with buffer reference (not data)
+	resp, err := jf.runtime.SendCommand(Command{
+		Cmd: "callFunctionSharedMem",
+		Data: map[string]any{
+			"name":       jf.name,
+			"bufferKey":  shm.Key(),
+			"argIndices": argIndices,
+			"argsSize":   len(argsBytes),
+		},
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("function call failed: %w", err)
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("JavaScript function error: %s", resp.Error)
+	}
+
+	// 5. Read result from response
+	// The result can come back in two ways:
+	// - As a JSON result (for simple types or when buffer writing fails)
+	// - As a buffer offset (for complex nodes written to shared memory)
+	resultMap, ok := resp.Result.(map[string]any)
+	if !ok {
+		// Simple result, use JSON deserialization
+		return jf.deserializeResult(resp.Result)
+	}
+
+	// Check if result is in shared memory
+	if resultOffset, ok := resultMap["resultOffset"]; ok {
+		offset := int(resultOffset.(float64))
+		resultSize := int(resultMap["resultSize"].(float64))
+
+		// Read the result from shared memory
+		resultData, err := shm.Read(offset, resultSize)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read result from shared memory: %w", err)
+		}
+
+		// Parse the result FlatAST
+		resultFlat, err := FromBytes(resultData)
+		if err != nil {
+			return nil, fmt.Errorf("failed to deserialize result: %w", err)
+		}
+
+		// Unflatten result to GenericNode
+		result, err := UnflattenAST(resultFlat)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unflatten result: %w", err)
+		}
+
+		return convertGenericNodeToResult(result, resultFlat), nil
+	}
+
+	// Result came back as JSON
+	if jsonResult, ok := resultMap["jsonResult"]; ok {
+		return jf.deserializeResult(jsonResult)
+	}
+
+	return jf.deserializeResult(resp.Result)
+}
+
+// callViaSharedMemoryNoArgs is an optimized path for functions with no arguments.
+func (jf *JSFunctionDefinition) callViaSharedMemoryNoArgs() (any, error) {
+	// Create a minimal shared memory buffer for the result
+	bufferSize := 4096 // Should be enough for most results
+	shm, err := jf.runtime.CreateSharedMemory(bufferSize)
+	if err != nil {
+		// Fall back to JSON if shared memory fails
+		return jf.callViaJSON()
+	}
+	defer jf.runtime.DestroySharedMemory(shm)
+
+	// Write an empty FlatAST as a placeholder
+	emptyFlat := NewFlatAST()
+	emptyBytes, _ := emptyFlat.ToBytes()
+	if err := shm.WriteAll(emptyBytes); err != nil {
+		return nil, fmt.Errorf("failed to write to shared memory: %w", err)
+	}
+
+	// Attach buffer to Node.js
+	if err := jf.runtime.AttachBuffer(shm); err != nil {
+		return nil, fmt.Errorf("failed to attach buffer: %w", err)
+	}
+	defer jf.runtime.DetachBuffer(shm.Key())
+
+	// Send command with buffer reference
+	resp, err := jf.runtime.SendCommand(Command{
+		Cmd: "callFunctionSharedMem",
+		Data: map[string]any{
+			"name":       jf.name,
+			"bufferKey":  shm.Key(),
+			"argIndices": []uint32{},
+			"argsSize":   len(emptyBytes),
+		},
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("function call failed: %w", err)
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("JavaScript function error: %s", resp.Error)
+	}
+
+	// Handle result
+	resultMap, ok := resp.Result.(map[string]any)
+	if !ok {
+		return jf.deserializeResult(resp.Result)
+	}
+
+	if resultOffset, ok := resultMap["resultOffset"]; ok {
+		offset := int(resultOffset.(float64))
+		resultSize := int(resultMap["resultSize"].(float64))
+
+		resultData, err := shm.Read(offset, resultSize)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read result from shared memory: %w", err)
+		}
+
+		resultFlat, err := FromBytes(resultData)
+		if err != nil {
+			return nil, fmt.Errorf("failed to deserialize result: %w", err)
+		}
+
+		result, err := UnflattenAST(resultFlat)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unflatten result: %w", err)
+		}
+
+		return convertGenericNodeToResult(result, resultFlat), nil
+	}
+
+	if jsonResult, ok := resultMap["jsonResult"]; ok {
+		return jf.deserializeResult(jsonResult)
+	}
+
+	return jf.deserializeResult(resp.Result)
+}
+
+// convertGenericNodeToResult converts a GenericNode to a JSResultNode.
+// It resolves string indices using the FlatAST's string table.
+func convertGenericNodeToResult(node *GenericNode, flat *FlatAST) any {
+	if node == nil {
+		return nil
+	}
+
+	// Convert GenericNode properties to JSResultNode format
+	// Resolve string table indices to actual strings
+	props := make(map[string]any)
+	if node.Properties != nil {
+		for k, v := range node.Properties {
+			// Check if the value might be a string table index
+			if idx, ok := v.(float64); ok {
+				// Try to resolve as string index for known string properties
+				if isStringProperty(node.Type, k) {
+					if resolved := flat.GetString(uint32(idx)); resolved != "" {
+						props[k] = resolved
+						continue
+					}
+				}
+			}
+			props[k] = v
+		}
+	}
+
+	// Add flags if set
+	if node.Parens {
+		props["parens"] = true
+	}
+	if node.ParensInOp {
+		props["parensInOp"] = true
+	}
+
+	// Convert children recursively if needed
+	if len(node.Children) > 0 {
+		children := make([]any, len(node.Children))
+		for i, child := range node.Children {
+			children[i] = convertGenericNodeToResult(child, flat)
+		}
+		props["children"] = children
+	}
+
+	return &JSResultNode{
+		NodeType:   node.Type,
+		Properties: props,
+	}
+}
+
+// isStringProperty returns true if the given property of the given node type
+// is expected to be a string value (and thus might be stored as a string table index).
+func isStringProperty(nodeType, propName string) bool {
+	stringProps := map[string]map[string]bool{
+		"Dimension": {"Unit": true, "unit": true},
+		"Quoted":    {"Value": true, "value": true, "Quote": true, "quote": true},
+		"Keyword":   {"Value": true, "value": true},
+		"Anonymous": {"Value": true, "value": true},
+		"Variable":  {"Name": true, "name": true},
+		"URL":       {"Value": true, "value": true},
+		"Call":      {"Name": true, "name": true},
+		"Combinator": {"Value": true, "value": true},
+		"Element":   {"Value": true, "value": true},
+		"AtRule":    {"Name": true, "name": true},
+		"Comment":   {"Value": true, "value": true},
+		"Assignment": {"Key": true, "key": true},
+		"Attribute": {"Key": true, "key": true, "Op": true, "op": true},
+		"Operation": {"Op": true, "op": true},
+		"Condition": {"Op": true, "op": true},
+	}
+
+	if props, ok := stringProps[nodeType]; ok {
+		return props[propName]
+	}
+	return false
 }
 
 // CallCtx calls the JavaScript function with context.

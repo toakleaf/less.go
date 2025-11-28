@@ -334,6 +334,10 @@ function handleCommand(cmd) {
         handleSerializeNode(id, data);
         break;
 
+      case 'callFunctionSharedMem':
+        handleCallFunctionSharedMem(id, data);
+        break;
+
       default:
         sendResponse(id, false, null, `Unknown command: ${command}`);
     }
@@ -1197,6 +1201,238 @@ function handleSerializeNode(id, data) {
   } catch (err) {
     sendResponse(id, false, null, `Serialize error: ${err.message}`);
   }
+}
+
+/**
+ * Call a registered function using shared memory for zero-copy arg/result transfer.
+ * Arguments are read directly from the shared memory buffer using NodeFacade.
+ * Results are written back to the buffer using BufferWriter.
+ *
+ * @param {number} id - Command ID
+ * @param {Object} data - { name, bufferKey, argIndices, argsSize }
+ */
+function handleCallFunctionSharedMem(id, data) {
+  const { name, bufferKey, argIndices, argsSize } = data || {};
+
+  if (!name) {
+    sendResponse(id, false, null, 'Function name is required');
+    return;
+  }
+
+  if (!bufferKey) {
+    sendResponse(id, false, null, 'Buffer key is required');
+    return;
+  }
+
+  const fn = registeredFunctions.get(name);
+  if (!fn) {
+    sendResponse(id, false, null, `Function not found: ${name}`);
+    return;
+  }
+
+  try {
+    // Get the attached buffer
+    const bufferInfo = attachedBuffers.get(bufferKey);
+    if (!bufferInfo) {
+      sendResponse(id, false, null, `Buffer not attached: ${bufferKey}`);
+      return;
+    }
+
+    const buffer = bufferInfo.buffer;
+    let args = [];
+
+    // If we have arguments and bindings available, use NodeFacade for zero-copy access
+    if (argIndices && argIndices.length > 0 && bindings && bindings.NodeFacade) {
+      try {
+        // Parse the FlatAST from the buffer
+        const ast = parseFlatAST(buffer);
+
+        // Create NodeFacade for each argument
+        args = argIndices.map(idx => {
+          if (idx === 0 && ast.nodeCount === 0) {
+            return null;
+          }
+          if (idx < ast.nodeCount) {
+            return new bindings.NodeFacade(ast, idx);
+          }
+          return null;
+        });
+      } catch (parseErr) {
+        // If parsing fails, fall back to no args
+        // This can happen if the Go side sent primitives that can't be flattened
+        args = [];
+      }
+    } else if (argIndices && argIndices.length > 0) {
+      // Without bindings, try to parse the buffer and convert to simple objects
+      try {
+        const ast = parseFlatAST(buffer);
+        args = argIndices.map(idx => {
+          if (idx === 0 && ast.nodeCount === 0) {
+            return null;
+          }
+          if (idx < ast.nodeCount) {
+            // Convert FlatAST node to a simple object
+            return convertFlatNodeToObject(ast, idx);
+          }
+          return null;
+        });
+      } catch (parseErr) {
+        args = [];
+      }
+    }
+
+    // Call the function with the arguments
+    const result = fn.apply(null, args);
+
+    // Try to write the result back to shared memory
+    if (result !== null && result !== undefined && typeof result === 'object') {
+      try {
+        // Use bindings to serialize if available
+        if (bindings && bindings.serializeToBuffer) {
+          const resultBuffer = bindings.serializeToBuffer(result);
+
+          // Check if the result fits in the remaining buffer space
+          const resultOffset = argsSize || 0;
+          if (resultOffset + resultBuffer.length <= buffer.length) {
+            // Write the result to the buffer after the args
+            resultBuffer.copy(buffer, resultOffset);
+
+            // Write the updated buffer back to the file for Go to read
+            fs.writeFileSync(bufferInfo.path, buffer);
+
+            sendResponse(id, true, {
+              resultOffset: resultOffset,
+              resultSize: resultBuffer.length,
+            });
+            return;
+          }
+        }
+      } catch (writeErr) {
+        // Fall back to JSON if buffer writing fails
+      }
+    }
+
+    // Fallback: return result as JSON
+    const goResult = convertJSResultToGo(result);
+    sendResponse(id, true, { jsonResult: goResult });
+
+  } catch (err) {
+    sendResponse(id, false, null, `Function error: ${err.message}\n${err.stack || ''}`);
+  }
+}
+
+/**
+ * Convert a FlatAST node to a simple JavaScript object.
+ * Used when NodeFacade bindings are not available.
+ *
+ * @param {Object} ast - Parsed FlatAST
+ * @param {number} idx - Node index
+ * @returns {Object}
+ */
+function convertFlatNodeToObject(ast, idx) {
+  if (idx >= ast.nodes.length) {
+    return null;
+  }
+
+  const node = ast.nodes[idx];
+  const typeName = getTypeNameFromID(node.typeID);
+
+  // Get properties
+  let props = {};
+  if (node.propsLength > 0 && node.propsOffset + node.propsLength <= ast.propBuffer.length) {
+    try {
+      const propData = ast.propBuffer.slice(node.propsOffset, node.propsOffset + node.propsLength);
+      props = JSON.parse(propData.toString('utf8'));
+    } catch (e) {
+      // Ignore parse errors
+    }
+  }
+
+  // Resolve string indices in properties
+  for (const [key, value] of Object.entries(props)) {
+    if (typeof value === 'number' && key !== 'value' && !key.includes('Index')) {
+      // Might be a string table index
+      if (value < ast.stringTable.length) {
+        props[key] = ast.stringTable[value];
+      }
+    }
+  }
+
+  const result = {
+    _type: typeName,
+    type: typeName,
+    ...props,
+  };
+
+  // Handle flags
+  if (node.flags & 0x01) result.parens = true;
+  if (node.flags & 0x02) result.parensInOp = true;
+
+  // Collect children
+  if (node.childIndex > 0) {
+    result.children = [];
+    let childIdx = node.childIndex;
+    while (childIdx > 0 && childIdx < ast.nodes.length) {
+      const child = convertFlatNodeToObject(ast, childIdx);
+      if (child) {
+        result.children.push(child);
+      }
+      childIdx = ast.nodes[childIdx].nextIndex;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Get type name from type ID.
+ * @param {number} typeID
+ * @returns {string}
+ */
+function getTypeNameFromID(typeID) {
+  const typeNames = {
+    0: 'Unknown',
+    1: 'Anonymous',
+    2: 'Assignment',
+    3: 'AtRule',
+    4: 'Attribute',
+    5: 'Call',
+    6: 'Color',
+    7: 'Combinator',
+    8: 'Comment',
+    9: 'Condition',
+    10: 'Container',
+    11: 'Declaration',
+    12: 'DetachedRuleset',
+    13: 'Dimension',
+    14: 'Element',
+    15: 'Expression',
+    16: 'Extend',
+    17: 'Import',
+    18: 'JavaScript',
+    19: 'Keyword',
+    20: 'Media',
+    21: 'MixinCall',
+    22: 'MixinDefinition',
+    23: 'NamespaceValue',
+    24: 'Negative',
+    25: 'Operation',
+    26: 'Paren',
+    27: 'Property',
+    28: 'QueryInParens',
+    29: 'Quoted',
+    30: 'Ruleset',
+    31: 'Selector',
+    32: 'SelectorList',
+    33: 'UnicodeDescriptor',
+    34: 'Unit',
+    35: 'URL',
+    36: 'Value',
+    37: 'Variable',
+    38: 'VariableCall',
+    39: 'Node',
+  };
+  return typeNames[typeID] || 'Unknown';
 }
 
 // Export for testing
