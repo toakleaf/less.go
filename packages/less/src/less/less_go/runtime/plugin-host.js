@@ -17,6 +17,293 @@ const path = require('path');
 const fs = require('fs');
 const vm = require('vm');
 
+// ============================================================================
+// Synchronous Callback Protocol for On-Demand Variable Lookup
+// ============================================================================
+//
+// When Go sends a function call with `useOnDemandLookup: true`, JavaScript
+// can request variable values from Go using synchronous callbacks:
+//
+// 1. JS sends callback request via stdout: {"id": N, "callback": "lookupVariable", "data": {...}}
+// 2. Go reads the request and processes it
+// 3. Go sends response via stdin: {"id": N, "success": true, "result": {...}}
+// 4. JS reads the response synchronously and continues
+//
+// This avoids serializing all 283+ frames with all variables upfront.
+// ============================================================================
+
+let callbackIdCounter = 1000000; // Start high to avoid collision with command IDs
+const pendingCallbacks = new Map(); // Map of callback ID -> {resolve, reject}
+
+/**
+ * Send a synchronous callback request to Go and wait for the response.
+ * This uses a blocking read from stdin to wait for Go's response.
+ * @param {string} callbackName - The callback type (e.g., "lookupVariable")
+ * @param {any} data - The callback data
+ * @returns {any} The callback result
+ */
+function sendCallbackSync(callbackName, data) {
+  const id = callbackIdCounter++;
+
+  // Send the callback request via stdout
+  const request = JSON.stringify({ id, callback: callbackName, data });
+  process.stdout.write(request + '\n');
+
+  if (process.env.LESS_GO_DEBUG) {
+    console.error(`[plugin-host] Sent callback request: ${callbackName} id=${id}`);
+  }
+
+  // Read response synchronously from stdin
+  // We need to read line by line until we get our response
+  const response = readResponseSync(id);
+
+  if (!response.success) {
+    throw new Error(`Callback failed: ${response.error}`);
+  }
+
+  return response.result;
+}
+
+/**
+ * Read a response synchronously from stdin.
+ * This blocks until the response with the matching ID is received.
+ * @param {number} expectedId - The response ID to wait for
+ * @returns {Object} The response object
+ */
+function readResponseSync(expectedId) {
+  const BUFFER_SIZE = 1024 * 64; // 64KB chunks
+  let buffer = '';
+
+  // Read from stdin (fd 0) synchronously
+  while (true) {
+    const chunk = Buffer.alloc(BUFFER_SIZE);
+    let bytesRead;
+
+    try {
+      bytesRead = fs.readSync(0, chunk, 0, BUFFER_SIZE);
+    } catch (e) {
+      if (e.code === 'EAGAIN' || e.code === 'EWOULDBLOCK') {
+        // No data available, try again
+        continue;
+      }
+      throw e;
+    }
+
+    if (bytesRead === 0) {
+      // EOF - stdin closed
+      throw new Error('stdin closed while waiting for callback response');
+    }
+
+    buffer += chunk.toString('utf8', 0, bytesRead);
+
+    // Check for complete lines
+    let newlineIdx;
+    while ((newlineIdx = buffer.indexOf('\n')) !== -1) {
+      const line = buffer.substring(0, newlineIdx);
+      buffer = buffer.substring(newlineIdx + 1);
+
+      if (!line.trim()) continue;
+
+      try {
+        const response = JSON.parse(line);
+
+        if (response.id === expectedId) {
+          if (process.env.LESS_GO_DEBUG) {
+            console.error(`[plugin-host] Got callback response for id=${expectedId}`);
+          }
+          return response;
+        } else {
+          // This is a response for a different ID or a new command
+          // Queue it for later processing
+          if (process.env.LESS_GO_DEBUG) {
+            console.error(`[plugin-host] Got response for different id=${response.id}, expected ${expectedId}`);
+          }
+          queuedResponses.push(response);
+        }
+      } catch (e) {
+        console.error(`[plugin-host] Failed to parse response: ${e.message}`);
+      }
+    }
+  }
+}
+
+// Queue for responses received while waiting for a specific callback
+const queuedResponses = [];
+
+// ============================================================================
+// Shared Memory Variable Buffer
+// ============================================================================
+// This buffer is used to read variable data that Go writes in binary format.
+// It avoids JSON serialization for variable values.
+
+let varBuffer = null; // File descriptor for the memory-mapped file
+let varBufferData = null; // Buffer view of the mmap'd data
+
+/**
+ * Attach a shared memory buffer for variable data.
+ * @param {number} id - Command ID
+ * @param {Object} data - Buffer info { key, path, size }
+ */
+function handleAttachVarBuffer(id, data) {
+  try {
+    const { path, size } = data;
+
+    // Open the file
+    const fd = fs.openSync(path, 'r');
+
+    // Read the buffer - we can't truly mmap in Node.js without native modules,
+    // but we can read the file content which Go updates
+    varBuffer = { fd, path, size };
+    varBufferData = Buffer.alloc(size);
+
+    sendResponse(id, true, { attached: true });
+  } catch (e) {
+    sendResponse(id, false, null, `Failed to attach var buffer: ${e.message}`);
+  }
+}
+
+/**
+ * Detach the variable buffer.
+ * @param {number} id - Command ID
+ */
+function handleDetachVarBuffer(id) {
+  try {
+    if (varBuffer) {
+      fs.closeSync(varBuffer.fd);
+      varBuffer = null;
+      varBufferData = null;
+    }
+    sendResponse(id, true, { detached: true });
+  } catch (e) {
+    sendResponse(id, false, null, `Failed to detach var buffer: ${e.message}`);
+  }
+}
+
+/**
+ * Read a variable value from shared memory.
+ * Binary format:
+ * [1 byte: important flag]
+ * [1 byte: type]
+ * [value data based on type...]
+ *
+ * Types:
+ * 1 = Dimension (8 bytes float64 value + 4 bytes unit length + unit string)
+ * 2 = Color (8 bytes r, g, b, alpha as float64s = 32 bytes)
+ * 3 = Quoted (4 bytes length + string + 1 byte quote char)
+ * 4 = Keyword (4 bytes length + string)
+ *
+ * @param {number} offset - Offset in buffer
+ * @param {number} length - Length of data
+ * @returns {Object} The variable value as a JavaScript object
+ */
+function readVariableFromSharedMemory(offset, length) {
+  if (!varBuffer || !varBufferData) {
+    return null;
+  }
+
+  try {
+    // Re-read the portion of the file that was updated
+    const bytesRead = fs.readSync(varBuffer.fd, varBufferData, offset, length, offset);
+    if (bytesRead < length) {
+      return null;
+    }
+
+    let pos = offset;
+
+    // Read important flag
+    const important = varBufferData[pos++] === 1;
+
+    // Read type
+    const type = varBufferData[pos++];
+
+    let value;
+    switch (type) {
+      case 1: // Dimension
+        {
+          const val = readFloat64(varBufferData, pos);
+          pos += 8;
+          const unitLen = varBufferData.readUInt32LE(pos);
+          pos += 4;
+          const unit = varBufferData.toString('utf8', pos, pos + unitLen);
+          pos += unitLen;
+          value = {
+            _type: 'Dimension',
+            value: val,
+            unit: { numerator: [unit], denominator: [] },
+          };
+        }
+        break;
+
+      case 2: // Color
+        {
+          const r = readFloat64(varBufferData, pos);
+          pos += 8;
+          const g = readFloat64(varBufferData, pos);
+          pos += 8;
+          const b = readFloat64(varBufferData, pos);
+          pos += 8;
+          const alpha = readFloat64(varBufferData, pos);
+          pos += 8;
+          value = {
+            _type: 'Color',
+            rgb: [r, g, b],
+            alpha: alpha,
+          };
+        }
+        break;
+
+      case 3: // Quoted
+        {
+          const strLen = varBufferData.readUInt32LE(pos);
+          pos += 4;
+          const str = varBufferData.toString('utf8', pos, pos + strLen);
+          pos += strLen;
+          const quote = String.fromCharCode(varBufferData[pos++]);
+          value = {
+            _type: 'Quoted',
+            value: str,
+            quote: quote,
+          };
+        }
+        break;
+
+      case 4: // Keyword
+        {
+          const strLen = varBufferData.readUInt32LE(pos);
+          pos += 4;
+          const str = varBufferData.toString('utf8', pos, pos + strLen);
+          value = {
+            _type: 'Keyword',
+            value: str,
+          };
+        }
+        break;
+
+      default:
+        return null;
+    }
+
+    return { value, important };
+  } catch (e) {
+    if (process.env.LESS_GO_DEBUG) {
+      console.error(`[plugin-host] Error reading from shared memory: ${e.message}`);
+    }
+    return null;
+  }
+}
+
+/**
+ * Read a float64 from a buffer in little-endian format.
+ */
+function readFloat64(buf, offset) {
+  const low = buf.readUInt32LE(offset);
+  const high = buf.readUInt32LE(offset + 4);
+  const dataView = new DataView(new ArrayBuffer(8));
+  dataView.setUint32(0, low, true);
+  dataView.setUint32(4, high, true);
+  return dataView.getFloat64(0, true);
+}
+
 // Import bindings
 let bindings;
 try {
@@ -403,6 +690,16 @@ function handleCommand(cmd) {
       case 'addFunctionToScope':
         // Add a function to the current scope (used for inheriting plugin functions from parent frames)
         handleAddFunctionToScope(id, data);
+        break;
+
+      case 'attachVarBuffer':
+        // Attach a shared memory buffer for variable data
+        handleAttachVarBuffer(id, data);
+        break;
+
+      case 'detachVarBuffer':
+        // Detach the variable buffer
+        handleDetachVarBuffer(id);
         break;
 
       case 'getVisitors':
@@ -1113,11 +1410,32 @@ function augmentValueWithMethods(value) {
 /**
  * Create an evaluation context that plugin functions can use to look up variables.
  * This matches the structure that less.js plugins expect via `this.context`.
+ *
+ * Supports three modes:
+ * 1. Pre-serialized: All frames and variables are sent upfront (legacy mode)
+ * 2. Prefetch mode: Known variables are pre-sent, others fetched via callback
+ * 3. On-demand lookup: Only frame count is sent; variables are fetched via callback
+ *
  * @param {Object} contextData - Serialized context from Go
  * @returns {Object} An evaluation context object
  */
 function createEvalContext(contextData) {
-  if (!contextData || !contextData.frames) {
+  if (!contextData) {
+    return null;
+  }
+
+  // Check if we should use prefetch mode (best performance)
+  if (contextData.usePrefetch) {
+    return createPrefetchEvalContext(contextData);
+  }
+
+  // Check if we should use on-demand lookup mode
+  if (contextData.useOnDemandLookup) {
+    return createOnDemandEvalContext(contextData);
+  }
+
+  // Legacy mode: use pre-serialized frames
+  if (!contextData.frames) {
     return null;
   }
 
@@ -1160,13 +1478,327 @@ function createEvalContext(contextData) {
   evalContext.pluginManager = {
     less: {
       functions: {
-        functionRegistry: functionRegistry,
+        functionRegistry: builtinFunctionRegistry,
       },
     },
   };
 
   return evalContext;
 }
+
+/**
+ * Create an evaluation context that uses on-demand variable lookup.
+ * Supports two modes:
+ * 1. Shared memory mode: Go writes binary data to mmap'd file, JS reads directly
+ * 2. JSON fallback mode: Uses callbacks with JSON serialization
+ *
+ * @param {Object} contextData - Minimal context data with frameCount
+ * @returns {Object} An evaluation context object
+ */
+function createOnDemandEvalContext(contextData) {
+  const frameCount = contextData.frameCount || 0;
+  const importantScope = contextData.importantScope || [{}];
+  const useSharedMemory = contextData.useSharedMemory && varBuffer;
+
+  // Cache for already-looked-up variables
+  const variableCache = new Map();
+
+  if (process.env.LESS_GO_DEBUG) {
+    console.error(`[plugin-host] Creating on-demand eval context: ${frameCount} frames, shm=${useSharedMemory}`);
+  }
+
+  // Create frame objects that use on-demand lookup
+  const frames = [];
+  for (let i = 0; i < frameCount; i++) {
+    const frameIndex = i;
+    frames.push({
+      // The variable() method looks up a variable by name via callback to Go
+      variable(name) {
+        // Check cache first
+        const cacheKey = `${frameIndex}:${name}`;
+        if (variableCache.has(cacheKey)) {
+          return variableCache.get(cacheKey);
+        }
+
+        // Request the variable from Go
+        try {
+          const result = sendCallbackSync('lookupVariable', {
+            name: name,
+            frameIndex: frameIndex,
+          });
+
+          if (!result || !result.found) {
+            variableCache.set(cacheKey, undefined);
+            return undefined;
+          }
+
+          let value;
+          let important = false;
+
+          // Check if we should read from shared memory or use JSON
+          if (result.shmOffset !== undefined && result.shmLength !== undefined) {
+            // Read from shared memory (binary format)
+            const shmData = readVariableFromSharedMemory(result.shmOffset, result.shmLength);
+            if (shmData) {
+              value = convertGoNodeToJS(shmData.value);
+              important = shmData.important;
+            } else {
+              // Fallback to JSON if shared memory read fails
+              if (result.value) {
+                value = convertGoNodeToJS(result.value.value);
+                important = result.value.important || false;
+              }
+            }
+          } else if (result.value) {
+            // JSON mode
+            value = convertGoNodeToJS(result.value.value);
+            important = result.value.important || false;
+          }
+
+          if (!value) {
+            variableCache.set(cacheKey, undefined);
+            return undefined;
+          }
+
+          // Augment with eval() and toCSS() methods
+          value = augmentValueWithMethods(value);
+
+          const varResult = {
+            value: value,
+            important: important,
+          };
+
+          // Cache at all frame indices from 0 to the found frame
+          for (let j = 0; j <= result.frameIndex; j++) {
+            variableCache.set(`${j}:${name}`, varResult);
+          }
+
+          return varResult;
+        } catch (e) {
+          if (process.env.LESS_GO_DEBUG) {
+            console.error(`[plugin-host] Variable lookup failed for ${name}: ${e.message}`);
+          }
+          variableCache.set(cacheKey, undefined);
+          return undefined;
+        }
+      },
+      // For debugging
+      _frameIndex: frameIndex,
+      _onDemand: true,
+    });
+  }
+
+  // The evalContext needs a reference back to itself for value.eval(context) calls
+  const evalContext = {
+    frames: frames,
+    importantScope: importantScope,
+    // Provide access to the plugin manager for functions like mix()
+    pluginManager: {
+      less: {
+        functions: {
+          functionRegistry: builtinFunctionRegistry,
+        },
+      },
+    },
+  };
+
+  return evalContext;
+}
+
+/**
+ * Create an evaluation context that uses prefetched variables.
+ * This is the fastest mode - Go pre-serializes commonly needed variables
+ * and sends them with the context, avoiding IPC round-trips.
+ *
+ * For any variables not in the prefetch list, it falls back to on-demand callback.
+ *
+ * @param {Object} contextData - Context data with prefetchedVars
+ * @returns {Object} An evaluation context object
+ */
+function createPrefetchEvalContext(contextData) {
+  const frameCount = contextData.frameCount || 0;
+  const importantScope = contextData.importantScope || [{}];
+  const prefetchedVars = contextData.prefetchedVars || {};
+
+  // Cache for looked-up variables (starts with prefetched vars)
+  const variableCache = new Map();
+
+  // Pre-populate cache with prefetched variables
+  for (const [name, varDecl] of Object.entries(prefetchedVars)) {
+    if (varDecl) {
+      let value = convertGoNodeToJS(varDecl.value);
+      value = augmentValueWithMethods(value);
+      const varResult = {
+        value: value,
+        important: varDecl.important || false,
+      };
+      // Cache at frame 0 (prefetched vars are typically from early frames)
+      variableCache.set(`0:${name}`, varResult);
+    }
+  }
+
+  if (process.env.LESS_GO_DEBUG) {
+    console.error(`[plugin-host] Creating prefetch eval context: ${frameCount} frames, ${Object.keys(prefetchedVars).length} prefetched vars`);
+  }
+
+  // Create frame objects that use cached values first, then callback
+  const frames = [];
+  for (let i = 0; i < frameCount; i++) {
+    const frameIndex = i;
+    frames.push({
+      variable(name) {
+        // Check cache first (including prefetched vars)
+        const cacheKey = `${frameIndex}:${name}`;
+        if (variableCache.has(cacheKey)) {
+          return variableCache.get(cacheKey);
+        }
+
+        // For frame 0, check if we have it prefetched
+        if (frameIndex === 0 && variableCache.has(`0:${name}`)) {
+          return variableCache.get(`0:${name}`);
+        }
+
+        // Fall back to callback for non-prefetched variables
+        try {
+          const result = sendCallbackSync('lookupVariable', {
+            name: name,
+            frameIndex: frameIndex,
+          });
+
+          if (!result || !result.found) {
+            variableCache.set(cacheKey, undefined);
+            return undefined;
+          }
+
+          let value;
+          let important = false;
+
+          if (result.value) {
+            value = convertGoNodeToJS(result.value.value);
+            important = result.value.important || false;
+          }
+
+          if (!value) {
+            variableCache.set(cacheKey, undefined);
+            return undefined;
+          }
+
+          value = augmentValueWithMethods(value);
+
+          const varResult = {
+            value: value,
+            important: important,
+          };
+
+          // Cache at all frame indices from 0 to the found frame
+          for (let j = 0; j <= result.frameIndex; j++) {
+            variableCache.set(`${j}:${name}`, varResult);
+          }
+
+          return varResult;
+        } catch (e) {
+          if (process.env.LESS_GO_DEBUG) {
+            console.error(`[plugin-host] Variable lookup failed for ${name}: ${e.message}`);
+          }
+          variableCache.set(cacheKey, undefined);
+          return undefined;
+        }
+      },
+      _frameIndex: frameIndex,
+      _prefetch: true,
+    });
+  }
+
+  const evalContext = {
+    frames: frames,
+    importantScope: importantScope,
+    pluginManager: {
+      less: {
+        functions: {
+          functionRegistry: builtinFunctionRegistry,
+        },
+      },
+    },
+  };
+
+  return evalContext;
+}
+
+/**
+ * Built-in function registry that includes both plugin functions and built-in Less functions.
+ * Plugins access this via context.pluginManager.less.functions.functionRegistry
+ */
+const builtinFunctionRegistry = {
+  get(name) {
+    // Check if it's a built-in function first
+    const builtin = builtinFunctions[name];
+    if (builtin) {
+      return builtin;
+    }
+    // Fall back to plugin-registered functions
+    return lookupFunction(name);
+  },
+};
+
+/**
+ * Built-in Less functions implemented in JavaScript for use by plugins.
+ * These match the behavior of the corresponding Go/Less.js implementations.
+ */
+const builtinFunctions = {
+  /**
+   * Mix two colors together in variable proportion.
+   * Opacity is included in the calculations.
+   * @param {Color} color1 - First color
+   * @param {Color} color2 - Second color
+   * @param {Dimension} weight - Optional weight (0-100%), default 50%
+   * @returns {Color} Mixed color
+   */
+  mix: function(color1, color2, weight) {
+    // Get weight as a decimal (0-1)
+    let w = 0.5; // default 50%
+    if (weight) {
+      if (typeof weight.value === 'number') {
+        w = weight.value / 100;
+      } else if (typeof weight === 'number') {
+        w = weight / 100;
+      }
+    }
+
+    // Get RGB values
+    const rgb1 = color1.rgb || [0, 0, 0];
+    const rgb2 = color2.rgb || [0, 0, 0];
+    const alpha1 = color1.alpha !== undefined ? color1.alpha : 1;
+    const alpha2 = color2.alpha !== undefined ? color2.alpha : 1;
+
+    // Mix the colors
+    // The algorithm matches less.js:
+    // w1 and w2 are the weights for each color
+    const w1 = w;
+    const w2 = 1 - w;
+
+    const rgb = [
+      Math.round(rgb1[0] * w1 + rgb2[0] * w2),
+      Math.round(rgb1[1] * w1 + rgb2[1] * w2),
+      Math.round(rgb1[2] * w1 + rgb2[2] * w2),
+    ];
+
+    // Mix alpha
+    const alpha = alpha1 * w1 + alpha2 * w2;
+
+    const result = createNode('Color', { rgb, alpha });
+    // Add toCSS method for use by plugins
+    result.toCSS = function() {
+      if (this.alpha < 1) {
+        return `rgba(${this.rgb[0]}, ${this.rgb[1]}, ${this.rgb[2]}, ${this.alpha})`;
+      }
+      const r = this.rgb[0].toString(16).padStart(2, '0');
+      const g = this.rgb[1].toString(16).padStart(2, '0');
+      const b = this.rgb[2].toString(16).padStart(2, '0');
+      return `#${r}${g}${b}`;
+    };
+    return result;
+  },
+};
 
 /**
  * Call a registered function

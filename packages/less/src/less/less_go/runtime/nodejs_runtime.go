@@ -29,6 +29,17 @@ type Response struct {
 	Error   string `json:"error,omitempty"`
 }
 
+// CallbackRequest represents a callback request from Node.js to Go.
+// This is used for on-demand variable lookup during function execution.
+type CallbackRequest struct {
+	ID       int64  `json:"id"`
+	Callback string `json:"callback"`
+	Data     any    `json:"data,omitempty"`
+}
+
+// CallbackHandler is a function that handles callbacks from Node.js.
+type CallbackHandler func(data any) (any, error)
+
 // NodeJSRuntime manages a Node.js process for JavaScript plugin execution.
 type NodeJSRuntime struct {
 	process *exec.Cmd
@@ -39,6 +50,10 @@ type NodeJSRuntime struct {
 	// Response handling
 	responses   map[int64]chan Response
 	responsesMu sync.RWMutex
+
+	// Callback handling for on-demand operations
+	callbackHandlers   map[string]CallbackHandler
+	callbackHandlersMu sync.RWMutex
 
 	// Command ID counter
 	cmdID atomic.Int64
@@ -86,9 +101,10 @@ func WithNodeCommand(cmd string) RuntimeOption {
 // The runtime is not started automatically. Call Start() to spawn the Node.js process.
 func NewNodeJSRuntime(opts ...RuntimeOption) (*NodeJSRuntime, error) {
 	rt := &NodeJSRuntime{
-		responses:   make(map[int64]chan Response),
-		done:        make(chan struct{}),
-		nodeCommand: "node",
+		responses:        make(map[int64]chan Response),
+		callbackHandlers: make(map[string]CallbackHandler),
+		done:             make(chan struct{}),
+		nodeCommand:      "node",
 	}
 
 	// Apply options
@@ -324,6 +340,7 @@ func (rt *NodeJSRuntime) SendCommandWithContext(ctx context, cmd Command) (Respo
 }
 
 // readResponses reads responses from stdout and dispatches them.
+// It also handles callback requests from Node.js for on-demand operations.
 func (rt *NodeJSRuntime) readResponses() {
 	defer rt.wg.Done()
 
@@ -339,6 +356,25 @@ func (rt *NodeJSRuntime) readResponses() {
 			continue
 		}
 
+		// First, try to parse as a generic message to check the type
+		var msg map[string]any
+		if err := json.Unmarshal(line, &msg); err != nil {
+			rt.setError(fmt.Errorf("failed to parse message: %w", err))
+			continue
+		}
+
+		// Check if this is a callback request (has "callback" field)
+		if _, hasCallback := msg["callback"]; hasCallback {
+			var cbReq CallbackRequest
+			if err := json.Unmarshal(line, &cbReq); err != nil {
+				rt.setError(fmt.Errorf("failed to parse callback request: %w", err))
+				continue
+			}
+			rt.handleCallback(cbReq)
+			continue
+		}
+
+		// Otherwise, it's a regular response
 		var resp Response
 		if err := json.Unmarshal(line, &resp); err != nil {
 			rt.setError(fmt.Errorf("failed to parse response: %w", err))
@@ -362,6 +398,60 @@ func (rt *NodeJSRuntime) readResponses() {
 	}
 
 	rt.alive.Store(false)
+}
+
+// handleCallback handles a callback request from Node.js.
+func (rt *NodeJSRuntime) handleCallback(req CallbackRequest) {
+	rt.callbackHandlersMu.RLock()
+	handler, ok := rt.callbackHandlers[req.Callback]
+	rt.callbackHandlersMu.RUnlock()
+
+	if !ok {
+		rt.sendCallbackResponse(req.ID, false, nil, fmt.Sprintf("no handler for callback: %s", req.Callback))
+		return
+	}
+
+	result, err := handler(req.Data)
+	if err != nil {
+		rt.sendCallbackResponse(req.ID, false, nil, err.Error())
+		return
+	}
+
+	rt.sendCallbackResponse(req.ID, true, result, "")
+}
+
+// sendCallbackResponse sends a response to a callback request.
+func (rt *NodeJSRuntime) sendCallbackResponse(id int64, success bool, result any, errMsg string) {
+	resp := Response{
+		ID:      id,
+		Success: success,
+		Result:  result,
+		Error:   errMsg,
+	}
+
+	data, err := json.Marshal(resp)
+	if err != nil {
+		rt.setError(fmt.Errorf("failed to marshal callback response: %w", err))
+		return
+	}
+
+	if _, err := rt.stdin.Write(append(data, '\n')); err != nil {
+		rt.setError(fmt.Errorf("failed to send callback response: %w", err))
+	}
+}
+
+// RegisterCallback registers a callback handler for a specific callback type.
+func (rt *NodeJSRuntime) RegisterCallback(name string, handler CallbackHandler) {
+	rt.callbackHandlersMu.Lock()
+	rt.callbackHandlers[name] = handler
+	rt.callbackHandlersMu.Unlock()
+}
+
+// UnregisterCallback removes a callback handler.
+func (rt *NodeJSRuntime) UnregisterCallback(name string) {
+	rt.callbackHandlersMu.Lock()
+	delete(rt.callbackHandlers, name)
+	rt.callbackHandlersMu.Unlock()
 }
 
 // readStderr reads and logs stderr output from the Node.js process.
