@@ -323,7 +323,16 @@ func (rt *NodeJSRuntime) SendCommandWithContext(ctx context, cmd Command) (Respo
 	}
 }
 
+// JSRequest represents a request from JavaScript to Go (e.g., variable lookup)
+type JSRequest struct {
+	Cmd       string `json:"cmd"`
+	RequestID int64  `json:"requestId,omitempty"`
+	ContextID int64  `json:"contextId,omitempty"`
+	VarName   string `json:"varName,omitempty"`
+}
+
 // readResponses reads responses from stdout and dispatches them.
+// It also handles inline requests from JavaScript (like variable lookups).
 func (rt *NodeJSRuntime) readResponses() {
 	defer rt.wg.Done()
 
@@ -339,6 +348,23 @@ func (rt *NodeJSRuntime) readResponses() {
 			continue
 		}
 
+		// First, try to parse as a generic map to detect message type
+		var msg map[string]any
+		if err := json.Unmarshal(line, &msg); err != nil {
+			rt.setError(fmt.Errorf("failed to parse message: %w", err))
+			continue
+		}
+
+		// Check if this is a request from JS (has "cmd" field but no "success" field)
+		if cmd, hasCmd := msg["cmd"].(string); hasCmd {
+			if _, hasSuccess := msg["success"]; !hasSuccess {
+				// This is a request from JS, handle it
+				rt.handleJSRequest(cmd, msg)
+				continue
+			}
+		}
+
+		// Parse as normal response
 		var resp Response
 		if err := json.Unmarshal(line, &resp); err != nil {
 			rt.setError(fmt.Errorf("failed to parse response: %w", err))
@@ -364,6 +390,43 @@ func (rt *NodeJSRuntime) readResponses() {
 	rt.alive.Store(false)
 }
 
+// handleJSRequest handles requests from JavaScript to Go.
+func (rt *NodeJSRuntime) handleJSRequest(cmd string, msg map[string]any) {
+	requestID, _ := msg["requestId"].(float64)
+
+	switch cmd {
+	case "lookupVariable":
+		contextID, _ := msg["contextId"].(float64)
+		varName, _ := msg["varName"].(string)
+
+		// Look up the variable in the registered context
+		result := LookupVariableInContext(int64(contextID), varName)
+
+		// Send response back to JS
+		response := map[string]any{
+			"requestId": int64(requestID),
+			"success":   true,
+			"result":    result,
+		}
+
+		data, err := json.Marshal(response)
+		if err != nil {
+			rt.setError(fmt.Errorf("failed to marshal variable lookup response: %w", err))
+			return
+		}
+
+		if _, err := rt.stdin.Write(append(data, '\n')); err != nil {
+			rt.setError(fmt.Errorf("failed to send variable lookup response: %w", err))
+		}
+
+	default:
+		// Unknown request type
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Fprintf(os.Stderr, "[runtime] Unknown JS request: %s\n", cmd)
+		}
+	}
+}
+
 // readStderr reads and logs stderr output from the Node.js process.
 func (rt *NodeJSRuntime) readStderr() {
 	defer rt.stderrWg.Done()
@@ -376,8 +439,12 @@ func (rt *NodeJSRuntime) readStderr() {
 			if os.Getenv("LESS_GO_DEBUG") == "1" {
 				fmt.Fprintf(os.Stderr, "%s\n", line)
 			}
+			// Also print lines for theme-color debugging
+			if strings.HasPrefix(line, "[theme-color]") || strings.HasPrefix(line, "[lookupVariable]") || strings.HasPrefix(line, "[handleCallFunction]") || strings.HasPrefix(line, "[listToMap]") || strings.HasPrefix(line, "[augment") || strings.HasPrefix(line, "[Value") || strings.HasPrefix(line, "[Expression") {
+				fmt.Fprintf(os.Stderr, "%s\n", line)
+			}
 			// Store errors (non-debug lines)
-			if !strings.HasPrefix(line, "[plugin-host]") && !strings.HasPrefix(line, "[DEBUG") {
+			if !strings.HasPrefix(line, "[plugin-host]") && !strings.HasPrefix(line, "[DEBUG") && !strings.HasPrefix(line, "[theme-color]") && !strings.HasPrefix(line, "[lookupVariable]") && !strings.HasPrefix(line, "[handleCallFunction]") && !strings.HasPrefix(line, "[listToMap]") && !strings.HasPrefix(line, "[augment") && !strings.HasPrefix(line, "[Value") && !strings.HasPrefix(line, "[Expression") {
 				rt.setError(fmt.Errorf("Node.js stderr: %s", line))
 			}
 		}

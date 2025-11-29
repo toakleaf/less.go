@@ -708,38 +708,40 @@ func ColorDesaturate(color, amount any, method ...any) any {
 
 // ColorLighten increases lightness
 func ColorLighten(color, amount any, method ...any) any {
-	if c, ok := color.(*Color); ok {
-		amountVal, err := number(amount)
-		if err != nil {
-			return nil
-		}
-		
-		// Default to relative method
-		var methodStr string
-		if len(method) > 0 {
-			if s, ok := method[0].(string); ok {
-				methodStr = s
-			}
-		}
-		
-		hsl := c.ToHSL()
-		if methodStr == "relative" {
-			hsl.L = hsl.L + hsl.L*amountVal
-		} else {
-			// Default is absolute method
-			hsl.L = hsl.L + amountVal
-		}
-		hsl.L = clampUnit(hsl.L)
-		
-		return hslaHelper(c, hsl.H, hsl.S, hsl.L, hsl.A)
+	c := toColor(color)
+	if c == nil {
+		return nil
 	}
-	return nil
+
+	amountVal, err := number(amount)
+	if err != nil {
+		return nil
+	}
+
+	// Default to relative method
+	var methodStr string
+	if len(method) > 0 {
+		if s, ok := method[0].(string); ok {
+			methodStr = s
+		}
+	}
+
+	hsl := c.ToHSL()
+	if methodStr == "relative" {
+		hsl.L = hsl.L + hsl.L*amountVal
+	} else {
+		// Default is absolute method
+		hsl.L = hsl.L + amountVal
+	}
+	hsl.L = clampUnit(hsl.L)
+
+	return hslaHelper(c, hsl.H, hsl.S, hsl.L, hsl.A)
 }
 
 // ColorDarken decreases lightness
 func ColorDarken(color, amount any, method ...any) any {
-	c, ok := color.(*Color)
-	if !ok {
+	c := toColor(color)
+	if c == nil {
 		return &LessError{
 			Type:    "Argument",
 			Message: "Argument cannot be evaluated to a color",
@@ -772,11 +774,97 @@ func ColorDarken(color, amount any, method ...any) any {
 }
 
 // toColor converts various color representations to *Color
-// Handles Color, Keyword (e.g., "red", "blue"), Quoted, and string types
+// Handles Color, Keyword (e.g., "red", "blue"), Quoted, string types,
+// JSResultNode, and map representations (from JavaScript plugins)
 func toColor(input any) *Color {
 	// Already a Color
 	if c, ok := input.(*Color); ok {
 		return c
+	}
+
+	// Handle native Go Value type (from JavaScript plugin deserialization)
+	if v, ok := input.(*Value); ok && v != nil && len(v.Value) == 1 {
+		return toColor(v.Value[0])
+	}
+
+	// Handle native Go Expression type
+	if e, ok := input.(*Expression); ok && e != nil && len(e.Value) == 1 {
+		return toColor(e.Value[0])
+	}
+
+	// Check for map representation from JavaScript plugins
+	// JavaScript objects get deserialized to map[string]interface{}
+	if m, ok := input.(map[string]interface{}); ok {
+		nodeType, _ := m["_type"].(string)
+
+		if nodeType == "Color" {
+			// Extract RGB array
+			var rgb []float64
+			if rgbAny, ok := m["rgb"]; ok {
+				if rgbSlice, ok := rgbAny.([]interface{}); ok {
+					rgb = make([]float64, len(rgbSlice))
+					for i, v := range rgbSlice {
+						if f, ok := v.(float64); ok {
+							rgb[i] = f
+						}
+					}
+				}
+			}
+			// Extract alpha
+			alpha := 1.0
+			if a, ok := m["alpha"].(float64); ok {
+				alpha = a
+			}
+			if len(rgb) >= 3 {
+				return NewColor(rgb, alpha, "")
+			}
+		}
+
+		// Handle Value/Expression that contains children
+		if nodeType == "Value" || nodeType == "Expression" {
+			if val, ok := m["value"]; ok {
+				if arr, ok := val.([]interface{}); ok && len(arr) == 1 {
+					return toColor(arr[0])
+				}
+			}
+		}
+	}
+
+	// Check for JSResultNode from JavaScript plugins
+	// Use interface check to avoid import cycle with runtime package
+	if typer, ok := input.(interface{ GetType() string }); ok {
+		nodeType := typer.GetType()
+
+		if nodeType == "Color" {
+			// Direct Color-type node - extract RGB and alpha
+			type colorGetter interface {
+				GetRGB() []float64
+				GetAlpha() float64
+			}
+			if cg, ok := input.(colorGetter); ok {
+				rgb := cg.GetRGB()
+				alpha := cg.GetAlpha()
+				if rgb != nil && len(rgb) >= 3 {
+					return NewColor(rgb, alpha, "")
+				}
+			}
+		}
+
+		// Handle Value/Expression that contains a single Color
+		if nodeType == "Value" || nodeType == "Expression" {
+			type valueGetter interface {
+				GetValue() any
+			}
+			if vg, ok := input.(valueGetter); ok {
+				val := vg.GetValue()
+				// Value.GetValue() might return []any or a single item
+				if arr, ok := val.([]any); ok && len(arr) == 1 {
+					return toColor(arr[0])
+				} else if arr, ok := val.([]interface{}); ok && len(arr) == 1 {
+					return toColor(arr[0])
+				}
+			}
+		}
 	}
 
 	// Keyword (e.g., "red", "blue")

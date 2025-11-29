@@ -280,6 +280,51 @@ tree.Variable.prototype.find = function (frames, callback) {
   return null;
 };
 
+// Built-in Less functions that plugins may need
+// These are implementations of Less.js built-in functions in JavaScript
+const builtinFunctions = {
+  // mix(color1, color2, weight) - Blends two colors together
+  // weight is a percentage (0-100) indicating how much of color1 vs color2
+  mix(color1, color2, weight) {
+    // Extract RGB values from colors
+    const rgb1 = Array.isArray(color1?.rgb) ? color1.rgb : (color1?._type === 'Color' ? color1.rgb : [0, 0, 0]);
+    const rgb2 = Array.isArray(color2?.rgb) ? color2.rgb : (color2?._type === 'Color' ? color2.rgb : [0, 0, 0]);
+    const alpha1 = color1?.alpha !== undefined ? color1.alpha : 1;
+    const alpha2 = color2?.alpha !== undefined ? color2.alpha : 1;
+
+    // Parse weight (default 50%)
+    let w = 0.5;
+    if (weight !== undefined) {
+      if (typeof weight === 'number') {
+        w = weight / 100;
+      } else if (weight?.value !== undefined) {
+        w = weight.value / 100;
+      }
+    }
+
+    // Mix the colors
+    const mixedRgb = [
+      Math.round(rgb1[0] * w + rgb2[0] * (1 - w)),
+      Math.round(rgb1[1] * w + rgb2[1] * (1 - w)),
+      Math.round(rgb1[2] * w + rgb2[2] * (1 - w)),
+    ];
+    const mixedAlpha = alpha1 * w + alpha2 * (1 - w);
+
+    // Return as Color node
+    const result = createNode('Color', { rgb: mixedRgb, alpha: mixedAlpha });
+
+    // Add toCSS method for bootstrap compatibility
+    result.toCSS = function() {
+      const r = Math.round(Math.max(0, Math.min(255, this.rgb[0])));
+      const g = Math.round(Math.max(0, Math.min(255, this.rgb[1])));
+      const b = Math.round(Math.max(0, Math.min(255, this.rgb[2])));
+      return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+    };
+
+    return result;
+  },
+};
+
 // Function registry - now uses scoped function management
 const functionRegistry = {
   add(name, fn) {
@@ -291,12 +336,16 @@ const functionRegistry = {
     }
   },
   get(name) {
+    // First check built-in functions
+    if (builtinFunctions[name]) {
+      return builtinFunctions[name];
+    }
     // Use scoped lookup for proper function resolution
     return lookupFunction(name);
   },
   getAll() {
-    // Return all unique function names from all scopes
-    const allNames = new Set();
+    // Return all unique function names from all scopes plus built-ins
+    const allNames = new Set(Object.keys(builtinFunctions));
     for (const scope of functionScopeStack) {
       for (const name of scope.keys()) {
         allNames.add(name);
@@ -1026,11 +1075,64 @@ function augmentValueWithMethods(value) {
     return value;
   }
 
-  // Add eval method that returns the value itself (already evaluated from Go)
+  // Add eval method based on node type
   if (typeof value.eval !== 'function') {
-    value.eval = function(context) {
-      return this;
-    };
+    const nodeType = value._type || value.type;
+
+    if (nodeType === 'Variable') {
+      // Variable nodes need to look up their value in the context
+      value.eval = function(context) {
+        if (!context || !context.frames) {
+          return this;
+        }
+
+        // Get the variable name - could be stored in 'name' or 'value' property
+        const varName = this.name || this.value;
+        if (!varName) {
+          return this;
+        }
+
+        // Look up the variable in the frames
+        for (let i = 0; i < context.frames.length; i++) {
+          const frame = context.frames[i];
+          if (frame && typeof frame.variable === 'function') {
+            const result = frame.variable(varName);
+            if (result && result.value !== undefined) {
+              // Recursively evaluate the found value
+              const foundValue = augmentValueWithMethods(result.value);
+              return foundValue.eval ? foundValue.eval(context) : foundValue;
+            }
+          }
+        }
+
+        return this;
+      };
+    } else if (nodeType === 'Expression' || nodeType === 'Value') {
+      // Expression and Value nodes need to evaluate their children
+      value.eval = function(context) {
+        if (!Array.isArray(this.value)) {
+          return this;
+        }
+
+        // Create a copy with evaluated children
+        const evaledValue = this.value.map((child) => {
+          const augmented = augmentValueWithMethods(child);
+          return augmented && augmented.eval ? augmented.eval(context) : augmented;
+        });
+
+        // Return a new node with evaluated children
+        const result = {
+          ...this,
+          value: evaledValue,
+        };
+        return augmentValueWithMethods(result);
+      };
+    } else {
+      // Other node types just return themselves (already evaluated from Go)
+      value.eval = function(context) {
+        return this;
+      };
+    }
   }
 
   // Add toCSS method based on node type
@@ -1117,8 +1219,15 @@ function augmentValueWithMethods(value) {
  * @returns {Object} An evaluation context object
  */
 function createEvalContext(contextData) {
-  if (!contextData || !contextData.frames) {
+  // Allow creation with empty or missing frames - some functions may still work
+  // We only return null if contextData itself is null/undefined
+  if (!contextData) {
     return null;
+  }
+
+  // If frames is not present, use empty array
+  if (!contextData.frames) {
+    contextData.frames = [];
   }
 
   // The evalContext needs a reference back to itself for value.eval(context) calls
@@ -1194,6 +1303,12 @@ function handleCallFunction(id, data) {
 
     // Create evaluation context if provided
     const evalContext = createEvalContext(context);
+
+    // Debug: warn if context was provided but evalContext is null
+    if (process.env.LESS_GO_DEBUG && context && !evalContext) {
+      console.error(`[handleCallFunction] WARNING: ${name}: context provided but evalContext is null!`);
+      console.error(`[handleCallFunction] context keys: ${Object.keys(context || {}).join(', ')}`);
+    }
 
     // Create the `this` binding with context
     const thisBinding = {

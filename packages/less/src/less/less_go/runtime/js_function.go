@@ -578,10 +578,12 @@ func (jf *JSFunctionDefinition) callViaJSONWithContext(evalContext EvalContextPr
 	// Serialize the evaluation context
 	serializedContext := jf.serializeEvalContext(evalContext)
 
-	// Debug: log context info
+	// Debug: log context info showing both raw and serialized frame counts
 	if os.Getenv("LESS_GO_DEBUG") == "1" && serializedContext != nil {
+		rawFrames := evalContext.GetFramesAny()
 		if frames, ok := serializedContext["frames"].([]map[string]any); ok {
-			fmt.Printf("[callViaJSONWithContext] Function %s: context has %d frames\n", jf.name, len(frames))
+			fmt.Printf("[callViaJSONWithContext] Function %s: %d raw frames -> %d serialized frames (with variables)\n",
+				jf.name, len(rawFrames), len(frames))
 		} else {
 			fmt.Printf("[callViaJSONWithContext] Function %s: context frames not available (type: %T)\n", jf.name, serializedContext["frames"])
 		}
@@ -616,8 +618,121 @@ func (jf *JSFunctionDefinition) callViaJSONWithContext(evalContext EvalContextPr
 	return result, nil
 }
 
+// contextIDCounter is used to generate unique context IDs
+var contextIDCounter int64
+var contextIDMu sync.Mutex
+
+// activeContexts stores evaluation contexts by ID for on-demand variable lookup
+var activeContexts = make(map[int64]EvalContextProvider)
+var activeContextsMu sync.RWMutex
+
+// RegisterContext registers an evaluation context and returns its ID
+func RegisterContext(ctx EvalContextProvider) int64 {
+	contextIDMu.Lock()
+	contextIDCounter++
+	id := contextIDCounter
+	contextIDMu.Unlock()
+
+	activeContextsMu.Lock()
+	activeContexts[id] = ctx
+	activeContextsMu.Unlock()
+
+	return id
+}
+
+// UnregisterContext removes a context from the registry
+func UnregisterContext(id int64) {
+	activeContextsMu.Lock()
+	delete(activeContexts, id)
+	activeContextsMu.Unlock()
+}
+
+// GetContext retrieves a registered context by ID
+func GetContext(id int64) EvalContextProvider {
+	activeContextsMu.RLock()
+	defer activeContextsMu.RUnlock()
+	return activeContexts[id]
+}
+
+// LookupVariableInContext looks up a variable by name in a registered context
+func LookupVariableInContext(contextID int64, varName string) map[string]any {
+	ctx := GetContext(contextID)
+	if ctx == nil {
+		return nil
+	}
+
+	frames := ctx.GetFramesAny()
+	for _, frame := range frames {
+		if frame == nil {
+			continue
+		}
+
+		// Check if frame has Variables() method
+		variablesProvider, ok := frame.(interface {
+			Variables() map[string]any
+		})
+		if !ok {
+			continue
+		}
+
+		variables := variablesProvider.Variables()
+		if variables == nil {
+			continue
+		}
+
+		// Look for the variable
+		if decl, exists := variables[varName]; exists && decl != nil {
+			// Serialize just this one variable declaration
+			return serializeVariableDeclaration(decl)
+		}
+	}
+
+	return nil
+}
+
+// serializeVariableDeclaration serializes a single variable declaration (standalone function)
+func serializeVariableDeclaration(decl any) map[string]any {
+	if decl == nil {
+		return nil
+	}
+
+	// Try to get value from declaration
+	valueProvider, ok := decl.(interface {
+		GetValue() any
+	})
+	if !ok {
+		// Try alternate interface
+		if declMap, ok := decl.(map[string]any); ok {
+			return declMap
+		}
+		return nil
+	}
+
+	value := valueProvider.GetValue()
+
+	// Check for important flag
+	important := false
+	if importantProvider, ok := decl.(interface{ GetImportant() bool }); ok {
+		important = importantProvider.GetImportant()
+	} else if importantProvider, ok := decl.(interface{ GetImportant() string }); ok {
+		important = importantProvider.GetImportant() != ""
+	}
+
+	return map[string]any{
+		"value":     serializeNode(value),
+		"important": important,
+	}
+}
+
+// Maximum number of frames to serialize for plugin functions.
+// Plugin functions like bootstrap only need root-level variables,
+// which are typically in the first few frames.
+const maxPluginContextFrames = 20
+
 // serializeEvalContext serializes the evaluation context for JavaScript.
-// This includes frames with their variables so plugin functions can look up values.
+// Optimized to:
+// 1. Only serialize frames with actual variables (skips empty frames)
+// 2. Limit to first N frames with variables (root-level variables are what plugins need)
 func (jf *JSFunctionDefinition) serializeEvalContext(evalContext EvalContextProvider) map[string]any {
 	if evalContext == nil {
 		return nil
@@ -626,16 +741,56 @@ func (jf *JSFunctionDefinition) serializeEvalContext(evalContext EvalContextProv
 	frames := evalContext.GetFramesAny()
 	importantScope := evalContext.GetImportantScopeAny()
 
-	// Serialize frames with their variables
-	serializedFrames := make([]map[string]any, 0, len(frames))
+	// Serialize only frames that have variables (optimization for bootstrap4)
+	// Most frames in a deep scope stack are empty, so this dramatically reduces
+	// the amount of data we need to serialize.
+	// Also limit to maxPluginContextFrames since plugin functions only need root-level vars.
+	serializedFrames := make([]map[string]any, 0, maxPluginContextFrames)
+
 	for _, frame := range frames {
-		serializedFrame := jf.serializeFrame(frame)
-		if serializedFrame != nil {
-			serializedFrames = append(serializedFrames, serializedFrame)
+		// Stop if we've collected enough frames with variables
+		if len(serializedFrames) >= maxPluginContextFrames {
+			break
+		}
+
+		if frame == nil {
+			continue
+		}
+
+		// Check if frame has Variables() method
+		variablesProvider, ok := frame.(interface {
+			Variables() map[string]any
+		})
+		if !ok {
+			continue
+		}
+
+		variables := variablesProvider.Variables()
+		if variables == nil || len(variables) == 0 {
+			// Skip empty frames - this is the key optimization
+			continue
+		}
+
+		// Serialize this frame's variables
+		serializedVars := make(map[string]any, len(variables))
+		for name, decl := range variables {
+			if decl == nil {
+				continue
+			}
+			serializedDecl := serializeVariableDeclaration(decl)
+			if serializedDecl != nil {
+				serializedVars[name] = serializedDecl
+			}
+		}
+
+		if len(serializedVars) > 0 {
+			serializedFrames = append(serializedFrames, map[string]any{
+				"variables": serializedVars,
+			})
 		}
 	}
 
-	// Serialize important scope
+	// Serialize important scope (this is typically small)
 	serializedImportantScope := make([]map[string]any, len(importantScope))
 	for i, scope := range importantScope {
 		serializedImportantScope[i] = make(map[string]any)
@@ -814,6 +969,11 @@ func serializeNode(node any) any {
 				}
 				nodeMap["value"] = serialized
 			}
+		case "Variable":
+			// Variable nodes need their name for evaluation
+			if getter, ok := node.(interface{ GetName() string }); ok {
+				nodeMap["name"] = getter.GetName()
+			}
 		}
 
 		return nodeMap
@@ -985,6 +1145,23 @@ func (n *JSResultNode) getRGBArray(key string) []float64 {
 		}
 	}
 	return []float64{0, 0, 0}
+}
+
+// GetRGB returns the RGB values for a Color-type JSResultNode.
+// This allows JSResultNode to be converted to a Color by the toColor function.
+func (n *JSResultNode) GetRGB() []float64 {
+	if n.NodeType != "Color" {
+		return nil
+	}
+	return n.getRGBArray("rgb")
+}
+
+// GetAlpha returns the alpha value for a Color-type JSResultNode.
+func (n *JSResultNode) GetAlpha() float64 {
+	if n.NodeType != "Color" {
+		return 1.0
+	}
+	return n.getFloat("alpha")
 }
 
 // PluginFunctionRegistry provides a unified interface for both built-in Go functions

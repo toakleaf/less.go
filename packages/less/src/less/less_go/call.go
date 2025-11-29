@@ -939,13 +939,23 @@ func (c *Call) tryJSPluginFunction(context any, evalContext EvalContext) (any, e
 		// Try to use context-aware call for plugin functions that need variable lookup
 		if evalCtx, ok := context.(*Eval); ok {
 			// Use CallFunctionWithContext to pass evaluation context for variable lookup
+			if debug {
+				fmt.Printf("[tryJSPluginFunction] '%s': Using *Eval context with %d frames\n", c.Name, len(evalCtx.Frames))
+			}
 			result, err = lazyBridge.CallFunctionWithContext(c.Name, evalCtx, evaledArgs...)
 		} else if evalContext != nil {
 			// Create adapter for EvalContext interface
+			if debug {
+				frames := evalContext.GetFrames()
+				fmt.Printf("[tryJSPluginFunction] '%s': Using adapter context with %d frames\n", c.Name, len(frames))
+			}
 			adapter := &evalContextAdapter{evalContext: evalContext}
 			result, err = lazyBridge.CallFunctionWithContext(c.Name, adapter, evaledArgs...)
 		} else {
 			// Fallback to regular call without context
+			if debug {
+				fmt.Printf("[tryJSPluginFunction] '%s': No context available, calling without context\n", c.Name)
+			}
 			result, err = lazyBridge.CallFunction(c.Name, evaledArgs...)
 		}
 		if err != nil {

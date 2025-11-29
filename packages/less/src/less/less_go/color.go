@@ -554,6 +554,16 @@ func (c *Color) Eval(context any) any {
 	return c
 }
 
+// GetRGB returns the RGB values for serialization to JavaScript plugins
+func (c *Color) GetRGB() []float64 {
+	return c.RGB
+}
+
+// GetAlpha returns the alpha value for serialization to JavaScript plugins
+func (c *Color) GetAlpha() float64 {
+	return c.Alpha
+}
+
 // Helper functions
 func adjustGamma(n float64) float64 {
 	if n <= 0.03928 {
