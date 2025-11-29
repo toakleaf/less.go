@@ -684,7 +684,7 @@ func TestAtRule(t *testing.T) {
 			}
 			rules := []any{&mockGenCSS{}, &mockGenCSS{}}
 			atRule := NewAtRule("@media", nil, nil, 0, nil, nil, false, nil)
-			
+
 			var calls []atRuleMockCall
 			output := &CSSOutput{
 				Add: func(chunk any, fileInfo any, index any) {
@@ -700,16 +700,23 @@ func TestAtRule(t *testing.T) {
 			if len(calls) < 4 {
 				t.Errorf("Expected at least 4 calls, got %d", len(calls))
 			}
-			// Should contain opening brace with newline and indentation
-			found := false
+			// Should contain opening brace followed by newline and indentation
+			// (now output as separate chunks to handle media-empty rulesets with only comments)
+			foundBrace := false
+			foundIndent := false
 			for _, call := range calls {
-				if call.chunk == " {\n    " {
-					found = true
-					break
+				if call.chunk == " {" {
+					foundBrace = true
+				}
+				if call.chunk == "\n    " {
+					foundIndent = true
 				}
 			}
-			if !found {
-				t.Error("Expected to find opening brace with proper indentation")
+			if !foundBrace {
+				t.Error("Expected to find opening brace")
+			}
+			if !foundIndent {
+				t.Error("Expected to find proper indentation")
 			}
 			if context["tabLevel"] != 1 {
 				t.Errorf("Expected tabLevel to be restored to 1, got %v", context["tabLevel"])

@@ -46,6 +46,11 @@ func (a *Anonymous) GetType() string {
 	return "Anonymous"
 }
 
+// GetValue returns the value of this Anonymous node
+func (a *Anonymous) GetValue() any {
+	return a.Value
+}
+
 // GetTypeIndex returns the type index for visitor pattern
 func (a *Anonymous) GetTypeIndex() int {
 	if a.Node != nil && a.Node.TypeIndex != 0 {

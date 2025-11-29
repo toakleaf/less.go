@@ -1220,6 +1220,7 @@ func convertJSResultToAST(result any, context any) any {
 	case "Color":
 		rgb := []float64{0, 0, 0}
 		alpha := 1.0
+		value := ""
 		if r, ok := jsNode.Properties["rgb"].([]any); ok && len(r) >= 3 {
 			for i := 0; i < 3 && i < len(r); i++ {
 				if v, ok := r[i].(float64); ok {
@@ -1230,7 +1231,11 @@ func convertJSResultToAST(result any, context any) any {
 		if a, ok := jsNode.Properties["alpha"].(float64); ok {
 			alpha = a
 		}
-		return NewColor(rgb, alpha, "")
+		// Preserve the original color value (e.g., "#fff") for proper CSS output
+		if v, ok := jsNode.Properties["value"].(string); ok {
+			value = v
+		}
+		return NewColor(rgb, alpha, value)
 
 	case "AtRule":
 		name := ""

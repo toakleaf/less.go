@@ -1833,12 +1833,15 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 
 	// Check if this is a media-empty ruleset (used by Media queries)
 	// Media-empty rulesets should not increment tabLevel since they don't output braces
+	// Note: After JoinSelectorVisitor runs, r.Paths might be an empty array instead of nil,
+	// so we also check len(r.Paths) == 0
 	isMediaEmpty := false
-	if !r.Root && r.Paths == nil && len(r.Selectors) == 1 {
+	if !r.Root && (r.Paths == nil || len(r.Paths) == 0) && len(r.Selectors) == 1 {
 		if sel, ok := r.Selectors[0].(*Selector); ok && sel.MediaEmpty {
 			isMediaEmpty = true
 		}
 	}
+
 
 	// Check if this is a container ruleset (no selectors/paths)
 	// Container rulesets inside at-rules (@supports, @document) don't output their own braces,
@@ -1892,10 +1895,16 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 
 	if r.Rules != nil {
 		for i, rule := range r.Rules {
+			_ = i // suppress unused variable warning when debug is disabled
 			// Skip silent comments entirely - they don't generate output
 			// This prevents extra blank lines from being added after the last visible rule
 			if comment, ok := rule.(*Comment); ok {
-				if comment.IsSilent(ctx) {
+				isSilent := comment.IsSilent(ctx)
+				if os.Getenv("LESS_GO_DEBUG_COMMENT") == "1" {
+					fmt.Fprintf(os.Stderr, "[GenCSS] Comment: IsLineComment=%v, Value=%q, IsSilent=%v\n",
+						comment.IsLineComment, comment.Value, isSilent)
+				}
+				if isSilent {
 					continue // Skip silent comments
 				}
 				// Also skip comments that block visibility and are not explicitly visible
@@ -1965,6 +1974,7 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 	// Check if this ruleset contains only extends (no actual CSS output)
 	// If so, we'll skip generating selectors/braces but still complete normally for proper spacing
 	hasOnlyExtends := !r.Root && len(r.Rules) > 0 && len(ruleNodes) == 0
+
 
 	// Track how many paths were actually output (for visibility filtering)
 	outputCount := 0

@@ -870,35 +870,40 @@ func (a *AtRule) OutputRuleset(context any, output *CSSOutput, rules []any) {
 	if ruleCnt == 0 {
 		output.Add(" {"+tabSetStr+"}", nil, nil)
 	} else {
-		output.Add(" {"+tabRuleStr, nil, nil)
+		// Output opening brace without initial indent - we'll add indent before first rule that outputs
+		output.Add(" {", nil, nil)
 
-		// Output first rule
-		if ruleCnt > 0 {
-			// Set lastRule flag for the last rule (similar to JavaScript ruleset.js line 533)
-			if ruleCnt == 1 {
-				ctx["lastRule"] = true
-			}
+		// Track whether we've output any rule content yet
+		hasOutputContent := false
 
-			if gen, ok := rules[0].(interface{ GenCSS(any, *CSSOutput) }); ok {
-				gen.GenCSS(ctx, output)
-			}
-
-			if ruleCnt == 1 {
-				ctx["lastRule"] = false
-			}
-		}
-
-		// Output subsequent rules with indentation before each
-		// But only add indentation if the rule will actually output something
-		for i := 1; i < ruleCnt; i++ {
+		// Process all rules uniformly
+		for i := 0; i < ruleCnt; i++ {
 			rule := rules[i]
 
 			// Check if this rule will output anything (for visibility filtering)
 			// Skip adding newline/indent for rules that will be filtered out
 			willOutput := true
 			if rs, ok := rule.(*Ruleset); ok {
+				// Check if ruleset is a media-empty ruleset with only silent content
+				// These rulesets have MediaEmpty selectors but no visible rules to output
+				if len(rs.Selectors) == 1 {
+					if sel, ok := rs.Selectors[0].(*Selector); ok && sel.MediaEmpty {
+						// Check if ruleset will produce any output by looking at its rules
+						hasNonSilentContent := false
+						for _, ruleContent := range rs.Rules {
+							// Skip comments as they're typically silent
+							if _, isComment := ruleContent.(*Comment); !isComment {
+								hasNonSilentContent = true
+								break
+							}
+						}
+						if !hasNonSilentContent {
+							willOutput = false
+						}
+					}
+				}
 				// Check if ruleset blocks visibility and has no visible paths
-				if rs.Node != nil && rs.Node.BlocksVisibility() {
+				if willOutput && rs.Node != nil && rs.Node.BlocksVisibility() {
 					nodeVisible := rs.Node.IsVisible()
 					if nodeVisible == nil || !*nodeVisible {
 						// Check if any path has visible selectors
@@ -928,8 +933,10 @@ func (a *AtRule) OutputRuleset(context any, output *CSSOutput, rules []any) {
 				}
 			}
 
+			// Add newline/indent before rules that will output
 			if willOutput {
 				output.Add(tabRuleStr, nil, nil)
+				hasOutputContent = true
 			}
 
 			// Set lastRule flag for the last rule
@@ -945,6 +952,11 @@ func (a *AtRule) OutputRuleset(context any, output *CSSOutput, rules []any) {
 			if i+1 == ruleCnt {
 				ctx["lastRule"] = false
 			}
+		}
+
+		// If no rules output anything, still need to add a newline before closing brace
+		if !hasOutputContent {
+			output.Add(tabSetStr, nil, nil)
 		}
 
 		output.Add(tabSetStr+"}", nil, nil)

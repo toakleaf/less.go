@@ -529,16 +529,65 @@ const less = {
       return createNode('Anonymous', { value });
     },
     Dimension: function (value, unit) {
-      return createNode('Dimension', { value, unit: unit || '' });
-    },
-    Color: function (rgb, alpha) {
-      if (Array.isArray(rgb)) {
-        return createNode('Color', { rgb, alpha: alpha !== undefined ? alpha : 1 });
+      // Match less.js behavior: parseFloat the value
+      // This handles strings like "72%" correctly
+      const numValue = parseFloat(value);
+      if (isNaN(numValue)) {
+        throw new Error('Dimension is not a number.');
       }
-      return createNode('Color', { rgb: [rgb.r || 0, rgb.g || 0, rgb.b || 0], alpha: alpha !== undefined ? alpha : 1 });
+      return createNode('Dimension', { value: numValue, unit: unit || '' });
     },
-    Quoted: function (quote, value, escaped) {
-      return createNode('Quoted', { quote, value, escaped: escaped || false });
+    Color: function (rgb, alpha, originalForm) {
+      let rgbArray;
+      let finalAlpha = alpha;
+
+      if (Array.isArray(rgb)) {
+        // Already an array like [r, g, b]
+        rgbArray = rgb;
+      } else if (typeof rgb === 'string') {
+        // Hex string like "ffffff" or "fff"
+        rgbArray = [];
+        if (rgb.length >= 6) {
+          // 6-char hex like "ffffff"
+          rgb.match(/.{2}/g).forEach((c, i) => {
+            if (i < 3) {
+              rgbArray.push(parseInt(c, 16));
+            } else {
+              finalAlpha = parseInt(c, 16) / 255;
+            }
+          });
+        } else {
+          // 3-char hex like "fff" - double each char
+          rgb.split('').forEach((c, i) => {
+            if (i < 3) {
+              rgbArray.push(parseInt(c + c, 16));
+            } else {
+              finalAlpha = parseInt(c + c, 16) / 255;
+            }
+          });
+        }
+      } else if (rgb && typeof rgb === 'object') {
+        // Object with r, g, b properties
+        rgbArray = [rgb.r || 0, rgb.g || 0, rgb.b || 0];
+      } else {
+        rgbArray = [0, 0, 0];
+      }
+
+      finalAlpha = finalAlpha !== undefined ? finalAlpha : (alpha !== undefined ? alpha : 1);
+
+      const node = createNode('Color', { rgb: rgbArray, alpha: finalAlpha });
+      if (originalForm !== undefined) {
+        node.value = originalForm;
+      }
+      return node;
+    },
+    Quoted: function (str, content, escaped) {
+      // Match less.js behavior: escaped defaults to true when undefined
+      return createNode('Quoted', {
+        quote: str.charAt(0),
+        value: content || '',
+        escaped: (escaped === undefined) ? true : escaped
+      });
     },
     Keyword: function (value) {
       return createNode('Keyword', { value });
@@ -1287,6 +1336,10 @@ function convertJSResultToGo(result) {
     case 'Color':
       goNode.rgb = result.rgb || [0, 0, 0];
       goNode.alpha = result.alpha !== undefined ? result.alpha : 1;
+      // Preserve original color value (e.g., "#fff") for proper CSS output
+      if (result.value !== undefined) {
+        goNode.value = result.value;
+      }
       break;
 
     case 'Quoted':
@@ -1428,6 +1481,10 @@ function augmentValueWithMethods(value) {
     const nodeType = value._type || value.type;
     switch (nodeType) {
       case 'Color':
+        // Ensure alpha is set (required by mix function and other color operations)
+        if (value.alpha === undefined) {
+          value.alpha = 1;
+        }
         value.toCSS = function() {
           const rgb = this.rgb || [0, 0, 0];
           const alpha = this.alpha !== undefined ? this.alpha : 1;
@@ -1439,6 +1496,54 @@ function augmentValueWithMethods(value) {
           const g = Math.round(rgb[1]).toString(16).padStart(2, '0');
           const b = Math.round(rgb[2]).toString(16).padStart(2, '0');
           return `#${r}${g}${b}`;
+        };
+        // Add toHSL method for color mixing operations
+        value.toHSL = function() {
+          const rgb = this.rgb || [0, 0, 0];
+          const r = rgb[0] / 255, g = rgb[1] / 255, b = rgb[2] / 255;
+          const a = this.alpha !== undefined ? this.alpha : 1;
+          const max = Math.max(r, g, b), min = Math.min(r, g, b);
+          let h, s;
+          const l = (max + min) / 2;
+          const d = max - min;
+          if (max === min) {
+            h = s = 0;
+          } else {
+            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+            switch (max) {
+              case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+              case g: h = (b - r) / d + 2; break;
+              case b: h = (r - g) / d + 4; break;
+            }
+            h /= 6;
+          }
+          return { h: h * 360, s, l, a };
+        };
+        // Add toHSV method for color operations
+        value.toHSV = function() {
+          const rgb = this.rgb || [0, 0, 0];
+          const r = rgb[0] / 255, g = rgb[1] / 255, b = rgb[2] / 255;
+          const a = this.alpha !== undefined ? this.alpha : 1;
+          const max = Math.max(r, g, b), min = Math.min(r, g, b);
+          let h, s;
+          const v = max;
+          const d = max - min;
+          if (max === 0) {
+            s = 0;
+          } else {
+            s = d / max;
+          }
+          if (max === min) {
+            h = 0;
+          } else {
+            switch (max) {
+              case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+              case g: h = (b - r) / d + 2; break;
+              case b: h = (r - g) / d + 4; break;
+            }
+            h /= 6;
+          }
+          return { h: h * 360, s, v, a };
         };
         break;
 
@@ -1455,8 +1560,33 @@ function augmentValueWithMethods(value) {
         break;
 
       case 'Keyword':
-      case 'Anonymous':
         value.toCSS = function() {
+          return String(this.value || '');
+        };
+        break;
+
+      case 'Anonymous':
+        if (process.env.LESS_GO_DEBUG) {
+          console.error(`[plugin-host] Augmenting Anonymous: value="${value.value}", type=${typeof value.value}`);
+        }
+        // Check if Anonymous value looks like a dimension (e.g., "8%", "10px")
+        // If so, parse out the numeric value to fix plugins that expect numeric .value
+        if (typeof value.value === 'string') {
+          const numMatch = value.value.match(/^(-?\d*\.?\d+)(%|[a-z]+)?$/i);
+          if (numMatch) {
+            // Convert to a numeric value (like Dimension)
+            const origValue = value.value;
+            value.value = parseFloat(numMatch[1]);
+            value.unit = numMatch[2] || '';
+            if (process.env.LESS_GO_DEBUG) {
+              console.error(`[plugin-host] Anonymous converted: "${origValue}" -> ${value.value} (unit: ${value.unit})`);
+            }
+          }
+        }
+        value.toCSS = function() {
+          if (typeof this.value === 'number') {
+            return `${this.value}${this.unit || ''}`;
+          }
           return String(this.value || '');
         };
         break;
@@ -1745,6 +1875,16 @@ function createPrefetchEvalContext(contextData) {
 
         if (process.env.LESS_GO_DEBUG) {
           console.error(`[plugin-host] Creating prefetch eval context (BINARY): ${frameCount} frames, ${prefetchedVars.size} prefetched vars from shared memory`);
+          // Debug: show @theme-colors structure
+          const themeColors = prefetchedVars.get('@theme-colors');
+          if (themeColors) {
+            console.error(`[plugin-host] @theme-colors structure: _type=${themeColors.value?._type}, value.length=${Array.isArray(themeColors.value?.value) ? themeColors.value.value.length : 'not array'}`);
+            if (Array.isArray(themeColors.value?.value)) {
+              themeColors.value.value.forEach((item, i) => {
+                console.error(`[plugin-host]   item[${i}]: _type=${item?._type}, value=${JSON.stringify(item?.value?.map?.(v => ({ _type: v?._type, value: v?.value, rgb: v?.rgb })))}`);
+              });
+            }
+          }
         }
       } catch (e) {
         if (process.env.LESS_GO_DEBUG) {
@@ -2055,6 +2195,9 @@ function parseBinaryPrefetchBuffer(buffer, dataSize) {
               rgb: [r, g, b],
               alpha: alpha,
             };
+            if (process.env.LESS_GO_DEBUG && name && (name === '@blue' || name === '@primary')) {
+              console.error(`[plugin-host] Parsed Color for ${name}: rgb=[${r}, ${g}, ${b}], alpha=${alpha}`);
+            }
           }
           break;
 
@@ -2120,6 +2263,9 @@ function parseBinaryPrefetchBuffer(buffer, dataSize) {
             offset += 4;
             const str = buffer.toString('utf8', offset, offset + strLen);
             offset += strLen;
+            if (process.env.LESS_GO_DEBUG && str.length > 0) {
+              console.error(`[plugin-host] Parsed Anonymous: strLen=${strLen}, str="${str}"`);
+            }
             value = {
               _type: 'Anonymous',
               value: str,
@@ -4164,6 +4310,16 @@ function createSHMEvalContext() {
 
       if (process.env.LESS_GO_DEBUG && prefetchedVars.size > 0) {
         console.error(`[plugin-host] createSHMEvalContext: loaded ${prefetchedVars.size} prefetched vars`);
+        // Debug: show @theme-colors structure
+        const themeColors = prefetchedVars.get('@theme-colors');
+        if (themeColors) {
+          console.error(`[plugin-host] @theme-colors structure: _type=${themeColors.value?._type}, value.length=${Array.isArray(themeColors.value?.value) ? themeColors.value.value.length : 'not array'}`);
+          if (Array.isArray(themeColors.value?.value)) {
+            themeColors.value.value.forEach((item, i) => {
+              console.error(`[plugin-host]   item[${i}]: _type=${item?._type}, value=${JSON.stringify(item?.value?.map?.(v => ({ _type: v?._type, value: v?.value, rgb: v?.rgb })))}`);
+            });
+          }
+        }
       }
     } catch (e) {
       if (process.env.LESS_GO_DEBUG) {

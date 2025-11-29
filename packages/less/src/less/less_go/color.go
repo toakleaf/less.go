@@ -549,6 +549,22 @@ func (c *Color) GetAllowRoot() bool {
 	return false
 }
 
+// GetRGB returns the RGB values of the color for binary serialization
+func (c *Color) GetRGB() []float64 {
+	if c == nil || c.RGB == nil {
+		return []float64{0, 0, 0}
+	}
+	return c.RGB
+}
+
+// GetAlpha returns the alpha value of the color for binary serialization
+func (c *Color) GetAlpha() float64 {
+	if c == nil {
+		return 1.0
+	}
+	return c.Alpha
+}
+
 // Eval evaluates the color - returns itself
 func (c *Color) Eval(context any) any {
 	return c
