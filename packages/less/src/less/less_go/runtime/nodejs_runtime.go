@@ -349,6 +349,39 @@ func (rt *NodeJSRuntime) SendCommandWithContext(ctx context, cmd Command) (Respo
 	}
 }
 
+// SendCommandFireAndForget sends a command without waiting for a response.
+// This is useful for commands that don't need a response or when the response
+// can be safely ignored. The command is still sent with an ID for logging purposes.
+//
+// CRITICAL: Only use this for idempotent operations where:
+// 1. The response is not needed by the caller
+// 2. Order of execution is not critical
+// 3. Failure can be tolerated or will be detected later
+//
+// This dramatically reduces IPC latency for operations like scope management
+// where we send hundreds of thousands of updates during Bootstrap4 compilation.
+func (rt *NodeJSRuntime) SendCommandFireAndForget(cmd Command) error {
+	if !rt.alive.Load() {
+		return fmt.Errorf("runtime not alive")
+	}
+
+	// Assign command ID (for logging on Node.js side)
+	cmd.ID = rt.cmdID.Add(1)
+
+	// Serialize and send command
+	data, err := json.Marshal(cmd)
+	if err != nil {
+		return fmt.Errorf("failed to marshal command: %w", err)
+	}
+
+	// Write command with newline delimiter
+	if _, err := rt.stdin.Write(append(data, '\n')); err != nil {
+		return fmt.Errorf("failed to send command: %w", err)
+	}
+
+	return nil
+}
+
 // readResponses reads responses from stdout and dispatches them.
 // It also handles callback requests from Node.js for on-demand operations.
 func (rt *NodeJSRuntime) readResponses() {

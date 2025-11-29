@@ -692,6 +692,12 @@ function handleCommand(cmd) {
         handleAddFunctionToScope(id, data);
         break;
 
+      case 'addFunctionToScopeNoReply':
+        // Fire-and-forget version - no response sent back
+        // This is CRITICAL for performance: called 500k+ times during Bootstrap4 compilation
+        handleAddFunctionToScopeNoReply(data);
+        break;
+
       case 'attachVarBuffer':
         // Attach a shared memory buffer for variable data
         handleAttachVarBuffer(id, data);
@@ -829,6 +835,33 @@ function handleAddFunctionToScope(id, args) {
   // Add the function to the current scope
   addFunctionToScope(name, fn);
   sendResponse(id, true, { added: true, name, depth: functionScopeStack.length - 1 });
+}
+
+/**
+ * Handle addFunctionToScopeNoReply - fire-and-forget version
+ * Does NOT send a response back to Go. This is critical for performance
+ * since this function is called 500k+ times during Bootstrap4 compilation.
+ * @param {Object} args - Arguments with 'name' field
+ */
+function handleAddFunctionToScopeNoReply(args) {
+  const { name } = args || {};
+
+  if (!name) {
+    // Silently ignore invalid requests (no response to send)
+    return;
+  }
+
+  // Look up the function from the legacy global registry
+  const fn = registeredFunctions.get(name);
+  if (!fn) {
+    // Function not found - silently ignore since it might be available at a different scope
+    // We don't log in non-debug mode to avoid I/O overhead during 500k+ calls
+    return;
+  }
+
+  // Add the function to the current scope
+  addFunctionToScope(name, fn);
+  // NO response sent - this is fire-and-forget
 }
 
 /**

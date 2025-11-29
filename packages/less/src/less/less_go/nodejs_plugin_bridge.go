@@ -233,6 +233,11 @@ func (b *NodeJSPluginBridge) ExitScope() *runtime.PluginScope {
 // (e.g., when a mixin defined inside a namespace with @plugin is called).
 // The function must already exist in the Node.js runtime - this just makes it
 // visible at the current scope level.
+//
+// OPTIMIZATION: Uses fire-and-forget IPC since:
+// 1. The response is not needed (we just need Node.js to update its scope)
+// 2. This is called 500k+ times during Bootstrap4 compilation
+// 3. The operation is idempotent (adding same function twice is safe)
 func (b *NodeJSPluginBridge) AddFunctionToCurrentScope(name string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -241,10 +246,12 @@ func (b *NodeJSPluginBridge) AddFunctionToCurrentScope(name string) {
 	fn := runtime.NewJSFunctionDefinition(name, b.runtime)
 	b.scope.AddFunction(name, fn)
 
-	// Notify Node.js to add function to current scope
+	// Notify Node.js to add function to current scope (fire-and-forget)
+	// We don't wait for a response since this is called very frequently
+	// and the response is not needed
 	if b.runtime != nil {
-		_, _ = b.runtime.SendCommand(runtime.Command{
-			Cmd:  "addFunctionToScope",
+		_ = b.runtime.SendCommandFireAndForget(runtime.Command{
+			Cmd:  "addFunctionToScopeNoReply",
 			Data: map[string]any{"name": name},
 		})
 	}
