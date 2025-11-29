@@ -297,12 +297,13 @@ var quarantinedTests = map[string][]string{
 	"main": {
 		// JavaScript execution - to be implemented later
 		"javascript",
-		// Import test that depends on plugins
-		"import",
+		// Import test that depends on plugins - TESTING IF THIS NOW WORKS
+		// "import",
 	},
 	"third-party": {
 		// Bootstrap 4 uses JavaScript plugins for custom functions
-		// (map-get, breakpoint-next, breakpoint-min, breakpoint-max, etc.)
+		// Plugins load but fails with percentage() argument error in _grid.less
+		// Needs debugging: Error evaluating function `percentage`: Argument: argument must be a number
 		"bootstrap4",
 	},
 	"js-type-errors": {
@@ -841,7 +842,16 @@ func compileLessWithPlugins(content string, options map[string]any) (string, err
 
 // isPluginTest returns true if the test requires JavaScript plugin support.
 func isPluginTest(testName string) bool {
-	return strings.HasPrefix(testName, "plugin")
+	// Tests that explicitly start with "plugin"
+	if strings.HasPrefix(testName, "plugin") {
+		return true
+	}
+	// Other tests that use @plugin directive
+	pluginTests := map[string]bool{
+		"import": true, // Uses @plugin "../../plugin/plugin-simple"
+		// bootstrap4 quarantined - fails with percentage() argument error in _grid.less
+	}
+	return pluginTests[testName]
 }
 
 // printTestSummary prints a comprehensive, LLM-friendly summary of test results
