@@ -85,6 +85,21 @@ func getDefaultIPCMode() JSIPCMode {
 	}
 }
 
+// ParseIPCMode parses an IPC mode string into a JSIPCMode value.
+// Recognized values: "json", "JSON", "sharedmem", "shm", "shared", "SHM", "SHARED"
+// Returns JSIPCModeJSON for unrecognized values (safe default).
+func ParseIPCMode(mode string) JSIPCMode {
+	switch mode {
+	case "json", "JSON":
+		return JSIPCModeJSON
+	case "sharedmem", "shm", "shared", "SHM", "SHARED":
+		return JSIPCModeSharedMemory
+	default:
+		// Default to JSON mode - it's the safer choice
+		return JSIPCModeJSON
+	}
+}
+
 // JSFunctionDefinition implements the FunctionDefinition interface for JavaScript functions.
 // It calls JavaScript functions registered by plugins via the Node.js runtime.
 //

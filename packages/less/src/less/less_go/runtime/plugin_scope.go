@@ -55,6 +55,11 @@ func NewRootPluginScope() *PluginScope {
 // OPTIMIZATION: Uses GetOrCreateJSFunctionDefinition to reuse cached objects.
 // This eliminates redundant object allocations by reusing the same
 // JSFunctionDefinition object for each (runtime, name) pair across all scopes.
+//
+// Per-plugin IPC mode: Each plugin can specify its preferred IPC mode (JSON or SHM).
+// This allows plugins to optimize for their specific use case:
+// - JSON: Better for plugins with many small function calls (lower per-call overhead)
+// - SHM: Better for plugins with large data transfers (less serialization)
 func (ps *PluginScope) AddPlugin(plugin *Plugin, runtime *NodeJSRuntime) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
@@ -63,8 +68,9 @@ func (ps *PluginScope) AddPlugin(plugin *Plugin, runtime *NodeJSRuntime) {
 
 	// Register plugin's functions in this scope
 	// Use cached JSFunctionDefinition to avoid redundant allocations
+	// Pass the plugin's preferred IPC mode
 	for _, name := range plugin.Functions {
-		ps.functions[name] = GetOrCreateJSFunctionDefinition(name, runtime)
+		ps.functions[name] = GetOrCreateJSFunctionDefinition(name, runtime, WithIPCMode(plugin.IPCMode))
 	}
 
 	// Note: Visitors are typically registered through the PluginManager
