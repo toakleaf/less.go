@@ -86,6 +86,11 @@ type NodeJSRuntime struct {
 	// Key format: "funcName:arg1|arg2|..."
 	funcResultCache   map[string]any
 	funcResultCacheMu sync.RWMutex
+
+	// High-performance shared memory protocol (optional)
+	shmProtocol   *SharedMemoryProtocol
+	shmProtocolMu sync.Mutex
+	useSHMProtocol bool // Whether to use the binary SHM protocol
 }
 
 // RuntimeOption configures a NodeJSRuntime.
@@ -769,4 +774,187 @@ func (rt *NodeJSRuntime) DetachBuffer(key string) error {
 		return fmt.Errorf("detachBuffer failed: %s", resp.Error)
 	}
 	return nil
+}
+
+// ============================================================================
+// High-Performance Shared Memory Protocol
+// ============================================================================
+
+// InitSHMProtocol initializes the high-performance shared memory protocol.
+// This creates a persistent 4MB shared memory region for binary IPC.
+// Call this once at the start of compilation for maximum performance.
+func (rt *NodeJSRuntime) InitSHMProtocol() error {
+	rt.shmProtocolMu.Lock()
+	defer rt.shmProtocolMu.Unlock()
+
+	if rt.shmProtocol != nil {
+		return nil // Already initialized
+	}
+
+	if rt.shmManager == nil {
+		return fmt.Errorf("shared memory manager not initialized")
+	}
+
+	protocol, err := NewSharedMemoryProtocol(rt.shmManager)
+	if err != nil {
+		return fmt.Errorf("failed to create SHM protocol: %w", err)
+	}
+
+	rt.shmProtocol = protocol
+
+	// Notify JavaScript about the protocol
+	resp, err := rt.SendCommand(Command{
+		Cmd: "initSHMProtocol",
+		Data: map[string]any{
+			"path":           protocol.Path(),
+			"key":            protocol.Key(),
+			"totalSize":      TotalSHMSize,
+			"controlLayout":  protocol.GetControlBlockLayout(),
+			"sectionOffsets": protocol.GetSectionOffsets(),
+		},
+	})
+	if err != nil {
+		protocol.Close()
+		rt.shmProtocol = nil
+		return fmt.Errorf("failed to initialize SHM protocol on JS side: %w", err)
+	}
+	if !resp.Success {
+		protocol.Close()
+		rt.shmProtocol = nil
+		return fmt.Errorf("JS failed to init SHM protocol: %s", resp.Error)
+	}
+
+	rt.useSHMProtocol = true
+	return nil
+}
+
+// GetSHMProtocol returns the shared memory protocol if initialized.
+func (rt *NodeJSRuntime) GetSHMProtocol() *SharedMemoryProtocol {
+	rt.shmProtocolMu.Lock()
+	defer rt.shmProtocolMu.Unlock()
+	return rt.shmProtocol
+}
+
+// UseSHMProtocol returns whether the binary SHM protocol is enabled.
+func (rt *NodeJSRuntime) UseSHMProtocol() bool {
+	return rt.useSHMProtocol
+}
+
+// PreloadVariables writes all variables from the evaluation context to shared memory.
+// This should be called once at the start of compilation for best performance.
+func (rt *NodeJSRuntime) PreloadVariables(frames []any) error {
+	rt.shmProtocolMu.Lock()
+	protocol := rt.shmProtocol
+	rt.shmProtocolMu.Unlock()
+
+	if protocol == nil {
+		return fmt.Errorf("SHM protocol not initialized")
+	}
+
+	// Collect all variables from all frames
+	allVars := make(map[string]any)
+	for _, frame := range frames {
+		if frame == nil {
+			continue
+		}
+		variablesProvider, ok := frame.(interface{ Variables() map[string]any })
+		if !ok {
+			continue
+		}
+		variables := variablesProvider.Variables()
+		if variables == nil {
+			continue
+		}
+		for name, decl := range variables {
+			if _, exists := allVars[name]; !exists {
+				allVars[name] = decl
+			}
+		}
+	}
+
+	// Write to shared memory
+	if err := protocol.WriteVariables(allVars); err != nil {
+		return fmt.Errorf("failed to write variables: %w", err)
+	}
+
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Printf("[PreloadVariables] Preloaded %d variables to shared memory\n", len(allVars))
+	}
+
+	return nil
+}
+
+// CallFunctionViaSHM calls a JavaScript function using the binary shared memory protocol.
+// This is much faster than JSON-based IPC for repeated function calls.
+func (rt *NodeJSRuntime) CallFunctionViaSHM(functionName string, args ...any) (any, error) {
+	rt.shmProtocolMu.Lock()
+	protocol := rt.shmProtocol
+	rt.shmProtocolMu.Unlock()
+
+	if protocol == nil {
+		return nil, fmt.Errorf("SHM protocol not initialized")
+	}
+
+	// Get or register the function ID
+	funcID, ok := protocol.GetFunctionID(functionName)
+	if !ok {
+		funcID = protocol.RegisterFunction(functionName)
+		// Notify JS about the function mapping
+		rt.SendCommand(Command{
+			Cmd: "registerSHMFunction",
+			Data: map[string]any{
+				"name": functionName,
+				"id":   funcID,
+			},
+		})
+	}
+
+	// Prepare the call
+	if err := protocol.PrepareCall(funcID, len(args)); err != nil {
+		return nil, fmt.Errorf("failed to prepare call: %w", err)
+	}
+
+	// Write arguments
+	for i, arg := range args {
+		if _, err := protocol.WriteArg(i, arg); err != nil {
+			return nil, fmt.Errorf("failed to write arg %d: %w", i, err)
+		}
+	}
+
+	// Signal the request
+	if err := protocol.SignalRequest(); err != nil {
+		return nil, fmt.Errorf("failed to signal request: %w", err)
+	}
+
+	// Wait for response (timeout: 30 seconds)
+	ready, err := protocol.WaitForResponse(30000)
+	if err != nil || !ready {
+		return nil, fmt.Errorf("timeout or error waiting for response: %v", err)
+	}
+
+	// Read the result
+	result, err := protocol.ReadResult()
+	if err != nil {
+		return nil, err
+	}
+
+	// Clear for next call
+	protocol.ClearResponse()
+
+	return result, nil
+}
+
+// CloseSHMProtocol closes the shared memory protocol and releases resources.
+func (rt *NodeJSRuntime) CloseSHMProtocol() error {
+	rt.shmProtocolMu.Lock()
+	defer rt.shmProtocolMu.Unlock()
+
+	if rt.shmProtocol == nil {
+		return nil
+	}
+
+	err := rt.shmProtocol.Close()
+	rt.shmProtocol = nil
+	rt.useSHMProtocol = false
+	return err
 }

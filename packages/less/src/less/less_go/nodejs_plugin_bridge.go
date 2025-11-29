@@ -252,9 +252,31 @@ func (b *NodeJSPluginBridge) Close() error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.runtime != nil {
+		// Close SHM protocol first if initialized
+		b.runtime.CloseSHMProtocol()
 		return b.runtime.Stop()
 	}
 	return nil
+}
+
+// InitSHMProtocol initializes the high-performance shared memory protocol.
+// This should be called once at the start of compilation for best performance.
+// After initialization, plugin function calls will use binary IPC instead of JSON.
+func (b *NodeJSPluginBridge) InitSHMProtocol() error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.runtime == nil {
+		return fmt.Errorf("runtime not initialized")
+	}
+	return b.runtime.InitSHMProtocol()
+}
+
+// UseSHMProtocol returns whether the binary SHM protocol is enabled.
+func (b *NodeJSPluginBridge) UseSHMProtocol() bool {
+	if b.runtime == nil {
+		return false
+	}
+	return b.runtime.UseSHMProtocol()
 }
 
 // GetVisitors returns all visitors from the current scope.
