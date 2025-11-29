@@ -549,6 +549,174 @@ func (jf *JSFunctionDefinition) CallCtx(ctx any, args ...any) (any, error) {
 	return jf.Call(args...)
 }
 
+// EvalContextProvider is an interface for objects that can provide evaluation context
+// for JavaScript plugin functions that need to access variables.
+type EvalContextProvider interface {
+	GetFramesAny() []any
+	GetImportantScopeAny() []map[string]any
+}
+
+// CallWithContext calls the JavaScript function with evaluation context.
+// This is used by plugin functions that need to access Less variables.
+func (jf *JSFunctionDefinition) CallWithContext(evalContext EvalContextProvider, args ...any) (any, error) {
+	if jf.runtime == nil {
+		return nil, fmt.Errorf("Node.js runtime not initialized")
+	}
+
+	// Always use JSON mode for context-aware calls as it's more reliable
+	return jf.callViaJSONWithContext(evalContext, args...)
+}
+
+// callViaJSONWithContext calls the JavaScript function with context using JSON serialization.
+func (jf *JSFunctionDefinition) callViaJSONWithContext(evalContext EvalContextProvider, args ...any) (any, error) {
+	// Serialize arguments for transfer
+	serializedArgs, err := jf.serializeArgs(args)
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize arguments: %w", err)
+	}
+
+	// Serialize the evaluation context
+	serializedContext := jf.serializeEvalContext(evalContext)
+
+	// Debug: log context info
+	if os.Getenv("LESS_GO_DEBUG") == "1" && serializedContext != nil {
+		if frames, ok := serializedContext["frames"].([]map[string]any); ok {
+			fmt.Printf("[callViaJSONWithContext] Function %s: context has %d frames\n", jf.name, len(frames))
+		} else {
+			fmt.Printf("[callViaJSONWithContext] Function %s: context frames not available (type: %T)\n", jf.name, serializedContext["frames"])
+		}
+	} else if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Printf("[callViaJSONWithContext] Function %s: context is nil\n", jf.name)
+	}
+
+	// Call the function via Node.js runtime with context
+	resp, err := jf.runtime.SendCommand(Command{
+		Cmd: "callFunction",
+		Data: map[string]any{
+			"name":    jf.name,
+			"args":    serializedArgs,
+			"context": serializedContext,
+		},
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("function call failed: %w", err)
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("JavaScript function error: %s", resp.Error)
+	}
+
+	// Deserialize the result
+	result, err := jf.deserializeResult(resp.Result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to deserialize result: %w", err)
+	}
+
+	return result, nil
+}
+
+// serializeEvalContext serializes the evaluation context for JavaScript.
+// This includes frames with their variables so plugin functions can look up values.
+func (jf *JSFunctionDefinition) serializeEvalContext(evalContext EvalContextProvider) map[string]any {
+	if evalContext == nil {
+		return nil
+	}
+
+	frames := evalContext.GetFramesAny()
+	importantScope := evalContext.GetImportantScopeAny()
+
+	// Serialize frames with their variables
+	serializedFrames := make([]map[string]any, 0, len(frames))
+	for _, frame := range frames {
+		serializedFrame := jf.serializeFrame(frame)
+		if serializedFrame != nil {
+			serializedFrames = append(serializedFrames, serializedFrame)
+		}
+	}
+
+	// Serialize important scope
+	serializedImportantScope := make([]map[string]any, len(importantScope))
+	for i, scope := range importantScope {
+		serializedImportantScope[i] = make(map[string]any)
+		for k, v := range scope {
+			serializedImportantScope[i][k] = v
+		}
+	}
+
+	return map[string]any{
+		"frames":         serializedFrames,
+		"importantScope": serializedImportantScope,
+	}
+}
+
+// serializeFrame serializes a single frame (typically a Ruleset) with its variables.
+func (jf *JSFunctionDefinition) serializeFrame(frame any) map[string]any {
+	if frame == nil {
+		return nil
+	}
+
+	// Check if frame has Variables() method (like Ruleset)
+	variablesProvider, ok := frame.(interface {
+		Variables() map[string]any
+	})
+	if !ok {
+		return nil
+	}
+
+	variables := variablesProvider.Variables()
+	if variables == nil {
+		return map[string]any{"variables": map[string]any{}}
+	}
+
+	// Serialize each variable declaration
+	serializedVars := make(map[string]any)
+	for name, decl := range variables {
+		serializedDecl := jf.serializeVariableDeclaration(decl)
+		if serializedDecl != nil {
+			serializedVars[name] = serializedDecl
+		}
+	}
+
+	return map[string]any{
+		"variables": serializedVars,
+	}
+}
+
+// serializeVariableDeclaration serializes a variable declaration.
+func (jf *JSFunctionDefinition) serializeVariableDeclaration(decl any) map[string]any {
+	if decl == nil {
+		return nil
+	}
+
+	// Try to get value from declaration
+	valueProvider, ok := decl.(interface {
+		GetValue() any
+	})
+	if !ok {
+		// Try alternate interface
+		if declMap, ok := decl.(map[string]any); ok {
+			return declMap
+		}
+		return nil
+	}
+
+	value := valueProvider.GetValue()
+
+	// Check for important flag
+	important := false
+	if importantProvider, ok := decl.(interface{ GetImportant() bool }); ok {
+		important = importantProvider.GetImportant()
+	} else if importantProvider, ok := decl.(interface{ GetImportant() string }); ok {
+		important = importantProvider.GetImportant() != ""
+	}
+
+	return map[string]any{
+		"value":     serializeNode(value),
+		"important": important,
+	}
+}
+
 // serializeArgs serializes Go AST nodes to a format suitable for JSON transfer.
 func (jf *JSFunctionDefinition) serializeArgs(args []any) ([]any, error) {
 	serialized := make([]any, len(args))

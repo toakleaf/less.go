@@ -128,6 +128,16 @@ func (lb *LazyNodeJSPluginBridge) CallFunction(name string, args ...any) (any, e
 	return lb.bridge.CallFunction(name, args...)
 }
 
+// CallFunctionWithContext calls a JavaScript function by name with evaluation context.
+// This is used by plugin functions that need to access Less variables.
+// Returns an error if the bridge hasn't been initialized.
+func (lb *LazyNodeJSPluginBridge) CallFunctionWithContext(name string, evalContext runtime.EvalContextProvider, args ...any) (any, error) {
+	if !lb.IsInitialized() {
+		return nil, fmt.Errorf("no plugins have been loaded")
+	}
+	return lb.bridge.CallFunctionWithContext(name, evalContext, args...)
+}
+
 // EnterScope creates and enters a new child scope.
 // Only effective if the bridge is initialized.
 func (lb *LazyNodeJSPluginBridge) EnterScope() *runtime.PluginScope {

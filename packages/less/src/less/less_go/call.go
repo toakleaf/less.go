@@ -20,6 +20,34 @@ type EvalContext interface {
 	GetDefaultFunc() *DefaultFunc
 }
 
+// evalContextAdapter adapts EvalContext to runtime.EvalContextProvider
+type evalContextAdapter struct {
+	evalContext EvalContext
+}
+
+// GetFramesAny returns frames as []any for JavaScript serialization
+func (a *evalContextAdapter) GetFramesAny() []any {
+	frames := a.evalContext.GetFrames()
+	result := make([]any, len(frames))
+	for i, frame := range frames {
+		result[i] = frame
+	}
+	return result
+}
+
+// GetImportantScopeAny returns important scope as []map[string]any for JavaScript serialization
+func (a *evalContextAdapter) GetImportantScopeAny() []map[string]any {
+	scope := a.evalContext.GetImportantScope()
+	result := make([]map[string]any, len(scope))
+	for i, m := range scope {
+		result[i] = make(map[string]any)
+		for k, v := range m {
+			result[i][k] = v
+		}
+	}
+	return result
+}
+
 // PluginFunctionProvider is an interface for looking up plugin functions.
 // This allows the function caller to access JavaScript plugin functions.
 type PluginFunctionProvider interface {
@@ -905,8 +933,21 @@ func (c *Call) tryJSPluginFunction(context any, evalContext EvalContext) (any, e
 			}
 		}
 
-		// Call the JS function via the lazy bridge
-		result, err := lazyBridge.CallFunction(c.Name, evaledArgs...)
+		// Call the JS function via the lazy bridge with context for variable access
+		var result any
+		var err error
+		// Try to use context-aware call for plugin functions that need variable lookup
+		if evalCtx, ok := context.(*Eval); ok {
+			// Use CallFunctionWithContext to pass evaluation context for variable lookup
+			result, err = lazyBridge.CallFunctionWithContext(c.Name, evalCtx, evaledArgs...)
+		} else if evalContext != nil {
+			// Create adapter for EvalContext interface
+			adapter := &evalContextAdapter{evalContext: evalContext}
+			result, err = lazyBridge.CallFunctionWithContext(c.Name, adapter, evaledArgs...)
+		} else {
+			// Fallback to regular call without context
+			result, err = lazyBridge.CallFunction(c.Name, evaledArgs...)
+		}
 		if err != nil {
 			if debug {
 				fmt.Printf("[tryJSPluginFunction] JS function '%s' returned error: %v\n", c.Name, err)
@@ -955,8 +996,21 @@ func (c *Call) tryJSPluginFunction(context any, evalContext EvalContext) (any, e
 		}
 	}
 
-	// Call the JS function
-	result, err := pluginBridge.CallFunction(c.Name, evaledArgs...)
+	// Call the JS function with context for variable access
+	var result any
+	var err error
+	// Try to use context-aware call for plugin functions that need variable lookup
+	if evalCtx, ok := context.(*Eval); ok {
+		// Use CallFunctionWithContext to pass evaluation context for variable lookup
+		result, err = pluginBridge.CallFunctionWithContext(c.Name, evalCtx, evaledArgs...)
+	} else if evalContext != nil {
+		// Create adapter for EvalContext interface
+		adapter := &evalContextAdapter{evalContext: evalContext}
+		result, err = pluginBridge.CallFunctionWithContext(c.Name, adapter, evaledArgs...)
+	} else {
+		// Fallback to regular call without context
+		result, err = pluginBridge.CallFunction(c.Name, evaledArgs...)
+	}
 	if err != nil {
 		return nil, err
 	}

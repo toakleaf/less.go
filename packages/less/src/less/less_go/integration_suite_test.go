@@ -303,9 +303,18 @@ var quarantinedTests = map[string][]string{
 	"third-party": {
 		// Bootstrap 4 requires context-aware plugins that can look up variables via `this.context.frames`.
 		// The bootstrap-less-port plugins (breakpoints, theme-color-level, etc.) need access to
-		// the Less.js evaluation context for variable lookups. This requires serializing the Go
-		// frames/variables to JavaScript, which is a significant feature beyond basic plugin support.
-		// The percentage() function bug has been fixed, but context-aware plugins are not yet supported.
+		// the Less.js evaluation context for variable lookups.
+		//
+		// STATUS (2025-11-29): Context serialization is now implemented but needs optimization:
+		// - Context is passed to JS plugin functions via `this.context`
+		// - `Variable.prototype.find` is implemented for variable lookup
+		// - Simple variable lookups (colors, dimensions) work
+		// - ISSUE: Performance is slow (~195s) due to JSON serialization of hundreds of frames
+		// - ISSUE: Less maps (@theme-colors) need proper list/pair serialization for listToMap()
+		//
+		// To complete bootstrap4 support:
+		// 1. Optimize context serialization (use shared memory or on-demand lookup callbacks)
+		// 2. Fix Less map serialization for `listToMap` to process @theme-colors
 		"bootstrap4",
 	},
 	"js-type-errors": {
