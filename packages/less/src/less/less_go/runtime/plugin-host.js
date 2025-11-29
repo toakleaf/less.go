@@ -3517,9 +3517,11 @@ function handleCallFunctionSharedMem(id, data) {
         if (bindings && bindings.serializeToBuffer) {
           const resultBuffer = bindings.serializeToBuffer(result);
 
-          // Check if the result fits in the remaining buffer space
+          // Check if serialization succeeded (null means use JSON fallback)
+          // and if the result fits in the remaining buffer space
           const resultOffset = argsSize || 0;
-          if (resultOffset + resultBuffer.length <= buffer.length) {
+          if (resultBuffer && resultBuffer.length > 0 &&
+              resultOffset + resultBuffer.length <= buffer.length) {
             // Write the result to the buffer after the args
             resultBuffer.copy(buffer, resultOffset);
 

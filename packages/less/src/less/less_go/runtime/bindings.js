@@ -312,13 +312,19 @@ function runVisitor(visitor, ast) {
 }
 
 /**
- * Serialize a JavaScript node back to a format Go can understand.
- * This is a simplified version that returns JSON.
+ * Serialize a JavaScript node back to FlatAST binary format.
+ * Returns null if binary serialization is not available, signaling
+ * the caller should fall back to JSON.
+ *
+ * Note: FlatAST binary serialization is not yet implemented in JS.
+ * When implemented, this should write the proper binary format with:
+ * - Magic header: "LESS" (0x4c455353)
+ * - Version, node count, etc.
  */
 function serializeToBuffer(node) {
-  // For now, return JSON representation
-  const json = JSON.stringify(node);
-  return Buffer.from(json, 'utf8');
+  // Binary FlatAST serialization not yet implemented
+  // Return null to signal caller should use JSON fallback
+  return null;
 }
 
 module.exports = {
