@@ -654,14 +654,17 @@ func (e *Eval) HasPluginFunction(name string) bool {
 	return false
 }
 
-// CallPluginFunction calls a JavaScript plugin function by name.
+// CallPluginFunction calls a JavaScript plugin function by name with evaluation context.
+// This passes the evaluation context to the plugin function so it can look up variables.
 func (e *Eval) CallPluginFunction(name string, args ...any) (any, error) {
 	if e.PluginBridge != nil {
-		return e.PluginBridge.CallFunction(name, args...)
+		// Use context-aware call for variable lookup support
+		return e.PluginBridge.CallFunctionWithContext(name, e, args...)
 	}
 	// Also check LazyPluginBridge if PluginBridge is nil
 	if e.LazyPluginBridge != nil {
-		return e.LazyPluginBridge.CallFunction(name, args...)
+		// Use context-aware call for variable lookup support
+		return e.LazyPluginBridge.CallFunctionWithContext(name, e, args...)
 	}
 	return nil, fmt.Errorf("no plugin bridge available")
 }

@@ -305,16 +305,20 @@ var quarantinedTests = map[string][]string{
 		// The bootstrap-less-port plugins (breakpoints, theme-color-level, etc.) need access to
 		// the Less.js evaluation context for variable lookups.
 		//
-		// STATUS (2025-11-29): Context serialization is now implemented but needs optimization:
+		// STATUS (2025-11-29): Context serialization is implemented with significant progress:
 		// - Context is passed to JS plugin functions via `this.context`
 		// - `Variable.prototype.find` is implemented for variable lookup
-		// - Simple variable lookups (colors, dimensions) work
-		// - ISSUE: Performance is slow (~195s) due to JSON serialization of hundreds of frames
-		// - ISSUE: Less maps (@theme-colors) need proper list/pair serialization for listToMap()
+		// - Built-in color functions (mix, darken, lighten, etc.) are available via functionRegistry
+		// - Color.GetRGB() and Color.GetAlpha() methods added for proper serialization
+		// - Eval.CallPluginFunction now uses CallFunctionWithContext for proper context passing
+		//
+		// REMAINING ISSUES:
+		// - Performance is slow (~8 minutes) due to JSON serialization of hundreds of frames
+		// - Less maps (@theme-colors) need special handling for listToMap() function
 		//
 		// To complete bootstrap4 support:
-		// 1. Optimize context serialization (use shared memory or on-demand lookup callbacks)
-		// 2. Fix Less map serialization for `listToMap` to process @theme-colors
+		// 1. Optimize context serialization (use shared memory or on-demand lookup)
+		// 2. Fix Less map serialization structure for listToMap() helper
 		"bootstrap4",
 	},
 	"js-type-errors": {

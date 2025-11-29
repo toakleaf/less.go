@@ -549,6 +549,16 @@ func (c *Color) GetAllowRoot() bool {
 	return false
 }
 
+// GetRGB returns the RGB values as a slice for JavaScript serialization
+func (c *Color) GetRGB() []float64 {
+	return c.RGB
+}
+
+// GetAlpha returns the alpha value for JavaScript serialization
+func (c *Color) GetAlpha() float64 {
+	return c.Alpha
+}
+
 // Eval evaluates the color - returns itself
 func (c *Color) Eval(context any) any {
 	return c

@@ -280,6 +280,347 @@ tree.Variable.prototype.find = function (frames, callback) {
   return null;
 };
 
+// ============================================================================
+// Built-in Less color functions (needed for plugins like bootstrap-less-port)
+// These are JavaScript implementations of the Go color functions
+// ============================================================================
+
+/**
+ * Helper to extract RGB array from a color node
+ */
+function colorToRGB(color) {
+  if (!color) return [0, 0, 0];
+  if (Array.isArray(color.rgb)) return color.rgb;
+  if (Array.isArray(color)) return color;
+  return [0, 0, 0];
+}
+
+/**
+ * Helper to extract alpha from a color node
+ */
+function colorToAlpha(color) {
+  if (!color) return 1;
+  if (typeof color.alpha === 'number') return color.alpha;
+  return 1;
+}
+
+/**
+ * Helper to create a color node from RGB and alpha
+ */
+function rgbToColor(rgb, alpha) {
+  const normalizedRgb = rgb.map(v => Math.max(0, Math.min(255, Math.round(v))));
+  const normalizedAlpha = alpha !== undefined ? alpha : 1;
+
+  const node = createNode('Color', {
+    rgb: normalizedRgb,
+    alpha: normalizedAlpha
+  });
+
+  // Add toCSS() method for use by plugins
+  node.toCSS = function() {
+    const r = Math.round(this.rgb[0]);
+    const g = Math.round(this.rgb[1]);
+    const b = Math.round(this.rgb[2]);
+    const a = this.alpha;
+
+    if (a < 1) {
+      return `rgba(${r}, ${g}, ${b}, ${a})`;
+    }
+    // Convert to hex
+    const hex = '#' +
+      r.toString(16).padStart(2, '0') +
+      g.toString(16).padStart(2, '0') +
+      b.toString(16).padStart(2, '0');
+    return hex;
+  };
+
+  // Add eval() method for compatibility
+  node.eval = function() {
+    return this;
+  };
+
+  return node;
+}
+
+/**
+ * mix(color1, color2, weight) - Mix two colors together
+ * Weight is a percentage (0-100) that determines how much of color1 to use
+ */
+function builtinMix(color1, color2, weight) {
+  const rgb1 = colorToRGB(color1);
+  const rgb2 = colorToRGB(color2);
+  const alpha1 = colorToAlpha(color1);
+  const alpha2 = colorToAlpha(color2);
+
+  // Default weight is 50%
+  let p = 0.5;
+  if (weight !== undefined && weight !== null) {
+    if (typeof weight === 'object' && typeof weight.value === 'number') {
+      p = weight.value / 100.0;
+    } else if (typeof weight === 'number') {
+      p = weight / 100.0;
+    }
+  }
+
+  // Calculate weight considering alpha (matching Less.js algorithm)
+  const w1 = p * 2 - 1;
+  const a = alpha1 - alpha2;
+
+  let w2;
+  if (w1 * a === -1) {
+    w2 = w1;
+  } else {
+    w2 = (w1 + a) / (1 + w1 * a);
+  }
+
+  const weight1 = (w2 + 1) / 2;
+  const weight2 = 1 - weight1;
+
+  const rgb = [
+    rgb1[0] * weight1 + rgb2[0] * weight2,
+    rgb1[1] * weight1 + rgb2[1] * weight2,
+    rgb1[2] * weight1 + rgb2[2] * weight2,
+  ];
+  const alpha = alpha1 * p + alpha2 * (1 - p);
+
+  return rgbToColor(rgb, alpha);
+}
+
+/**
+ * darken(color, amount) - Decrease the lightness of a color
+ */
+function builtinDarken(color, amount) {
+  const rgb = colorToRGB(color);
+  const alpha = colorToAlpha(color);
+
+  let percent = 0;
+  if (amount && typeof amount.value === 'number') {
+    percent = amount.value / 100;
+  } else if (typeof amount === 'number') {
+    percent = amount / 100;
+  }
+
+  // Convert RGB to HSL
+  const hsl = rgbToHsl(rgb);
+  // Decrease lightness
+  hsl[2] = Math.max(0, hsl[2] - percent);
+  // Convert back to RGB
+  const newRgb = hslToRgb(hsl);
+
+  return rgbToColor(newRgb, alpha);
+}
+
+/**
+ * lighten(color, amount) - Increase the lightness of a color
+ */
+function builtinLighten(color, amount) {
+  const rgb = colorToRGB(color);
+  const alpha = colorToAlpha(color);
+
+  let percent = 0;
+  if (amount && typeof amount.value === 'number') {
+    percent = amount.value / 100;
+  } else if (typeof amount === 'number') {
+    percent = amount / 100;
+  }
+
+  // Convert RGB to HSL
+  const hsl = rgbToHsl(rgb);
+  // Increase lightness
+  hsl[2] = Math.min(1, hsl[2] + percent);
+  // Convert back to RGB
+  const newRgb = hslToRgb(hsl);
+
+  return rgbToColor(newRgb, alpha);
+}
+
+/**
+ * saturate(color, amount) - Increase the saturation of a color
+ */
+function builtinSaturate(color, amount) {
+  const rgb = colorToRGB(color);
+  const alpha = colorToAlpha(color);
+
+  let percent = 0;
+  if (amount && typeof amount.value === 'number') {
+    percent = amount.value / 100;
+  } else if (typeof amount === 'number') {
+    percent = amount / 100;
+  }
+
+  const hsl = rgbToHsl(rgb);
+  hsl[1] = Math.min(1, hsl[1] + percent);
+  const newRgb = hslToRgb(hsl);
+
+  return rgbToColor(newRgb, alpha);
+}
+
+/**
+ * desaturate(color, amount) - Decrease the saturation of a color
+ */
+function builtinDesaturate(color, amount) {
+  const rgb = colorToRGB(color);
+  const alpha = colorToAlpha(color);
+
+  let percent = 0;
+  if (amount && typeof amount.value === 'number') {
+    percent = amount.value / 100;
+  } else if (typeof amount === 'number') {
+    percent = amount / 100;
+  }
+
+  const hsl = rgbToHsl(rgb);
+  hsl[1] = Math.max(0, hsl[1] - percent);
+  const newRgb = hslToRgb(hsl);
+
+  return rgbToColor(newRgb, alpha);
+}
+
+/**
+ * fadein(color, amount) - Increase the opacity of a color
+ */
+function builtinFadein(color, amount) {
+  const rgb = colorToRGB(color);
+  let alpha = colorToAlpha(color);
+
+  let percent = 0;
+  if (amount && typeof amount.value === 'number') {
+    percent = amount.value / 100;
+  } else if (typeof amount === 'number') {
+    percent = amount / 100;
+  }
+
+  alpha = Math.min(1, alpha + percent);
+
+  return rgbToColor(rgb, alpha);
+}
+
+/**
+ * fadeout(color, amount) - Decrease the opacity of a color
+ */
+function builtinFadeout(color, amount) {
+  const rgb = colorToRGB(color);
+  let alpha = colorToAlpha(color);
+
+  let percent = 0;
+  if (amount && typeof amount.value === 'number') {
+    percent = amount.value / 100;
+  } else if (typeof amount === 'number') {
+    percent = amount / 100;
+  }
+
+  alpha = Math.max(0, alpha - percent);
+
+  return rgbToColor(rgb, alpha);
+}
+
+/**
+ * fade(color, amount) - Set the absolute opacity of a color
+ */
+function builtinFade(color, amount) {
+  const rgb = colorToRGB(color);
+
+  let alpha = 1;
+  if (amount && typeof amount.value === 'number') {
+    alpha = amount.value / 100;
+  } else if (typeof amount === 'number') {
+    alpha = amount / 100;
+  }
+
+  return rgbToColor(rgb, Math.max(0, Math.min(1, alpha)));
+}
+
+/**
+ * spin(color, amount) - Rotate the hue of a color
+ */
+function builtinSpin(color, amount) {
+  const rgb = colorToRGB(color);
+  const alpha = colorToAlpha(color);
+
+  let degrees = 0;
+  if (amount && typeof amount.value === 'number') {
+    degrees = amount.value;
+  } else if (typeof amount === 'number') {
+    degrees = amount;
+  }
+
+  const hsl = rgbToHsl(rgb);
+  hsl[0] = ((hsl[0] * 360 + degrees) % 360) / 360;
+  if (hsl[0] < 0) hsl[0] += 1;
+  const newRgb = hslToRgb(hsl);
+
+  return rgbToColor(newRgb, alpha);
+}
+
+// HSL conversion helpers
+function rgbToHsl(rgb) {
+  const r = rgb[0] / 255;
+  const g = rgb[1] / 255;
+  const b = rgb[2] / 255;
+
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  let h = 0;
+  let s = 0;
+
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      case b: h = (r - g) / d + 4; break;
+    }
+    h /= 6;
+  }
+
+  return [h, s, l];
+}
+
+function hslToRgb(hsl) {
+  const h = hsl[0];
+  const s = hsl[1];
+  const l = hsl[2];
+
+  let r, g, b;
+
+  if (s === 0) {
+    r = g = b = l;
+  } else {
+    const hue2rgb = (p, q, t) => {
+      if (t < 0) t += 1;
+      if (t > 1) t -= 1;
+      if (t < 1/6) return p + (q - p) * 6 * t;
+      if (t < 1/2) return q;
+      if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+      return p;
+    };
+
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    r = hue2rgb(p, q, h + 1/3);
+    g = hue2rgb(p, q, h);
+    b = hue2rgb(p, q, h - 1/3);
+  }
+
+  return [r * 255, g * 255, b * 255];
+}
+
+// Map of built-in functions
+const builtinFunctions = {
+  'mix': builtinMix,
+  'darken': builtinDarken,
+  'lighten': builtinLighten,
+  'saturate': builtinSaturate,
+  'desaturate': builtinDesaturate,
+  'fadein': builtinFadein,
+  'fadeout': builtinFadeout,
+  'fade': builtinFade,
+  'spin': builtinSpin,
+};
+
 // Function registry - now uses scoped function management
 const functionRegistry = {
   add(name, fn) {
@@ -291,8 +632,16 @@ const functionRegistry = {
     }
   },
   get(name) {
-    // Use scoped lookup for proper function resolution
-    return lookupFunction(name);
+    // First check scoped plugin functions
+    const pluginFn = lookupFunction(name);
+    if (pluginFn !== undefined) {
+      return pluginFn;
+    }
+    // Fall back to built-in functions
+    if (builtinFunctions[name]) {
+      return builtinFunctions[name];
+    }
+    return undefined;
   },
   getAll() {
     // Return all unique function names from all scopes
@@ -302,8 +651,17 @@ const functionRegistry = {
         allNames.add(name);
       }
     }
+    // Also include built-in functions
+    for (const name of Object.keys(builtinFunctions)) {
+      allNames.add(name);
+    }
     return Array.from(allNames);
   },
+};
+
+// Add functions property to less object (needed for context.pluginManager.less.functions.functionRegistry)
+less.functions = {
+  functionRegistry: functionRegistry,
 };
 
 // Plugin manager mock
@@ -1117,6 +1475,9 @@ function augmentValueWithMethods(value) {
  * @returns {Object} An evaluation context object
  */
 function createEvalContext(contextData) {
+  if (process.env.LESS_GO_DEBUG === '1') {
+    console.error(`[createEvalContext] contextData present: ${!!contextData}, frames present: ${contextData ? !!contextData.frames : 'N/A'}, frames length: ${contextData?.frames?.length || 0}`);
+  }
   if (!contextData || !contextData.frames) {
     return null;
   }
@@ -1175,6 +1536,10 @@ function createEvalContext(contextData) {
  */
 function handleCallFunction(id, data) {
   const { name, args, context } = data || {};
+
+  if (process.env.LESS_GO_DEBUG === '1') {
+    console.error(`[handleCallFunction] function: ${name}, context received: ${!!context}, frames: ${context?.frames?.length || 0}`);
+  }
 
   if (!name) {
     sendResponse(id, false, null, 'Function name is required');
