@@ -54,9 +54,9 @@ func (lb *LazyNodeJSPluginBridge) ensureInitialized() error {
 		}
 		lb.bridge = bridge
 
-		// Enable SHM protocol by default for best performance
-		// Set LESS_SHM_PROTOCOL=0 to disable
-		if os.Getenv("LESS_SHM_PROTOCOL") != "0" {
+		// SHM protocol is DISABLED by default - benchmarks show it's ~75% slower than JSON
+		// Set LESS_SHM_PROTOCOL=1 to enable if needed for specific use cases
+		if os.Getenv("LESS_SHM_PROTOCOL") == "1" {
 			if err := bridge.InitSHMProtocol(); err != nil {
 				// Log but don't fail - fallback to JSON protocol
 				if os.Getenv("LESS_GO_DEBUG") == "1" {
