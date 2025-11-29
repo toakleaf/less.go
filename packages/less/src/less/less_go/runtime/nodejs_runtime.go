@@ -680,6 +680,20 @@ func (rt *NodeJSRuntime) ClearFunctionCache() {
 	rt.funcResultCacheMu.Unlock()
 }
 
+// ClearCachedResultsForFunction clears cached results for a specific function.
+// The cache key format is "funcName:arg1|arg2|...", so this deletes all entries
+// that start with the function name followed by a colon.
+func (rt *NodeJSRuntime) ClearCachedResultsForFunction(funcName string) {
+	prefix := funcName + ":"
+	rt.funcResultCacheMu.Lock()
+	defer rt.funcResultCacheMu.Unlock()
+	for key := range rt.funcResultCache {
+		if len(key) >= len(prefix) && key[:len(prefix)] == prefix {
+			delete(rt.funcResultCache, key)
+		}
+	}
+}
+
 // FunctionCacheSize returns the number of cached function results.
 func (rt *NodeJSRuntime) FunctionCacheSize() int {
 	rt.funcResultCacheMu.RLock()
