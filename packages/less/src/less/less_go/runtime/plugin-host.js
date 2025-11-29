@@ -916,6 +916,10 @@ function handleCommand(cmd) {
         handleRegisterSHMFunction(id, data);
         break;
 
+      case 'batchCallFunctions':
+        handleBatchCallFunctions(id, data);
+        break;
+
       default:
         sendResponse(id, false, null, `Unknown command: ${command}`);
     }
@@ -2703,6 +2707,86 @@ function handleCallFunction(id, data) {
   } catch (err) {
     sendResponse(id, false, null, `Function error: ${err.message}\n${err.stack || ''}`);
   }
+}
+
+/**
+ * Handle batch function calls - multiple calls in a single IPC request.
+ * This reduces IPC overhead for plugin functions like map-get, color-yiq, etc.
+ *
+ * @param {number} id - Command ID
+ * @param {Object} data - Batch call data { calls: [{key, name, args, context?}] }
+ */
+function handleBatchCallFunctions(id, data) {
+  const { calls } = data || {};
+
+  if (!calls || !Array.isArray(calls)) {
+    sendResponse(id, false, null, 'calls array is required');
+    return;
+  }
+
+  if (process.env.LESS_GO_DEBUG) {
+    console.error(`[plugin-host] batchCallFunctions: processing ${calls.length} calls`);
+  }
+
+  const results = {};
+
+  for (const call of calls) {
+    const { key, name, args, context } = call;
+
+    if (!key || !name) {
+      results[key || 'unknown'] = {
+        success: false,
+        error: 'key and name are required for each call',
+      };
+      continue;
+    }
+
+    // Look up the function using scoped lookup
+    const fn = lookupFunction(name);
+    if (!fn) {
+      results[key] = {
+        success: false,
+        error: `Function not found: ${name}`,
+      };
+      continue;
+    }
+
+    try {
+      // Convert Go node arguments to JavaScript format
+      const convertedArgs = (args || []).map(convertGoNodeToJS);
+
+      // Create evaluation context if provided
+      const evalContext = createEvalContext(context);
+
+      // Create the `this` binding with context
+      const thisBinding = {
+        context: evalContext,
+      };
+
+      // Call the function with context as `this` and converted arguments
+      const result = fn.apply(thisBinding, convertedArgs);
+
+      // Convert the result back to Go-compatible format
+      const goResult = convertJSResultToGo(result);
+
+      results[key] = {
+        success: true,
+        result: goResult,
+      };
+    } catch (err) {
+      results[key] = {
+        success: false,
+        error: `Function error: ${err.message}`,
+      };
+    }
+  }
+
+  if (process.env.LESS_GO_DEBUG) {
+    const successCount = Object.values(results).filter(r => r.success).length;
+    console.error(`[plugin-host] batchCallFunctions: completed ${successCount}/${calls.length} successfully`);
+  }
+
+  sendResponse(id, true, results);
 }
 
 /**

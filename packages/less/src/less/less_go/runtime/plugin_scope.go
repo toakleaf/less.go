@@ -51,6 +51,10 @@ func NewRootPluginScope() *PluginScope {
 
 // AddPlugin registers a plugin in this scope.
 // It extracts the plugin's functions and visitors and registers them locally.
+//
+// OPTIMIZATION: Uses GetOrCreateJSFunctionDefinition to reuse cached objects.
+// This eliminates redundant object allocations by reusing the same
+// JSFunctionDefinition object for each (runtime, name) pair across all scopes.
 func (ps *PluginScope) AddPlugin(plugin *Plugin, runtime *NodeJSRuntime) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
@@ -58,8 +62,9 @@ func (ps *PluginScope) AddPlugin(plugin *Plugin, runtime *NodeJSRuntime) {
 	ps.plugins = append(ps.plugins, plugin)
 
 	// Register plugin's functions in this scope
+	// Use cached JSFunctionDefinition to avoid redundant allocations
 	for _, name := range plugin.Functions {
-		ps.functions[name] = NewJSFunctionDefinition(name, runtime)
+		ps.functions[name] = GetOrCreateJSFunctionDefinition(name, runtime)
 	}
 
 	// Note: Visitors are typically registered through the PluginManager
