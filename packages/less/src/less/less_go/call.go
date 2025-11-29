@@ -180,6 +180,24 @@ func (c *DefaultParserFunctionCaller) createMathEnabledContext() any {
 		// Set mathOn to true (matching JavaScript: context.mathOn = !this.calc)
 		newCtx["mathOn"] = true
 
+		// Initialize parensStack if not present (needed for division math check)
+		if _, exists := newCtx["parensStack"]; !exists {
+			newCtx["parensStack"] = []bool{}
+		}
+
+		// Create proper inParenthesis function that updates newCtx's parensStack
+		newCtx["inParenthesis"] = func() {
+			stack, _ := newCtx["parensStack"].([]bool)
+			newCtx["parensStack"] = append(stack, true)
+		}
+
+		// Create proper outOfParenthesis function
+		newCtx["outOfParenthesis"] = func() {
+			if stack, ok := newCtx["parensStack"].([]bool); ok && len(stack) > 0 {
+				newCtx["parensStack"] = stack[:len(stack)-1]
+			}
+		}
+
 		// Create a new isMathOn function that references newCtx instead of the original
 		// This preserves the math mode logic while using the updated mathOn value
 		newCtx["isMathOn"] = func(op string) bool {
