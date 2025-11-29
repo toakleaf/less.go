@@ -775,13 +775,18 @@ func (iv *ImportVisitor) getOptions(node any) map[string]any {
 func (iv *ImportVisitor) VisitDeclaration(declNode any, visitArgs *VisitArgs) {
 	if iv.isDetachedRuleset(declNode) {
 		iv.context.Frames = append([]any{declNode}, iv.context.Frames...)
+	} else if iv.declarationContainsDetachedRuleset(declNode) {
+		// If the Declaration's value contains a DetachedRuleset, we need to visit deeper
+		// to process any @plugin imports inside the DetachedRuleset body.
+		// Don't set VisitDeeper = false, allowing the visitor to process children.
+		iv.context.Frames = append([]any{declNode}, iv.context.Frames...)
 	} else {
 		visitArgs.VisitDeeper = false
 	}
 }
 
 func (iv *ImportVisitor) VisitDeclarationOut(declNode any) {
-	if iv.isDetachedRuleset(declNode) && len(iv.context.Frames) > 0 {
+	if (iv.isDetachedRuleset(declNode) || iv.declarationContainsDetachedRuleset(declNode)) && len(iv.context.Frames) > 0 {
 		iv.context.Frames = iv.context.Frames[1:]
 	}
 }
@@ -841,6 +846,60 @@ func (iv *ImportVisitor) isDetachedRuleset(node any) bool {
 	if n, ok := node.(map[string]any); ok {
 		if nodeType, hasType := n["type"].(string); hasType {
 			return nodeType == "DetachedRuleset"
+		}
+	}
+	return false
+}
+
+// declarationContainsDetachedRuleset checks if a Declaration node's value contains a DetachedRuleset.
+// This is needed to ensure @plugin imports inside DetachedRulesets are processed by the ImportVisitor.
+func (iv *ImportVisitor) declarationContainsDetachedRuleset(node any) bool {
+	// Check for *Declaration type
+	if decl, ok := node.(*Declaration); ok {
+		if decl.Value != nil && len(decl.Value.Value) > 0 {
+			for _, v := range decl.Value.Value {
+				// Check if the value is a DetachedRuleset
+				if _, ok := v.(*DetachedRuleset); ok {
+					return true
+				}
+				// Also check for map representation
+				if m, ok := v.(map[string]any); ok {
+					if nodeType, hasType := m["type"].(string); hasType && nodeType == "DetachedRuleset" {
+						return true
+					}
+				}
+			}
+		}
+		return false
+	}
+
+	// Check for map representation of Declaration
+	if n, ok := node.(map[string]any); ok {
+		if nodeType, hasType := n["type"].(string); hasType && nodeType == "Declaration" {
+			if value, hasValue := n["value"]; hasValue {
+				// Check if value is a Value with DetachedRuleset
+				if valueObj, ok := value.(*Value); ok && len(valueObj.Value) > 0 {
+					for _, v := range valueObj.Value {
+						if _, ok := v.(*DetachedRuleset); ok {
+							return true
+						}
+						if m, ok := v.(map[string]any); ok {
+							if nodeType, hasType := m["type"].(string); hasType && nodeType == "DetachedRuleset" {
+								return true
+							}
+						}
+					}
+				}
+				// Check if value is directly a DetachedRuleset
+				if _, ok := value.(*DetachedRuleset); ok {
+					return true
+				}
+				if valueMap, ok := value.(map[string]any); ok {
+					if vType, hasType := valueMap["type"].(string); hasType && vType == "DetachedRuleset" {
+						return true
+					}
+				}
+			}
 		}
 	}
 	return false
