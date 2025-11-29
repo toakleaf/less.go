@@ -322,4 +322,9 @@ func (e *Expression) GetType() string {
 	return "Expression"
 }
 
+// GetValue returns the value array for serialization
+func (e *Expression) GetValue() []any {
+	return e.Value
+}
+
  

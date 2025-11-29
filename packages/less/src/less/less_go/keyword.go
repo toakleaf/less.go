@@ -33,6 +33,11 @@ func (k *Keyword) GetType() string {
 	return "Keyword"
 }
 
+// GetValue returns the value of the keyword for serialization
+func (k *Keyword) GetValue() string {
+	return k.value
+}
+
 // GenCSS generates the CSS representation of the keyword
 func (k *Keyword) GenCSS(context any, output *CSSOutput) {
 	if k.value == "%" {

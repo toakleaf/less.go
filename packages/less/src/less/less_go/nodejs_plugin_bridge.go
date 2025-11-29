@@ -178,6 +178,18 @@ func (b *NodeJSPluginBridge) CallFunction(name string, args ...any) (any, error)
 	return nil, fmt.Errorf("function '%s' not found in current scope", name)
 }
 
+// CallFunctionWithContext calls a JavaScript function by name with evaluation context.
+// This is used by plugin functions that need to access Less variables.
+// The context provides frames and importantScope for variable lookup.
+func (b *NodeJSPluginBridge) CallFunctionWithContext(name string, evalContext runtime.EvalContextProvider, args ...any) (any, error) {
+	// Only look up function in scope hierarchy - respects plugin scoping
+	if fn, ok := b.scope.LookupFunction(name); ok {
+		return fn.CallWithContext(evalContext, args...)
+	}
+
+	return nil, fmt.Errorf("function '%s' not found in current scope", name)
+}
+
 // EnterScope creates and enters a new child scope.
 // This is used when entering a ruleset or mixin that might have local plugins.
 // It also notifies the Node.js runtime to enter a new function scope for proper scoping.

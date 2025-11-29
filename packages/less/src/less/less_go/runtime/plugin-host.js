@@ -214,7 +214,8 @@ const less = {
       return createNode('Call', { name, args: args || [] });
     },
     Variable: function (name) {
-      return createNode('Variable', { name });
+      const node = createNode('Variable', { name });
+      return node;
     },
     Value: function (value) {
       return createNode('Value', { value: Array.isArray(value) ? value : [value] });
@@ -266,6 +267,18 @@ const less = {
 
 // Create global references for legacy plugins that use `tree` and `functions` directly
 const tree = less.tree;
+
+// Add Variable.prototype.find - used by bootstrap-less-port plugins to look up variables
+// This iterates over frames and calls the callback until it finds a truthy result
+tree.Variable.prototype.find = function (frames, callback) {
+  for (let i = 0; i < frames.length; i++) {
+    const result = callback(frames[i]);
+    if (result) {
+      return result;
+    }
+  }
+  return null;
+};
 
 // Function registry - now uses scoped function management
 const functionRegistry = {
@@ -993,12 +1006,175 @@ function convertJSResultToGo(result) {
 }
 
 /**
+ * Add eval() and toCSS() methods to a value node.
+ * This is needed because plugin functions like those in bootstrap-less-port
+ * call value.eval(context) on variable values.
+ * @param {*} value - The value to augment
+ * @returns {*} The augmented value
+ */
+function augmentValueWithMethods(value) {
+  if (value === null || value === undefined) {
+    return value;
+  }
+
+  if (typeof value !== 'object') {
+    return value;
+  }
+
+  // If value already has eval, return as-is (but add toCSS if missing)
+  if (typeof value.eval === 'function' && typeof value.toCSS === 'function') {
+    return value;
+  }
+
+  // Add eval method that returns the value itself (already evaluated from Go)
+  if (typeof value.eval !== 'function') {
+    value.eval = function(context) {
+      return this;
+    };
+  }
+
+  // Add toCSS method based on node type
+  if (typeof value.toCSS !== 'function') {
+    const nodeType = value._type || value.type;
+    switch (nodeType) {
+      case 'Color':
+        value.toCSS = function() {
+          const rgb = this.rgb || [0, 0, 0];
+          const alpha = this.alpha !== undefined ? this.alpha : 1;
+          if (alpha < 1) {
+            return `rgba(${Math.round(rgb[0])}, ${Math.round(rgb[1])}, ${Math.round(rgb[2])}, ${alpha})`;
+          }
+          // Convert to hex
+          const r = Math.round(rgb[0]).toString(16).padStart(2, '0');
+          const g = Math.round(rgb[1]).toString(16).padStart(2, '0');
+          const b = Math.round(rgb[2]).toString(16).padStart(2, '0');
+          return `#${r}${g}${b}`;
+        };
+        break;
+
+      case 'Dimension':
+        value.toCSS = function() {
+          return `${this.value}${this.unit || ''}`;
+        };
+        break;
+
+      case 'Quoted':
+        value.toCSS = function() {
+          return this.escaped ? this.value : `${this.quote || '"'}${this.value}${this.quote || '"'}`;
+        };
+        break;
+
+      case 'Keyword':
+      case 'Anonymous':
+        value.toCSS = function() {
+          return String(this.value || '');
+        };
+        break;
+
+      case 'Expression':
+      case 'Value':
+        value.toCSS = function() {
+          if (!Array.isArray(this.value)) {
+            return String(this.value || '');
+          }
+          return this.value.map(v => {
+            if (v && typeof v.toCSS === 'function') {
+              return v.toCSS();
+            }
+            return String(v || '');
+          }).join(' ');
+        };
+        break;
+
+      default:
+        // Generic fallback - try to stringify the value
+        value.toCSS = function() {
+          if (this.value !== undefined) {
+            if (typeof this.value === 'object' && this.value && typeof this.value.toCSS === 'function') {
+              return this.value.toCSS();
+            }
+            return String(this.value);
+          }
+          return '';
+        };
+    }
+  }
+
+  // If value has nested values (like Expression or Value), augment them too
+  if (Array.isArray(value.value)) {
+    value.value = value.value.map(augmentValueWithMethods);
+  } else if (value.value && typeof value.value === 'object') {
+    value.value = augmentValueWithMethods(value.value);
+  }
+
+  return value;
+}
+
+/**
+ * Create an evaluation context that plugin functions can use to look up variables.
+ * This matches the structure that less.js plugins expect via `this.context`.
+ * @param {Object} contextData - Serialized context from Go
+ * @returns {Object} An evaluation context object
+ */
+function createEvalContext(contextData) {
+  if (!contextData || !contextData.frames) {
+    return null;
+  }
+
+  // The evalContext needs a reference back to itself for value.eval(context) calls
+  const evalContext = {};
+
+  // Create frame objects with variable() method
+  const frames = (contextData.frames || []).map((frameData) => {
+    const variables = frameData.variables || {};
+
+    return {
+      // The variable() method looks up a variable by name
+      // Returns { value, important } or undefined
+      variable(name) {
+        const varDecl = variables[name];
+        if (!varDecl) {
+          return undefined;
+        }
+        // Convert the serialized value back to a node-like object
+        let value = convertGoNodeToJS(varDecl.value);
+        // Augment with eval() and toCSS() methods
+        value = augmentValueWithMethods(value);
+        return {
+          value: value,
+          important: varDecl.important || false,
+        };
+      },
+      // For debugging
+      _variables: variables,
+    };
+  });
+
+  // Create importantScope array
+  const importantScope = contextData.importantScope || [{}];
+
+  // Set up the context object
+  evalContext.frames = frames;
+  evalContext.importantScope = importantScope;
+  // Provide access to the plugin manager for functions like mix()
+  evalContext.pluginManager = {
+    less: {
+      functions: {
+        functionRegistry: functionRegistry,
+      },
+    },
+  };
+
+  return evalContext;
+}
+
+/**
  * Call a registered function
  * @param {number} id - Command ID
  * @param {Object} data - Function call data
  */
 function handleCallFunction(id, data) {
-  const { name, args } = data || {};
+  const { name, args, context } = data || {};
 
   if (!name) {
     sendResponse(id, false, null, 'Function name is required');
@@ -1016,8 +1192,16 @@ function handleCallFunction(id, data) {
     // Convert Go node arguments to JavaScript format
     const convertedArgs = (args || []).map(convertGoNodeToJS);
 
-    // Call the function with converted arguments
-    const result = fn.apply(null, convertedArgs);
+    // Create evaluation context if provided
+    const evalContext = createEvalContext(context);
+
+    // Create the `this` binding with context
+    const thisBinding = {
+      context: evalContext,
+    };
+
+    // Call the function with context as `this` and converted arguments
+    const result = fn.apply(thisBinding, convertedArgs);
 
     // Debug: log the raw result for detached-ruleset
     if (name === 'test-detached-ruleset' && process.env.LESS_GO_DEBUG) {

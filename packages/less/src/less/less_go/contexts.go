@@ -665,3 +665,15 @@ func (e *Eval) CallPluginFunction(name string, args ...any) (any, error) {
 	}
 	return nil, fmt.Errorf("no plugin bridge available")
 }
+
+// GetFramesAny returns the frames as []any (implements runtime.EvalContextProvider).
+// This is used for serializing the evaluation context to JavaScript plugin functions.
+func (e *Eval) GetFramesAny() []any {
+	return e.Frames
+}
+
+// GetImportantScopeAny returns the important scope as []map[string]any (implements runtime.EvalContextProvider).
+// This is used for serializing the evaluation context to JavaScript plugin functions.
+func (e *Eval) GetImportantScopeAny() []map[string]any {
+	return e.ImportantScope
+}
