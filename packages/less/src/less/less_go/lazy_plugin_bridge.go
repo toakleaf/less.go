@@ -29,8 +29,8 @@ func NewLazyNodeJSPluginBridge() *LazyNodeJSPluginBridge {
 // ensureInitialized lazily initializes the Node.js runtime.
 // This is thread-safe and will only initialize once.
 //
-// If the LESS_SHM_PROTOCOL=1 environment variable is set, the high-performance
-// shared memory protocol will be enabled for faster plugin function calls.
+// The high-performance shared memory protocol is enabled by default for faster
+// plugin function calls. Set LESS_SHM_PROTOCOL=0 to disable it if needed.
 func (lb *LazyNodeJSPluginBridge) ensureInitialized() error {
 	lb.initOnce.Do(func() {
 		if os.Getenv("LESS_GO_DEBUG") == "1" {
@@ -54,11 +54,15 @@ func (lb *LazyNodeJSPluginBridge) ensureInitialized() error {
 		}
 		lb.bridge = bridge
 
-		// Optionally enable the high-performance SHM protocol
-		if os.Getenv("LESS_SHM_PROTOCOL") == "1" {
+		// Enable SHM protocol by default for best performance
+		// Set LESS_SHM_PROTOCOL=0 to disable
+		if os.Getenv("LESS_SHM_PROTOCOL") != "0" {
 			if err := bridge.InitSHMProtocol(); err != nil {
 				// Log but don't fail - fallback to JSON protocol
-				fmt.Fprintf(os.Stderr, "[LazyNodeJSPluginBridge] Warning: failed to init SHM protocol: %v\n", err)
+				if os.Getenv("LESS_GO_DEBUG") == "1" {
+					fmt.Fprintf(os.Stderr, "[LazyNodeJSPluginBridge] SHM protocol unavailable, using JSON: %v\n", err)
+				}
+				// Continue with JSON protocol - this is fine
 			} else if os.Getenv("LESS_GO_DEBUG") == "1" {
 				fmt.Printf("[LazyNodeJSPluginBridge] SHM protocol enabled\n")
 			}
