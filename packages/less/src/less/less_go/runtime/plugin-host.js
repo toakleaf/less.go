@@ -1604,6 +1604,35 @@ function augmentValueWithMethods(value) {
             return String(v || '');
           }).join(' ');
         };
+        // Add array-like methods that Bootstrap plugin functions expect
+        // These delegate to the internal value array
+        if (Array.isArray(value.value)) {
+          value.forEach = function(callback, thisArg) {
+            return this.value.forEach(callback, thisArg);
+          };
+          value.map = function(callback, thisArg) {
+            return this.value.map(callback, thisArg);
+          };
+          value.find = function(callback, thisArg) {
+            return this.value.find(callback, thisArg);
+          };
+          value.filter = function(callback, thisArg) {
+            return this.value.filter(callback, thisArg);
+          };
+          value.some = function(callback, thisArg) {
+            return this.value.some(callback, thisArg);
+          };
+          value.every = function(callback, thisArg) {
+            return this.value.every(callback, thisArg);
+          };
+          value.reduce = function(callback, initialValue) {
+            return this.value.reduce(callback, initialValue);
+          };
+          Object.defineProperty(value, 'length', {
+            get: function() { return this.value.length; },
+            enumerable: false,
+          });
+        }
         break;
 
       default:

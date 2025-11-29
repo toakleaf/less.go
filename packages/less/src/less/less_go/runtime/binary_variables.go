@@ -174,6 +174,9 @@ func (w *BinaryVariableWriter) writeValue(value any) error {
 			w.writeString("") // no unit
 			return nil
 		default:
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Printf("[writeValue] unsupported primitive type: %T, value=%v\n", value, value)
+			}
 			return fmt.Errorf("unsupported primitive type: %T", value)
 		}
 	}
