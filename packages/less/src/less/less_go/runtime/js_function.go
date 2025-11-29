@@ -96,13 +96,6 @@ type JSFunctionDefinition struct {
 	name    string
 	runtime *NodeJSRuntime
 	ipcMode JSIPCMode
-
-	// Result cache for deterministic functions (same args = same result)
-	// This dramatically reduces IPC calls for Bootstrap-style plugins
-	// where functions like map-get, color-yiq are called many times with same args
-	resultCache   map[string]any
-	resultCacheMu sync.RWMutex
-	cacheEnabled  bool
 }
 
 // JSFunctionOption configures a JSFunctionDefinition.
@@ -147,33 +140,6 @@ func WithIPCMode(mode JSIPCMode) JSFunctionOption {
 	}
 }
 
-// WithCaching enables result caching for deterministic functions.
-// When enabled, function calls with the same arguments will return cached results
-// instead of making IPC calls to Node.js.
-//
-// This is highly effective for Bootstrap-style plugins where functions like
-// map-get, color-yiq, breakpoint-next are called many times with the same args.
-//
-// Use this only for functions that are deterministic (same args always = same result)
-// during a single compilation.
-//
-// Note: Caching is now ENABLED by default. Use WithoutCaching() to disable.
-func WithCaching() JSFunctionOption {
-	return func(jf *JSFunctionDefinition) {
-		jf.cacheEnabled = true
-		jf.resultCache = make(map[string]any)
-	}
-}
-
-// WithoutCaching disables result caching.
-// Use this for functions that are non-deterministic (may return different results
-// for the same arguments due to side effects or external state).
-func WithoutCaching() JSFunctionOption {
-	return func(jf *JSFunctionDefinition) {
-		jf.cacheEnabled = false
-		jf.resultCache = nil
-	}
-}
 
 // NewJSFunctionDefinition creates a new JSFunctionDefinition for calling
 // JavaScript functions registered by plugins.
@@ -195,11 +161,9 @@ func WithoutCaching() JSFunctionOption {
 //	fn := NewJSFunctionDefinition("myFunc", runtime, WithSharedMemoryMode())
 func NewJSFunctionDefinition(name string, runtime *NodeJSRuntime, opts ...JSFunctionOption) *JSFunctionDefinition {
 	jf := &JSFunctionDefinition{
-		name:         name,
-		runtime:      runtime,
-		ipcMode:      getDefaultIPCMode(), // Respects LESS_JS_IPC_MODE env var
-		cacheEnabled: true,                // Enable caching by default for deterministic plugin functions
-		resultCache:  make(map[string]any),
+		name:    name,
+		runtime: runtime,
+		ipcMode: getDefaultIPCMode(), // Respects LESS_JS_IPC_MODE env var
 	}
 	// Options override the default/env var setting
 	for _, opt := range opts {
@@ -221,26 +185,6 @@ func (jf *JSFunctionDefinition) Name() string {
 // NeedsEvalArgs returns true - JS functions always expect evaluated arguments.
 func (jf *JSFunctionDefinition) NeedsEvalArgs() bool {
 	return true
-}
-
-// ClearCache clears the result cache. Call this between compilations
-// if you want to ensure fresh results.
-func (jf *JSFunctionDefinition) ClearCache() {
-	if jf.cacheEnabled {
-		jf.resultCacheMu.Lock()
-		jf.resultCache = make(map[string]any)
-		jf.resultCacheMu.Unlock()
-	}
-}
-
-// CacheStats returns the number of entries in the result cache.
-func (jf *JSFunctionDefinition) CacheStats() int {
-	if !jf.cacheEnabled {
-		return 0
-	}
-	jf.resultCacheMu.RLock()
-	defer jf.resultCacheMu.RUnlock()
-	return len(jf.resultCache)
 }
 
 // Call calls the JavaScript function with the given arguments.
