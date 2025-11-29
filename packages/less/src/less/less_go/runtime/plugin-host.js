@@ -1336,6 +1336,10 @@ function convertJSResultToGo(result) {
     case 'Color':
       goNode.rgb = result.rgb || [0, 0, 0];
       goNode.alpha = result.alpha !== undefined ? result.alpha : 1;
+      // Preserve original color value (e.g., "#fff") for proper CSS output
+      if (result.value !== undefined) {
+        goNode.value = result.value;
+      }
       break;
 
     case 'Quoted':
