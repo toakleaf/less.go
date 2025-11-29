@@ -1610,35 +1610,75 @@ function createOnDemandEvalContext(contextData) {
  * This is the fastest mode - Go pre-serializes commonly needed variables
  * and sends them with the context, avoiding IPC round-trips.
  *
+ * OPTIMIZED: When useSharedMemory is true, reads variables from binary
+ * shared memory format using DataView - NO JSON parsing for variable data.
+ *
  * For any variables not in the prefetch list, it falls back to on-demand callback.
  *
- * @param {Object} contextData - Context data with prefetchedVars
+ * @param {Object} contextData - Context data with prefetchedVars or shared memory info
  * @returns {Object} An evaluation context object
  */
 function createPrefetchEvalContext(contextData) {
   const frameCount = contextData.frameCount || 0;
   const importantScope = contextData.importantScope || [{}];
-  const prefetchedVars = contextData.prefetchedVars || {};
 
-  // Cache for looked-up variables (starts with prefetched vars)
+  // Cache for looked-up variables
   const variableCache = new Map();
 
-  // Pre-populate cache with prefetched variables
-  for (const [name, varDecl] of Object.entries(prefetchedVars)) {
-    if (varDecl) {
-      let value = convertGoNodeToJS(varDecl.value);
-      value = augmentValueWithMethods(value);
-      const varResult = {
-        value: value,
-        important: varDecl.important || false,
-      };
-      // Cache at frame 0 (prefetched vars are typically from early frames)
-      variableCache.set(`0:${name}`, varResult);
-    }
-  }
+  // Check if we should use shared memory (binary format)
+  if (contextData.useSharedMemory) {
+    // Read variables from binary shared memory
+    const bufferPath = contextData.prefetchBufferPath;
+    const bufferSize = contextData.prefetchBufferSize;
 
-  if (process.env.LESS_GO_DEBUG) {
-    console.error(`[plugin-host] Creating prefetch eval context: ${frameCount} frames, ${Object.keys(prefetchedVars).length} prefetched vars`);
+    if (bufferPath && bufferSize > 0) {
+      try {
+        // Read the binary data from the shared memory file
+        const buffer = fs.readFileSync(bufferPath);
+
+        // Parse the binary prefetch format
+        const prefetchedVars = parseBinaryPrefetchBuffer(buffer, bufferSize);
+
+        // Populate cache from binary data
+        for (const [name, varData] of prefetchedVars) {
+          let value = varData.value;
+          value = augmentValueWithMethods(value);
+          const varResult = {
+            value: value,
+            important: varData.important || false,
+          };
+          variableCache.set(`0:${name}`, varResult);
+        }
+
+        if (process.env.LESS_GO_DEBUG) {
+          console.error(`[plugin-host] Creating prefetch eval context (BINARY): ${frameCount} frames, ${prefetchedVars.size} prefetched vars from shared memory`);
+        }
+      } catch (e) {
+        if (process.env.LESS_GO_DEBUG) {
+          console.error(`[plugin-host] Failed to read shared memory: ${e.message}, falling back to JSON`);
+        }
+        // Fall through to JSON path
+      }
+    }
+  } else {
+    // Use JSON prefetched variables (fallback path)
+    const prefetchedVars = contextData.prefetchedVars || {};
+
+    for (const [name, varDecl] of Object.entries(prefetchedVars)) {
+      if (varDecl) {
+        let value = convertGoNodeToJS(varDecl.value);
+        value = augmentValueWithMethods(value);
+        const varResult = {
+          value: value,
+          important: varDecl.important || false,
+        };
+        variableCache.set(`0:${name}`, varResult);
+      }
+    }
+
+    if (process.env.LESS_GO_DEBUG) {
+      console.error(`[plugin-host] Creating prefetch eval context (JSON): ${frameCount} frames, ${Object.keys(prefetchedVars).length} prefetched vars`);
+    }
   }
 
   // Create frame objects that use cached values first, then callback
@@ -1673,7 +1713,16 @@ function createPrefetchEvalContext(contextData) {
           let value;
           let important = false;
 
-          if (result.value) {
+          // Check if value is in shared memory or JSON
+          if (result.shmOffset !== undefined && result.shmLength !== undefined) {
+            // Read from shared memory - binary format
+            const shmData = readVariableFromSharedMemory(result.shmOffset, result.shmLength);
+            if (shmData) {
+              value = shmData.value;
+              important = shmData.important || false;
+            }
+          } else if (result.value) {
+            // JSON fallback
             value = convertGoNodeToJS(result.value.value);
             important = result.value.important || false;
           }
@@ -1722,6 +1771,367 @@ function createPrefetchEvalContext(contextData) {
   };
 
   return evalContext;
+}
+
+// ============================================================================
+// Binary Prefetch Buffer Parser
+// ============================================================================
+//
+// Binary format for prefetched variables:
+//
+// Header:
+//   [4 bytes] magic: 0x50524546 ("PREF")
+//   [4 bytes] version: 1
+//   [4 bytes] variable count
+//
+// For each variable:
+//   [4 bytes] name length
+//   [N bytes] name (UTF-8)
+//   [1 byte]  important flag (0 or 1)
+//   [1 byte]  type (0=null, 1=Dimension, 2=Color, 3=Quoted, 4=Keyword, 5=Expression, 6=Anonymous)
+//   [variable] value data (type-specific)
+//
+// Type-specific value encodings:
+//   Dimension (type=1):
+//     [8 bytes] value (float64 LE)
+//     [4 bytes] unit length
+//     [N bytes] unit string (UTF-8)
+//
+//   Color (type=2):
+//     [8 bytes] R (float64 LE)
+//     [8 bytes] G (float64 LE)
+//     [8 bytes] B (float64 LE)
+//     [8 bytes] alpha (float64 LE)
+//
+//   Quoted (type=3):
+//     [4 bytes] string length
+//     [N bytes] string value (UTF-8)
+//     [1 byte]  quote character
+//     [1 byte]  escaped flag (0 or 1)
+//
+//   Keyword (type=4):
+//     [4 bytes] string length
+//     [N bytes] string value (UTF-8)
+//
+//   Expression (type=5):
+//     [4 bytes] value count
+//     For each value:
+//       [1 byte]  type
+//       [variable] value data
+//
+//   Anonymous (type=6):
+//     [4 bytes] string length
+//     [N bytes] string value (UTF-8)
+// ============================================================================
+
+const PREFETCH_MAGIC = 0x50524546; // "PREF"
+const PREFETCH_VERSION = 1;
+
+const VAR_TYPE_NULL = 0;
+const VAR_TYPE_DIMENSION = 1;
+const VAR_TYPE_COLOR = 2;
+const VAR_TYPE_QUOTED = 3;
+const VAR_TYPE_KEYWORD = 4;
+const VAR_TYPE_EXPRESSION = 5;
+const VAR_TYPE_ANONYMOUS = 6;
+
+/**
+ * Parse the binary prefetch buffer and return a Map of variable name -> {value, important}.
+ * Uses DataView for efficient binary reading - NO JSON.parse() involved.
+ *
+ * @param {Buffer} buffer - The binary buffer from shared memory
+ * @param {number} dataSize - The actual size of valid data in the buffer
+ * @returns {Map<string, {value: any, important: boolean}>} Map of variable names to values
+ */
+function parseBinaryPrefetchBuffer(buffer, dataSize) {
+  const result = new Map();
+
+  if (buffer.length < 12) {
+    return result; // Buffer too small for header
+  }
+
+  let offset = 0;
+
+  // Read and verify header
+  const magic = buffer.readUInt32LE(offset);
+  offset += 4;
+
+  if (magic !== PREFETCH_MAGIC) {
+    if (process.env.LESS_GO_DEBUG) {
+      console.error(`[plugin-host] Invalid prefetch magic: expected 0x${PREFETCH_MAGIC.toString(16)}, got 0x${magic.toString(16)}`);
+    }
+    return result;
+  }
+
+  const version = buffer.readUInt32LE(offset);
+  offset += 4;
+
+  if (version !== PREFETCH_VERSION) {
+    if (process.env.LESS_GO_DEBUG) {
+      console.error(`[plugin-host] Unsupported prefetch version: ${version}`);
+    }
+    return result;
+  }
+
+  const varCount = buffer.readUInt32LE(offset);
+  offset += 4;
+
+  // Read each variable
+  for (let i = 0; i < varCount && offset < dataSize; i++) {
+    try {
+      // Read variable name
+      const nameLen = buffer.readUInt32LE(offset);
+      offset += 4;
+
+      const name = buffer.toString('utf8', offset, offset + nameLen);
+      offset += nameLen;
+
+      // Read important flag
+      const important = buffer[offset++] === 1;
+
+      // Read type
+      const varType = buffer[offset++];
+
+      // Read value based on type
+      let value = null;
+
+      switch (varType) {
+        case VAR_TYPE_NULL:
+          // Null value, nothing more to read
+          break;
+
+        case VAR_TYPE_DIMENSION:
+          {
+            const numValue = readFloat64LE(buffer, offset);
+            offset += 8;
+            const unitLen = buffer.readUInt32LE(offset);
+            offset += 4;
+            const unit = buffer.toString('utf8', offset, offset + unitLen);
+            offset += unitLen;
+            value = {
+              _type: 'Dimension',
+              value: numValue,
+              unit: unit ? { numerator: [unit], denominator: [] } : { numerator: [], denominator: [] },
+            };
+          }
+          break;
+
+        case VAR_TYPE_COLOR:
+          {
+            const r = readFloat64LE(buffer, offset);
+            offset += 8;
+            const g = readFloat64LE(buffer, offset);
+            offset += 8;
+            const b = readFloat64LE(buffer, offset);
+            offset += 8;
+            const alpha = readFloat64LE(buffer, offset);
+            offset += 8;
+            value = {
+              _type: 'Color',
+              rgb: [r, g, b],
+              alpha: alpha,
+            };
+          }
+          break;
+
+        case VAR_TYPE_QUOTED:
+          {
+            const strLen = buffer.readUInt32LE(offset);
+            offset += 4;
+            const str = buffer.toString('utf8', offset, offset + strLen);
+            offset += strLen;
+            const quote = String.fromCharCode(buffer[offset++]);
+            const escaped = buffer[offset++] === 1;
+            value = {
+              _type: 'Quoted',
+              value: str,
+              quote: quote,
+              escaped: escaped,
+            };
+          }
+          break;
+
+        case VAR_TYPE_KEYWORD:
+          {
+            const strLen = buffer.readUInt32LE(offset);
+            offset += 4;
+            const str = buffer.toString('utf8', offset, offset + strLen);
+            offset += strLen;
+            value = {
+              _type: 'Keyword',
+              value: str,
+            };
+          }
+          break;
+
+        case VAR_TYPE_EXPRESSION:
+          {
+            const valueCount = buffer.readUInt32LE(offset);
+            offset += 4;
+            const values = [];
+            for (let j = 0; j < valueCount; j++) {
+              const { value: subValue, newOffset } = readBinaryValue(buffer, offset);
+              values.push(subValue);
+              offset = newOffset;
+            }
+            value = {
+              _type: 'Expression',
+              value: values,
+            };
+          }
+          break;
+
+        case VAR_TYPE_ANONYMOUS:
+          {
+            const strLen = buffer.readUInt32LE(offset);
+            offset += 4;
+            const str = buffer.toString('utf8', offset, offset + strLen);
+            offset += strLen;
+            value = {
+              _type: 'Anonymous',
+              value: str,
+            };
+          }
+          break;
+
+        default:
+          if (process.env.LESS_GO_DEBUG) {
+            console.error(`[plugin-host] Unknown variable type: ${varType}`);
+          }
+          break;
+      }
+
+      if (value !== null) {
+        result.set(name, { value, important });
+      }
+    } catch (e) {
+      if (process.env.LESS_GO_DEBUG) {
+        console.error(`[plugin-host] Error parsing variable at offset ${offset}: ${e.message}`);
+      }
+      break;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Read a single value from the binary buffer (for nested values in Expression).
+ * @param {Buffer} buffer - The binary buffer
+ * @param {number} offset - Current offset
+ * @returns {{value: any, newOffset: number}} The parsed value and new offset
+ */
+function readBinaryValue(buffer, offset) {
+  const varType = buffer[offset++];
+
+  switch (varType) {
+    case VAR_TYPE_NULL:
+      return { value: null, newOffset: offset };
+
+    case VAR_TYPE_DIMENSION:
+      {
+        const numValue = readFloat64LE(buffer, offset);
+        offset += 8;
+        const unitLen = buffer.readUInt32LE(offset);
+        offset += 4;
+        const unit = buffer.toString('utf8', offset, offset + unitLen);
+        offset += unitLen;
+        return {
+          value: {
+            _type: 'Dimension',
+            value: numValue,
+            unit: unit ? { numerator: [unit], denominator: [] } : { numerator: [], denominator: [] },
+          },
+          newOffset: offset,
+        };
+      }
+
+    case VAR_TYPE_COLOR:
+      {
+        const r = readFloat64LE(buffer, offset);
+        offset += 8;
+        const g = readFloat64LE(buffer, offset);
+        offset += 8;
+        const b = readFloat64LE(buffer, offset);
+        offset += 8;
+        const alpha = readFloat64LE(buffer, offset);
+        offset += 8;
+        return {
+          value: {
+            _type: 'Color',
+            rgb: [r, g, b],
+            alpha: alpha,
+          },
+          newOffset: offset,
+        };
+      }
+
+    case VAR_TYPE_QUOTED:
+      {
+        const strLen = buffer.readUInt32LE(offset);
+        offset += 4;
+        const str = buffer.toString('utf8', offset, offset + strLen);
+        offset += strLen;
+        const quote = String.fromCharCode(buffer[offset++]);
+        const escaped = buffer[offset++] === 1;
+        return {
+          value: {
+            _type: 'Quoted',
+            value: str,
+            quote: quote,
+            escaped: escaped,
+          },
+          newOffset: offset,
+        };
+      }
+
+    case VAR_TYPE_KEYWORD:
+      {
+        const strLen = buffer.readUInt32LE(offset);
+        offset += 4;
+        const str = buffer.toString('utf8', offset, offset + strLen);
+        offset += strLen;
+        return {
+          value: {
+            _type: 'Keyword',
+            value: str,
+          },
+          newOffset: offset,
+        };
+      }
+
+    case VAR_TYPE_ANONYMOUS:
+      {
+        const strLen = buffer.readUInt32LE(offset);
+        offset += 4;
+        const str = buffer.toString('utf8', offset, offset + strLen);
+        offset += strLen;
+        return {
+          value: {
+            _type: 'Anonymous',
+            value: str,
+          },
+          newOffset: offset,
+        };
+      }
+
+    default:
+      return { value: null, newOffset: offset };
+  }
+}
+
+/**
+ * Read a float64 from buffer in little-endian format.
+ * Uses DataView for proper IEEE-754 float parsing.
+ * @param {Buffer} buf - The buffer
+ * @param {number} offset - Offset to read from
+ * @returns {number} The float64 value
+ */
+function readFloat64LE(buf, offset) {
+  // Create a DataView to properly read the float64
+  const arrayBuffer = buf.buffer.slice(buf.byteOffset + offset, buf.byteOffset + offset + 8);
+  const view = new DataView(arrayBuffer);
+  return view.getFloat64(0, true); // true = little-endian
 }
 
 /**

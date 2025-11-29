@@ -603,9 +603,16 @@ var knownVariables = []string{
 }
 
 // callWithPrefetchContext pre-fetches commonly needed variables and sends them
-// with the function call, avoiding IPC round-trips for each lookup.
+// with the function call using SHARED MEMORY in BINARY format.
+// This avoids JSON serialization overhead which is critical for performance.
+//
+// The binary format is defined in binary_variables.go:
+// - Header: magic + version + variable count
+// - Each variable: name + important flag + type + binary-encoded value
+//
+// JavaScript reads directly from the memory-mapped file using DataView.
 func (jf *JSFunctionDefinition) callWithPrefetchContext(evalContext EvalContextProvider, args ...any) (any, error) {
-	// Serialize arguments for transfer
+	// Serialize arguments for transfer (these are typically small)
 	serializedArgs, err := jf.serializeArgs(args)
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize arguments: %w", err)
@@ -615,23 +622,163 @@ func (jf *JSFunctionDefinition) callWithPrefetchContext(evalContext EvalContextP
 	frames := evalContext.GetFramesAny()
 	importantScope := evalContext.GetImportantScopeAny()
 
-	// Pre-fetch known variables - these go in the context directly
-	prefetchedVars := jf.prefetchVariables(frames)
+	// Look up all known variables and collect their declarations
+	varDecls := jf.collectPrefetchVariables(frames)
 
-	// Send minimal context with prefetched variables
-	minimalContext := map[string]any{
-		"frameCount":       len(frames),
-		"importantScope":   serializeImportantScope(importantScope),
-		"prefetchedVars":   prefetchedVars,
-		"usePrefetch":      true,
+	// Write variables to binary format
+	binaryData := WritePrefetchedVariables(varDecls)
+
+	// Create shared memory buffer for the prefetched variables
+	shmMgr := jf.runtime.SharedMemoryManager()
+	if shmMgr == nil {
+		// Fall back to JSON if shared memory not available
+		return jf.callWithPrefetchContextJSON(evalContext, args...)
+	}
+
+	// Allocate buffer with some extra space
+	bufferSize := len(binaryData) + 1024
+	if bufferSize < 4096 {
+		bufferSize = 4096
+	}
+
+	shm, err := shmMgr.Create(bufferSize)
+	if err != nil {
+		// Fall back to JSON if shared memory creation fails
+		return jf.callWithPrefetchContextJSON(evalContext, args...)
+	}
+	defer shmMgr.Destroy(shm.Key())
+
+	// Write binary data to shared memory
+	if err := shm.WriteAll(binaryData); err != nil {
+		return nil, fmt.Errorf("failed to write to shared memory: %w", err)
 	}
 
 	if os.Getenv("LESS_GO_DEBUG") == "1" {
-		fmt.Printf("[callWithPrefetchContext] Function %s: %d frames, %d prefetched vars\n",
-			jf.name, len(frames), len(prefetchedVars))
+		fmt.Printf("[callWithPrefetchContext] Function %s: %d frames, %d prefetched vars, %d bytes binary\n",
+			jf.name, len(frames), len(varDecls), len(binaryData))
 	}
 
 	// Register callback for any variables not in prefetch list
+	// Uses binary format for the response as well
+	jf.runtime.RegisterCallback("lookupVariable", func(data any) (any, error) {
+		reqData, ok := data.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("invalid variable lookup request")
+		}
+
+		varName, _ := reqData["name"].(string)
+		frameIdx := 0
+		if idx, ok := reqData["frameIndex"].(float64); ok {
+			frameIdx = int(idx)
+		}
+
+		for i := frameIdx; i < len(frames); i++ {
+			frame := frames[i]
+			if frame == nil {
+				continue
+			}
+
+			variablesProvider, ok := frame.(interface{ Variables() map[string]any })
+			if !ok {
+				continue
+			}
+
+			variables := variablesProvider.Variables()
+			if variables == nil {
+				continue
+			}
+
+			if decl, exists := variables[varName]; exists && decl != nil {
+				// Write the variable to shared memory for binary transfer
+				offset, written, err := writeVariableToSharedMemory(shm, decl)
+				if err == nil {
+					return map[string]any{
+						"found":      true,
+						"frameIndex": i,
+						"shmOffset":  offset,
+						"shmLength":  written,
+					}, nil
+				}
+				// Fall back to JSON for complex types
+				serializedDecl := jf.serializeVariableDeclaration(decl)
+				if serializedDecl != nil {
+					return map[string]any{
+						"found":      true,
+						"frameIndex": i,
+						"value":      serializedDecl,
+						"useJSON":    true,
+					}, nil
+				}
+			}
+		}
+
+		return map[string]any{"found": false}, nil
+	})
+	defer jf.runtime.UnregisterCallback("lookupVariable")
+
+	// Send context with shared memory reference (NOT JSON data)
+	minimalContext := map[string]any{
+		"frameCount":         len(frames),
+		"importantScope":     serializeImportantScope(importantScope),
+		"usePrefetch":        true,
+		"useSharedMemory":    true,
+		"prefetchBufferKey":  shm.Key(),
+		"prefetchBufferPath": shm.Path(),
+		"prefetchBufferSize": len(binaryData),
+	}
+
+	// Call the function via Node.js runtime
+	resp, err := jf.runtime.SendCommand(Command{
+		Cmd: "callFunction",
+		Data: map[string]any{
+			"name":    jf.name,
+			"args":    serializedArgs,
+			"context": minimalContext,
+		},
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("function call failed: %w", err)
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("JavaScript function error: %s", resp.Error)
+	}
+
+	result, err := jf.deserializeResult(resp.Result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to deserialize result: %w", err)
+	}
+
+	return result, nil
+}
+
+// callWithPrefetchContextJSON is the fallback when shared memory is not available.
+// Uses JSON serialization for prefetched variables.
+func (jf *JSFunctionDefinition) callWithPrefetchContextJSON(evalContext EvalContextProvider, args ...any) (any, error) {
+	serializedArgs, err := jf.serializeArgs(args)
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize arguments: %w", err)
+	}
+
+	frames := evalContext.GetFramesAny()
+	importantScope := evalContext.GetImportantScopeAny()
+
+	// Pre-fetch known variables using JSON serialization
+	prefetchedVars := jf.prefetchVariables(frames)
+
+	minimalContext := map[string]any{
+		"frameCount":     len(frames),
+		"importantScope": serializeImportantScope(importantScope),
+		"prefetchedVars": prefetchedVars,
+		"usePrefetch":    true,
+	}
+
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Printf("[callWithPrefetchContextJSON] Function %s: %d frames, %d prefetched vars (JSON fallback)\n",
+			jf.name, len(frames), len(prefetchedVars))
+	}
+
 	jf.runtime.RegisterCallback("lookupVariable", func(data any) (any, error) {
 		reqData, ok := data.(map[string]any)
 		if !ok {
@@ -676,7 +823,6 @@ func (jf *JSFunctionDefinition) callWithPrefetchContext(evalContext EvalContextP
 	})
 	defer jf.runtime.UnregisterCallback("lookupVariable")
 
-	// Call the function via Node.js runtime
 	resp, err := jf.runtime.SendCommand(Command{
 		Cmd: "callFunction",
 		Data: map[string]any{
@@ -700,6 +846,37 @@ func (jf *JSFunctionDefinition) callWithPrefetchContext(evalContext EvalContextP
 	}
 
 	return result, nil
+}
+
+// collectPrefetchVariables looks up known commonly-used variables and returns their declarations.
+// Unlike prefetchVariables, this returns raw declarations instead of serialized JSON.
+func (jf *JSFunctionDefinition) collectPrefetchVariables(frames []any) map[string]any {
+	collected := make(map[string]any)
+
+	for _, varName := range knownVariables {
+		for _, frame := range frames {
+			if frame == nil {
+				continue
+			}
+
+			variablesProvider, ok := frame.(interface{ Variables() map[string]any })
+			if !ok {
+				continue
+			}
+
+			variables := variablesProvider.Variables()
+			if variables == nil {
+				continue
+			}
+
+			if decl, exists := variables[varName]; exists && decl != nil {
+				collected[varName] = decl
+				break // Found it, don't look in more frames
+			}
+		}
+	}
+
+	return collected
 }
 
 // prefetchVariables looks up and serializes known commonly-used variables.
