@@ -10,12 +10,13 @@ import (
 // NodeJSPluginBridge bridges the runtime.JSPluginLoader with the less_go.PluginLoader interface.
 // It enables the parsing and evaluation pipeline to use JavaScript plugins loaded via Node.js.
 type NodeJSPluginBridge struct {
-	runtime        *runtime.NodeJSRuntime
-	loader         *runtime.JSPluginLoader
-	scope          *runtime.PluginScope
-	funcRegistry   *runtime.PluginFunctionRegistry
-	visitorManager *runtime.VisitorManager
-	mu             sync.RWMutex
+	runtime          *runtime.NodeJSRuntime
+	loader           *runtime.JSPluginLoader
+	scope            *runtime.PluginScope
+	funcRegistry     *runtime.PluginFunctionRegistry
+	visitorManager   *runtime.VisitorManager
+	processorManager *runtime.ProcessorManager
+	mu               sync.RWMutex
 }
 
 // NewNodeJSPluginBridge creates a new bridge with a fresh Node.js runtime.
@@ -32,11 +33,12 @@ func NewNodeJSPluginBridge() (*NodeJSPluginBridge, error) {
 	}
 
 	return &NodeJSPluginBridge{
-		runtime:        rt,
-		loader:         runtime.NewJSPluginLoader(rt),
-		scope:          runtime.NewRootPluginScope(),
-		funcRegistry:   runtime.NewPluginFunctionRegistry(nil, rt),
-		visitorManager: runtime.NewVisitorManager(rt),
+		runtime:          rt,
+		loader:           runtime.NewJSPluginLoader(rt),
+		scope:            runtime.NewRootPluginScope(),
+		funcRegistry:     runtime.NewPluginFunctionRegistry(nil, rt),
+		visitorManager:   runtime.NewVisitorManager(rt),
+		processorManager: runtime.NewProcessorManager(rt),
 	}, nil
 }
 
@@ -44,11 +46,12 @@ func NewNodeJSPluginBridge() (*NodeJSPluginBridge, error) {
 // This allows sharing the Node.js process across multiple compilations.
 func NewNodeJSPluginBridgeWithRuntime(rt *runtime.NodeJSRuntime) *NodeJSPluginBridge {
 	return &NodeJSPluginBridge{
-		runtime:        rt,
-		loader:         runtime.NewJSPluginLoader(rt),
-		scope:          runtime.NewRootPluginScope(),
-		funcRegistry:   runtime.NewPluginFunctionRegistry(nil, rt),
-		visitorManager: runtime.NewVisitorManager(rt),
+		runtime:          rt,
+		loader:           runtime.NewJSPluginLoader(rt),
+		scope:            runtime.NewRootPluginScope(),
+		funcRegistry:     runtime.NewPluginFunctionRegistry(nil, rt),
+		visitorManager:   runtime.NewVisitorManager(rt),
+		processorManager: runtime.NewProcessorManager(rt),
 	}
 }
 
@@ -101,6 +104,13 @@ func (b *NodeJSPluginBridge) LoadPluginSync(path, currentDirectory string, conte
 			}
 			for _, v := range b.visitorManager.GetPostEvalVisitors() {
 				b.scope.AddVisitor(v)
+			}
+		}
+
+		// Refresh processors from Node.js if the plugin has any
+		if plugin.PreProcessors > 0 || plugin.PostProcessors > 0 {
+			if err := b.processorManager.RefreshProcessors(); err != nil {
+				fmt.Printf("[NodeJSPluginBridge] Warning: failed to refresh processors: %v\n", err)
 			}
 		}
 
@@ -261,6 +271,31 @@ func (b *NodeJSPluginBridge) GetPreEvalVisitors() []*runtime.JSVisitor {
 // GetPostEvalVisitors returns post-evaluation visitors from the current scope.
 func (b *NodeJSPluginBridge) GetPostEvalVisitors() []*runtime.JSVisitor {
 	return b.scope.GetPostEvalVisitors()
+}
+
+// GetProcessorManager returns the processor manager for pre/post processing.
+func (b *NodeJSPluginBridge) GetProcessorManager() *runtime.ProcessorManager {
+	return b.processorManager
+}
+
+// GetPreProcessors returns all registered pre-processors.
+func (b *NodeJSPluginBridge) GetPreProcessors() []*runtime.JSPreProcessor {
+	return b.processorManager.GetPreProcessors()
+}
+
+// GetPostProcessors returns all registered post-processors.
+func (b *NodeJSPluginBridge) GetPostProcessors() []*runtime.JSPostProcessor {
+	return b.processorManager.GetPostProcessors()
+}
+
+// RunPreProcessors runs all pre-processors on the input source.
+func (b *NodeJSPluginBridge) RunPreProcessors(input string, options map[string]any) (string, error) {
+	return b.processorManager.RunPreProcessors(input, options)
+}
+
+// RunPostProcessors runs all post-processors on the CSS output.
+func (b *NodeJSPluginBridge) RunPostProcessors(css string, options map[string]any) (string, error) {
+	return b.processorManager.RunPostProcessors(css, options)
 }
 
 // CreateScopedPluginManager creates a ScopedPluginManager for the current scope.
