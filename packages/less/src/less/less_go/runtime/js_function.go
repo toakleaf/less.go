@@ -561,16 +561,17 @@ type EvalContextProvider interface {
 // CallWithContext calls the JavaScript function with evaluation context.
 // This is used by plugin functions that need to access Less variables.
 //
-// OPTIMIZATION: Uses pre-fetch + on-demand lookup for optimal performance:
-// 1. Pre-fetch commonly needed variables (avoiding IPC for them)
-// 2. For any other variables, use on-demand callback lookup
+// OPTIMIZATION: Uses TRUE shared memory for zero JSON serialization:
+// 1. All variables are written directly to mmap'd memory in binary format
+// 2. JavaScript reads directly from shared memory using DataView
+// 3. NO JSON parsing for variable data - only tiny control messages use JSON
 func (jf *JSFunctionDefinition) CallWithContext(evalContext EvalContextProvider, args ...any) (any, error) {
 	if jf.runtime == nil {
 		return nil, fmt.Errorf("Node.js runtime not initialized")
 	}
 
-	// Use pre-fetch mode for known plugin functions to avoid IPC overhead
-	return jf.callWithPrefetchContext(evalContext, args...)
+	// Use TRUE shared memory mode - NO JSON for variable data
+	return jf.callWithSharedMemoryContext(evalContext, args...)
 }
 
 // knownVariables contains variables that are commonly accessed by plugin functions.
@@ -602,8 +603,508 @@ var knownVariables = []string{
 	"@dark",
 }
 
+// callWithSharedMemoryContext calls a function with TRUE shared memory for variables.
+// ALL variable data is written to mmap'd memory in binary format.
+// JavaScript reads directly using DataView - NO JSON parsing for variable data.
+//
+// Binary format in shared memory:
+// Header (24 bytes):
+//   [4 bytes: magic 'LESV']
+//   [4 bytes: version = 1]
+//   [4 bytes: variable count]
+//   [4 bytes: index offset]
+//   [4 bytes: data offset]
+//   [4 bytes: string table offset]
+//
+// Variable index (12 bytes per variable):
+//   [4 bytes: name string table offset]
+//   [4 bytes: name length]
+//   [4 bytes: value offset in data section]
+//
+// Value data section (variable length per value):
+//   [1 byte: important flag (0 or 1)]
+//   [1 byte: type (1=Dimension, 2=Color, 3=Quoted, 4=Keyword, 5=Expression/List)]
+//   [type-specific binary data...]
+//
+// String table:
+//   [raw concatenated strings]
+func (jf *JSFunctionDefinition) callWithSharedMemoryContext(evalContext EvalContextProvider, args ...any) (any, error) {
+	// Serialize arguments (these are typically small)
+	serializedArgs, err := jf.serializeArgs(args)
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize arguments: %w", err)
+	}
+
+	frames := evalContext.GetFramesAny()
+	importantScope := evalContext.GetImportantScopeAny()
+
+	// Get or create shared memory manager
+	shmMgr := jf.runtime.SharedMemoryManager()
+	if shmMgr == nil {
+		// Fall back to legacy prefetch if no shared memory
+		return jf.callWithPrefetchContext(evalContext, args...)
+	}
+
+	// Collect all known variables and serialize to binary
+	varData, stringTable, varIndex := jf.collectVariablesBinary(frames)
+
+	// Calculate buffer size
+	headerSize := 24
+	indexSize := len(varIndex) * 12
+	dataSize := len(varData)
+	stringTableSize := len(stringTable)
+	totalSize := headerSize + indexSize + dataSize + stringTableSize
+	if totalSize < 4096 {
+		totalSize = 4096 // Minimum buffer size
+	}
+
+	// Create shared memory buffer
+	shm, err := shmMgr.Create(totalSize)
+	if err != nil {
+		// Fall back to legacy prefetch
+		return jf.callWithPrefetchContext(evalContext, args...)
+	}
+	defer shmMgr.Destroy(shm.Key())
+
+	// Write header
+	buf := make([]byte, totalSize)
+	copy(buf[0:4], []byte("LESV"))
+	writeUint32LE(buf, 4, 1)                            // version
+	writeUint32LE(buf, 8, uint32(len(varIndex)))        // variable count
+	writeUint32LE(buf, 12, uint32(headerSize))          // index offset
+	writeUint32LE(buf, 16, uint32(headerSize+indexSize)) // data offset
+	writeUint32LE(buf, 20, uint32(headerSize+indexSize+dataSize)) // string table offset
+
+	// Write variable index
+	indexOffset := headerSize
+	for _, idx := range varIndex {
+		writeUint32LE(buf, indexOffset, idx.NameOffset)
+		writeUint32LE(buf, indexOffset+4, idx.NameLen)
+		writeUint32LE(buf, indexOffset+8, idx.ValueOffset)
+		indexOffset += 12
+	}
+
+	// Write value data
+	dataOffset := headerSize + indexSize
+	copy(buf[dataOffset:], varData)
+
+	// Write string table
+	stringTableOffset := headerSize + indexSize + dataSize
+	copy(buf[stringTableOffset:], stringTable)
+
+	// Write to shared memory
+	if err := shm.WriteAll(buf); err != nil {
+		return jf.callWithPrefetchContext(evalContext, args...)
+	}
+
+	// Attach buffer to Node.js
+	if err := jf.runtime.AttachBuffer(shm); err != nil {
+		return jf.callWithPrefetchContext(evalContext, args...)
+	}
+	defer jf.runtime.DetachBuffer(shm.Key())
+
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Printf("[callWithSharedMemoryContext] Function %s: %d vars, buffer size %d bytes (data: %d, strings: %d)\n",
+			jf.name, len(varIndex), totalSize, dataSize, stringTableSize)
+	}
+
+	// Register callback for on-demand variable lookup (for non-prefetched vars)
+	jf.runtime.RegisterCallback("lookupVariable", func(data any) (any, error) {
+		reqData, ok := data.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("invalid variable lookup request")
+		}
+
+		varName, _ := reqData["name"].(string)
+		frameIdx := 0
+		if idx, ok := reqData["frameIndex"].(float64); ok {
+			frameIdx = int(idx)
+		}
+
+		// Look up variable and write to shared memory offset
+		for i := frameIdx; i < len(frames); i++ {
+			frame := frames[i]
+			if frame == nil {
+				continue
+			}
+
+			variablesProvider, ok := frame.(interface{ Variables() map[string]any })
+			if !ok {
+				continue
+			}
+
+			variables := variablesProvider.Variables()
+			if variables == nil {
+				continue
+			}
+
+			if decl, exists := variables[varName]; exists && decl != nil {
+				// Write to a known offset in shared memory
+				offset, written, err := writeVariableToSharedMemory(shm, decl)
+				if err != nil {
+					// Fall back to JSON for this variable
+					serializedDecl := jf.serializeVariableDeclaration(decl)
+					return map[string]any{
+						"found":      true,
+						"frameIndex": i,
+						"value":      serializedDecl,
+						"useJSON":    true,
+					}, nil
+				}
+				return map[string]any{
+					"found":      true,
+					"frameIndex": i,
+					"shmOffset":  offset,
+					"shmLength":  written,
+				}, nil
+			}
+		}
+
+		return map[string]any{"found": false}, nil
+	})
+	defer jf.runtime.UnregisterCallback("lookupVariable")
+
+	// Send command with ONLY buffer reference - NO variable data in JSON!
+	resp, err := jf.runtime.SendCommand(Command{
+		Cmd: "callFunctionSHM",
+		Data: map[string]any{
+			"name":       jf.name,
+			"args":       serializedArgs,
+			"bufferKey":  shm.Key(),
+			"bufferPath": shm.Path(),
+			"frameCount": len(frames),
+			"importantScope": serializeImportantScope(importantScope),
+		},
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("function call failed: %w", err)
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("JavaScript function error: %s", resp.Error)
+	}
+
+	result, err := jf.deserializeResult(resp.Result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to deserialize result: %w", err)
+	}
+
+	return result, nil
+}
+
+// varIndexEntry represents a variable in the shared memory index.
+type varIndexEntry struct {
+	NameOffset  uint32 // Offset into string table
+	NameLen     uint32 // Length of name
+	ValueOffset uint32 // Offset into data section
+}
+
+// collectVariablesBinary collects known variables and serializes them to binary format.
+// Returns: (valueData []byte, stringTable []byte, index []varIndexEntry)
+func (jf *JSFunctionDefinition) collectVariablesBinary(frames []any) ([]byte, []byte, []varIndexEntry) {
+	var valueData []byte
+	var stringTable []byte
+	var index []varIndexEntry
+
+	stringOffsets := make(map[string]uint32) // Cache string offsets
+
+	addString := func(s string) (uint32, uint32) {
+		if offset, ok := stringOffsets[s]; ok {
+			return offset, uint32(len(s))
+		}
+		offset := uint32(len(stringTable))
+		stringTable = append(stringTable, []byte(s)...)
+		stringOffsets[s] = offset
+		return offset, uint32(len(s))
+	}
+
+	for _, varName := range knownVariables {
+		for _, frame := range frames {
+			if frame == nil {
+				continue
+			}
+
+			variablesProvider, ok := frame.(interface{ Variables() map[string]any })
+			if !ok {
+				continue
+			}
+
+			variables := variablesProvider.Variables()
+			if variables == nil {
+				continue
+			}
+
+			if decl, exists := variables[varName]; exists && decl != nil {
+				// Serialize variable to binary
+				varBytes := jf.serializeVariableBinary(decl, &stringTable, stringOffsets)
+				if varBytes != nil {
+					nameOffset, nameLen := addString(varName)
+					valueOffset := uint32(len(valueData))
+					valueData = append(valueData, varBytes...)
+					index = append(index, varIndexEntry{
+						NameOffset:  nameOffset,
+						NameLen:     nameLen,
+						ValueOffset: valueOffset,
+					})
+					break // Found it, don't look in more frames
+				}
+			}
+		}
+	}
+
+	return valueData, stringTable, index
+}
+
+// serializeVariableBinary serializes a variable declaration to binary format.
+// Format:
+//   [1 byte: important flag]
+//   [1 byte: type]
+//   [type-specific data...]
+func (jf *JSFunctionDefinition) serializeVariableBinary(decl any, stringTable *[]byte, stringOffsets map[string]uint32) []byte {
+	if decl == nil {
+		return nil
+	}
+
+	valueProvider, ok := decl.(interface{ GetValue() any })
+	if !ok {
+		return nil
+	}
+	value := valueProvider.GetValue()
+	if value == nil {
+		return nil
+	}
+
+	important := byte(0)
+	if ip, ok := decl.(interface{ GetImportant() bool }); ok && ip.GetImportant() {
+		important = 1
+	}
+
+	buf := []byte{important}
+
+	typer, ok := value.(interface{ GetType() string })
+	if !ok {
+		return nil
+	}
+
+	addStringToTable := func(s string) uint32 {
+		if offset, ok := stringOffsets[s]; ok {
+			return offset
+		}
+		offset := uint32(len(*stringTable))
+		*stringTable = append(*stringTable, []byte(s)...)
+		stringOffsets[s] = offset
+		return offset
+	}
+
+	nodeType := typer.GetType()
+	switch nodeType {
+	case "Dimension":
+		buf = append(buf, 1) // type = Dimension
+		if valGetter, ok := value.(interface{ GetValue() float64 }); ok {
+			buf = appendFloat64(buf, valGetter.GetValue())
+		} else {
+			buf = appendFloat64(buf, 0)
+		}
+		// Get unit string and write offset + length
+		unitStr := ""
+		if unitGetter, ok := value.(interface{ GetUnit() any }); ok {
+			unit := unitGetter.GetUnit()
+			if unit != nil {
+				if s, ok := unit.(fmt.Stringer); ok {
+					unitStr = s.String()
+				} else if s, ok := unit.(interface{ ToString() string }); ok {
+					unitStr = s.ToString()
+				}
+			}
+		}
+		unitOffset := addStringToTable(unitStr)
+		buf = appendUint32(buf, unitOffset)
+		buf = appendUint32(buf, uint32(len(unitStr)))
+
+	case "Color":
+		buf = append(buf, 2) // type = Color
+		rgb := []float64{0, 0, 0}
+		if rgbGetter, ok := value.(interface{ GetRGB() []float64 }); ok {
+			rgb = rgbGetter.GetRGB()
+		} else if hasRGB := extractFieldByName(value, "RGB"); hasRGB != nil {
+			if rgbSlice, ok := hasRGB.([]float64); ok {
+				rgb = rgbSlice
+			}
+		}
+		for i := 0; i < 3; i++ {
+			if i < len(rgb) {
+				buf = appendFloat64(buf, rgb[i])
+			} else {
+				buf = appendFloat64(buf, 0)
+			}
+		}
+		alpha := 1.0
+		if alphaGetter, ok := value.(interface{ GetAlpha() float64 }); ok {
+			alpha = alphaGetter.GetAlpha()
+		} else if hasAlpha := extractFieldByName(value, "Alpha"); hasAlpha != nil {
+			if a, ok := hasAlpha.(float64); ok {
+				alpha = a
+			}
+		}
+		buf = appendFloat64(buf, alpha)
+
+	case "Quoted":
+		buf = append(buf, 3) // type = Quoted
+		str := ""
+		if valGetter, ok := value.(interface{ GetValue() string }); ok {
+			str = valGetter.GetValue()
+		}
+		strOffset := addStringToTable(str)
+		buf = appendUint32(buf, strOffset)
+		buf = appendUint32(buf, uint32(len(str)))
+		quote := byte('"')
+		if quoteGetter, ok := value.(interface{ GetQuote() string }); ok {
+			q := quoteGetter.GetQuote()
+			if len(q) > 0 {
+				quote = q[0]
+			}
+		}
+		buf = append(buf, quote)
+
+	case "Keyword":
+		buf = append(buf, 4) // type = Keyword
+		str := ""
+		if valGetter, ok := value.(interface{ GetValue() string }); ok {
+			str = valGetter.GetValue()
+		}
+		strOffset := addStringToTable(str)
+		buf = appendUint32(buf, strOffset)
+		buf = appendUint32(buf, uint32(len(str)))
+
+	case "Expression", "Value":
+		// Try to unwrap and serialize the inner content if it's a simple type
+		innerValue := unwrapToSimpleValue(value)
+		if innerValue != nil {
+			if innerTyper, ok := innerValue.(interface{ GetType() string }); ok {
+				innerType := innerTyper.GetType()
+				switch innerType {
+				case "Color":
+					buf = append(buf, 2) // type = Color
+					rgb := []float64{0, 0, 0}
+					if rgbGetter, ok := innerValue.(interface{ GetRGB() []float64 }); ok {
+						rgb = rgbGetter.GetRGB()
+					} else if hasRGB := extractFieldByName(innerValue, "RGB"); hasRGB != nil {
+						if rgbSlice, ok := hasRGB.([]float64); ok {
+							rgb = rgbSlice
+						}
+					}
+					for i := 0; i < 3; i++ {
+						if i < len(rgb) {
+							buf = appendFloat64(buf, rgb[i])
+						} else {
+							buf = appendFloat64(buf, 0)
+						}
+					}
+					alpha := 1.0
+					if alphaGetter, ok := innerValue.(interface{ GetAlpha() float64 }); ok {
+						alpha = alphaGetter.GetAlpha()
+					} else if hasAlpha := extractFieldByName(innerValue, "Alpha"); hasAlpha != nil {
+						if a, ok := hasAlpha.(float64); ok {
+							alpha = a
+						}
+					}
+					buf = appendFloat64(buf, alpha)
+					return buf
+
+				case "Dimension":
+					buf = append(buf, 1) // type = Dimension
+					if valGetter, ok := innerValue.(interface{ GetValue() float64 }); ok {
+						buf = appendFloat64(buf, valGetter.GetValue())
+					} else {
+						buf = appendFloat64(buf, 0)
+					}
+					unitStr := ""
+					if unitGetter, ok := innerValue.(interface{ GetUnit() any }); ok {
+						unit := unitGetter.GetUnit()
+						if unit != nil {
+							if s, ok := unit.(fmt.Stringer); ok {
+								unitStr = s.String()
+							} else if s, ok := unit.(interface{ ToString() string }); ok {
+								unitStr = s.ToString()
+							}
+						}
+					}
+					unitOffset := addStringToTable(unitStr)
+					buf = appendUint32(buf, unitOffset)
+					buf = appendUint32(buf, uint32(len(unitStr)))
+					return buf
+				}
+			}
+		}
+
+		// For complex types, write as JSON in the string table
+		buf = append(buf, 5) // type = Expression/List
+		jsonData, err := json.Marshal(serializeNode(value))
+		if err != nil {
+			return nil
+		}
+		jsonOffset := addStringToTable(string(jsonData))
+		buf = appendUint32(buf, jsonOffset)
+		buf = appendUint32(buf, uint32(len(jsonData)))
+
+	default:
+		return nil
+	}
+
+	return buf
+}
+
+// unwrapToSimpleValue tries to extract a simple value (Color, Dimension, etc.)
+// from wrapper types like Value and Expression.
+func unwrapToSimpleValue(value any) any {
+	if value == nil {
+		return nil
+	}
+
+	typer, ok := value.(interface{ GetType() string })
+	if !ok {
+		return nil
+	}
+
+	nodeType := typer.GetType()
+	switch nodeType {
+	case "Color", "Dimension", "Keyword", "Quoted":
+		return value
+	case "Expression", "Value":
+		// Try to get the inner value
+		if valGetter, ok := value.(interface{ GetValue() []any }); ok {
+			vals := valGetter.GetValue()
+			if len(vals) == 1 {
+				return unwrapToSimpleValue(vals[0])
+			}
+		}
+		if valGetter, ok := value.(interface{ GetValue() any }); ok {
+			inner := valGetter.GetValue()
+			if inner != value { // Avoid infinite recursion
+				return unwrapToSimpleValue(inner)
+			}
+		}
+	}
+	return nil
+}
+
+// writeUint32LE writes a uint32 in little-endian format to buf at offset.
+func writeUint32LE(buf []byte, offset int, v uint32) {
+	buf[offset] = byte(v)
+	buf[offset+1] = byte(v >> 8)
+	buf[offset+2] = byte(v >> 16)
+	buf[offset+3] = byte(v >> 24)
+}
+
+// appendUint32 appends a uint32 in little-endian format.
+func appendUint32(buf []byte, v uint32) []byte {
+	return append(buf, byte(v), byte(v>>8), byte(v>>16), byte(v>>24))
+}
+
 // callWithPrefetchContext pre-fetches commonly needed variables and sends them
 // with the function call, avoiding IPC round-trips for each lookup.
+// DEPRECATED: Use callWithSharedMemoryContext for better performance.
 func (jf *JSFunctionDefinition) callWithPrefetchContext(evalContext EvalContextProvider, args ...any) (any, error) {
 	// Serialize arguments for transfer
 	serializedArgs, err := jf.serializeArgs(args)

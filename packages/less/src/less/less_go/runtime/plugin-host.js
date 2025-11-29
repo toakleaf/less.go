@@ -671,6 +671,11 @@ function handleCommand(cmd) {
         handleCallFunction(id, data);
         break;
 
+      case 'callFunctionSHM':
+        // Call function with TRUE shared memory - NO JSON for variable data
+        handleCallFunctionSHM(id, data);
+        break;
+
       case 'getRegisteredFunctions':
         sendResponse(id, true, functionRegistry.getAll());
         break;
@@ -1852,6 +1857,323 @@ function handleCallFunction(id, data) {
   } catch (err) {
     sendResponse(id, false, null, `Function error: ${err.message}\n${err.stack || ''}`);
   }
+}
+
+/**
+ * Handle function call with TRUE shared memory - NO JSON for variable data.
+ * Variables are read directly from the mmap'd buffer using DataView.
+ *
+ * Buffer format:
+ * Header (24 bytes):
+ *   [4 bytes: magic 'LESV']
+ *   [4 bytes: version]
+ *   [4 bytes: variable count]
+ *   [4 bytes: index offset]
+ *   [4 bytes: data offset]
+ *   [4 bytes: string table offset]
+ *
+ * Variable index (12 bytes per variable):
+ *   [4 bytes: name offset in string table]
+ *   [4 bytes: name length]
+ *   [4 bytes: value offset in data section]
+ *
+ * Value types:
+ *   1 = Dimension, 2 = Color, 3 = Quoted, 4 = Keyword, 5 = Expression/JSON
+ */
+function handleCallFunctionSHM(id, data) {
+  const { name, args, bufferKey, bufferPath, frameCount, importantScope } = data || {};
+
+  if (!name) {
+    sendResponse(id, false, null, 'Function name is required');
+    return;
+  }
+
+  const fn = lookupFunction(name);
+  if (!fn) {
+    sendResponse(id, false, null, `Function not found: ${name}`);
+    return;
+  }
+
+  try {
+    // Read the shared memory buffer
+    let buffer;
+    if (attachedBuffers.has(bufferKey)) {
+      buffer = attachedBuffers.get(bufferKey).buffer;
+    } else {
+      // Read from file if not attached
+      buffer = fs.readFileSync(bufferPath);
+    }
+
+    // Parse header
+    const magic = buffer.toString('utf8', 0, 4);
+    if (magic !== 'LESV') {
+      sendResponse(id, false, null, `Invalid buffer magic: ${magic}`);
+      return;
+    }
+
+    const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.length);
+    const version = view.getUint32(4, true);
+    const varCount = view.getUint32(8, true);
+    const indexOffset = view.getUint32(12, true);
+    const dataOffset = view.getUint32(16, true);
+    const stringTableOffset = view.getUint32(20, true);
+
+    if (process.env.LESS_GO_DEBUG) {
+      console.error(`[handleCallFunctionSHM] ${name}: ${varCount} vars, version=${version}`);
+    }
+
+    // Build variable cache by reading directly from buffer
+    const variableCache = new Map();
+
+    for (let i = 0; i < varCount; i++) {
+      const entryOffset = indexOffset + (i * 12);
+      const nameStrOffset = view.getUint32(entryOffset, true);
+      const nameLen = view.getUint32(entryOffset + 4, true);
+      const valueOffset = view.getUint32(entryOffset + 8, true);
+
+      // Read variable name from string table
+      const varName = buffer.toString('utf8', stringTableOffset + nameStrOffset, stringTableOffset + nameStrOffset + nameLen);
+
+      // Read variable value from data section
+      const valuePos = dataOffset + valueOffset;
+      const value = readValueFromBuffer(view, buffer, valuePos, stringTableOffset);
+
+      if (value !== null) {
+        variableCache.set(varName, value);
+        if (process.env.LESS_GO_DEBUG) {
+          console.error(`[handleCallFunctionSHM] Loaded var ${varName}: ${value.value._type || 'unknown'}`);
+        }
+      }
+    }
+
+    // Create eval context that reads from cache or falls back to callback
+    const evalContext = createSHMEvalContext(frameCount, importantScope || [{}], variableCache);
+
+    // Convert arguments
+    const convertedArgs = (args || []).map(convertGoNodeToJS);
+
+    // Create this binding with context
+    const thisBinding = { context: evalContext };
+
+    // Call the function
+    const result = fn.apply(thisBinding, convertedArgs);
+
+    // Convert result
+    const goResult = convertJSResultToGo(result);
+
+    sendResponse(id, true, goResult);
+  } catch (err) {
+    sendResponse(id, false, null, `Function error: ${err.message}\n${err.stack || ''}`);
+  }
+}
+
+/**
+ * Read a value from the binary buffer at the given position.
+ * @param {DataView} view - DataView for reading numbers
+ * @param {Buffer} buffer - Full buffer for reading strings
+ * @param {number} pos - Position in buffer
+ * @param {number} stringTableOffset - Offset of string table
+ * @returns {Object|null} The variable value object { value, important }
+ */
+function readValueFromBuffer(view, buffer, pos, stringTableOffset) {
+  const important = view.getUint8(pos) === 1;
+  const type = view.getUint8(pos + 1);
+
+  let value = null;
+  let offset = pos + 2;
+
+  switch (type) {
+    case 1: // Dimension
+      {
+        const numValue = view.getFloat64(offset, true);
+        offset += 8;
+        const unitStrOffset = view.getUint32(offset, true);
+        offset += 4;
+        const unitLen = view.getUint32(offset, true);
+        offset += 4;
+        const unit = buffer.toString('utf8', stringTableOffset + unitStrOffset, stringTableOffset + unitStrOffset + unitLen);
+
+        value = {
+          _type: 'Dimension',
+          value: numValue,
+          unit: unit ? { numerator: [unit], denominator: [] } : null,
+        };
+        // Add eval method for compatibility
+        value.eval = function() { return this; };
+      }
+      break;
+
+    case 2: // Color
+      {
+        const r = view.getFloat64(offset, true);
+        offset += 8;
+        const g = view.getFloat64(offset, true);
+        offset += 8;
+        const b = view.getFloat64(offset, true);
+        offset += 8;
+        const alpha = view.getFloat64(offset, true);
+        offset += 8;
+
+        value = {
+          _type: 'Color',
+          rgb: [r, g, b],
+          alpha: alpha,
+        };
+        value.eval = function() { return this; };
+      }
+      break;
+
+    case 3: // Quoted
+      {
+        const strOffset = view.getUint32(offset, true);
+        offset += 4;
+        const strLen = view.getUint32(offset, true);
+        offset += 4;
+        const str = buffer.toString('utf8', stringTableOffset + strOffset, stringTableOffset + strOffset + strLen);
+        const quote = String.fromCharCode(view.getUint8(offset));
+        offset += 1;
+
+        value = {
+          _type: 'Quoted',
+          value: str,
+          quote: quote,
+        };
+        value.eval = function() { return this; };
+      }
+      break;
+
+    case 4: // Keyword
+      {
+        const strOffset = view.getUint32(offset, true);
+        offset += 4;
+        const strLen = view.getUint32(offset, true);
+        offset += 4;
+        const str = buffer.toString('utf8', stringTableOffset + strOffset, stringTableOffset + strOffset + strLen);
+
+        value = {
+          _type: 'Keyword',
+          value: str,
+        };
+        value.eval = function() { return this; };
+      }
+      break;
+
+    case 5: // Expression/JSON
+      {
+        const jsonOffset = view.getUint32(offset, true);
+        offset += 4;
+        const jsonLen = view.getUint32(offset, true);
+        offset += 4;
+        const jsonStr = buffer.toString('utf8', stringTableOffset + jsonOffset, stringTableOffset + jsonOffset + jsonLen);
+
+        try {
+          value = JSON.parse(jsonStr);
+          value = augmentValueWithMethods(value);
+        } catch (e) {
+          if (process.env.LESS_GO_DEBUG) {
+            console.error(`[readValueFromBuffer] Failed to parse JSON: ${e.message}`);
+          }
+          return null;
+        }
+      }
+      break;
+
+    default:
+      return null;
+  }
+
+  // Augment with methods
+  if (value) {
+    value = augmentValueWithMethods(value);
+  }
+
+  return { value, important };
+}
+
+/**
+ * Create an eval context that reads from the shared memory cache.
+ * Falls back to callback for variables not in the cache.
+ */
+function createSHMEvalContext(frameCount, importantScope, variableCache) {
+  const frames = [];
+
+  for (let i = 0; i < frameCount; i++) {
+    const frameIndex = i;
+    frames.push({
+      variable(name) {
+        // Check cache first (frame 0 contains all prefetched vars)
+        if (frameIndex === 0 && variableCache.has(name)) {
+          return variableCache.get(name);
+        }
+
+        // Check if already cached with frame index
+        const cacheKey = `${frameIndex}:${name}`;
+        if (variableCache.has(cacheKey)) {
+          return variableCache.get(cacheKey);
+        }
+
+        // Fall back to callback for non-cached variables
+        try {
+          const result = sendCallbackSync('lookupVariable', {
+            name: name,
+            frameIndex: frameIndex,
+          });
+
+          if (!result || !result.found) {
+            return undefined;
+          }
+
+          let value;
+          let important = false;
+
+          // Check if result came via shared memory
+          if (result.shmOffset !== undefined && result.shmLength !== undefined) {
+            // Read from shared memory at the specified offset
+            // (This would require re-reading the buffer, so for now fall back to JSON)
+            if (result.useJSON && result.value) {
+              value = convertGoNodeToJS(result.value.value);
+              important = result.value.important || false;
+            }
+          } else if (result.value) {
+            value = convertGoNodeToJS(result.value.value);
+            important = result.value.important || false;
+          }
+
+          if (!value) {
+            return undefined;
+          }
+
+          value = augmentValueWithMethods(value);
+
+          const varResult = { value, important };
+
+          // Cache the result
+          variableCache.set(cacheKey, varResult);
+
+          return varResult;
+        } catch (e) {
+          if (process.env.LESS_GO_DEBUG) {
+            console.error(`[createSHMEvalContext] Variable lookup failed for ${name}: ${e.message}`);
+          }
+          return undefined;
+        }
+      },
+      _frameIndex: frameIndex,
+      _shm: true,
+    });
+  }
+
+  return {
+    frames: frames,
+    importantScope: importantScope,
+    pluginManager: {
+      less: {
+        functions: {
+          functionRegistry: builtinFunctionRegistry,
+        },
+      },
+    },
+  };
 }
 
 /**
