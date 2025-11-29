@@ -242,6 +242,7 @@ func (jf *JSFunctionDefinition) CacheStats() int {
 	return 0
 }
 
+
 // Call calls the JavaScript function with the given arguments.
 //
 // The IPC mode (shared memory or JSON) is determined by the function's
