@@ -617,10 +617,10 @@ type EvalContextProvider interface {
 // CallWithContext calls the JavaScript function with evaluation context.
 // This is used by plugin functions that need to access Less variables.
 //
-// OPTIMIZATION: Uses pre-fetch + on-demand lookup for optimal performance:
-// 1. Pre-fetch commonly needed variables (avoiding IPC for them)
-// 2. For any other variables, use on-demand callback lookup
-// 3. Uses runtime-level shared cache for identical arguments (shared across all function instances)
+// OPTIMIZATION: Uses multiple strategies for optimal performance:
+// 1. Check result cache first (same args = same result)
+// 2. If SHM protocol is available, use binary protocol (fastest)
+// 3. Otherwise, use pre-fetch + on-demand lookup
 func (jf *JSFunctionDefinition) CallWithContext(evalContext EvalContextProvider, args ...any) (any, error) {
 	if jf.runtime == nil {
 		return nil, fmt.Errorf("Node.js runtime not initialized")
@@ -636,8 +636,25 @@ func (jf *JSFunctionDefinition) CallWithContext(evalContext EvalContextProvider,
 		return result, nil
 	}
 
+	var result any
+	var err error
+
+	// Try to use the high-performance SHM protocol if available
+	if jf.runtime.UseSHMProtocol() {
+		result, err = jf.callWithSHMProtocol(evalContext, args...)
+		if err == nil {
+			// Store result in shared runtime cache
+			jf.runtime.SetCachedResult(cacheKey, result)
+			return result, nil
+		}
+		// Fall back to prefetch mode on SHM error
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Printf("[CallWithContext] SHM protocol error, falling back: %v\n", err)
+		}
+	}
+
 	// Use pre-fetch mode for known plugin functions to avoid IPC overhead
-	result, err := jf.callWithPrefetchContext(evalContext, args...)
+	result, err = jf.callWithPrefetchContext(evalContext, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -647,6 +664,79 @@ func (jf *JSFunctionDefinition) CallWithContext(evalContext EvalContextProvider,
 	if os.Getenv("LESS_GO_DEBUG") == "1" {
 		fmt.Printf("[CallWithContext] Cache STORE for %s: %s\n", jf.name, cacheKey[:min(80, len(cacheKey))])
 	}
+
+	return result, nil
+}
+
+// callWithSHMProtocol calls the function using the binary shared memory protocol.
+// This is the fastest path - no JSON serialization, binary data transfer.
+func (jf *JSFunctionDefinition) callWithSHMProtocol(evalContext EvalContextProvider, args ...any) (any, error) {
+	protocol := jf.runtime.GetSHMProtocol()
+	if protocol == nil {
+		return nil, fmt.Errorf("SHM protocol not available")
+	}
+
+	// Get or register the function ID
+	funcID, ok := protocol.GetFunctionID(jf.name)
+	if !ok {
+		funcID = protocol.RegisterFunction(jf.name)
+		// Notify JS about the function mapping (one-time)
+		jf.runtime.SendCommand(Command{
+			Cmd: "registerSHMFunction",
+			Data: map[string]any{
+				"name": jf.name,
+				"id":   funcID,
+			},
+		})
+	}
+
+	// Prefetch variables from the evaluation context and write to shared memory
+	// This is critical - without variables, plugin functions can't look up LESS vars
+	if evalContext != nil {
+		frames := evalContext.GetFramesAny()
+		if len(frames) > 0 {
+			varDecls := jf.collectPrefetchVariables(frames)
+			if len(varDecls) > 0 {
+				if err := protocol.WriteVariables(varDecls); err != nil {
+					if os.Getenv("LESS_GO_DEBUG") == "1" {
+						fmt.Printf("[callWithSHMProtocol] Failed to write variables: %v\n", err)
+					}
+				}
+			}
+		}
+	}
+
+	// Prepare the call
+	if err := protocol.PrepareCall(funcID, len(args)); err != nil {
+		return nil, fmt.Errorf("failed to prepare call: %w", err)
+	}
+
+	// Write arguments
+	for i, arg := range args {
+		if _, err := protocol.WriteArg(i, arg); err != nil {
+			return nil, fmt.Errorf("failed to write arg %d: %w", i, err)
+		}
+	}
+
+	// Signal the request
+	if err := protocol.SignalRequest(); err != nil {
+		return nil, fmt.Errorf("failed to signal request: %w", err)
+	}
+
+	// Wait for response (timeout: 30 seconds)
+	ready, err := protocol.WaitForResponse(30000)
+	if err != nil || !ready {
+		return nil, fmt.Errorf("timeout or error waiting for response: %v", err)
+	}
+
+	// Read the result
+	result, err := protocol.ReadResult()
+	if err != nil {
+		return nil, err
+	}
+
+	// Clear for next call
+	protocol.ClearResponse()
 
 	return result, nil
 }

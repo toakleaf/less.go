@@ -321,6 +321,55 @@ const registeredPreProcessors = [];
 const registeredPostProcessors = [];
 const registeredFileManagers = [];
 
+// ============================================================================
+// High-Performance Shared Memory Protocol State
+// ============================================================================
+// This is a persistent 4MB shared memory region for binary IPC.
+// Much faster than JSON serialization for repeated function calls.
+
+let shmProtocol = null; // { path, fd, buffer, controlLayout, sectionOffsets }
+let shmFunctionMap = new Map(); // function ID -> function name
+let shmPollingActive = false;
+let shmPollingInterval = null;
+
+// Control block field offsets (will be populated from Go)
+const SHM_CONTROL = {
+  requestReady: 0x000,
+  responseReady: 0x004,
+  functionId: 0x008,
+  argCount: 0x00C,
+  argOffsets: 0x010, // Array of 16 uint32s
+  resultOffset: 0x050,
+  resultSize: 0x054,
+  errorFlag: 0x058,
+  errorOffset: 0x05C,
+  errorSize: 0x060,
+  shutdown: 0x064,
+  jsReady: 0x068,
+};
+
+// Section offsets (will be populated from Go)
+const SHM_SECTIONS = {
+  controlBlock: 0,
+  variablesSection: 4096,
+  argsSection: 4096 + 1024 * 1024,
+  resultsSection: 4096 + 2 * 1024 * 1024,
+  errorBuffer: 4096 + 3 * 1024 * 1024,
+};
+
+// Argument types (must match Go constants)
+const ARG_TYPE_NULL = 0;
+const ARG_TYPE_DIMENSION = 1;
+const ARG_TYPE_COLOR = 2;
+const ARG_TYPE_QUOTED = 3;
+const ARG_TYPE_KEYWORD = 4;
+const ARG_TYPE_EXPRESSION = 5;
+const ARG_TYPE_ANONYMOUS = 6;
+const ARG_TYPE_VARIABLE = 7;
+const ARG_TYPE_NUMBER = 8;
+const ARG_TYPE_BOOLEAN = 9;
+const ARG_TYPE_CALL = 10;
+
 // Function scope stack for proper scoping of plugin functions
 // Each scope is a Map of function name -> function
 // The stack represents nested scopes: [root, child1, child2, ...]
@@ -794,6 +843,17 @@ function handleCommand(cmd) {
 
       case 'fileManagerLoad':
         handleFileManagerLoad(id, data);
+        break;
+
+      // =====================================================================
+      // High-Performance Shared Memory Protocol Commands
+      // =====================================================================
+      case 'initSHMProtocol':
+        handleInitSHMProtocol(id, data);
+        break;
+
+      case 'registerSHMFunction':
+        handleRegisterSHMFunction(id, data);
         break;
 
       default:
@@ -3556,6 +3616,589 @@ function handleFileManagerLoad(id, data) {
   } catch (err) {
     sendResponse(id, false, null, `File manager load error: ${err.message}\n${err.stack || ''}`);
   }
+}
+
+// ============================================================================
+// High-Performance Shared Memory Protocol Handlers
+// ============================================================================
+
+/**
+ * Initialize the shared memory protocol.
+ * Opens the shared memory file and starts the polling loop.
+ * @param {number} id - Command ID
+ * @param {Object} data - { path, key, totalSize, controlLayout, sectionOffsets }
+ */
+function handleInitSHMProtocol(id, data) {
+  const { path: shmPath, key, totalSize, controlLayout, sectionOffsets } = data || {};
+
+  if (!shmPath) {
+    sendResponse(id, false, null, 'Shared memory path is required');
+    return;
+  }
+
+  try {
+    // Close existing protocol if any
+    if (shmProtocol) {
+      stopSHMPolling();
+      if (shmProtocol.fd) {
+        fs.closeSync(shmProtocol.fd);
+      }
+    }
+
+    // Open the shared memory file
+    const fd = fs.openSync(shmPath, 'r+');
+
+    // Read the entire file into a buffer for efficient access
+    const buffer = Buffer.alloc(totalSize);
+    fs.readSync(fd, buffer, 0, totalSize, 0);
+
+    // Update control layout if provided
+    if (controlLayout) {
+      Object.assign(SHM_CONTROL, controlLayout);
+    }
+    if (sectionOffsets) {
+      Object.assign(SHM_SECTIONS, sectionOffsets);
+    }
+
+    shmProtocol = {
+      path: shmPath,
+      key,
+      fd,
+      buffer,
+      totalSize,
+    };
+
+    // Signal that JS is ready
+    buffer.writeUInt32LE(1, SHM_SECTIONS.controlBlock + SHM_CONTROL.jsReady);
+    fs.writeSync(fd, buffer, SHM_SECTIONS.controlBlock + SHM_CONTROL.jsReady, 4, SHM_SECTIONS.controlBlock + SHM_CONTROL.jsReady);
+
+    // Start the polling loop
+    startSHMPolling();
+
+    if (process.env.LESS_GO_DEBUG) {
+      console.error(`[plugin-host] SHM protocol initialized: ${shmPath}, size=${totalSize}`);
+    }
+
+    sendResponse(id, true, { initialized: true, path: shmPath });
+  } catch (err) {
+    sendResponse(id, false, null, `Failed to initialize SHM protocol: ${err.message}`);
+  }
+}
+
+/**
+ * Register a function ID mapping for the SHM protocol.
+ * @param {number} id - Command ID
+ * @param {Object} data - { name, id: funcId }
+ */
+function handleRegisterSHMFunction(id, data) {
+  const { name, id: funcId } = data || {};
+
+  if (!name || funcId === undefined) {
+    sendResponse(id, false, null, 'Function name and ID are required');
+    return;
+  }
+
+  shmFunctionMap.set(funcId, name);
+
+  if (process.env.LESS_GO_DEBUG) {
+    console.error(`[plugin-host] SHM function registered: ${name} -> ${funcId}`);
+  }
+
+  sendResponse(id, true, { registered: true, name, id: funcId });
+}
+
+/**
+ * Start the SHM polling loop.
+ * Polls the control block for incoming requests.
+ */
+function startSHMPolling() {
+  if (shmPollingActive) {
+    return;
+  }
+
+  shmPollingActive = true;
+
+  // Use setImmediate for fast polling without blocking the event loop
+  const poll = () => {
+    if (!shmPollingActive || !shmProtocol) {
+      return;
+    }
+
+    try {
+      // Re-read the control block from the file
+      fs.readSync(shmProtocol.fd, shmProtocol.buffer, SHM_SECTIONS.controlBlock, 256, SHM_SECTIONS.controlBlock);
+
+      // Check for shutdown
+      const shutdown = shmProtocol.buffer.readUInt32LE(SHM_SECTIONS.controlBlock + SHM_CONTROL.shutdown);
+      if (shutdown === 1) {
+        stopSHMPolling();
+        return;
+      }
+
+      // Check for request
+      const requestReady = shmProtocol.buffer.readUInt32LE(SHM_SECTIONS.controlBlock + SHM_CONTROL.requestReady);
+      if (requestReady === 1) {
+        processSHMRequest();
+      }
+    } catch (err) {
+      if (process.env.LESS_GO_DEBUG) {
+        console.error(`[plugin-host] SHM polling error: ${err.message}`);
+      }
+    }
+
+    // Schedule next poll with setImmediate for fastest response
+    if (shmPollingActive) {
+      setImmediate(poll);
+    }
+  };
+
+  // Start polling
+  setImmediate(poll);
+}
+
+/**
+ * Stop the SHM polling loop.
+ */
+function stopSHMPolling() {
+  shmPollingActive = false;
+  if (shmPollingInterval) {
+    clearInterval(shmPollingInterval);
+    shmPollingInterval = null;
+  }
+}
+
+/**
+ * Process an incoming SHM request.
+ */
+function processSHMRequest() {
+  if (!shmProtocol) {
+    return;
+  }
+
+  const buffer = shmProtocol.buffer;
+  const controlBase = SHM_SECTIONS.controlBlock;
+
+  try {
+    // Read request parameters from control block
+    const funcId = buffer.readUInt32LE(controlBase + SHM_CONTROL.functionId);
+    const argCount = buffer.readUInt32LE(controlBase + SHM_CONTROL.argCount);
+
+    // Get function name from ID
+    const funcName = shmFunctionMap.get(funcId);
+    if (!funcName) {
+      writeSHMError(`Function ID not found: ${funcId}`);
+      signalSHMResponse();
+      return;
+    }
+
+    // Look up the function
+    const fn = lookupFunction(funcName);
+    if (!fn) {
+      writeSHMError(`Function not found: ${funcName}`);
+      signalSHMResponse();
+      return;
+    }
+
+    // Read arguments from the args section
+    const args = [];
+    for (let i = 0; i < argCount; i++) {
+      const argOffset = buffer.readUInt32LE(controlBase + SHM_CONTROL.argOffsets + i * 4);
+
+      if (process.env.LESS_GO_DEBUG) {
+        console.error(`[plugin-host] SHM arg ${i}: offset=${argOffset}`);
+      }
+
+      const arg = readSHMArgument(argOffset);
+
+      if (process.env.LESS_GO_DEBUG) {
+        console.error(`[plugin-host] SHM arg ${i} raw:`, JSON.stringify(arg));
+      }
+
+      // Convert to JS format with proper getters and methods
+      // This is the same conversion done in handleCallFunction
+      const converted = convertGoNodeToJS(arg);
+      const augmented = converted ? augmentValueWithMethods(converted) : converted;
+      args.push(augmented);
+
+      if (process.env.LESS_GO_DEBUG) {
+        console.error(`[plugin-host] SHM arg ${i} final type:`, augmented ? (augmented._type || typeof augmented) : 'null');
+      }
+    }
+
+    // Create a minimal context with prefetched variables
+    const evalContext = createSHMEvalContext();
+
+    // Create the `this` binding with context property
+    // Bootstrap plugin functions access context via `this.context`
+    const thisBinding = {
+      context: evalContext,
+    };
+
+    if (process.env.LESS_GO_DEBUG) {
+      console.error(`[plugin-host] SHM calling ${funcName} with ${args.length} args, context.frames.length=${evalContext.frames ? evalContext.frames.length : 'null'}`);
+    }
+
+    // Call the function with thisBinding as `this` and args
+    const result = fn.apply(thisBinding, args);
+
+    // Write result to results section
+    writeSHMResult(result);
+
+    if (process.env.LESS_GO_DEBUG) {
+      console.error(`[plugin-host] SHM call: ${funcName}(${args.length} args) -> ${typeof result}`);
+    }
+  } catch (err) {
+    writeSHMError(err.message || String(err));
+    if (process.env.LESS_GO_DEBUG) {
+      console.error(`[plugin-host] SHM call error: ${err.message}`);
+    }
+  }
+
+  // Signal response ready
+  signalSHMResponse();
+}
+
+/**
+ * Read an argument from the SHM args section.
+ * @param {number} offset - Offset within the args section
+ * @returns {any} The parsed argument value
+ */
+function readSHMArgument(offset) {
+  const buffer = shmProtocol.buffer;
+  const argsBase = SHM_SECTIONS.argsSection;
+  let pos = argsBase + offset;
+
+  // Re-read the args section for this argument
+  fs.readSync(shmProtocol.fd, buffer, pos, 256, pos); // Read up to 256 bytes for the argument
+
+  const argType = buffer[pos++];
+
+  switch (argType) {
+    case ARG_TYPE_NULL:
+      return null;
+
+    case ARG_TYPE_DIMENSION:
+      {
+        const value = readFloat64LE(buffer, pos);
+        pos += 8;
+        const unitLen = buffer.readUInt32LE(pos);
+        pos += 4;
+        const unit = buffer.toString('utf8', pos, pos + unitLen);
+        return {
+          _type: 'Dimension',
+          value,
+          unit: unit ? { numerator: [unit], denominator: [] } : { numerator: [], denominator: [] },
+        };
+      }
+
+    case ARG_TYPE_COLOR:
+      {
+        const r = readFloat64LE(buffer, pos);
+        pos += 8;
+        const g = readFloat64LE(buffer, pos);
+        pos += 8;
+        const b = readFloat64LE(buffer, pos);
+        pos += 8;
+        const alpha = readFloat64LE(buffer, pos);
+        return {
+          _type: 'Color',
+          rgb: [r, g, b],
+          alpha,
+        };
+      }
+
+    case ARG_TYPE_QUOTED:
+      {
+        const strLen = buffer.readUInt32LE(pos);
+        pos += 4;
+        const strVal = buffer.toString('utf8', pos, pos + strLen);
+        pos += strLen;
+        const quote = String.fromCharCode(buffer[pos++]);
+        const escaped = buffer[pos] === 1;
+        return {
+          _type: 'Quoted',
+          value: strVal,
+          quote,
+          escaped,
+        };
+      }
+
+    case ARG_TYPE_KEYWORD:
+      {
+        const strLen = buffer.readUInt32LE(pos);
+        pos += 4;
+        const strVal = buffer.toString('utf8', pos, pos + strLen);
+        return {
+          _type: 'Keyword',
+          value: strVal,
+        };
+      }
+
+    case ARG_TYPE_ANONYMOUS:
+      {
+        const strLen = buffer.readUInt32LE(pos);
+        pos += 4;
+        const strVal = buffer.toString('utf8', pos, pos + strLen);
+        return {
+          _type: 'Anonymous',
+          value: strVal,
+        };
+      }
+
+    case ARG_TYPE_NUMBER:
+      return readFloat64LE(buffer, pos);
+
+    case ARG_TYPE_BOOLEAN:
+      return buffer[pos] === 1;
+
+    default:
+      return null;
+  }
+}
+
+/**
+ * Write a result to the SHM results section.
+ * @param {any} result - The result value to write
+ */
+function writeSHMResult(result) {
+  const buffer = shmProtocol.buffer;
+  const resultsBase = SHM_SECTIONS.resultsSection;
+  const controlBase = SHM_SECTIONS.controlBlock;
+  let pos = resultsBase;
+
+  // Convert the result to Go-compatible format
+  const goResult = convertJSResultToGo(result);
+
+  // Write the result in binary format
+  pos = writeSHMValue(buffer, pos, goResult);
+
+  const resultSize = pos - resultsBase;
+
+  // Update control block with result info
+  buffer.writeUInt32LE(0, controlBase + SHM_CONTROL.resultOffset); // Offset within results section
+  buffer.writeUInt32LE(resultSize, controlBase + SHM_CONTROL.resultSize);
+  buffer.writeUInt32LE(0, controlBase + SHM_CONTROL.errorFlag);
+
+  // Write results back to file
+  fs.writeSync(shmProtocol.fd, buffer, resultsBase, resultSize, resultsBase);
+}
+
+/**
+ * Write a value to a buffer in binary format.
+ * @param {Buffer} buf - The buffer to write to
+ * @param {number} pos - The position to write at
+ * @param {any} value - The value to write
+ * @returns {number} The new position after writing
+ */
+function writeSHMValue(buf, pos, value) {
+  if (value === null || value === undefined) {
+    buf[pos++] = ARG_TYPE_NULL;
+    return pos;
+  }
+
+  const nodeType = value._type || value.type;
+
+  switch (nodeType) {
+    case 'Dimension':
+      buf[pos++] = ARG_TYPE_DIMENSION;
+      writeFloat64LE(buf, pos, value.value || 0);
+      pos += 8;
+      const unit = typeof value.unit === 'string' ? value.unit : (value.unit && value.unit.numerator ? value.unit.numerator[0] || '' : '');
+      const unitBuf = Buffer.from(unit, 'utf8');
+      buf.writeUInt32LE(unitBuf.length, pos);
+      pos += 4;
+      unitBuf.copy(buf, pos);
+      pos += unitBuf.length;
+      break;
+
+    case 'Color':
+      buf[pos++] = ARG_TYPE_COLOR;
+      const rgb = value.rgb || [0, 0, 0];
+      writeFloat64LE(buf, pos, rgb[0] || 0);
+      pos += 8;
+      writeFloat64LE(buf, pos, rgb[1] || 0);
+      pos += 8;
+      writeFloat64LE(buf, pos, rgb[2] || 0);
+      pos += 8;
+      writeFloat64LE(buf, pos, value.alpha !== undefined ? value.alpha : 1);
+      pos += 8;
+      break;
+
+    case 'Quoted':
+      buf[pos++] = ARG_TYPE_QUOTED;
+      const quotedStr = String(value.value || '');
+      const quotedBuf = Buffer.from(quotedStr, 'utf8');
+      buf.writeUInt32LE(quotedBuf.length, pos);
+      pos += 4;
+      quotedBuf.copy(buf, pos);
+      pos += quotedBuf.length;
+      buf[pos++] = (value.quote || '"').charCodeAt(0);
+      buf[pos++] = value.escaped ? 1 : 0;
+      break;
+
+    case 'Keyword':
+      buf[pos++] = ARG_TYPE_KEYWORD;
+      const kwStr = String(value.value || '');
+      const kwBuf = Buffer.from(kwStr, 'utf8');
+      buf.writeUInt32LE(kwBuf.length, pos);
+      pos += 4;
+      kwBuf.copy(buf, pos);
+      pos += kwBuf.length;
+      break;
+
+    case 'Anonymous':
+      buf[pos++] = ARG_TYPE_ANONYMOUS;
+      const anonStr = String(value.value || '');
+      const anonBuf = Buffer.from(anonStr, 'utf8');
+      buf.writeUInt32LE(anonBuf.length, pos);
+      pos += 4;
+      anonBuf.copy(buf, pos);
+      pos += anonBuf.length;
+      break;
+
+    default:
+      // Handle primitives
+      if (typeof value === 'number') {
+        buf[pos++] = ARG_TYPE_NUMBER;
+        writeFloat64LE(buf, pos, value);
+        pos += 8;
+      } else if (typeof value === 'boolean') {
+        buf[pos++] = ARG_TYPE_BOOLEAN;
+        buf[pos++] = value ? 1 : 0;
+      } else if (typeof value === 'string') {
+        buf[pos++] = ARG_TYPE_KEYWORD;
+        const strBuf = Buffer.from(value, 'utf8');
+        buf.writeUInt32LE(strBuf.length, pos);
+        pos += 4;
+        strBuf.copy(buf, pos);
+        pos += strBuf.length;
+      } else {
+        buf[pos++] = ARG_TYPE_NULL;
+      }
+  }
+
+  return pos;
+}
+
+/**
+ * Write a float64 in little-endian format.
+ * @param {Buffer} buf - The buffer to write to
+ * @param {number} offset - The offset to write at
+ * @param {number} value - The float64 value
+ */
+function writeFloat64LE(buf, offset, value) {
+  const dv = new DataView(new ArrayBuffer(8));
+  dv.setFloat64(0, value, true);
+  for (let i = 0; i < 8; i++) {
+    buf[offset + i] = dv.getUint8(i);
+  }
+}
+
+/**
+ * Write an error to the SHM error buffer.
+ * @param {string} message - The error message
+ */
+function writeSHMError(message) {
+  const buffer = shmProtocol.buffer;
+  const errorBase = SHM_SECTIONS.errorBuffer;
+  const controlBase = SHM_SECTIONS.controlBlock;
+
+  const msgBuf = Buffer.from(message, 'utf8');
+  const msgLen = Math.min(msgBuf.length, 64 * 1024 - 4); // Leave room in error buffer
+
+  msgBuf.copy(buffer, errorBase, 0, msgLen);
+
+  // Update control block with error info
+  buffer.writeUInt32LE(1, controlBase + SHM_CONTROL.errorFlag);
+  buffer.writeUInt32LE(0, controlBase + SHM_CONTROL.errorOffset);
+  buffer.writeUInt32LE(msgLen, controlBase + SHM_CONTROL.errorSize);
+
+  // Write error buffer to file
+  fs.writeSync(shmProtocol.fd, buffer, errorBase, msgLen, errorBase);
+}
+
+/**
+ * Signal that the response is ready by setting the responseReady flag.
+ */
+function signalSHMResponse() {
+  const buffer = shmProtocol.buffer;
+  const controlBase = SHM_SECTIONS.controlBlock;
+
+  // Clear request flag, set response flag
+  buffer.writeUInt32LE(0, controlBase + SHM_CONTROL.requestReady);
+  buffer.writeUInt32LE(1, controlBase + SHM_CONTROL.responseReady);
+
+  // Write control block to file (just the flags section)
+  fs.writeSync(shmProtocol.fd, buffer, controlBase, 256, controlBase);
+}
+
+/**
+ * Create an evaluation context from the SHM variables section.
+ * This reads prefetched variables from the shared memory.
+ * @returns {Object} An evaluation context object
+ */
+function createSHMEvalContext() {
+  // Create variable cache from prefetched vars (if available)
+  const variableCache = new Map();
+
+  if (shmProtocol) {
+    const buffer = shmProtocol.buffer;
+    const varsBase = SHM_SECTIONS.variablesSection;
+
+    try {
+      // Re-read the variables section header
+      fs.readSync(shmProtocol.fd, buffer, varsBase, 1024 * 1024, varsBase);
+
+      // Parse the prefetched variables
+      const prefetchedVars = parseBinaryPrefetchBuffer(buffer.slice(varsBase, varsBase + 1024 * 1024), 1024 * 1024);
+
+      // Populate cache from prefetched vars
+      for (const [name, varData] of prefetchedVars) {
+        let value = varData.value;
+        value = augmentValueWithMethods(value);
+        variableCache.set(`0:${name}`, {
+          value,
+          important: varData.important || false,
+        });
+      }
+
+      if (process.env.LESS_GO_DEBUG && prefetchedVars.size > 0) {
+        console.error(`[plugin-host] createSHMEvalContext: loaded ${prefetchedVars.size} prefetched vars`);
+      }
+    } catch (e) {
+      if (process.env.LESS_GO_DEBUG) {
+        console.error(`[plugin-host] createSHMEvalContext: failed to read vars: ${e.message}`);
+      }
+    }
+  }
+
+  // Create frames with variable lookup
+  const frames = [{
+    variable(name) {
+      const cacheKey = `0:${name}`;
+      if (variableCache.has(cacheKey)) {
+        return variableCache.get(cacheKey);
+      }
+      // Return undefined for variables not in the cache
+      // This is okay - the function will handle it
+      return undefined;
+    },
+    _prefetch: true,
+  }];
+
+  const context = {
+    frames,
+    importantScope: [{}],
+    pluginManager: {
+      less: {
+        functions: {
+          functionRegistry: builtinFunctionRegistry,
+        },
+      },
+    },
+  };
+
+  return context;
 }
 
 // Export for testing
