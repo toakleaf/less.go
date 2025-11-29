@@ -191,6 +191,51 @@ func (lb *LazyNodeJSPluginBridge) GetPostEvalVisitors() []*runtime.JSVisitor {
 	return lb.bridge.GetPostEvalVisitors()
 }
 
+// GetProcessorManager returns the processor manager.
+// Returns nil if the bridge hasn't been initialized.
+func (lb *LazyNodeJSPluginBridge) GetProcessorManager() *runtime.ProcessorManager {
+	if !lb.IsInitialized() {
+		return nil
+	}
+	return lb.bridge.GetProcessorManager()
+}
+
+// GetPreProcessors returns all registered pre-processors.
+// Returns nil if the bridge hasn't been initialized.
+func (lb *LazyNodeJSPluginBridge) GetPreProcessors() []*runtime.JSPreProcessor {
+	if !lb.IsInitialized() {
+		return nil
+	}
+	return lb.bridge.GetPreProcessors()
+}
+
+// GetPostProcessors returns all registered post-processors.
+// Returns nil if the bridge hasn't been initialized.
+func (lb *LazyNodeJSPluginBridge) GetPostProcessors() []*runtime.JSPostProcessor {
+	if !lb.IsInitialized() {
+		return nil
+	}
+	return lb.bridge.GetPostProcessors()
+}
+
+// RunPreProcessors runs all pre-processors on the input source.
+// Returns the input unchanged if the bridge hasn't been initialized.
+func (lb *LazyNodeJSPluginBridge) RunPreProcessors(input string, options map[string]any) (string, error) {
+	if !lb.IsInitialized() {
+		return input, nil
+	}
+	return lb.bridge.RunPreProcessors(input, options)
+}
+
+// RunPostProcessors runs all post-processors on the CSS output.
+// Returns the CSS unchanged if the bridge hasn't been initialized.
+func (lb *LazyNodeJSPluginBridge) RunPostProcessors(css string, options map[string]any) (string, error) {
+	if !lb.IsInitialized() {
+		return css, nil
+	}
+	return lb.bridge.RunPostProcessors(css, options)
+}
+
 // Close shuts down the Node.js runtime if it was initialized.
 // This should be called when compilation is complete.
 func (lb *LazyNodeJSPluginBridge) Close() error {
