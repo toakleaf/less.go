@@ -106,6 +106,7 @@ func wrapPercentage(fn func(n *Dimension) (*Dimension, error)) func(args ...inte
 		if len(args) != 1 {
 			return nil, fmt.Errorf("percentage expects 1 argument, got %d", len(args))
 		}
+
 		dim, ok := args[0].(*Dimension)
 		if !ok {
 			// Return LessError with type "Argument" to match JavaScript behavior

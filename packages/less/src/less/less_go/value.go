@@ -68,6 +68,11 @@ func (v *Value) GetTypeIndex() int {
 	return GetTypeIndexForNodeType("Value")
 }
 
+// GetValue returns the value array (for JS serialization compatibility)
+func (v *Value) GetValue() []any {
+	return v.Value
+}
+
 // Accept visits the node with a visitor
 func (v *Value) Accept(visitor any) {
 	if v.Value != nil {

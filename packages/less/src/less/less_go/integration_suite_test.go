@@ -301,9 +301,11 @@ var quarantinedTests = map[string][]string{
 		// "import",
 	},
 	"third-party": {
-		// Bootstrap 4 uses JavaScript plugins for custom functions
-		// Plugins load but fails with percentage() argument error in _grid.less
-		// Needs debugging: Error evaluating function `percentage`: Argument: argument must be a number
+		// Bootstrap 4 requires context-aware plugins that can look up variables via `this.context.frames`.
+		// The bootstrap-less-port plugins (breakpoints, theme-color-level, etc.) need access to
+		// the Less.js evaluation context for variable lookups. This requires serializing the Go
+		// frames/variables to JavaScript, which is a significant feature beyond basic plugin support.
+		// The percentage() function bug has been fixed, but context-aware plugins are not yet supported.
 		"bootstrap4",
 	},
 	"js-type-errors": {
@@ -848,8 +850,8 @@ func isPluginTest(testName string) bool {
 	}
 	// Other tests that use @plugin directive
 	pluginTests := map[string]bool{
-		"import": true, // Uses @plugin "../../plugin/plugin-simple"
-		// bootstrap4 quarantined - fails with percentage() argument error in _grid.less
+		"import":     true, // Uses @plugin "../../plugin/plugin-simple"
+		"bootstrap4": true, // Uses @plugin directives for breakpoints, map-get, color-yiq, etc.
 	}
 	return pluginTests[testName]
 }
