@@ -122,10 +122,17 @@ func toHSV(color any) (*HSV, error) {
 // hslaHelper creates a color from HSL values, preserving the original color's format
 func hslaHelper(origColor *Color, h, s, l, a float64) *Color {
 	color := colorHSLA(h, s, l, a)
-	if color != nil && origColor != nil && origColor.Value != "" {
-		if strings.HasPrefix(origColor.Value, "rgb") || strings.HasPrefix(origColor.Value, "hsl") {
-			color.Value = origColor.Value
+	if color != nil && origColor != nil {
+		if origColor.Value != "" {
+			if strings.HasPrefix(origColor.Value, "rgb") || strings.HasPrefix(origColor.Value, "hsl") {
+				color.Value = origColor.Value
+			} else {
+				// Original was hex or keyword - output as hex (rgb format)
+				color.Value = "rgb"
+			}
 		} else {
+			// Original had no format specified - default to hex (rgb format)
+			// This matches JavaScript's behavior where colors default to hex output
 			color.Value = "rgb"
 		}
 	}
