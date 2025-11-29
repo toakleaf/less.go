@@ -4,9 +4,63 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/toakleaf/less.go/packages/less/src/less/less_go/runtime"
 )
+
+// mathEvalContextPool pools *Eval contexts for createMathEnabledContext.
+// These are short-lived contexts used during function argument evaluation.
+var mathEvalContextPool = sync.Pool{
+	New: func() any {
+		return &Eval{}
+	},
+}
+
+// getMathEnabledEvalContext gets a pooled Eval context and copies fields from source.
+// The returned context has MathOn set to true.
+func getMathEnabledEvalContext(source *Eval) *Eval {
+	ctx := mathEvalContextPool.Get().(*Eval)
+	// Copy all fields from source (shallow copy)
+	*ctx = *source
+	// Enable math for function argument evaluation
+	ctx.MathOn = true
+	return ctx
+}
+
+// putMathEnabledEvalContext returns a context to the pool after resetting.
+// This must be called when done using a context from getMathEnabledEvalContext.
+func putMathEnabledEvalContext(ctx *Eval) {
+	if ctx == nil {
+		return
+	}
+	// Reset pointer fields to avoid retaining references
+	ctx.Paths = nil
+	ctx.ImportantScope = nil
+	ctx.Frames = nil
+	ctx.CalcStack = nil
+	ctx.ParensStack = nil
+	ctx.DefaultFunc = nil
+	ctx.FunctionRegistry = nil
+	ctx.MediaBlocks = nil
+	ctx.MediaPath = nil
+	ctx.PluginManager = nil
+	ctx.PluginBridge = nil
+	ctx.LazyPluginBridge = nil
+	// Reset scalar fields to zero values
+	ctx.Compress = false
+	ctx.Math = 0
+	ctx.StrictUnits = false
+	ctx.SourceMap = false
+	ctx.ImportMultiple = false
+	ctx.UrlArgs = ""
+	ctx.JavascriptEnabled = false
+	ctx.RewriteUrls = 0
+	ctx.NumPrecision = 0
+	ctx.InCalc = false
+	ctx.MathOn = false
+	mathEvalContextPool.Put(ctx)
+}
 
 // EvalContext represents the interface needed for evaluation context
 type EvalContext interface {
@@ -183,19 +237,19 @@ func (c *DefaultParserFunctionCaller) IsValid() bool {
 	return c.valid
 }
 
-// createMathEnabledContext creates a context with math enabled for function arguments
+// createMathEnabledContext creates a context with math enabled for function arguments.
 // This matches JavaScript behavior where mathOn is set to true (for non-calc functions)
-// but the math mode and parensStack logic is still respected
-func (c *DefaultParserFunctionCaller) createMathEnabledContext() any {
+// but the math mode and parensStack logic is still respected.
+// Returns (context, pooled) where pooled is true if the context came from a pool
+// and must be returned via putMathEnabledEvalContext when done.
+func (c *DefaultParserFunctionCaller) createMathEnabledContext() (any, bool) {
 	// Handle *Eval context (the most common case)
 	if evalCtx, ok := c.context.(*Eval); ok {
-		// Clone the Eval context and enable math
-		newCtx := *evalCtx // Shallow copy
-		newCtx.MathOn = true
+		// Get pooled context and copy fields from source
 		// DON'T override Math mode - keep the original (strict, parens-division, etc.)
 		// This ensures that in strict math mode, operations like 16/17 are not evaluated
 		// unless they're in parentheses like (16/17)
-		return &newCtx
+		return getMathEnabledEvalContext(evalCtx), true
 	}
 
 	// Try to create a map context with math enabled
@@ -287,18 +341,18 @@ func (c *DefaultParserFunctionCaller) createMathEnabledContext() any {
 			return true
 		}
 
-		return newCtx
+		return newCtx, false
 	}
 
 	// For other EvalContext implementations, try to enable math if possible
 	if evalCtx, ok := c.context.(EvalContext); ok && evalCtx != nil {
 		// Can't clone easily, but we can try to modify if it's a mutable reference
 		// For now, just return the original - this is a fallback case
-		return evalCtx
+		return evalCtx, false
 	}
 
 	// Fallback: return the original context
-	return c.context
+	return c.context, false
 }
 
 // Call executes the function with the given arguments
@@ -333,7 +387,10 @@ func (c *DefaultParserFunctionCaller) Call(args []any) (any, error) {
 	// For functions that need evaluated args, evaluate them first
 	// Function arguments should always be evaluated with math enabled
 	// because functions operate on computed values
-	mathCtx := c.createMathEnabledContext()
+	mathCtx, pooled := c.createMathEnabledContext()
+	if pooled {
+		defer putMathEnabledEvalContext(mathCtx.(*Eval))
+	}
 
 	evaluatedArgs := make([]any, len(args))
 	for i, arg := range args {
