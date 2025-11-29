@@ -673,6 +673,16 @@ func (r *Ruleset) Eval(context any) (any, error) {
 		}
 	}
 
+	// Run pre-eval visitors after imports are processed (plugins are loaded)
+	// This should only run for the root ruleset to avoid multiple runs
+	if ruleset.Root && pluginEvalCtx != nil && pluginEvalCtx.LazyPluginBridge != nil {
+		if pluginEvalCtx.LazyPluginBridge.IsInitialized() {
+			if bridge, err := pluginEvalCtx.LazyPluginBridge.GetBridge(); err == nil && bridge.HasPreEvalVisitors() {
+				runPreEvalVisitorReplacementsOnRuleset(ruleset, bridge)
+			}
+		}
+	}
+
 	// Evaluate rules that need to be evaluated first
 	rsRules := ruleset.Rules
 	for i, rule := range rsRules {
@@ -2756,4 +2766,283 @@ func (r *Ruleset) SetAllExtends(extends []*Extend) {
 // GetAllExtends returns the AllExtends field (used by ProcessExtendsVisitor)
 func (r *Ruleset) GetAllExtends() []*Extend {
 	return r.AllExtends
+}
+
+// runPreEvalVisitorReplacementsOnRuleset runs pre-eval visitor replacements on the ruleset.
+// This is called after imports are processed to transform the AST before evaluation.
+func runPreEvalVisitorReplacementsOnRuleset(ruleset *Ruleset, bridge *NodeJSPluginBridge) {
+	// Collect all Variable nodes from the ruleset
+	variables := collectRulesetVariableNodes(ruleset)
+
+	if len(variables) == 0 {
+		return
+	}
+
+	// Build the variable info list for JavaScript
+	varInfos := make([]VariableInfo, 0, len(variables))
+	varMap := make(map[string]*variableLocationRuleset)
+	for id, vloc := range variables {
+		varInfos = append(varInfos, VariableInfo{
+			ID:   id,
+			Name: vloc.variable.GetName(),
+		})
+		varMap[id] = vloc
+	}
+
+	// Check which variables should be replaced
+	replacements, err := bridge.CheckVariableReplacements(varInfos)
+	if err != nil {
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Printf("[runPreEvalVisitorReplacementsOnRuleset] Error checking replacements: %v\n", err)
+		}
+		return
+	}
+
+	if len(replacements) == 0 {
+		return
+	}
+
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Printf("[runPreEvalVisitorReplacementsOnRuleset] Found %d replacements\n", len(replacements))
+	}
+
+	// Apply the replacements
+	for id, replInfo := range replacements {
+		vloc, ok := varMap[id]
+		if !ok {
+			continue
+		}
+
+		// Create the replacement node based on the type
+		replNode := createNodeFromReplacementRuleset(replInfo)
+		if replNode == nil {
+			continue
+		}
+
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Printf("[runPreEvalVisitorReplacementsOnRuleset] Replacing variable %s (id=%s) with %T\n",
+				vloc.variable.GetName(), id, replNode)
+		}
+
+		// Apply the replacement to the parent
+		applyReplacementRuleset(vloc.parent, vloc.index, replNode)
+	}
+}
+
+// variableLocationRuleset tracks where a Variable node is in the AST
+type variableLocationRuleset struct {
+	variable *Variable
+	parent   any
+	index    int // Index within parent's slice
+}
+
+// collectRulesetVariableNodes walks the ruleset and collects all Variable nodes with their locations
+func collectRulesetVariableNodes(ruleset *Ruleset) map[string]*variableLocationRuleset {
+	result := make(map[string]*variableLocationRuleset)
+	idCounter := 0
+
+	var walk func(n any, parent any, index int)
+	walk = func(n any, parent any, index int) {
+		if n == nil {
+			return
+		}
+
+		switch v := n.(type) {
+		case *Variable:
+			id := fmt.Sprintf("var_%d", idCounter)
+			idCounter++
+			result[id] = &variableLocationRuleset{
+				variable: v,
+				parent:   parent,
+				index:    index,
+			}
+		case *Ruleset:
+			for i, rule := range v.Rules {
+				walk(rule, v, i)
+			}
+		case *Declaration:
+			walk(v.Value, v, 0)
+		case *Value:
+			for i, val := range v.Value {
+				walk(val, v, i)
+			}
+		case *Expression:
+			for i, val := range v.Value {
+				walk(val, v, i)
+			}
+		case *MixinDefinition:
+			for i, rule := range v.Rules {
+				walk(rule, v, i)
+			}
+		case *MixinCall:
+			for i, arg := range v.Arguments {
+				if argVal, ok := arg.(map[string]any); ok {
+					if val, ok := argVal["value"]; ok {
+						walk(val, v, i)
+					}
+				} else {
+					walk(arg, v, i)
+				}
+			}
+		case *DetachedRuleset:
+			if v.ruleset != nil {
+				walk(v.ruleset, v, 0)
+			}
+		case *AtRule:
+			if v.Value != nil {
+				walk(v.Value, v, 0)
+			}
+			if v.Rules != nil {
+				for i, rule := range v.Rules {
+					walk(rule, v, i)
+				}
+			}
+		case *Selector:
+			for i, elem := range v.Elements {
+				walk(elem, v, i)
+			}
+		case *Element:
+			if v.Value != nil {
+				walk(v.Value, v, 0)
+			}
+		case *Paren:
+			if v.Value != nil {
+				walk(v.Value, v, 0)
+			}
+		case *Negative:
+			if v.Value != nil {
+				walk(v.Value, v, 0)
+			}
+		case *Operation:
+			for i, op := range v.Operands {
+				walk(op, v, i)
+			}
+		case *Call:
+			for i, arg := range v.Args {
+				walk(arg, v, i)
+			}
+		case *Condition:
+			walk(v.Lvalue, v, 0)
+			walk(v.Rvalue, v, 1)
+		}
+	}
+
+	walk(ruleset, nil, 0)
+	return result
+}
+
+// createNodeFromReplacementRuleset creates a Go AST node from JavaScript replacement info
+func createNodeFromReplacementRuleset(info map[string]any) any {
+	nodeType, ok := info["_type"].(string)
+	if !ok {
+		return nil
+	}
+
+	switch nodeType {
+	case "Quoted":
+		value, _ := info["value"].(string)
+		quote, _ := info["quote"].(string)
+		escaped, _ := info["escaped"].(bool)
+		return NewQuoted(quote, value, escaped, 0, nil)
+	case "Dimension":
+		var val float64
+		switch v := info["value"].(type) {
+		case float64:
+			val = v
+		case int:
+			val = float64(v)
+		}
+		unit, _ := info["unit"].(string)
+		dim, err := NewDimension(val, unit)
+		if err != nil {
+			return nil
+		}
+		return dim
+	case "Color":
+		rgb, _ := info["rgb"].([]any)
+		alpha := 1.0
+		if a, ok := info["alpha"].(float64); ok {
+			alpha = a
+		}
+		var r, g, b float64
+		if len(rgb) >= 3 {
+			r, _ = rgb[0].(float64)
+			g, _ = rgb[1].(float64)
+			b, _ = rgb[2].(float64)
+		}
+		return &Color{
+			Node:  NewNode(),
+			RGB:   []float64{r, g, b},
+			Alpha: alpha,
+		}
+	case "Keyword":
+		value, _ := info["value"].(string)
+		return &Keyword{
+			Node:  NewNode(),
+			value: value,
+		}
+	case "Anonymous":
+		value, _ := info["value"].(string)
+		return NewAnonymous(value, 0, nil, false, false, nil)
+	default:
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Printf("[createNodeFromReplacementRuleset] Unknown node type: %s\n", nodeType)
+		}
+		return nil
+	}
+}
+
+// applyReplacementRuleset replaces a node at the given index in the parent
+func applyReplacementRuleset(parent any, index int, replacement any) {
+	switch p := parent.(type) {
+	case *Value:
+		if index >= 0 && index < len(p.Value) {
+			p.Value[index] = replacement
+		}
+	case *Expression:
+		if index >= 0 && index < len(p.Value) {
+			p.Value[index] = replacement
+		}
+	case *Ruleset:
+		if index >= 0 && index < len(p.Rules) {
+			p.Rules[index] = replacement
+		}
+	case *Declaration:
+		// Value is the first child
+		if index == 0 {
+			if val, ok := replacement.(*Value); ok {
+				p.Value = val
+			}
+		}
+	case *MixinDefinition:
+		if index >= 0 && index < len(p.Rules) {
+			p.Rules[index] = replacement
+		}
+	case *Call:
+		if index >= 0 && index < len(p.Args) {
+			p.Args[index] = replacement
+		}
+	case *Operation:
+		if index >= 0 && index < len(p.Operands) {
+			p.Operands[index] = replacement
+		}
+	case *Paren:
+		if index == 0 {
+			p.Value = replacement
+		}
+	case *Negative:
+		if index == 0 {
+			p.Value = replacement
+		}
+	case *AtRule:
+		if index == 0 && p.Value != nil {
+			// Replacing the value
+		} else if p.Rules != nil && index >= 0 && index < len(p.Rules) {
+			p.Rules[index] = replacement
+		}
+	default:
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Printf("[applyReplacementRuleset] Unknown parent type: %T\n", parent)
+		}
+	}
 } 

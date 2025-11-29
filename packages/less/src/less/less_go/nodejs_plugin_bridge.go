@@ -273,6 +273,123 @@ func (b *NodeJSPluginBridge) GetPostEvalVisitors() []*runtime.JSVisitor {
 	return b.scope.GetPostEvalVisitors()
 }
 
+// HasPreEvalVisitors returns true if there are any pre-eval visitors registered.
+func (b *NodeJSPluginBridge) HasPreEvalVisitors() bool {
+	visitors := b.scope.GetPreEvalVisitors()
+	return len(visitors) > 0
+}
+
+// VariableInfo represents a variable to check for replacement.
+type VariableInfo struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// VariableReplacement represents a replacement for a variable.
+type VariableReplacement struct {
+	Type  string         `json:"_type"`
+	Value string         `json:"value,omitempty"`
+	Quote string         `json:"quote,omitempty"`
+	RGB   []float64      `json:"rgb,omitempty"`
+	Alpha float64        `json:"alpha,omitempty"`
+	Unit  string         `json:"unit,omitempty"`
+	Props map[string]any `json:"-"`
+}
+
+// CheckVariableReplacements checks which variables should be replaced by pre-eval visitors.
+// Returns a map of variable ID to replacement info.
+func (b *NodeJSPluginBridge) CheckVariableReplacements(variables []VariableInfo) (map[string]map[string]any, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.runtime == nil {
+		return nil, fmt.Errorf("Node.js runtime not initialized")
+	}
+
+	// Convert to interface slice for JSON
+	varsData := make([]any, len(variables))
+	for i, v := range variables {
+		varsData[i] = map[string]any{
+			"id":   v.ID,
+			"name": v.Name,
+		}
+	}
+
+	resp, err := b.runtime.SendCommand(runtime.Command{
+		Cmd: "checkVariableReplacements",
+		Data: map[string]any{
+			"variables": varsData,
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to check variable replacements: %w", err)
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("check variable replacements error: %s", resp.Error)
+	}
+
+	// Parse the result
+	resultMap, ok := resp.Result.(map[string]any)
+	if !ok {
+		return nil, nil
+	}
+
+	replacements, ok := resultMap["replacements"].(map[string]any)
+	if !ok {
+		return nil, nil
+	}
+
+	// Convert to the expected format
+	result := make(map[string]map[string]any)
+	for id, repl := range replacements {
+		if replMap, ok := repl.(map[string]any); ok {
+			result[id] = replMap
+		}
+	}
+
+	return result, nil
+}
+
+// RunPreEvalVisitorsJSON runs pre-eval visitors on a JSON-serialized AST.
+// Returns the modified AST as a map.
+func (b *NodeJSPluginBridge) RunPreEvalVisitorsJSON(ast map[string]any) (map[string]any, bool, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.runtime == nil {
+		return ast, false, fmt.Errorf("Node.js runtime not initialized")
+	}
+
+	resp, err := b.runtime.SendCommand(runtime.Command{
+		Cmd: "runPreEvalVisitorsJSON",
+		Data: map[string]any{
+			"ast": ast,
+		},
+	})
+	if err != nil {
+		return ast, false, fmt.Errorf("failed to run pre-eval visitors: %w", err)
+	}
+
+	if !resp.Success {
+		return ast, false, fmt.Errorf("pre-eval visitors error: %s", resp.Error)
+	}
+
+	// Parse the result
+	resultMap, ok := resp.Result.(map[string]any)
+	if !ok {
+		return ast, false, nil
+	}
+
+	modified, _ := resultMap["modified"].(bool)
+	modifiedAst, ok := resultMap["modifiedAst"].(map[string]any)
+	if !ok {
+		return ast, false, nil
+	}
+
+	return modifiedAst, modified, nil
+}
+
 // GetProcessorManager returns the processor manager for pre/post processing.
 func (b *NodeJSPluginBridge) GetProcessorManager() *runtime.ProcessorManager {
 	return b.processorManager
