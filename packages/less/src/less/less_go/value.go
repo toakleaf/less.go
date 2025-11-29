@@ -63,10 +63,19 @@ func (v *Value) GetType() string {
 	return "Value"
 }
 
+// GetTypeIndex returns the type index for visitor pattern
+func (v *Value) GetTypeIndex() int {
+	return GetTypeIndexForNodeType("Value")
+}
+
 // Accept visits the node with a visitor
 func (v *Value) Accept(visitor any) {
 	if v.Value != nil {
-		if arrayVisitor, ok := visitor.(interface{ VisitArray([]any) []any }); ok {
+		// Try variadic signature first (matching Visitor.VisitArray)
+		if arrayVisitor, ok := visitor.(interface{ VisitArray([]any, ...bool) []any }); ok {
+			v.Value = arrayVisitor.VisitArray(v.Value)
+		} else if arrayVisitor, ok := visitor.(interface{ VisitArray([]any) []any }); ok {
+			// Fall back to non-variadic signature
 			v.Value = arrayVisitor.VisitArray(v.Value)
 		}
 	}

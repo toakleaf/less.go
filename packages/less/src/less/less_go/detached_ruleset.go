@@ -25,6 +25,16 @@ func NewDetachedRuleset(ruleset any, frames []any) *DetachedRuleset {
 	return dr
 }
 
+// GetType returns the type of the node
+func (dr *DetachedRuleset) GetType() string {
+	return "DetachedRuleset"
+}
+
+// GetTypeIndex returns the type index for visitor pattern
+func (dr *DetachedRuleset) GetTypeIndex() int {
+	return GetTypeIndexForNodeType("DetachedRuleset")
+}
+
 // Accept implements the visitor pattern
 func (dr *DetachedRuleset) Accept(visitor any) {
 	// Match JavaScript: this.ruleset = visitor.visit(this.ruleset);
@@ -174,13 +184,105 @@ func (dr *DetachedRuleset) CallEval(context any) any {
 	}
 
 	// Call eval on the ruleset
-	if os.Getenv("LESS_GO_DEBUG") == "1" {
+	debug := os.Getenv("LESS_GO_DEBUG") == "1"
+	if debug {
 		fmt.Fprintf(os.Stderr, "[DEBUG DetachedRuleset.CallEval] dr.ruleset type=%T, value=%+v\n", dr.ruleset, dr.ruleset)
 	}
+
+	// Re-load plugins from ancestor frames so that detached ruleset body can access plugin functions
+	// This is similar to the logic in MixinDefinition.EvalCall.
+	//
+	// IMPORTANT: We enter a new plugin scope BEFORE re-registering inherited functions.
+	// This ensures that inherited functions are scoped to the detached ruleset call and don't leak
+	// to the caller's scope when the call completes. See Issue: plugin function scoping.
+	//
+	// Get the plugin bridge from the context
+	var pluginBridge any
+	switch ctx := evalContext.(type) {
+	case *Eval:
+		if ctx.LazyPluginBridge != nil {
+			pluginBridge = ctx.LazyPluginBridge
+		} else if ctx.PluginBridge != nil {
+			pluginBridge = ctx.PluginBridge
+		}
+	case map[string]any:
+		pluginBridge = ctx["pluginBridge"]
+	}
+
+	// Enter a new plugin scope for this detached ruleset call to prevent function leakage
+	var detachedScopeExitFunc func()
+	if pluginBridge != nil {
+		if lazyBridge, ok := pluginBridge.(*LazyNodeJSPluginBridge); ok {
+			if bridge, err := lazyBridge.GetBridge(); err == nil && bridge != nil {
+				bridge.EnterScope()
+				detachedScopeExitFunc = func() {
+					bridge.ExitScope()
+					if debug {
+						fmt.Fprintf(os.Stderr, "[DetachedRuleset.CallEval] Exiting detached ruleset plugin scope\n")
+					}
+				}
+				if debug {
+					fmt.Fprintf(os.Stderr, "[DetachedRuleset.CallEval] Entered detached ruleset plugin scope\n")
+				}
+			}
+		} else if bridge, ok := pluginBridge.(*NodeJSPluginBridge); ok {
+			bridge.EnterScope()
+			detachedScopeExitFunc = func() {
+				bridge.ExitScope()
+				if debug {
+					fmt.Fprintf(os.Stderr, "[DetachedRuleset.CallEval] Exiting detached ruleset plugin scope\n")
+				}
+			}
+			if debug {
+				fmt.Fprintf(os.Stderr, "[DetachedRuleset.CallEval] Entered detached ruleset plugin scope\n")
+			}
+		}
+	}
+	// Ensure we exit the scope when this function returns
+	if detachedScopeExitFunc != nil {
+		defer detachedScopeExitFunc()
+	}
+
+	// Re-register plugin functions from frames within the detached ruleset's scope
+	if pluginBridge != nil && dr.frames != nil {
+		for frameIdx, frameAny := range dr.frames {
+			if rs, ok := frameAny.(*Ruleset); ok {
+				if debug {
+					fmt.Fprintf(os.Stderr, "[DetachedRuleset.CallEval]   Frame %d is *Ruleset, LoadedPluginFunctions=%v\n", frameIdx, rs.LoadedPluginFunctions)
+				}
+				// If this ruleset loaded plugins, re-load them at the current scope depth
+				if rs.LoadedPluginFunctions != nil && len(rs.LoadedPluginFunctions) > 0 {
+					if debug {
+						fmt.Fprintf(os.Stderr, "[DetachedRuleset.CallEval] Found %d loaded plugin functions in frame %d\n", len(rs.LoadedPluginFunctions), frameIdx)
+					}
+					if lazyBridge, ok := pluginBridge.(*LazyNodeJSPluginBridge); ok {
+						if bridge, err := lazyBridge.GetBridge(); err == nil && bridge != nil {
+							for funcName := range rs.LoadedPluginFunctions {
+								if debug {
+									fmt.Fprintf(os.Stderr, "[DetachedRuleset.CallEval] Re-registering function '%s' at detached ruleset scope\n", funcName)
+								}
+								bridge.AddFunctionToCurrentScope(funcName)
+							}
+						}
+					} else if bridge, ok := pluginBridge.(*NodeJSPluginBridge); ok {
+						for funcName := range rs.LoadedPluginFunctions {
+							if debug {
+								fmt.Fprintf(os.Stderr, "[DetachedRuleset.CallEval] Re-registering function '%s' at detached ruleset scope\n", funcName)
+							}
+							bridge.AddFunctionToCurrentScope(funcName)
+						}
+					}
+				}
+			} else if debug {
+				fmt.Fprintf(os.Stderr, "[DetachedRuleset.CallEval]   Frame %d is type %T (not *Ruleset)\n", frameIdx, frameAny)
+			}
+		}
+	}
+
 	if dr.ruleset != nil {
 		// Check if ruleset is a Ruleset
 		if ruleset, ok := dr.ruleset.(*Ruleset); ok {
-			if os.Getenv("LESS_GO_DEBUG") == "1" {
+			if debug {
 				fmt.Fprintf(os.Stderr, "[DEBUG DetachedRuleset.CallEval] Evaluating Ruleset with %d selectors, %d rules\n", len(ruleset.Selectors), len(ruleset.Rules))
 				for i, r := range ruleset.Rules {
 					fmt.Fprintf(os.Stderr, "[DEBUG DetachedRuleset.CallEval]   Rule %d: type=%T\n", i, r)
@@ -196,7 +298,7 @@ func (dr *DetachedRuleset) CallEval(context any) any {
 			// part of the result rules and re-evaluated with the parent's context in the
 			// second loop of Ruleset.Eval, where they'll properly add to the parent's mediaBlocks.
 			mapContext := evalContextToMap(evalContext)
-			if os.Getenv("LESS_GO_DEBUG") == "1" {
+			if debug {
 				mb, _ := mapContext["mediaBlocks"].([]any)
 				mp, _ := mapContext["mediaPath"].([]any)
 				fmt.Fprintf(os.Stderr, "[DetachedRuleset.CallEval] mapContext after evalContextToMap: mediaBlocks=%v (len=%d), mediaPath=%v (len=%d)\n", mapContext["mediaBlocks"], len(mb), mapContext["mediaPath"], len(mp))
@@ -318,11 +420,6 @@ func evalContextToMap(context any) map[string]any {
 
 // Type returns the type of the node
 func (dr *DetachedRuleset) Type() string {
-	return "DetachedRuleset"
-}
-
-// GetType returns the type of the node for visitor pattern consistency
-func (dr *DetachedRuleset) GetType() string {
 	return "DetachedRuleset"
 }
 

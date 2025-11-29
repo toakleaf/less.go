@@ -748,10 +748,50 @@ func (md *MixinDefinition) EvalCall(context any, args []any, important bool) (*R
 	//
 	// We check for Rulesets that have LoadedPluginFunctions stored on them (set during
 	// Ruleset.Eval when plugins are loaded).
+	//
+	// IMPORTANT: We enter a new plugin scope BEFORE re-registering inherited functions.
+	// This ensures that inherited functions are scoped to the mixin call and don't leak
+	// to the caller's scope when the mixin completes. See Issue: plugin function scoping.
 	debug := os.Getenv("LESS_GO_DEBUG") == "1"
 	if debug {
 		fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] Checking %d mixinFrames for plugins\n", len(mixinFrames))
 	}
+
+	// Enter a new plugin scope for this mixin call to prevent function leakage
+	var mixinScopeExitFunc func()
+	if pluginBridge, ok := evalContext["pluginBridge"]; ok && pluginBridge != nil {
+		if lazyBridge, ok := pluginBridge.(*LazyNodeJSPluginBridge); ok {
+			if bridge, err := lazyBridge.GetBridge(); err == nil && bridge != nil {
+				bridge.EnterScope()
+				mixinScopeExitFunc = func() {
+					bridge.ExitScope()
+					if debug {
+						fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] Exiting mixin plugin scope\n")
+					}
+				}
+				if debug {
+					fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] Entered mixin plugin scope\n")
+				}
+			}
+		} else if bridge, ok := pluginBridge.(*NodeJSPluginBridge); ok {
+			bridge.EnterScope()
+			mixinScopeExitFunc = func() {
+				bridge.ExitScope()
+				if debug {
+					fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] Exiting mixin plugin scope\n")
+				}
+			}
+			if debug {
+				fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] Entered mixin plugin scope\n")
+			}
+		}
+	}
+	// Ensure we exit the scope when this function returns
+	if mixinScopeExitFunc != nil {
+		defer mixinScopeExitFunc()
+	}
+
+	// Now re-register inherited plugin functions within the mixin's scope
 	if pluginBridge, ok := evalContext["pluginBridge"]; ok && pluginBridge != nil {
 		for frameIdx, frameAny := range mixinFrames {
 			if rs, ok := frameAny.(*Ruleset); ok {
@@ -764,21 +804,21 @@ func (md *MixinDefinition) EvalCall(context any, args []any, important bool) (*R
 						fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] Found %d loaded plugin functions in frame %d\n", len(rs.LoadedPluginFunctions), frameIdx)
 					}
 					// The plugin functions are already registered in the Node.js runtime,
-					// we just need to re-add them at the current scope depth
+					// we just need to re-add them at the current scope depth (now in mixin's scope)
 					if lazyBridge, ok := pluginBridge.(*LazyNodeJSPluginBridge); ok {
 						if bridge, err := lazyBridge.GetBridge(); err == nil && bridge != nil {
 							for funcName := range rs.LoadedPluginFunctions {
 								if debug {
-									fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] Re-registering function '%s' at current scope\n", funcName)
+									fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] Re-registering function '%s' at mixin scope\n", funcName)
 								}
-								// Register the function at the current scope depth
+								// Register the function at the mixin's scope depth
 								bridge.AddFunctionToCurrentScope(funcName)
 							}
 						}
 					} else if bridge, ok := pluginBridge.(*NodeJSPluginBridge); ok {
 						for funcName := range rs.LoadedPluginFunctions {
 							if debug {
-								fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] Re-registering function '%s' at current scope\n", funcName)
+								fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] Re-registering function '%s' at mixin scope\n", funcName)
 							}
 							bridge.AddFunctionToCurrentScope(funcName)
 						}
