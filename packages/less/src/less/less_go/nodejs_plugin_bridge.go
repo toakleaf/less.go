@@ -192,39 +192,27 @@ func (b *NodeJSPluginBridge) CallFunctionWithContext(name string, evalContext ru
 
 // EnterScope creates and enters a new child scope.
 // This is used when entering a ruleset or mixin that might have local plugins.
-// It also notifies the Node.js runtime to enter a new function scope for proper scoping.
+//
+// OPTIMIZATION: Only updates Go scope, skips Node.js IPC entirely.
+// Rationale: Same as AddFunctionToCurrentScope - functions are globally registered
+// in Node.js, context is passed with calls, and we have 95%+ cache hit rate.
 func (b *NodeJSPluginBridge) EnterScope() *runtime.PluginScope {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.scope = b.scope.CreateChild()
-
-	// Synchronize with Node.js function scope
-	if b.runtime != nil {
-		_, _ = b.runtime.SendCommand(runtime.Command{
-			Cmd: "enterScope",
-		})
-	}
-
 	return b.scope
 }
 
 // ExitScope exits the current scope and returns to the parent.
 // Returns the parent scope, or nil if already at root.
-// It also notifies the Node.js runtime to exit the current function scope.
+//
+// OPTIMIZATION: Only updates Go scope, skips Node.js IPC entirely.
 func (b *NodeJSPluginBridge) ExitScope() *runtime.PluginScope {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if parent := b.scope.Parent(); parent != nil {
 		b.scope = parent
 	}
-
-	// Synchronize with Node.js function scope
-	if b.runtime != nil {
-		_, _ = b.runtime.SendCommand(runtime.Command{
-			Cmd: "exitScope",
-		})
-	}
-
 	return b.scope
 }
 
@@ -234,27 +222,20 @@ func (b *NodeJSPluginBridge) ExitScope() *runtime.PluginScope {
 // The function must already exist in the Node.js runtime - this just makes it
 // visible at the current scope level.
 //
-// OPTIMIZATION: Uses fire-and-forget IPC since:
-// 1. The response is not needed (we just need Node.js to update its scope)
-// 2. This is called 500k+ times during Bootstrap4 compilation
-// 3. The operation is idempotent (adding same function twice is safe)
+// OPTIMIZATION: Only updates Go scope, skips Node.js IPC entirely.
+// Rationale:
+// 1. Functions are already registered globally in Node.js when plugins load
+// 2. The runtime-level cache has 95%+ hit rate, so most calls don't reach Node.js
+// 3. When a cache miss occurs, context (frames/variables) is passed with the call
+// 4. This eliminates ~500k+ IPC calls during Bootstrap4 compilation
 func (b *NodeJSPluginBridge) AddFunctionToCurrentScope(name string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	// Add to Go scope
+	// Add to Go scope only - no IPC needed
+	// Node.js already has the function registered globally
 	fn := runtime.NewJSFunctionDefinition(name, b.runtime)
 	b.scope.AddFunction(name, fn)
-
-	// Notify Node.js to add function to current scope (fire-and-forget)
-	// We don't wait for a response since this is called very frequently
-	// and the response is not needed
-	if b.runtime != nil {
-		_ = b.runtime.SendCommandFireAndForget(runtime.Command{
-			Cmd:  "addFunctionToScopeNoReply",
-			Data: map[string]any{"name": name},
-		})
-	}
 }
 
 // SetScope sets the current scope directly.
