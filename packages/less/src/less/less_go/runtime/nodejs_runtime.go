@@ -687,6 +687,119 @@ func (rt *NodeJSRuntime) FunctionCacheSize() int {
 	return len(rt.funcResultCache)
 }
 
+// BatchCall represents a single function call in a batch.
+// This is used by BatchCallFunctions to reduce IPC overhead.
+type BatchCall struct {
+	// Key is a unique identifier for this call (e.g., "funcName:arg1|arg2")
+	// Used to correlate requests with responses in the batch result map.
+	Key string `json:"key"`
+	// Name is the function name to call
+	Name string `json:"name"`
+	// Args are the serialized arguments for the function
+	Args []any `json:"args"`
+	// Context is the optional evaluation context for variable lookups
+	Context map[string]any `json:"context,omitempty"`
+}
+
+// BatchCallResult represents the result of a single call in a batch.
+type BatchCallResult struct {
+	// Success indicates if the call succeeded
+	Success bool `json:"success"`
+	// Result is the function return value (if successful)
+	Result any `json:"result,omitempty"`
+	// Error is the error message (if failed)
+	Error string `json:"error,omitempty"`
+}
+
+// BatchCallFunctions sends multiple function calls to Node.js in a single IPC request.
+// This reduces the overhead of multiple round-trips for plugin function calls.
+//
+// The function returns a map of results keyed by the BatchCall.Key field.
+// Each result contains Success, Result, and Error fields.
+//
+// Example usage:
+//
+//	calls := []BatchCall{
+//	    {Key: "map-get:colors|primary", Name: "map-get", Args: [...]},
+//	    {Key: "color-yiq:#fff", Name: "color-yiq", Args: [...]},
+//	}
+//	results, err := rt.BatchCallFunctions(calls)
+//	// results["map-get:colors|primary"].Result contains the result
+func (rt *NodeJSRuntime) BatchCallFunctions(calls []BatchCall) (map[string]BatchCallResult, error) {
+	if !rt.alive.Load() {
+		return nil, fmt.Errorf("runtime not alive")
+	}
+
+	if len(calls) == 0 {
+		return make(map[string]BatchCallResult), nil
+	}
+
+	// Send batch request to Node.js
+	resp, err := rt.SendCommand(Command{
+		Cmd: "batchCallFunctions",
+		Data: map[string]any{
+			"calls": calls,
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("batch call failed: %w", err)
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("batch call error: %s", resp.Error)
+	}
+
+	// Parse the results map
+	resultsMap, ok := resp.Result.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("unexpected batch result type: %T", resp.Result)
+	}
+
+	// Convert to typed results
+	results := make(map[string]BatchCallResult, len(resultsMap))
+	for key, val := range resultsMap {
+		if resultMap, ok := val.(map[string]any); ok {
+			result := BatchCallResult{}
+			if success, ok := resultMap["success"].(bool); ok {
+				result.Success = success
+			}
+			if resultVal, ok := resultMap["result"]; ok {
+				result.Result = resultVal
+			}
+			if errMsg, ok := resultMap["error"].(string); ok {
+				result.Error = errMsg
+			}
+			results[key] = result
+		}
+	}
+
+	return results, nil
+}
+
+// BatchCallFunctionsAndCache sends multiple function calls to Node.js in a single IPC request
+// and caches all successful results. This is the most efficient way to warm up the function
+// result cache for plugin functions.
+//
+// Returns the number of successfully cached results and any error.
+func (rt *NodeJSRuntime) BatchCallFunctionsAndCache(calls []BatchCall) (int, error) {
+	results, err := rt.BatchCallFunctions(calls)
+	if err != nil {
+		return 0, err
+	}
+
+	cached := 0
+	rt.funcResultCacheMu.Lock()
+	for key, result := range results {
+		if result.Success && result.Result != nil {
+			rt.funcResultCache[key] = result.Result
+			cached++
+		}
+	}
+	rt.funcResultCacheMu.Unlock()
+
+	return cached, nil
+}
+
 // WriteASTBuffer writes a FlatAST to shared memory and returns the segment.
 // This enables zero-copy transfer of AST data to Node.js.
 func (rt *NodeJSRuntime) WriteASTBuffer(flat *FlatAST) (*SharedMemory, error) {
