@@ -315,7 +315,7 @@ var quarantinedTests = map[string][]string{
 		// To complete bootstrap4 support:
 		// 1. Optimize context serialization (use shared memory or on-demand lookup callbacks)
 		// 2. Fix Less map serialization for `listToMap` to process @theme-colors
-		// "bootstrap4", // TEMPORARILY UNQUARANTINED FOR PERFORMANCE TESTING
+		"bootstrap4", // Requires JS plugins for map-get, breakpoint functions, etc.
 	},
 	"js-type-errors": {
 		// JavaScript error tests - skip entire suite
