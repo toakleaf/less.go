@@ -77,6 +77,15 @@ type NodeJSRuntime struct {
 
 	// Shared memory for zero-copy AST transfer
 	shmManager *SharedMemoryManager
+
+	// Reusable prefetch buffer for plugin function calls
+	prefetchShm   *SharedMemory
+	prefetchShmMu sync.Mutex
+
+	// Function result cache - shared across all JSFunctionDefinitions
+	// Key format: "funcName:arg1|arg2|..."
+	funcResultCache   map[string]any
+	funcResultCacheMu sync.RWMutex
 }
 
 // RuntimeOption configures a NodeJSRuntime.
@@ -105,6 +114,7 @@ func NewNodeJSRuntime(opts ...RuntimeOption) (*NodeJSRuntime, error) {
 		callbackHandlers: make(map[string]CallbackHandler),
 		done:             make(chan struct{}),
 		nodeCommand:      "node",
+		funcResultCache:  make(map[string]any),
 	}
 
 	// Apply options
@@ -339,6 +349,39 @@ func (rt *NodeJSRuntime) SendCommandWithContext(ctx context, cmd Command) (Respo
 	}
 }
 
+// SendCommandFireAndForget sends a command without waiting for a response.
+// This is useful for commands that don't need a response or when the response
+// can be safely ignored. The command is still sent with an ID for logging purposes.
+//
+// CRITICAL: Only use this for idempotent operations where:
+// 1. The response is not needed by the caller
+// 2. Order of execution is not critical
+// 3. Failure can be tolerated or will be detected later
+//
+// This dramatically reduces IPC latency for operations like scope management
+// where we send hundreds of thousands of updates during Bootstrap4 compilation.
+func (rt *NodeJSRuntime) SendCommandFireAndForget(cmd Command) error {
+	if !rt.alive.Load() {
+		return fmt.Errorf("runtime not alive")
+	}
+
+	// Assign command ID (for logging on Node.js side)
+	cmd.ID = rt.cmdID.Add(1)
+
+	// Serialize and send command
+	data, err := json.Marshal(cmd)
+	if err != nil {
+		return fmt.Errorf("failed to marshal command: %w", err)
+	}
+
+	// Write command with newline delimiter
+	if _, err := rt.stdin.Write(append(data, '\n')); err != nil {
+		return fmt.Errorf("failed to send command: %w", err)
+	}
+
+	return nil
+}
+
 // readResponses reads responses from stdout and dispatches them.
 // It also handles callback requests from Node.js for on-demand operations.
 func (rt *NodeJSRuntime) readResponses() {
@@ -568,6 +611,75 @@ func (rt *NodeJSRuntime) DestroySharedMemory(shm *SharedMemory) error {
 		return fmt.Errorf("shared memory manager not initialized")
 	}
 	return rt.shmManager.Destroy(shm.Key())
+}
+
+// GetPrefetchBuffer returns a reusable shared memory buffer for prefetch data.
+// The buffer is created on first use and reused across calls.
+// If the required size is larger than the current buffer, it's resized.
+func (rt *NodeJSRuntime) GetPrefetchBuffer(size int) (*SharedMemory, error) {
+	rt.prefetchShmMu.Lock()
+	defer rt.prefetchShmMu.Unlock()
+
+	if rt.shmManager == nil {
+		return nil, fmt.Errorf("shared memory manager not initialized")
+	}
+
+	// Minimum size of 4KB to reduce resizing
+	if size < 4096 {
+		size = 4096
+	}
+
+	// If we have a buffer and it's big enough, reuse it
+	if rt.prefetchShm != nil && rt.prefetchShm.Size() >= size {
+		return rt.prefetchShm, nil
+	}
+
+	// Need to create a new buffer (first use or resize)
+	if rt.prefetchShm != nil {
+		// Destroy old buffer
+		rt.shmManager.Destroy(rt.prefetchShm.Key())
+	}
+
+	// Create new buffer with some extra room for growth
+	bufferSize := size + 1024
+	shm, err := rt.shmManager.Create(bufferSize)
+	if err != nil {
+		return nil, err
+	}
+
+	rt.prefetchShm = shm
+	return shm, nil
+}
+
+// GetCachedResult retrieves a cached function result by key.
+// Returns the cached value and true if found, or nil and false if not cached.
+func (rt *NodeJSRuntime) GetCachedResult(key string) (any, bool) {
+	rt.funcResultCacheMu.RLock()
+	result, ok := rt.funcResultCache[key]
+	rt.funcResultCacheMu.RUnlock()
+	return result, ok
+}
+
+// SetCachedResult stores a function result in the cache.
+func (rt *NodeJSRuntime) SetCachedResult(key string, value any) {
+	rt.funcResultCacheMu.Lock()
+	rt.funcResultCache[key] = value
+	rt.funcResultCacheMu.Unlock()
+}
+
+// ClearFunctionCache clears all cached function results.
+// Call this between compilations to ensure fresh results.
+func (rt *NodeJSRuntime) ClearFunctionCache() {
+	rt.funcResultCacheMu.Lock()
+	rt.funcResultCache = make(map[string]any)
+	rt.funcResultCacheMu.Unlock()
+}
+
+// FunctionCacheSize returns the number of cached function results.
+func (rt *NodeJSRuntime) FunctionCacheSize() int {
+	rt.funcResultCacheMu.RLock()
+	defer rt.funcResultCacheMu.RUnlock()
+	return len(rt.funcResultCache)
 }
 
 // WriteASTBuffer writes a FlatAST to shared memory and returns the segment.

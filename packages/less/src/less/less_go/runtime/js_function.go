@@ -67,10 +67,9 @@ func (m JSIPCMode) String() string {
 }
 
 // getDefaultIPCMode returns the default IPC mode based on the LESS_JS_IPC_MODE
-// environment variable. If not set or unrecognized, defaults to JSON mode.
-// Note: Shared memory mode currently has a bug where complex nested objects
-// (like DetachedRuleset with rules) are not fully transferred. JSON mode
-// works reliably for all node types.
+// environment variable. If not set or unrecognized, defaults to shared memory mode.
+// Shared memory uses binary format for zero-copy data transfer, which is much faster
+// than JSON serialization for large context data like Bootstrap4.
 func getDefaultIPCMode() JSIPCMode {
 	mode := os.Getenv("LESS_JS_IPC_MODE")
 	switch mode {
@@ -79,8 +78,8 @@ func getDefaultIPCMode() JSIPCMode {
 	case "sharedmem", "shm", "shared", "SHM", "SHARED":
 		return JSIPCModeSharedMemory
 	default:
-		// Default to JSON mode (shared memory has bugs with complex objects)
-		return JSIPCModeJSON
+		// Default to shared memory mode for best performance
+		return JSIPCModeSharedMemory
 	}
 }
 
@@ -96,6 +95,13 @@ type JSFunctionDefinition struct {
 	name    string
 	runtime *NodeJSRuntime
 	ipcMode JSIPCMode
+
+	// Result cache for deterministic functions (same args = same result)
+	// This dramatically reduces IPC calls for Bootstrap-style plugins
+	// where functions like map-get, color-yiq are called many times with same args
+	resultCache   map[string]any
+	resultCacheMu sync.RWMutex
+	cacheEnabled  bool
 }
 
 // JSFunctionOption configures a JSFunctionDefinition.
@@ -140,6 +146,34 @@ func WithIPCMode(mode JSIPCMode) JSFunctionOption {
 	}
 }
 
+// WithCaching enables result caching for deterministic functions.
+// When enabled, function calls with the same arguments will return cached results
+// instead of making IPC calls to Node.js.
+//
+// This is highly effective for Bootstrap-style plugins where functions like
+// map-get, color-yiq, breakpoint-next are called many times with the same args.
+//
+// Use this only for functions that are deterministic (same args always = same result)
+// during a single compilation.
+//
+// Note: Caching is now ENABLED by default. Use WithoutCaching() to disable.
+func WithCaching() JSFunctionOption {
+	return func(jf *JSFunctionDefinition) {
+		jf.cacheEnabled = true
+		jf.resultCache = make(map[string]any)
+	}
+}
+
+// WithoutCaching disables result caching.
+// Use this for functions that are non-deterministic (may return different results
+// for the same arguments due to side effects or external state).
+func WithoutCaching() JSFunctionOption {
+	return func(jf *JSFunctionDefinition) {
+		jf.cacheEnabled = false
+		jf.resultCache = nil
+	}
+}
+
 // NewJSFunctionDefinition creates a new JSFunctionDefinition for calling
 // JavaScript functions registered by plugins.
 //
@@ -160,9 +194,11 @@ func WithIPCMode(mode JSIPCMode) JSFunctionOption {
 //	fn := NewJSFunctionDefinition("myFunc", runtime, WithSharedMemoryMode())
 func NewJSFunctionDefinition(name string, runtime *NodeJSRuntime, opts ...JSFunctionOption) *JSFunctionDefinition {
 	jf := &JSFunctionDefinition{
-		name:    name,
-		runtime: runtime,
-		ipcMode: getDefaultIPCMode(), // Respects LESS_JS_IPC_MODE env var
+		name:         name,
+		runtime:      runtime,
+		ipcMode:      getDefaultIPCMode(), // Respects LESS_JS_IPC_MODE env var
+		cacheEnabled: true,                // Enable caching by default for deterministic plugin functions
+		resultCache:  make(map[string]any),
 	}
 	// Options override the default/env var setting
 	for _, opt := range opts {
@@ -184,6 +220,26 @@ func (jf *JSFunctionDefinition) Name() string {
 // NeedsEvalArgs returns true - JS functions always expect evaluated arguments.
 func (jf *JSFunctionDefinition) NeedsEvalArgs() bool {
 	return true
+}
+
+// ClearCache clears the result cache. Call this between compilations
+// if you want to ensure fresh results.
+func (jf *JSFunctionDefinition) ClearCache() {
+	if jf.cacheEnabled {
+		jf.resultCacheMu.Lock()
+		jf.resultCache = make(map[string]any)
+		jf.resultCacheMu.Unlock()
+	}
+}
+
+// CacheStats returns the number of entries in the result cache.
+func (jf *JSFunctionDefinition) CacheStats() int {
+	if !jf.cacheEnabled {
+		return 0
+	}
+	jf.resultCacheMu.RLock()
+	defer jf.resultCacheMu.RUnlock()
+	return len(jf.resultCache)
 }
 
 // Call calls the JavaScript function with the given arguments.
@@ -564,18 +620,110 @@ type EvalContextProvider interface {
 // OPTIMIZATION: Uses pre-fetch + on-demand lookup for optimal performance:
 // 1. Pre-fetch commonly needed variables (avoiding IPC for them)
 // 2. For any other variables, use on-demand callback lookup
+// 3. Uses runtime-level shared cache for identical arguments (shared across all function instances)
 func (jf *JSFunctionDefinition) CallWithContext(evalContext EvalContextProvider, args ...any) (any, error) {
 	if jf.runtime == nil {
 		return nil, fmt.Errorf("Node.js runtime not initialized")
 	}
 
+	// Check shared runtime cache (shared across all instances of this function)
+	// Key format: "funcName:arg1|arg2|..."
+	cacheKey := jf.name + ":" + jf.makeCacheKey(args)
+	if result, ok := jf.runtime.GetCachedResult(cacheKey); ok {
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Printf("[CallWithContext] Cache HIT for %s: %s\n", jf.name, cacheKey[:min(80, len(cacheKey))])
+		}
+		return result, nil
+	}
+
 	// Use pre-fetch mode for known plugin functions to avoid IPC overhead
-	return jf.callWithPrefetchContext(evalContext, args...)
+	result, err := jf.callWithPrefetchContext(evalContext, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	// Store result in shared runtime cache
+	jf.runtime.SetCachedResult(cacheKey, result)
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Printf("[CallWithContext] Cache STORE for %s: %s\n", jf.name, cacheKey[:min(80, len(cacheKey))])
+	}
+
+	return result, nil
+}
+
+// makeCacheKey creates a cache key from the function arguments.
+// Uses JSON serialization for a stable, comparable key.
+func (jf *JSFunctionDefinition) makeCacheKey(args []any) string {
+	// Serialize args to create a stable key
+	// For performance, we use a simple approach that works for most cases
+	var key string
+	for i, arg := range args {
+		if i > 0 {
+			key += "|"
+		}
+		key += jf.argToString(arg)
+	}
+	return key
+}
+
+// argToString converts an argument to a string for cache key purposes.
+func (jf *JSFunctionDefinition) argToString(arg any) string {
+	if arg == nil {
+		return "nil"
+	}
+	// Use reflection to get a stable string representation
+	v := reflect.ValueOf(arg)
+	switch v.Kind() {
+	case reflect.String:
+		return v.String()
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return fmt.Sprintf("%d", v.Int())
+	case reflect.Float32, reflect.Float64:
+		return fmt.Sprintf("%g", v.Float())
+	case reflect.Bool:
+		return fmt.Sprintf("%t", v.Bool())
+	case reflect.Ptr, reflect.Interface:
+		if v.IsNil() {
+			return "nil"
+		}
+		// For pointers, try to get a string representation of the underlying value
+		elem := v.Elem()
+		if elem.Kind() == reflect.Struct {
+			// Try to call ToCSS or String method
+			if m := v.MethodByName("ToCSS"); m.IsValid() {
+				results := m.Call([]reflect.Value{reflect.ValueOf(make(map[string]any))})
+				if len(results) > 0 {
+					return fmt.Sprintf("%v", results[0].Interface())
+				}
+			}
+			if m := v.MethodByName("String"); m.IsValid() {
+				results := m.Call(nil)
+				if len(results) > 0 {
+					return fmt.Sprintf("%v", results[0].Interface())
+				}
+			}
+		}
+		return fmt.Sprintf("%p", arg) // Use pointer address as fallback
+	default:
+		// For complex types, use fmt.Sprintf which handles most cases
+		return fmt.Sprintf("%v", arg)
+	}
 }
 
 // knownVariables contains variables that are commonly accessed by plugin functions.
 // We pre-serialize these to avoid IPC round-trips for each lookup.
 var knownVariables = []string{
+	// Bootstrap base colors (used by theme colors)
+	"@blue",
+	"@indigo",
+	"@purple",
+	"@pink",
+	"@red",
+	"@orange",
+	"@yellow",
+	"@green",
+	"@teal",
+	"@cyan",
 	// Bootstrap theme colors and utilities
 	"@theme-colors",
 	"@theme-color-interval",
@@ -583,7 +731,11 @@ var knownVariables = []string{
 	"@white",
 	"@gray-100",
 	"@gray-200",
+	"@gray-300",
+	"@gray-400",
+	"@gray-500",
 	"@gray-600",
+	"@gray-700",
 	"@gray-800",
 	"@gray-900",
 	"@yiq-contrasted-threshold",
@@ -600,12 +752,24 @@ var knownVariables = []string{
 	"@danger",
 	"@light",
 	"@dark",
+	// Additional Bootstrap variables
+	"@colors",
+	"@grays",
+	"@body-bg",
+	"@body-color",
 }
 
 // callWithPrefetchContext pre-fetches commonly needed variables and sends them
-// with the function call, avoiding IPC round-trips for each lookup.
+// with the function call using SHARED MEMORY in BINARY format.
+// This avoids JSON serialization overhead which is critical for performance.
+//
+// The binary format is defined in binary_variables.go:
+// - Header: magic + version + variable count
+// - Each variable: name + important flag + type + binary-encoded value
+//
+// JavaScript reads directly from the memory-mapped file using DataView.
 func (jf *JSFunctionDefinition) callWithPrefetchContext(evalContext EvalContextProvider, args ...any) (any, error) {
-	// Serialize arguments for transfer
+	// Serialize arguments for transfer (these are typically small)
 	serializedArgs, err := jf.serializeArgs(args)
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize arguments: %w", err)
@@ -615,23 +779,158 @@ func (jf *JSFunctionDefinition) callWithPrefetchContext(evalContext EvalContextP
 	frames := evalContext.GetFramesAny()
 	importantScope := evalContext.GetImportantScopeAny()
 
-	// Pre-fetch known variables - these go in the context directly
-	prefetchedVars := jf.prefetchVariables(frames)
+	// Look up all known variables and collect their declarations
+	varDecls := jf.collectPrefetchVariables(frames)
 
-	// Send minimal context with prefetched variables
-	minimalContext := map[string]any{
-		"frameCount":       len(frames),
-		"importantScope":   serializeImportantScope(importantScope),
-		"prefetchedVars":   prefetchedVars,
-		"usePrefetch":      true,
+	// Write variables to binary format
+	binaryData := WritePrefetchedVariables(varDecls)
+
+	// Get reusable shared memory buffer for the prefetched variables
+	// This avoids creating/destroying a new buffer for each function call
+	shm, err := jf.runtime.GetPrefetchBuffer(len(binaryData))
+	if err != nil {
+		// Fall back to JSON if shared memory not available
+		return jf.callWithPrefetchContextJSON(evalContext, args...)
+	}
+	// Note: We don't destroy the buffer here - it's reused across calls
+
+	// Write binary data to shared memory
+	if err := shm.WriteAll(binaryData); err != nil {
+		return nil, fmt.Errorf("failed to write to shared memory: %w", err)
+	}
+	// Force sync to ensure data is visible to Node.js process
+	if err := shm.Sync(); err != nil {
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Printf("[callWithPrefetchContext] Warning: sync failed: %v\n", err)
+		}
 	}
 
 	if os.Getenv("LESS_GO_DEBUG") == "1" {
-		fmt.Printf("[callWithPrefetchContext] Function %s: %d frames, %d prefetched vars\n",
-			jf.name, len(frames), len(prefetchedVars))
+		fmt.Printf("[callWithPrefetchContext] Function %s: %d frames, %d prefetched vars, %d bytes binary\n",
+			jf.name, len(frames), len(varDecls), len(binaryData))
 	}
 
 	// Register callback for any variables not in prefetch list
+	// Uses binary format for the response as well
+	jf.runtime.RegisterCallback("lookupVariable", func(data any) (any, error) {
+		reqData, ok := data.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("invalid variable lookup request")
+		}
+
+		varName, _ := reqData["name"].(string)
+		frameIdx := 0
+		if idx, ok := reqData["frameIndex"].(float64); ok {
+			frameIdx = int(idx)
+		}
+
+		for i := frameIdx; i < len(frames); i++ {
+			frame := frames[i]
+			if frame == nil {
+				continue
+			}
+
+			variablesProvider, ok := frame.(interface{ Variables() map[string]any })
+			if !ok {
+				continue
+			}
+
+			variables := variablesProvider.Variables()
+			if variables == nil {
+				continue
+			}
+
+			if decl, exists := variables[varName]; exists && decl != nil {
+				// Write the variable to shared memory for binary transfer
+				offset, written, err := writeVariableToSharedMemory(shm, decl)
+				if err == nil {
+					return map[string]any{
+						"found":      true,
+						"frameIndex": i,
+						"shmOffset":  offset,
+						"shmLength":  written,
+					}, nil
+				}
+				// Fall back to JSON for complex types
+				serializedDecl := jf.serializeVariableDeclaration(decl)
+				if serializedDecl != nil {
+					return map[string]any{
+						"found":      true,
+						"frameIndex": i,
+						"value":      serializedDecl,
+						"useJSON":    true,
+					}, nil
+				}
+			}
+		}
+
+		return map[string]any{"found": false}, nil
+	})
+	defer jf.runtime.UnregisterCallback("lookupVariable")
+
+	// Send context with shared memory reference (NOT JSON data)
+	minimalContext := map[string]any{
+		"frameCount":         len(frames),
+		"importantScope":     serializeImportantScope(importantScope),
+		"usePrefetch":        true,
+		"useSharedMemory":    true,
+		"prefetchBufferKey":  shm.Key(),
+		"prefetchBufferPath": shm.Path(),
+		"prefetchBufferSize": len(binaryData),
+	}
+
+	// Call the function via Node.js runtime
+	resp, err := jf.runtime.SendCommand(Command{
+		Cmd: "callFunction",
+		Data: map[string]any{
+			"name":    jf.name,
+			"args":    serializedArgs,
+			"context": minimalContext,
+		},
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("function call failed: %w", err)
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("JavaScript function error: %s", resp.Error)
+	}
+
+	result, err := jf.deserializeResult(resp.Result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to deserialize result: %w", err)
+	}
+
+	return result, nil
+}
+
+// callWithPrefetchContextJSON is the fallback when shared memory is not available.
+// Uses JSON serialization for prefetched variables.
+func (jf *JSFunctionDefinition) callWithPrefetchContextJSON(evalContext EvalContextProvider, args ...any) (any, error) {
+	serializedArgs, err := jf.serializeArgs(args)
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize arguments: %w", err)
+	}
+
+	frames := evalContext.GetFramesAny()
+	importantScope := evalContext.GetImportantScopeAny()
+
+	// Pre-fetch known variables using JSON serialization
+	prefetchedVars := jf.prefetchVariables(frames)
+
+	minimalContext := map[string]any{
+		"frameCount":     len(frames),
+		"importantScope": serializeImportantScope(importantScope),
+		"prefetchedVars": prefetchedVars,
+		"usePrefetch":    true,
+	}
+
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Printf("[callWithPrefetchContextJSON] Function %s: %d frames, %d prefetched vars (JSON fallback)\n",
+			jf.name, len(frames), len(prefetchedVars))
+	}
+
 	jf.runtime.RegisterCallback("lookupVariable", func(data any) (any, error) {
 		reqData, ok := data.(map[string]any)
 		if !ok {
@@ -676,7 +975,6 @@ func (jf *JSFunctionDefinition) callWithPrefetchContext(evalContext EvalContextP
 	})
 	defer jf.runtime.UnregisterCallback("lookupVariable")
 
-	// Call the function via Node.js runtime
 	resp, err := jf.runtime.SendCommand(Command{
 		Cmd: "callFunction",
 		Data: map[string]any{
@@ -700,6 +998,37 @@ func (jf *JSFunctionDefinition) callWithPrefetchContext(evalContext EvalContextP
 	}
 
 	return result, nil
+}
+
+// collectPrefetchVariables looks up known commonly-used variables and returns their declarations.
+// Unlike prefetchVariables, this returns raw declarations instead of serialized JSON.
+func (jf *JSFunctionDefinition) collectPrefetchVariables(frames []any) map[string]any {
+	collected := make(map[string]any)
+
+	for _, varName := range knownVariables {
+		for _, frame := range frames {
+			if frame == nil {
+				continue
+			}
+
+			variablesProvider, ok := frame.(interface{ Variables() map[string]any })
+			if !ok {
+				continue
+			}
+
+			variables := variablesProvider.Variables()
+			if variables == nil {
+				continue
+			}
+
+			if decl, exists := variables[varName]; exists && decl != nil {
+				collected[varName] = decl
+				break // Found it, don't look in more frames
+			}
+		}
+	}
+
+	return collected
 }
 
 // prefetchVariables looks up and serializes known commonly-used variables.
