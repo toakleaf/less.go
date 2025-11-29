@@ -2,6 +2,7 @@ package less_go
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 )
@@ -697,19 +698,18 @@ func TestImportManagerCloneContext(t *testing.T) {
 // Plugin loading tests
 
 func TestImportManagerPushPluginSynchronous(t *testing.T) {
-	mockPluginLoader := &MockImportPluginLoader{
-		LoadPluginSyncFunc: func(path, currentDirectory string, context map[string]any, environment any, fileManager any) any {
-			return &LoadedFile{
-				Filename: "/resolved/test.js",
-				Contents: "module.exports = {name: 'test-plugin'};",
+	// Plugin loading is now deferred - ImportManager returns a DeferredPluginInfo
+	// instead of immediately loading and evaluating the plugin
+	mockPluginLoader := &MockImportPluginLoader{}
+
+	mockFileManager := &MockImportFileManager{
+		JoinFunc: func(path1, path2 string) string {
+			if path1 == "" {
+				return path2
 			}
-		},
-		EvalPluginFunc: func(contents string, newEnv *Parse, importManager any, pluginArgs map[string]any, newFileInfo any) any {
-			return map[string]any{"name": "test-plugin"}
+			return path1 + path2
 		},
 	}
-
-	mockFileManager := &MockImportFileManager{}
 	mockEnv := &MockEnvironment{FileManager: mockFileManager}
 	mockContext := createMockContext()
 	mockContext["syncImport"] = true
@@ -724,10 +724,12 @@ func TestImportManagerPushPluginSynchronous(t *testing.T) {
 
 	var callbackError error
 	var callbackRoot any
+	var callbackFullPath string
 
 	callback := func(err error, root any, importedEqualsRoot bool, fullPath string) {
 		callbackError = err
 		callbackRoot = root
+		callbackFullPath = fullPath
 	}
 
 	importOptions := &ImportOptions{IsPlugin: true}
@@ -740,35 +742,37 @@ func TestImportManagerPushPluginSynchronous(t *testing.T) {
 	}
 
 	if callbackRoot == nil {
-		t.Error("Expected plugin to be loaded and returned")
+		t.Error("Expected DeferredPluginInfo to be returned")
 	}
 
-	if plugin, ok := callbackRoot.(map[string]any); !ok {
-		t.Error("Expected plugin to be a map")
-	} else if name, exists := plugin["name"]; !exists {
-		t.Error("Expected plugin to have name property")
-	} else if name != "test-plugin" {
-		t.Errorf("Expected plugin name to be 'test-plugin', got '%v'", name)
+	// Verify that a DeferredPluginInfo is returned (deferred loading)
+	if deferredInfo, ok := callbackRoot.(*DeferredPluginInfo); !ok {
+		t.Errorf("Expected root to be *DeferredPluginInfo, got %T", callbackRoot)
+	} else {
+		if deferredInfo.Path != "/test" {
+			t.Errorf("Expected Path to be '/test', got '%s'", deferredInfo.Path)
+		}
+		if deferredInfo.CurrentDirectory != "/root/" {
+			t.Errorf("Expected CurrentDirectory to be '/root/', got '%s'", deferredInfo.CurrentDirectory)
+		}
+		if callbackFullPath != "/root//test" {
+			t.Errorf("Expected fullPath to be '/root//test', got '%s'", callbackFullPath)
+		}
 	}
 }
 
 func TestImportManagerPushPluginWithArgs(t *testing.T) {
-	var capturedArgs map[string]any
+	// Plugin loading is deferred - verify that plugin args are stored in DeferredPluginInfo
+	mockPluginLoader := &MockImportPluginLoader{}
 
-	mockPluginLoader := &MockImportPluginLoader{
-		LoadPluginSyncFunc: func(path, currentDirectory string, context map[string]any, environment any, fileManager any) any {
-			return &LoadedFile{
-				Filename: "/resolved/test.js",
-				Contents: "module.exports = {};",
+	mockFileManager := &MockImportFileManager{
+		JoinFunc: func(path1, path2 string) string {
+			if path1 == "" {
+				return path2
 			}
-		},
-		EvalPluginFunc: func(contents string, newEnv *Parse, importManager any, pluginArgs map[string]any, newFileInfo any) any {
-			capturedArgs = pluginArgs
-			return map[string]any{"name": "test-plugin"}
+			return path1 + path2
 		},
 	}
-
-	mockFileManager := &MockImportFileManager{}
 	mockEnv := &MockEnvironment{FileManager: mockFileManager}
 	mockContext := createMockContext()
 	mockContext["syncImport"] = true
@@ -781,7 +785,11 @@ func TestImportManagerPushPluginWithArgs(t *testing.T) {
 	importManagerFactory := NewImportManager(mockEnv)
 	im := importManagerFactory(mockLess, mockContext, mockRootFileInfo)
 
-	callback := func(err error, root any, importedEqualsRoot bool, fullPath string) {}
+	var callbackRoot any
+
+	callback := func(err error, root any, importedEqualsRoot bool, fullPath string) {
+		callbackRoot = root
+	}
 
 	pluginArgs := map[string]any{
 		"arg1": "value1",
@@ -795,38 +803,30 @@ func TestImportManagerPushPluginWithArgs(t *testing.T) {
 
 	im.Push("/test", true, currentFileInfo, importOptions, callback)
 
-	if capturedArgs == nil {
-		t.Error("Expected plugin args to be passed to evalPlugin")
+	// Verify that plugin args are stored in DeferredPluginInfo
+	if deferredInfo, ok := callbackRoot.(*DeferredPluginInfo); !ok {
+		t.Errorf("Expected root to be *DeferredPluginInfo, got %T", callbackRoot)
+	} else if deferredInfo.PluginArgs == nil {
+		t.Error("Expected plugin args to be stored in DeferredPluginInfo")
 	} else {
-		if capturedArgs["arg1"] != "value1" {
-			t.Errorf("Expected arg1 to be 'value1', got %v", capturedArgs["arg1"])
+		if deferredInfo.PluginArgs["arg1"] != "value1" {
+			t.Errorf("Expected arg1 to be 'value1', got %v", deferredInfo.PluginArgs["arg1"])
 		}
-		if capturedArgs["arg2"] != 42 {
-			t.Errorf("Expected arg2 to be 42, got %v", capturedArgs["arg2"])
+		if deferredInfo.PluginArgs["arg2"] != 42 {
+			t.Errorf("Expected arg2 to be 42, got %v", deferredInfo.PluginArgs["arg2"])
 		}
 	}
 }
 
 func TestImportManagerPushPluginError(t *testing.T) {
-	mockPluginLoader := &MockImportPluginLoader{
-		LoadPluginSyncFunc: func(path, currentDirectory string, context map[string]any, environment any, fileManager any) any {
-			return &LoadedFile{
-				Filename: "/resolved/test.js",
-				Contents: "invalid javascript",
-			}
-		},
-		EvalPluginFunc: func(contents string, newEnv *Parse, importManager any, pluginArgs map[string]any, newFileInfo any) any {
-			return &LessError{Message: "Plugin compilation error"}
-		},
-	}
-
+	// Test that an error is returned when no plugin loader is available
+	// (Plugin loading is deferred, so actual plugin errors happen at eval time)
 	mockFileManager := &MockImportFileManager{}
 	mockEnv := &MockEnvironment{FileManager: mockFileManager}
 	mockContext := createMockContext()
 	mockContext["syncImport"] = true
-	mockContext["pluginManager"] = map[string]any{
-		"Loader": mockPluginLoader,
-	}
+	// No pluginManager/Loader set - should cause error
+	delete(mockContext, "pluginManager")
 	mockRootFileInfo := createMockRootFileInfo()
 	mockLess := map[string]any{}
 
@@ -845,33 +845,31 @@ func TestImportManagerPushPluginError(t *testing.T) {
 	im.Push("/test", true, currentFileInfo, importOptions, callback)
 
 	if callbackError == nil {
-		t.Error("Expected error from plugin compilation")
+		t.Error("Expected error when no plugin loader is available")
 	}
 
-	if lessError, ok := callbackError.(*LessError); !ok {
-		t.Error("Expected error to be a LessError")
-	} else if lessError.Message != "Plugin compilation error" {
-		t.Errorf("Expected error message 'Plugin compilation error', got '%s'", lessError.Message)
+	expectedErrorSubstring := "no plugin loader available"
+	if callbackError != nil && !strings.Contains(callbackError.Error(), expectedErrorSubstring) {
+		t.Errorf("Expected error message to contain '%s', got '%s'", expectedErrorSubstring, callbackError.Error())
 	}
 }
 
 func TestImportManagerPushPluginExtension(t *testing.T) {
-	var capturedContext map[string]any
+	// Test that plugin imports compute the full path correctly
+	// (Plugin loading is deferred, so extension handling happens at eval time)
+	mockPluginLoader := &MockImportPluginLoader{}
 
-	mockPluginLoader := &MockImportPluginLoader{
-		LoadPluginSyncFunc: func(path, currentDirectory string, context map[string]any, environment any, fileManager any) any {
-			capturedContext = context
-			return &LoadedFile{
-				Filename: "/resolved/test.js",
-				Contents: "module.exports = {};",
+	mockFileManager := &MockImportFileManager{
+		JoinFunc: func(path1, path2 string) string {
+			if path1 == "" {
+				return path2
 			}
-		},
-		EvalPluginFunc: func(contents string, newEnv *Parse, importManager any, pluginArgs map[string]any, newFileInfo any) any {
-			return map[string]any{"name": "test-plugin"}
+			if path2 == "" {
+				return path1
+			}
+			return path1 + "/" + path2
 		},
 	}
-
-	mockFileManager := &MockImportFileManager{}
 	mockEnv := &MockEnvironment{FileManager: mockFileManager}
 	mockContext := createMockContext()
 	mockContext["syncImport"] = true
@@ -884,26 +882,33 @@ func TestImportManagerPushPluginExtension(t *testing.T) {
 	importManagerFactory := NewImportManager(mockEnv)
 	im := importManagerFactory(mockLess, mockContext, mockRootFileInfo)
 
-	callback := func(err error, root any, importedEqualsRoot bool, fullPath string) {}
+	var callbackRoot any
+	var callbackFullPath string
+
+	callback := func(err error, root any, importedEqualsRoot bool, fullPath string) {
+		callbackRoot = root
+		callbackFullPath = fullPath
+	}
 
 	importOptions := &ImportOptions{IsPlugin: true}
-	currentFileInfo := &FileInfo{CurrentDirectory: "/root/"}
+	currentFileInfo := &FileInfo{CurrentDirectory: "/plugins/"}
 
-	im.Push("/test", true, currentFileInfo, importOptions, callback)
+	im.Push("test-plugin", true, currentFileInfo, importOptions, callback)
 
-	if capturedContext == nil {
-		t.Error("Expected context to be passed to plugin loader")
+	// Verify DeferredPluginInfo is returned with correct path information
+	if deferredInfo, ok := callbackRoot.(*DeferredPluginInfo); !ok {
+		t.Errorf("Expected root to be *DeferredPluginInfo, got %T", callbackRoot)
 	} else {
-		if ext, exists := capturedContext["ext"]; !exists {
-			t.Error("Expected context to have 'ext' property")
-		} else if ext != ".js" {
-			t.Errorf("Expected ext to be '.js' for plugin, got '%v'", ext)
+		if deferredInfo.Path != "test-plugin" {
+			t.Errorf("Expected Path to be 'test-plugin', got '%s'", deferredInfo.Path)
 		}
-
-		if mime, exists := capturedContext["mime"]; !exists {
-			t.Error("Expected context to have 'mime' property")
-		} else if mime != "application/javascript" {
-			t.Errorf("Expected mime to be 'application/javascript' for plugin, got '%v'", mime)
+		if deferredInfo.CurrentDirectory != "/plugins/" {
+			t.Errorf("Expected CurrentDirectory to be '/plugins/', got '%s'", deferredInfo.CurrentDirectory)
+		}
+		// Full path should be computed using Join
+		expectedFullPath := "/plugins//test-plugin"
+		if callbackFullPath != expectedFullPath {
+			t.Errorf("Expected fullPath to be '%s', got '%s'", expectedFullPath, callbackFullPath)
 		}
 	}
 }
@@ -1999,20 +2004,12 @@ func TestImportManagerFullPipeline(t *testing.T) {
 
 // TestImportManagerPluginLoaderFromStruct verifies that ImportManager correctly extracts
 // the plugin loader from a *PluginManager struct (not just a map[string]any).
-// This is a regression test for the fix that connects NodeJSPluginBridge to ImportManager.
+// Plugin loading is deferred, so this test verifies that a DeferredPluginInfo is returned
+// and that no error occurs (which means the plugin loader was successfully extracted).
 func TestImportManagerPluginLoaderFromStruct(t *testing.T) {
 	t.Run("should extract plugin loader from *PluginManager struct", func(t *testing.T) {
-		// Create a mock plugin loader that tracks if it was called
-		loadPluginCalled := false
-		mockLoader := &MockImportPluginLoader{
-			LoadPluginSyncFunc: func(path, currentDirectory string, context map[string]any, environment any, fileManager any) any {
-				loadPluginCalled = true
-				return &LoadedFile{Filename: "/resolved/test.js", Contents: "module.exports = {};"}
-			},
-			EvalPluginFunc: func(contents string, newEnv *Parse, importManager any, pluginArgs map[string]any, newFileInfo any) any {
-				return map[string]string{"name": "test-plugin"}
-			},
-		}
+		// Create a mock plugin loader
+		mockLoader := &MockImportPluginLoader{}
 
 		// Create a LessContext that will be used by PluginManager
 		lessContext := &LessContext{
@@ -2043,8 +2040,11 @@ func TestImportManagerPluginLoaderFromStruct(t *testing.T) {
 
 		// Create mock environment with file manager
 		mockFileManager := &MockImportFileManager{
-			LoadFileSyncFunc: func(path, currentDirectory string, ctx map[string]any, environment ImportManagerEnvironment) *LoadedFile {
-				return &LoadedFile{Filename: "/resolved/test.js", Contents: "module.exports = {};"}
+			JoinFunc: func(path1, path2 string) string {
+				if path1 == "" {
+					return path2
+				}
+				return path1 + path2
 			},
 		}
 		mockEnv := &MockEnvironment{FileManager: mockFileManager}
@@ -2074,12 +2074,13 @@ func TestImportManagerPluginLoaderFromStruct(t *testing.T) {
 		}
 
 		// Push a plugin import
-		callbackCalled := false
+		var callbackCalled bool
+		var callbackError error
+		var callbackRoot any
 		im.Push("test.js", true, currentFileInfo, importOptions, func(err error, root any, importedEqualsRoot bool, fullPath string) {
 			callbackCalled = true
-			if err != nil {
-				t.Errorf("Expected no error, got: %v", err)
-			}
+			callbackError = err
+			callbackRoot = root
 		})
 
 		// Verify the callback was called
@@ -2087,24 +2088,20 @@ func TestImportManagerPluginLoaderFromStruct(t *testing.T) {
 			t.Error("Expected callback to be called")
 		}
 
-		// Verify the plugin loader was called
-		if !loadPluginCalled {
-			t.Error("Expected LoadPluginSync to be called on the plugin loader")
+		// Verify no error (plugin loader was successfully extracted)
+		if callbackError != nil {
+			t.Errorf("Expected no error, got: %v", callbackError)
+		}
+
+		// Verify DeferredPluginInfo is returned (plugin loading is deferred)
+		if _, ok := callbackRoot.(*DeferredPluginInfo); !ok {
+			t.Errorf("Expected root to be *DeferredPluginInfo, got %T", callbackRoot)
 		}
 	})
 
 	t.Run("should still work with legacy map-based pluginManager", func(t *testing.T) {
 		// Create a mock plugin loader
-		loadPluginCalled := false
-		mockLoader := &MockImportPluginLoader{
-			LoadPluginSyncFunc: func(path, currentDirectory string, context map[string]any, environment any, fileManager any) any {
-				loadPluginCalled = true
-				return &LoadedFile{Filename: "/resolved/test.js", Contents: "module.exports = {};"}
-			},
-			EvalPluginFunc: func(contents string, newEnv *Parse, importManager any, pluginArgs map[string]any, newFileInfo any) any {
-				return map[string]string{"name": "test-plugin"}
-			},
-		}
+		mockLoader := &MockImportPluginLoader{}
 
 		// Create context with map-based pluginManager (legacy format)
 		context := map[string]any{
@@ -2120,8 +2117,11 @@ func TestImportManagerPluginLoaderFromStruct(t *testing.T) {
 
 		// Create mock environment
 		mockFileManager := &MockImportFileManager{
-			LoadFileSyncFunc: func(path, currentDirectory string, ctx map[string]any, environment ImportManagerEnvironment) *LoadedFile {
-				return &LoadedFile{Filename: "/resolved/test.js", Contents: "module.exports = {};"}
+			JoinFunc: func(path1, path2 string) string {
+				if path1 == "" {
+					return path2
+				}
+				return path1 + path2
 			},
 		}
 		mockEnv := &MockEnvironment{FileManager: mockFileManager}
@@ -2150,9 +2150,13 @@ func TestImportManagerPluginLoaderFromStruct(t *testing.T) {
 		}
 
 		// Push a plugin import
-		callbackCalled := false
+		var callbackCalled bool
+		var callbackError error
+		var callbackRoot any
 		im.Push("test.js", true, currentFileInfo, importOptions, func(err error, root any, importedEqualsRoot bool, fullPath string) {
 			callbackCalled = true
+			callbackError = err
+			callbackRoot = root
 		})
 
 		// Verify the callback was called
@@ -2160,9 +2164,14 @@ func TestImportManagerPluginLoaderFromStruct(t *testing.T) {
 			t.Error("Expected callback to be called")
 		}
 
-		// Verify the plugin loader was called
-		if !loadPluginCalled {
-			t.Error("Expected LoadPluginSync to be called on the plugin loader")
+		// Verify no error (plugin loader was successfully extracted from map)
+		if callbackError != nil {
+			t.Errorf("Expected no error, got: %v", callbackError)
+		}
+
+		// Verify DeferredPluginInfo is returned (plugin loading is deferred)
+		if _, ok := callbackRoot.(*DeferredPluginInfo); !ok {
+			t.Errorf("Expected root to be *DeferredPluginInfo, got %T", callbackRoot)
 		}
 	})
 }

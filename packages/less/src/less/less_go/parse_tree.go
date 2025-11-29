@@ -236,6 +236,25 @@ func (pt *ParseTree) ToCSS(options *ToCSSOptions) (*ToCSSResult, error) {
 	result.CSS = css
 
 	// Apply post-processors if available
+	// First, check for JavaScript post-processors via the plugin bridge
+	if options != nil && options.PluginBridge != nil {
+		if bridge, ok := options.PluginBridge.(interface {
+			RunPostProcessors(string, map[string]any) (string, error)
+		}); ok {
+			processOptions := map[string]any{
+				"sourceMap": sourceMapBuilder,
+				"options":   options,
+				"imports":   pt.Imports,
+			}
+			processedCSS, err := bridge.RunPostProcessors(result.CSS, processOptions)
+			if err != nil {
+				return nil, fmt.Errorf("JavaScript post-processor failed: %w", err)
+			}
+			result.CSS = processedCSS
+		}
+	}
+
+	// Then, check for Go post-processors via the plugin manager
 	if options != nil && options.PluginManager != nil {
 		if pluginMgr, ok := options.PluginManager.(interface {
 			GetPostProcessors() []any
