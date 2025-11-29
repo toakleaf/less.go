@@ -654,14 +654,15 @@ func (e *Eval) HasPluginFunction(name string) bool {
 	return false
 }
 
-// CallPluginFunction calls a JavaScript plugin function by name.
+// CallPluginFunction calls a JavaScript plugin function by name with evaluation context.
+// This allows plugin functions to access Less variables via this.context.
 func (e *Eval) CallPluginFunction(name string, args ...any) (any, error) {
 	if e.PluginBridge != nil {
-		return e.PluginBridge.CallFunction(name, args...)
+		return e.PluginBridge.CallFunctionWithContext(name, e, args...)
 	}
 	// Also check LazyPluginBridge if PluginBridge is nil
 	if e.LazyPluginBridge != nil {
-		return e.LazyPluginBridge.CallFunction(name, args...)
+		return e.LazyPluginBridge.CallFunctionWithContext(name, e, args...)
 	}
 	return nil, fmt.Errorf("no plugin bridge available")
 }

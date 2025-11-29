@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"reflect"
 	"sync"
+	"unsafe"
 )
 
 // ====================================================================================
@@ -558,13 +560,592 @@ type EvalContextProvider interface {
 
 // CallWithContext calls the JavaScript function with evaluation context.
 // This is used by plugin functions that need to access Less variables.
+//
+// OPTIMIZATION: Uses pre-fetch + on-demand lookup for optimal performance:
+// 1. Pre-fetch commonly needed variables (avoiding IPC for them)
+// 2. For any other variables, use on-demand callback lookup
 func (jf *JSFunctionDefinition) CallWithContext(evalContext EvalContextProvider, args ...any) (any, error) {
 	if jf.runtime == nil {
 		return nil, fmt.Errorf("Node.js runtime not initialized")
 	}
 
-	// Always use JSON mode for context-aware calls as it's more reliable
-	return jf.callViaJSONWithContext(evalContext, args...)
+	// Use pre-fetch mode for known plugin functions to avoid IPC overhead
+	return jf.callWithPrefetchContext(evalContext, args...)
+}
+
+// knownVariables contains variables that are commonly accessed by plugin functions.
+// We pre-serialize these to avoid IPC round-trips for each lookup.
+var knownVariables = []string{
+	// Bootstrap theme colors and utilities
+	"@theme-colors",
+	"@theme-color-interval",
+	"@black",
+	"@white",
+	"@gray-100",
+	"@gray-200",
+	"@gray-600",
+	"@gray-800",
+	"@gray-900",
+	"@yiq-contrasted-threshold",
+	"@yiq-text-dark",
+	"@yiq-text-light",
+	// Bootstrap grid breakpoints
+	"@grid-breakpoints",
+	// Color variants
+	"@primary",
+	"@secondary",
+	"@success",
+	"@info",
+	"@warning",
+	"@danger",
+	"@light",
+	"@dark",
+}
+
+// callWithPrefetchContext pre-fetches commonly needed variables and sends them
+// with the function call, avoiding IPC round-trips for each lookup.
+func (jf *JSFunctionDefinition) callWithPrefetchContext(evalContext EvalContextProvider, args ...any) (any, error) {
+	// Serialize arguments for transfer
+	serializedArgs, err := jf.serializeArgs(args)
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize arguments: %w", err)
+	}
+
+	// Get frames for variable lookup
+	frames := evalContext.GetFramesAny()
+	importantScope := evalContext.GetImportantScopeAny()
+
+	// Pre-fetch known variables - these go in the context directly
+	prefetchedVars := jf.prefetchVariables(frames)
+
+	// Send minimal context with prefetched variables
+	minimalContext := map[string]any{
+		"frameCount":       len(frames),
+		"importantScope":   serializeImportantScope(importantScope),
+		"prefetchedVars":   prefetchedVars,
+		"usePrefetch":      true,
+	}
+
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Printf("[callWithPrefetchContext] Function %s: %d frames, %d prefetched vars\n",
+			jf.name, len(frames), len(prefetchedVars))
+	}
+
+	// Register callback for any variables not in prefetch list
+	jf.runtime.RegisterCallback("lookupVariable", func(data any) (any, error) {
+		reqData, ok := data.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("invalid variable lookup request")
+		}
+
+		varName, _ := reqData["name"].(string)
+		frameIdx := 0
+		if idx, ok := reqData["frameIndex"].(float64); ok {
+			frameIdx = int(idx)
+		}
+
+		for i := frameIdx; i < len(frames); i++ {
+			frame := frames[i]
+			if frame == nil {
+				continue
+			}
+
+			variablesProvider, ok := frame.(interface{ Variables() map[string]any })
+			if !ok {
+				continue
+			}
+
+			variables := variablesProvider.Variables()
+			if variables == nil {
+				continue
+			}
+
+			if decl, exists := variables[varName]; exists && decl != nil {
+				serializedDecl := jf.serializeVariableDeclaration(decl)
+				if serializedDecl != nil {
+					return map[string]any{
+						"found":      true,
+						"frameIndex": i,
+						"value":      serializedDecl,
+					}, nil
+				}
+			}
+		}
+
+		return map[string]any{"found": false}, nil
+	})
+	defer jf.runtime.UnregisterCallback("lookupVariable")
+
+	// Call the function via Node.js runtime
+	resp, err := jf.runtime.SendCommand(Command{
+		Cmd: "callFunction",
+		Data: map[string]any{
+			"name":    jf.name,
+			"args":    serializedArgs,
+			"context": minimalContext,
+		},
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("function call failed: %w", err)
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("JavaScript function error: %s", resp.Error)
+	}
+
+	result, err := jf.deserializeResult(resp.Result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to deserialize result: %w", err)
+	}
+
+	return result, nil
+}
+
+// prefetchVariables looks up and serializes known commonly-used variables.
+func (jf *JSFunctionDefinition) prefetchVariables(frames []any) map[string]any {
+	prefetched := make(map[string]any)
+
+	for _, varName := range knownVariables {
+		// Look up the variable in frames
+		for _, frame := range frames {
+			if frame == nil {
+				continue
+			}
+
+			variablesProvider, ok := frame.(interface{ Variables() map[string]any })
+			if !ok {
+				continue
+			}
+
+			variables := variablesProvider.Variables()
+			if variables == nil {
+				continue
+			}
+
+			if decl, exists := variables[varName]; exists && decl != nil {
+				serializedDecl := jf.serializeVariableDeclaration(decl)
+				if serializedDecl != nil {
+					prefetched[varName] = serializedDecl
+					break // Found it, don't look in more frames
+				}
+			}
+		}
+	}
+
+	return prefetched
+}
+
+// callWithOnDemandContext calls a function with on-demand variable lookup via shared memory.
+// Instead of serializing any context to JSON, this uses shared memory for variable data.
+// The lookup process:
+// 1. Go creates a shared memory buffer for variable data
+// 2. When JavaScript needs a variable, it sends ONLY the variable name (tiny JSON)
+// 3. Go looks up the variable and writes it to shared memory in binary format
+// 4. JavaScript reads the value directly from shared memory (no JSON parsing)
+func (jf *JSFunctionDefinition) callWithOnDemandContext(evalContext EvalContextProvider, args ...any) (any, error) {
+	// Serialize arguments for transfer (these are usually small)
+	serializedArgs, err := jf.serializeArgs(args)
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize arguments: %w", err)
+	}
+
+	// Get frames for variable lookup
+	frames := evalContext.GetFramesAny()
+	importantScope := evalContext.GetImportantScopeAny()
+
+	// Create a shared memory buffer for variable data (1MB should be plenty)
+	const varBufferSize = 1024 * 1024
+	shmMgr := jf.runtime.SharedMemoryManager()
+	if shmMgr == nil {
+		// Fall back to JSON-based lookup if shared memory not available
+		return jf.callWithOnDemandContextJSON(evalContext, args...)
+	}
+
+	varBuffer, err := shmMgr.Create(varBufferSize)
+	if err != nil {
+		// Fall back to JSON-based lookup
+		return jf.callWithOnDemandContextJSON(evalContext, args...)
+	}
+	defer shmMgr.Destroy(varBuffer.Key())
+
+	// Attach the buffer to JavaScript
+	_, err = jf.runtime.SendCommand(Command{
+		Cmd: "attachVarBuffer",
+		Data: map[string]any{
+			"key":  varBuffer.Key(),
+			"path": varBuffer.Path(),
+			"size": varBuffer.Size(),
+		},
+	})
+	if err != nil {
+		return jf.callWithOnDemandContextJSON(evalContext, args...)
+	}
+
+	// Register a callback handler for variable lookup
+	// The callback only receives the variable name - value is written to shared memory
+	jf.runtime.RegisterCallback("lookupVariable", func(data any) (any, error) {
+		reqData, ok := data.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("invalid variable lookup request")
+		}
+
+		varName, _ := reqData["name"].(string)
+		frameIdx := 0
+		if idx, ok := reqData["frameIndex"].(float64); ok {
+			frameIdx = int(idx)
+		}
+
+		// Search for the variable starting from the specified frame index
+		for i := frameIdx; i < len(frames); i++ {
+			frame := frames[i]
+			if frame == nil {
+				continue
+			}
+
+			// Check if frame has Variables() method (like Ruleset)
+			variablesProvider, ok := frame.(interface {
+				Variables() map[string]any
+			})
+			if !ok {
+				continue
+			}
+
+			variables := variablesProvider.Variables()
+			if variables == nil {
+				continue
+			}
+
+			if decl, exists := variables[varName]; exists && decl != nil {
+				// Found the variable - write it to shared memory in binary format
+				offset, written, err := writeVariableToSharedMemory(varBuffer, decl)
+				if err != nil {
+					// Fall back to JSON serialization for this variable
+					serializedDecl := jf.serializeVariableDeclaration(decl)
+					return map[string]any{
+						"found":      true,
+						"frameIndex": i,
+						"value":      serializedDecl,
+						"useJSON":    true,
+					}, nil
+				}
+				return map[string]any{
+					"found":      true,
+					"frameIndex": i,
+					"shmOffset":  offset,
+					"shmLength":  written,
+				}, nil
+			}
+		}
+
+		// Variable not found
+		return map[string]any{"found": false}, nil
+	})
+
+	// Unregister callback when done
+	defer jf.runtime.UnregisterCallback("lookupVariable")
+	defer jf.runtime.SendCommand(Command{Cmd: "detachVarBuffer"})
+
+	// Send minimal context info
+	minimalContext := map[string]any{
+		"frameCount":        len(frames),
+		"importantScope":    serializeImportantScope(importantScope),
+		"useOnDemandLookup": true,
+		"useSharedMemory":   true,
+	}
+
+	// Call the function via Node.js runtime
+	resp, err := jf.runtime.SendCommand(Command{
+		Cmd: "callFunction",
+		Data: map[string]any{
+			"name":    jf.name,
+			"args":    serializedArgs,
+			"context": minimalContext,
+		},
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("function call failed: %w", err)
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("JavaScript function error: %s", resp.Error)
+	}
+
+	// Deserialize the result
+	result, err := jf.deserializeResult(resp.Result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to deserialize result: %w", err)
+	}
+
+	return result, nil
+}
+
+// callWithOnDemandContextJSON is the fallback when shared memory is not available.
+func (jf *JSFunctionDefinition) callWithOnDemandContextJSON(evalContext EvalContextProvider, args ...any) (any, error) {
+	serializedArgs, err := jf.serializeArgs(args)
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize arguments: %w", err)
+	}
+
+	frames := evalContext.GetFramesAny()
+	importantScope := evalContext.GetImportantScopeAny()
+
+	jf.runtime.RegisterCallback("lookupVariable", func(data any) (any, error) {
+		reqData, ok := data.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("invalid variable lookup request")
+		}
+
+		varName, _ := reqData["name"].(string)
+		frameIdx := 0
+		if idx, ok := reqData["frameIndex"].(float64); ok {
+			frameIdx = int(idx)
+		}
+
+		for i := frameIdx; i < len(frames); i++ {
+			frame := frames[i]
+			if frame == nil {
+				continue
+			}
+
+			variablesProvider, ok := frame.(interface{ Variables() map[string]any })
+			if !ok {
+				continue
+			}
+
+			variables := variablesProvider.Variables()
+			if variables == nil {
+				continue
+			}
+
+			if decl, exists := variables[varName]; exists && decl != nil {
+				serializedDecl := jf.serializeVariableDeclaration(decl)
+				if serializedDecl != nil {
+					return map[string]any{
+						"found":      true,
+						"frameIndex": i,
+						"value":      serializedDecl,
+					}, nil
+				}
+			}
+		}
+
+		return map[string]any{"found": false}, nil
+	})
+
+	defer jf.runtime.UnregisterCallback("lookupVariable")
+
+	minimalContext := map[string]any{
+		"frameCount":        len(frames),
+		"importantScope":    serializeImportantScope(importantScope),
+		"useOnDemandLookup": true,
+	}
+
+	resp, err := jf.runtime.SendCommand(Command{
+		Cmd: "callFunction",
+		Data: map[string]any{
+			"name":    jf.name,
+			"args":    serializedArgs,
+			"context": minimalContext,
+		},
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("function call failed: %w", err)
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("JavaScript function error: %s", resp.Error)
+	}
+
+	result, err := jf.deserializeResult(resp.Result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to deserialize result: %w", err)
+	}
+
+	return result, nil
+}
+
+// writeVariableToSharedMemory writes a variable declaration to shared memory in binary format.
+// Returns the offset and number of bytes written.
+//
+// Binary format:
+// [1 byte: type] [4 bytes: value length] [value data...]
+//
+// Types:
+// 0 = null/undefined
+// 1 = Dimension (8 bytes float64 value + 4 bytes unit length + unit string)
+// 2 = Color (8 bytes r, g, b, alpha as float64s = 32 bytes)
+// 3 = Quoted (4 bytes length + string + 1 byte quote char)
+// 4 = Keyword (4 bytes length + string)
+// 5 = Expression (serialized as JSON for now - complex)
+// 255 = fallback to JSON
+func writeVariableToSharedMemory(shm *SharedMemory, decl any) (int, int, error) {
+	if decl == nil {
+		return 0, 0, fmt.Errorf("nil declaration")
+	}
+
+	// Get the value from the declaration
+	valueProvider, ok := decl.(interface{ GetValue() any })
+	if !ok {
+		return 0, 0, fmt.Errorf("declaration has no GetValue")
+	}
+	value := valueProvider.GetValue()
+	if value == nil {
+		return 0, 0, fmt.Errorf("nil value")
+	}
+
+	// Get important flag
+	important := false
+	if ip, ok := decl.(interface{ GetImportant() bool }); ok {
+		important = ip.GetImportant()
+	}
+
+	// Write to shared memory buffer
+	// Start at offset 0 for simplicity (could use a write pointer for multiple values)
+	offset := 0
+	buf := make([]byte, 0, 256)
+
+	// Write important flag
+	if important {
+		buf = append(buf, 1)
+	} else {
+		buf = append(buf, 0)
+	}
+
+	// Write value based on type
+	switch v := value.(type) {
+	case interface{ GetType() string }:
+		nodeType := v.GetType()
+		switch nodeType {
+		case "Dimension":
+			buf = append(buf, 1) // type = Dimension
+			// Get value
+			if valGetter, ok := v.(interface{ GetValue() float64 }); ok {
+				val := valGetter.GetValue()
+				buf = appendFloat64(buf, val)
+			} else {
+				return 0, 0, fmt.Errorf("Dimension has no GetValue")
+			}
+			// Get unit
+			if unitGetter, ok := v.(interface{ GetUnit() any }); ok {
+				unit := unitGetter.GetUnit()
+				unitStr := ""
+				if unit != nil {
+					if s, ok := unit.(fmt.Stringer); ok {
+						unitStr = s.String()
+					} else if s, ok := unit.(interface{ ToString() string }); ok {
+						unitStr = s.ToString()
+					}
+				}
+				buf = appendString(buf, unitStr)
+			} else {
+				buf = appendString(buf, "")
+			}
+
+		case "Color":
+			buf = append(buf, 2) // type = Color
+			if rgbGetter, ok := v.(interface{ GetRGB() []float64 }); ok {
+				rgb := rgbGetter.GetRGB()
+				for _, c := range rgb {
+					buf = appendFloat64(buf, c)
+				}
+				// Pad to 3 values if needed
+				for i := len(rgb); i < 3; i++ {
+					buf = appendFloat64(buf, 0)
+				}
+			} else {
+				buf = appendFloat64(buf, 0)
+				buf = appendFloat64(buf, 0)
+				buf = appendFloat64(buf, 0)
+			}
+			if alphaGetter, ok := v.(interface{ GetAlpha() float64 }); ok {
+				buf = appendFloat64(buf, alphaGetter.GetAlpha())
+			} else {
+				buf = appendFloat64(buf, 1)
+			}
+
+		case "Quoted":
+			buf = append(buf, 3) // type = Quoted
+			if valGetter, ok := v.(interface{ GetValue() string }); ok {
+				buf = appendString(buf, valGetter.GetValue())
+			} else {
+				buf = appendString(buf, "")
+			}
+			if quoteGetter, ok := v.(interface{ GetQuote() string }); ok {
+				q := quoteGetter.GetQuote()
+				if len(q) > 0 {
+					buf = append(buf, q[0])
+				} else {
+					buf = append(buf, '"')
+				}
+			} else {
+				buf = append(buf, '"')
+			}
+
+		case "Keyword":
+			buf = append(buf, 4) // type = Keyword
+			if valGetter, ok := v.(interface{ GetValue() string }); ok {
+				buf = appendString(buf, valGetter.GetValue())
+			} else {
+				buf = appendString(buf, "")
+			}
+
+		default:
+			// Unsupported type - signal to use JSON fallback
+			return 0, 0, fmt.Errorf("unsupported type: %s", nodeType)
+		}
+
+	default:
+		return 0, 0, fmt.Errorf("value is not a node")
+	}
+
+	// Write to shared memory
+	if err := shm.Write(offset, buf); err != nil {
+		return 0, 0, err
+	}
+
+	return offset, len(buf), nil
+}
+
+// appendFloat64 appends a float64 to a byte slice in little-endian format.
+func appendFloat64(buf []byte, v float64) []byte {
+	bits := *(*uint64)(unsafe.Pointer(&v))
+	return append(buf,
+		byte(bits),
+		byte(bits>>8),
+		byte(bits>>16),
+		byte(bits>>24),
+		byte(bits>>32),
+		byte(bits>>40),
+		byte(bits>>48),
+		byte(bits>>56),
+	)
+}
+
+// appendString appends a length-prefixed string to a byte slice.
+func appendString(buf []byte, s string) []byte {
+	length := uint32(len(s))
+	buf = append(buf,
+		byte(length),
+		byte(length>>8),
+		byte(length>>16),
+		byte(length>>24),
+	)
+	return append(buf, s...)
+}
+
+// serializeImportantScope serializes the important scope array.
+func serializeImportantScope(scope []map[string]any) []map[string]any {
+	result := make([]map[string]any, len(scope))
+	for i, s := range scope {
+		result[i] = make(map[string]any)
+		for k, v := range s {
+			result[i][k] = v
+		}
+	}
+	return result
 }
 
 // callViaJSONWithContext calls the JavaScript function with context using JSON serialization.
@@ -616,8 +1197,43 @@ func (jf *JSFunctionDefinition) callViaJSONWithContext(evalContext EvalContextPr
 	return result, nil
 }
 
+// contextCache stores the last serialized context to avoid re-serialization
+// when the context hasn't changed between consecutive function calls.
+type contextCache struct {
+	serialized map[string]any
+	frameCount int
+	version    uint64
+}
+
+// Global context cache (thread-safe via sync.Once pattern in usage)
+var (
+	contextCacheMu    sync.RWMutex
+	lastContextCache  *contextCache
+	contextVersion    uint64 = 0
+)
+
+// IncrementContextVersion should be called when frames are pushed/popped
+// to invalidate the context cache.
+func IncrementContextVersion() {
+	contextCacheMu.Lock()
+	contextVersion++
+	contextCacheMu.Unlock()
+}
+
+// GetContextVersion returns the current context version.
+func GetContextVersion() uint64 {
+	contextCacheMu.RLock()
+	defer contextCacheMu.RUnlock()
+	return contextVersion
+}
+
 // serializeEvalContext serializes the evaluation context for JavaScript.
 // This includes frames with their variables so plugin functions can look up values.
+//
+// OPTIMIZATION: Uses lazy serialization to avoid serializing all frames upfront:
+// 1. Only the first MAX_SERIALIZED_FRAMES frames are fully serialized
+// 2. For remaining frames, only variable names are serialized (not values)
+// 3. JavaScript can request specific variable values on-demand
 func (jf *JSFunctionDefinition) serializeEvalContext(evalContext EvalContextProvider) map[string]any {
 	if evalContext == nil {
 		return nil
@@ -626,11 +1242,38 @@ func (jf *JSFunctionDefinition) serializeEvalContext(evalContext EvalContextProv
 	frames := evalContext.GetFramesAny()
 	importantScope := evalContext.GetImportantScopeAny()
 
+	// Check if we can use cached context
+	contextCacheMu.RLock()
+	currentVersion := contextVersion
+	cache := lastContextCache
+	contextCacheMu.RUnlock()
+
+	if cache != nil && cache.version == currentVersion && cache.frameCount == len(frames) {
+		// Context hasn't changed, reuse cached serialization
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Printf("[serializeEvalContext] Using cached context (version=%d, frames=%d)\n", currentVersion, len(frames))
+		}
+		return cache.serialized
+	}
+
+	// Limit on how many frames to fully serialize
+	// Most variable lookups find the variable in the first few frames
+	const MAX_SERIALIZED_FRAMES = 50
+
 	// Serialize frames with their variables
 	serializedFrames := make([]map[string]any, 0, len(frames))
-	for _, frame := range frames {
-		serializedFrame := jf.serializeFrame(frame)
+	for i, frame := range frames {
+		var serializedFrame map[string]any
+		if i < MAX_SERIALIZED_FRAMES {
+			// Fully serialize the first N frames
+			serializedFrame = jf.serializeFrame(frame)
+		} else {
+			// For remaining frames, only serialize variable names (not values)
+			// This allows JavaScript to know which variables exist but defer value lookup
+			serializedFrame = jf.serializeFrameNamesOnly(frame)
+		}
 		if serializedFrame != nil {
+			serializedFrame["_frameIndex"] = i
 			serializedFrames = append(serializedFrames, serializedFrame)
 		}
 	}
@@ -644,9 +1287,75 @@ func (jf *JSFunctionDefinition) serializeEvalContext(evalContext EvalContextProv
 		}
 	}
 
-	return map[string]any{
+	result := map[string]any{
 		"frames":         serializedFrames,
 		"importantScope": serializedImportantScope,
+		"totalFrames":    len(frames),
+	}
+
+	// Cache the serialized context
+	contextCacheMu.Lock()
+	lastContextCache = &contextCache{
+		serialized: result,
+		frameCount: len(frames),
+		version:    currentVersion,
+	}
+	contextCacheMu.Unlock()
+
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Printf("[serializeEvalContext] Serialized %d frames (full: %d, names-only: %d)\n",
+			len(serializedFrames), min(len(frames), MAX_SERIALIZED_FRAMES), max(0, len(frames)-MAX_SERIALIZED_FRAMES))
+	}
+
+	return result
+}
+
+// min returns the smaller of two integers
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// max returns the larger of two integers
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+// serializeFrameNamesOnly serializes only the variable names from a frame.
+// This is used for frames beyond the MAX_SERIALIZED_FRAMES threshold to allow
+// JavaScript to know which variables exist without the overhead of serializing values.
+func (jf *JSFunctionDefinition) serializeFrameNamesOnly(frame any) map[string]any {
+	if frame == nil {
+		return nil
+	}
+
+	// Check if frame has Variables() method (like Ruleset)
+	variablesProvider, ok := frame.(interface {
+		Variables() map[string]any
+	})
+	if !ok {
+		return nil
+	}
+
+	variables := variablesProvider.Variables()
+	if variables == nil {
+		return map[string]any{"variables": map[string]any{}, "_lazyLoad": true}
+	}
+
+	// Only serialize variable names (set value to nil to indicate lazy loading)
+	varNames := make(map[string]any)
+	for name := range variables {
+		varNames[name] = nil // nil indicates value needs to be fetched
+	}
+
+	return map[string]any{
+		"variables": varNames,
+		"_lazyLoad": true,
 	}
 }
 
@@ -781,11 +1490,26 @@ func serializeNode(node any) any {
 				nodeMap["unit"] = serializeUnit(getter.GetUnit())
 			}
 		case "Color":
+			// Try GetRGB method first, then fall back to field access
 			if getter, ok := node.(interface{ GetRGB() []float64 }); ok {
 				nodeMap["rgb"] = getter.GetRGB()
+			} else if colorNode, ok := node.(interface{ GetColorRGB() []float64 }); ok {
+				// Alternative method name
+				nodeMap["rgb"] = colorNode.GetColorRGB()
+			} else {
+				// Try to access RGB field via reflection as last resort
+				// For less_go.Color, RGB is a public field
+				if hasRGB := extractFieldByName(node, "RGB"); hasRGB != nil {
+					nodeMap["rgb"] = hasRGB
+				}
 			}
 			if getter, ok := node.(interface{ GetAlpha() float64 }); ok {
 				nodeMap["alpha"] = getter.GetAlpha()
+			} else {
+				// Try to access Alpha field
+				if alpha := extractFieldByName(node, "Alpha"); alpha != nil {
+					nodeMap["alpha"] = alpha
+				}
 			}
 		case "Quoted":
 			if getter, ok := node.(interface{ GetValue() string }); ok {
@@ -848,6 +1572,30 @@ func serializeUnit(unit any) any {
 	}
 	// Fallback - but avoid printing Go struct syntax
 	return ""
+}
+
+// extractFieldByName uses reflection to extract a field value by name from a struct.
+// Returns nil if the field doesn't exist or isn't accessible.
+func extractFieldByName(node any, fieldName string) any {
+	if node == nil {
+		return nil
+	}
+	v := reflect.ValueOf(node)
+	// Dereference pointer if needed
+	if v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return nil
+		}
+		v = v.Elem()
+	}
+	if v.Kind() != reflect.Struct {
+		return nil
+	}
+	field := v.FieldByName(fieldName)
+	if !field.IsValid() || !field.CanInterface() {
+		return nil
+	}
+	return field.Interface()
 }
 
 // deserializeNodeMap deserializes a JavaScript node map to a JSResultNode.
