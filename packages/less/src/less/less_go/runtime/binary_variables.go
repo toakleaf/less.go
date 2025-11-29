@@ -324,6 +324,8 @@ func (w *BinaryVariableWriter) writeDimension(value any) error {
 }
 
 // writeColor writes a Color node.
+// Format: [R:f64][G:f64][B:f64][Alpha:f64][ValueLen:u32][Value:string]
+// The Value field preserves the original color form (e.g., "#fff" vs "#ffffff")
 func (w *BinaryVariableWriter) writeColor(value any) error {
 	// Get RGB values
 	rgb := []float64{0, 0, 0}
@@ -346,6 +348,13 @@ func (w *BinaryVariableWriter) writeColor(value any) error {
 		alpha = alphaGetter.GetAlpha()
 	}
 	w.writeFloat64(alpha)
+
+	// Get original value string (preserves form like "#fff" vs "#ffffff")
+	originalValue := ""
+	if valueGetter, ok := value.(interface{ GetColorValue() string }); ok {
+		originalValue = valueGetter.GetColorValue()
+	}
+	w.writeString(originalValue)
 
 	return nil
 }
