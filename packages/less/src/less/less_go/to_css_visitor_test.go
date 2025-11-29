@@ -272,12 +272,12 @@ func TestMultipleSamePropertyDeclarations(t *testing.T) {
 		t.Errorf("Expected CSS to contain #ff0000 (red)")
 	}
 	if !strings.Contains(css, "#0080ff") {
-		t.Errorf("Expected CSS to contain #0080ff (blue)")  
+		t.Errorf("Expected CSS to contain #0080ff (blue)")
 	}
 	if !strings.Contains(css, "#646464") {
 		t.Errorf("Expected CSS to contain #646464 (gray)")
 	}
-	
+
 	// Check the order is preserved
 	redIndex := strings.Index(css, "#ff0000")
 	blueIndex := strings.Index(css, "#0080ff")

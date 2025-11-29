@@ -244,11 +244,22 @@ function readVariableFromSharedMemory(offset, length) {
           pos += 8;
           const alpha = readFloat64(varBufferData, pos);
           pos += 8;
+          // Read original value string (preserves form like "#fff" vs "#ffffff")
+          const valueLen = varBufferData.readUInt32LE(pos);
+          pos += 4;
+          let colorValue = '';
+          if (valueLen > 0) {
+            colorValue = varBufferData.toString('utf8', pos, pos + valueLen);
+            pos += valueLen;
+          }
           value = {
             _type: 'Color',
             rgb: [r, g, b],
             alpha: alpha,
           };
+          if (colorValue) {
+            value.value = colorValue;
+          }
         }
         break;
 
@@ -2190,13 +2201,25 @@ function parseBinaryPrefetchBuffer(buffer, dataSize) {
             offset += 8;
             const alpha = readFloat64LE(buffer, offset);
             offset += 8;
+            // Read original value string (preserves form like "#fff" vs "#ffffff")
+            const valueLen = buffer.readUInt32LE(offset);
+            offset += 4;
+            let colorValue = '';
+            if (valueLen > 0) {
+              colorValue = buffer.toString('utf8', offset, offset + valueLen);
+              offset += valueLen;
+            }
             value = {
               _type: 'Color',
               rgb: [r, g, b],
               alpha: alpha,
             };
+            // Only set value if it was originally specified (preserves original form)
+            if (colorValue) {
+              value.value = colorValue;
+            }
             if (process.env.LESS_GO_DEBUG && name && (name === '@blue' || name === '@primary')) {
-              console.error(`[plugin-host] Parsed Color for ${name}: rgb=[${r}, ${g}, ${b}], alpha=${alpha}`);
+              console.error(`[plugin-host] Parsed Color for ${name}: rgb=[${r}, ${g}, ${b}], alpha=${alpha}, value=${colorValue}`);
             }
           }
           break;
@@ -2397,12 +2420,24 @@ function readBinaryValue(buffer, offset) {
         offset += 8;
         const alpha = readFloat64LE(buffer, offset);
         offset += 8;
+        // Read original value string (preserves form like "#fff" vs "#ffffff")
+        const valueLen = buffer.readUInt32LE(offset);
+        offset += 4;
+        let colorValue = '';
+        if (valueLen > 0) {
+          colorValue = buffer.toString('utf8', offset, offset + valueLen);
+          offset += valueLen;
+        }
+        const colorResult = {
+          _type: 'Color',
+          rgb: [r, g, b],
+          alpha: alpha,
+        };
+        if (colorValue) {
+          colorResult.value = colorValue;
+        }
         return {
-          value: {
-            _type: 'Color',
-            rgb: [r, g, b],
-            alpha: alpha,
-          },
+          value: colorResult,
           newOffset: offset,
         };
       }

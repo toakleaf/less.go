@@ -565,6 +565,15 @@ func (c *Color) GetAlpha() float64 {
 	return c.Alpha
 }
 
+// GetColorValue returns the original color value string (e.g., "#fff" or "#ffffff")
+// This is used for binary serialization to preserve the original form
+func (c *Color) GetColorValue() string {
+	if c == nil {
+		return ""
+	}
+	return c.Value
+}
+
 // Eval evaluates the color - returns itself
 func (c *Color) Eval(context any) any {
 	return c
