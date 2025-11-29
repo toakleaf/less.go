@@ -9,14 +9,15 @@ import (
 
 // Plugin represents a loaded JavaScript plugin with its registered components.
 type Plugin struct {
-	Path          string   // Resolved path to the plugin
-	Filename      string   // Original filename/identifier
-	Functions     []string // Names of registered functions
-	Visitors      int      // Number of registered visitors
-	PreProcessors int      // Number of registered pre-processors
-	PostProcessors int     // Number of registered post-processors
-	FileManagers  int      // Number of registered file managers
-	Cached        bool     // Whether this was loaded from cache
+	Path           string    // Resolved path to the plugin
+	Filename       string    // Original filename/identifier
+	Functions      []string  // Names of registered functions
+	Visitors       int       // Number of registered visitors
+	PreProcessors  int       // Number of registered pre-processors
+	PostProcessors int       // Number of registered post-processors
+	FileManagers   int       // Number of registered file managers
+	Cached         bool      // Whether this was loaded from cache
+	IPCMode        JSIPCMode // Preferred IPC mode for this plugin's functions (json or shared-memory)
 }
 
 // PluginLoadResult contains the result of loading a plugin via Node.js.
@@ -29,6 +30,7 @@ type PluginLoadResult struct {
 	PreProcessors  int      `json:"preProcessors,omitempty"`
 	PostProcessors int      `json:"postProcessors,omitempty"`
 	FileManagers   int      `json:"fileManagers,omitempty"`
+	IPCMode        string   `json:"ipcMode,omitempty"` // "json" or "shm" - preferred IPC mode
 }
 
 // JSPluginLoader loads JavaScript plugins via the Node.js runtime.
@@ -161,6 +163,14 @@ func (pl *JSPluginLoader) LoadPluginSync(path, currentDirectory string, context 
 
 		if fileManagers, ok := result["fileManagers"].(float64); ok {
 			plugin.FileManagers = int(fileManagers)
+		}
+
+		// Parse IPC mode preference from plugin
+		// Plugins can specify their preferred IPC mode for optimal performance
+		// Default is JSON mode (faster for most plugin use cases)
+		plugin.IPCMode = JSIPCModeJSON // Default
+		if ipcMode, ok := result["ipcMode"].(string); ok {
+			plugin.IPCMode = ParseIPCMode(ipcMode)
 		}
 
 		// Cache the plugin

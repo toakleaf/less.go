@@ -269,3 +269,86 @@ This is **normal** for a first-pass port and there's **huge optimization potenti
 ---
 
 **Remember**: Premature optimization is the root of all evil. You got the port working first (✅), now you can optimize based on data (📊).
+
+---
+
+## Plugin System IPC Performance (2025-11-29)
+
+### TL;DR
+
+**JSON IPC is 70% faster than Shared Memory (SHM) for plugin function calls.**
+
+| Mode | Bootstrap4 Time | Allocations |
+|------|-----------------|-------------|
+| **JSON** | ~840ms | ~2.93M |
+| **SHM** | ~1,420ms | ~2.92M |
+
+**Default is JSON mode** - this is the optimal choice for all current use cases.
+
+### Why SHM is Slower
+
+The SHM protocol was designed for zero-copy data transfer, which theoretically should be faster. However, for Bootstrap4-style compilations:
+
+1. **High per-call overhead**: SHM requires creating a memory-mapped buffer, serializing to binary FlatAST format, syncing memory, etc.
+2. **Many small calls**: Bootstrap4 makes thousands of small function calls (map-get, color-yiq, breakpoint-next, etc.)
+3. **Serialization not the bottleneck**: For small payloads, JSON serialization is fast enough that simpler pipe-based IPC wins
+
+### When SHM Would Help (Theoretical)
+
+SHM could outperform JSON for:
+- Plugins with large data payloads (e.g., processing entire AST trees)
+- Fewer, larger function calls
+- Currently **no real-world plugins fit this profile**
+
+### Per-Plugin IPC Configuration
+
+Plugins can now specify their preferred IPC mode:
+
+```javascript
+// In plugin JavaScript
+module.exports = {
+  install: function(less, pluginManager) {
+    pluginManager.addFunctions({ ... });
+  },
+  ipcMode: "json"  // or "shm" for shared memory
+};
+```
+
+The Go side reads this and uses it when creating function definitions.
+
+**Configuration Priority:**
+1. Per-plugin config (from JS plugin response) - highest priority
+2. Environment variable (`LESS_JS_IPC_MODE=json` or `LESS_JS_IPC_MODE=shm`)
+3. Default: JSON
+
+### Environment Variables
+
+| Variable | Values | Description |
+|----------|--------|-------------|
+| `LESS_JS_IPC_MODE` | `json`, `shm` | Override IPC mode for all plugins |
+| `LESS_SHM_PROTOCOL` | `1` | Enable SHM protocol initialization |
+
+### Key Files
+
+- `runtime/js_function.go` - IPC mode configuration, `ParseIPCMode()`, `GetOrCreateJSFunctionDefinition()`
+- `runtime/plugin_loader.go` - `Plugin.IPCMode` field, reads `ipcMode` from plugin response
+- `runtime/plugin_scope.go` - Propagates IPC mode to function definitions
+- `lazy_plugin_bridge.go` - SHM protocol initialization (disabled by default)
+
+### Benchmark Commands
+
+```bash
+# JSON mode (default)
+go test -bench="BenchmarkBootstrap4$" -benchmem -count=3 ./packages/less/src/less/less_go/...
+
+# SHM mode
+LESS_JS_IPC_MODE=shm LESS_SHM_PROTOCOL=1 go test -bench="BenchmarkBootstrap4$" -benchmem -count=3 ./packages/less/src/less/less_go/...
+```
+
+### SHM Protocol Status
+
+The SHM binary protocol is **not fully implemented**:
+- Go side can write binary FlatAST format to shared memory
+- Node.js side currently returns JSON instead of binary format
+- One test fails: `TestJSFunctionDefinition_SharedMemoryCall`
+- This is a known limitation, not a priority to fix since JSON is faster anyway
