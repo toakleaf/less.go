@@ -6,6 +6,7 @@ import (
 	"os"
 	"reflect"
 	"sync"
+	"time"
 	"unsafe"
 )
 
@@ -859,6 +860,11 @@ var knownVariables = []string{
 //
 // JavaScript reads directly from the memory-mapped file using DataView.
 func (jf *JSFunctionDefinition) callWithPrefetchContext(evalContext EvalContextProvider, args ...any) (any, error) {
+	var t0, t1, t2, t3 time.Time
+	if os.Getenv("LESS_GO_PROFILE") == "1" {
+		t0 = time.Now()
+	}
+
 	// Serialize arguments for transfer (these are typically small)
 	serializedArgs, err := jf.serializeArgs(args)
 	if err != nil {
@@ -875,6 +881,10 @@ func (jf *JSFunctionDefinition) callWithPrefetchContext(evalContext EvalContextP
 	// Write variables to binary format
 	binaryData := WritePrefetchedVariables(varDecls)
 
+	if os.Getenv("LESS_GO_PROFILE") == "1" {
+		t1 = time.Now()
+	}
+
 	// Get reusable shared memory buffer for the prefetched variables
 	// This avoids creating/destroying a new buffer for each function call
 	shm, err := jf.runtime.GetPrefetchBuffer(len(binaryData))
@@ -885,14 +895,15 @@ func (jf *JSFunctionDefinition) callWithPrefetchContext(evalContext EvalContextP
 	// Note: We don't destroy the buffer here - it's reused across calls
 
 	// Write binary data to shared memory
+	// Note: Explicit Sync() is NOT needed - memory-mapped files are visible
+	// to other processes immediately after write. Sync() forces a filesystem
+	// flush which is extremely slow (~2-5ms) and unnecessary for our use case.
 	if err := shm.WriteAll(binaryData); err != nil {
 		return nil, fmt.Errorf("failed to write to shared memory: %w", err)
 	}
-	// Force sync to ensure data is visible to Node.js process
-	if err := shm.Sync(); err != nil {
-		if os.Getenv("LESS_GO_DEBUG") == "1" {
-			fmt.Printf("[callWithPrefetchContext] Warning: sync failed: %v\n", err)
-		}
+
+	if os.Getenv("LESS_GO_PROFILE") == "1" {
+		t2 = time.Now()
 	}
 
 	if os.Getenv("LESS_GO_DEBUG") == "1" {
@@ -979,6 +990,10 @@ func (jf *JSFunctionDefinition) callWithPrefetchContext(evalContext EvalContextP
 		},
 	})
 
+	if os.Getenv("LESS_GO_PROFILE") == "1" {
+		t3 = time.Now()
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("function call failed: %w", err)
 	}
@@ -990,6 +1005,15 @@ func (jf *JSFunctionDefinition) callWithPrefetchContext(evalContext EvalContextP
 	result, err := jf.deserializeResult(resp.Result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to deserialize result: %w", err)
+	}
+
+	if os.Getenv("LESS_GO_PROFILE") == "1" {
+		prepTime := t1.Sub(t0)
+		shmTime := t2.Sub(t1)
+		ipcTime := t3.Sub(t2)
+		totalTime := time.Since(t0)
+		fmt.Printf("[PROFILE] %s: prep=%v shm=%v ipc=%v total=%v\n",
+			jf.name, prepTime, shmTime, ipcTime, totalTime)
 	}
 
 	return result, nil
