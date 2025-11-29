@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"os"
 )
 
 // Binary format for prefetched variables buffer:
@@ -60,6 +61,7 @@ const (
 	VarTypeKeyword    byte = 4
 	VarTypeExpression byte = 5
 	VarTypeAnonymous  byte = 6
+	VarTypeVariable   byte = 7 // Variable reference (name only, needs lookup)
 )
 
 // BinaryVariableWriter writes variables in binary format to a buffer.
@@ -104,7 +106,10 @@ func (w *BinaryVariableWriter) WriteVariable(name string, decl any) (int, error)
 	// Get the value from the declaration
 	valueProvider, ok := decl.(interface{ GetValue() any })
 	if !ok {
-		// Not a valid declaration
+		// Not a valid declaration - debug output
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Printf("[WriteVariable] %s: decl type %T does not have GetValue() any\n", name, decl)
+		}
 		w.buf = append(w.buf, 0) // not important
 		w.buf = append(w.buf, VarTypeNull)
 		return len(w.buf) - startLen, nil
@@ -112,6 +117,9 @@ func (w *BinaryVariableWriter) WriteVariable(name string, decl any) (int, error)
 
 	value := valueProvider.GetValue()
 	if value == nil {
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Printf("[WriteVariable] %s: GetValue() returned nil\n", name)
+		}
 		w.buf = append(w.buf, 0) // not important
 		w.buf = append(w.buf, VarTypeNull)
 		return len(w.buf) - startLen, nil
@@ -171,7 +179,53 @@ func (w *BinaryVariableWriter) writeValue(value any) error {
 	}
 
 	nodeType := typer.GetType()
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Printf("[writeValue] nodeType=%s, value type=%T\n", nodeType, value)
+	}
 	switch nodeType {
+	case "Value":
+		// Value is a wrapper around an array of values
+		// Unwrap it and write the inner value(s)
+		if getter, ok := value.(interface{ GetValue() []any }); ok {
+			arr := getter.GetValue()
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Printf("[writeValue] Value wrapper: %d inner values\n", len(arr))
+				for i, v := range arr {
+					if t, ok := v.(interface{ GetType() string }); ok {
+						fmt.Printf("[writeValue]   inner[%d] type=%s\n", i, t.GetType())
+					} else {
+						fmt.Printf("[writeValue]   inner[%d] type=%T\n", i, v)
+					}
+				}
+			}
+			if len(arr) == 1 {
+				// Single value - unwrap and write
+				return w.writeValue(arr[0])
+			} else if len(arr) > 1 {
+				// Multiple values - write as Expression
+				beforeLen := len(w.buf)
+				w.buf = append(w.buf, VarTypeExpression)
+				w.writeUint32(uint32(len(arr)))
+				for i, v := range arr {
+					subBefore := len(w.buf)
+					if err := w.writeValue(v); err != nil {
+						if os.Getenv("LESS_GO_DEBUG") == "1" {
+							fmt.Printf("[writeValue] Value inner[%d] failed: %v, writing null\n", i, err)
+						}
+						w.buf = append(w.buf, VarTypeNull)
+					}
+					if os.Getenv("LESS_GO_DEBUG") == "1" {
+						fmt.Printf("[writeValue] Value inner[%d] wrote %d bytes (type=%d at offset %d)\n", i, len(w.buf)-subBefore, w.buf[subBefore], subBefore)
+					}
+				}
+				if os.Getenv("LESS_GO_DEBUG") == "1" {
+					fmt.Printf("[writeValue] Value multi total: %d bytes\n", len(w.buf)-beforeLen)
+				}
+				return nil
+			}
+		}
+		return fmt.Errorf("Value type with no inner values")
+
 	case "Dimension":
 		w.buf = append(w.buf, VarTypeDimension)
 		if err := w.writeDimension(value); err != nil {
@@ -203,12 +257,37 @@ func (w *BinaryVariableWriter) writeValue(value any) error {
 		}
 
 	case "Expression":
+		// Check if Expression has single value - if so, unwrap it
+		if getter, ok := value.(interface{ GetValue() []any }); ok {
+			arr := getter.GetValue()
+			if len(arr) == 1 {
+				// Unwrap single-value Expression
+				return w.writeValue(arr[0])
+			}
+		}
 		w.buf = append(w.buf, VarTypeExpression)
 		if err := w.writeExpression(value); err != nil {
 			return err
 		}
 
+	case "Variable":
+		// Variable nodes are unevaluated references
+		// Write the variable name so JavaScript can look it up
+		w.buf = append(w.buf, VarTypeVariable)
+		varName := ""
+		if getter, ok := value.(interface{ GetName() string }); ok {
+			varName = getter.GetName()
+		}
+		w.writeString(varName)
+
+	case "Combinator", "Element", "Selector", "Ruleset", "MixinCall", "MixinDefinition", "DetachedRuleset":
+		// Skip AST structural nodes that can't be serialized as values
+		w.buf = append(w.buf, VarTypeNull)
+
 	default:
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Printf("[writeValue] Unsupported node type: %s\n", nodeType)
+		}
 		return fmt.Errorf("unsupported node type: %s", nodeType)
 	}
 

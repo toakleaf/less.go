@@ -253,8 +253,8 @@ func (s *SharedMemory) WriteAll(data []byte) error {
 }
 
 // Sync flushes any cached writes to the backing file.
-// On systems without Msync, this is a no-op as the mmap with MAP_SHARED
-// ensures visibility to other processes.
+// This is critical for IPC with processes that read the file directly
+// instead of memory-mapping it (like Node.js using fs.readFileSync).
 func (s *SharedMemory) Sync() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -263,11 +263,13 @@ func (s *SharedMemory) Sync() error {
 		return nil
 	}
 
-	// Note: We don't call Msync here because:
-	// 1. It's not available in Go's syscall package on all platforms
-	// 2. With MAP_SHARED, writes are visible to other processes immediately
-	// 3. For our use case (IPC), the data is visible as soon as we write
-	// The file will be synced when we close it or when the OS decides to flush
+	// For cross-process visibility when the reader uses file I/O (not mmap),
+	// we need to ensure the mmap'd data is flushed to the file.
+	// Since Go's syscall package doesn't have Msync on all platforms,
+	// we use file.Sync() to flush the file's data to disk.
+	if s.file != nil {
+		return s.file.Sync()
+	}
 
 	return nil
 }

@@ -1834,6 +1834,7 @@ const VAR_TYPE_QUOTED = 3;
 const VAR_TYPE_KEYWORD = 4;
 const VAR_TYPE_EXPRESSION = 5;
 const VAR_TYPE_ANONYMOUS = 6;
+const VAR_TYPE_VARIABLE = 7; // Variable reference (needs lookup)
 
 /**
  * Parse the binary prefetch buffer and return a Map of variable name -> {value, important}.
@@ -1847,6 +1848,9 @@ function parseBinaryPrefetchBuffer(buffer, dataSize) {
   const result = new Map();
 
   if (buffer.length < 12) {
+    if (process.env.LESS_GO_DEBUG) {
+      console.error(`[plugin-host] parseBinaryPrefetchBuffer: buffer too small (${buffer.length} bytes, need 12)`);
+    }
     return result; // Buffer too small for header
   }
 
@@ -1855,6 +1859,10 @@ function parseBinaryPrefetchBuffer(buffer, dataSize) {
   // Read and verify header
   const magic = buffer.readUInt32LE(offset);
   offset += 4;
+
+  if (process.env.LESS_GO_DEBUG) {
+    console.error(`[plugin-host] parseBinaryPrefetchBuffer: magic=0x${magic.toString(16)}, expected=0x${PREFETCH_MAGIC.toString(16)}, bufferLen=${buffer.length}, dataSize=${dataSize}`);
+  }
 
   if (magic !== PREFETCH_MAGIC) {
     if (process.env.LESS_GO_DEBUG) {
@@ -1876,12 +1884,30 @@ function parseBinaryPrefetchBuffer(buffer, dataSize) {
   const varCount = buffer.readUInt32LE(offset);
   offset += 4;
 
+  if (process.env.LESS_GO_DEBUG) {
+    console.error(`[plugin-host] parseBinaryPrefetchBuffer: varCount=${varCount}, starting parse at offset=${offset}`);
+    // Hex dump first 100 bytes
+    const hexDump = [];
+    for (let i = 0; i < Math.min(100, dataSize); i++) {
+      hexDump.push(buffer[i].toString(16).padStart(2, '0'));
+    }
+    console.error(`[plugin-host] Buffer hex (first 100 bytes): ${hexDump.join(' ')}`);
+  }
+
   // Read each variable
   for (let i = 0; i < varCount && offset < dataSize; i++) {
+    const varStartOffset = offset;
     try {
       // Read variable name
       const nameLen = buffer.readUInt32LE(offset);
       offset += 4;
+
+      if (nameLen > 100 || nameLen < 0) {
+        if (process.env.LESS_GO_DEBUG) {
+          console.error(`[plugin-host] parseBinaryPrefetchBuffer: var[${i}] INVALID nameLen=${nameLen} at offset=${varStartOffset}, aborting`);
+        }
+        break;
+      }
 
       const name = buffer.toString('utf8', offset, offset + nameLen);
       offset += nameLen;
@@ -1892,8 +1918,13 @@ function parseBinaryPrefetchBuffer(buffer, dataSize) {
       // Read type
       const varType = buffer[offset++];
 
+      if (process.env.LESS_GO_DEBUG) {
+        console.error(`[plugin-host] parseBinaryPrefetchBuffer: var[${i}] name=${name}, type=${varType}, important=${important}, startOffset=${varStartOffset}, offset=${offset}`);
+      }
+
       // Read value based on type
       let value = null;
+      const valueStartOffset = offset;
 
       switch (varType) {
         case VAR_TYPE_NULL:
@@ -1968,9 +1999,15 @@ function parseBinaryPrefetchBuffer(buffer, dataSize) {
           {
             const valueCount = buffer.readUInt32LE(offset);
             offset += 4;
+            if (process.env.LESS_GO_DEBUG) {
+              console.error(`[plugin-host] Expression: valueCount=${valueCount}, startOffset=${offset}`);
+            }
             const values = [];
             for (let j = 0; j < valueCount; j++) {
               const { value: subValue, newOffset } = readBinaryValue(buffer, offset);
+              if (process.env.LESS_GO_DEBUG) {
+                console.error(`[plugin-host] Expression[${j}]: type=${subValue?._type || 'null'}, offset ${offset} -> ${newOffset}`);
+              }
               values.push(subValue);
               offset = newOffset;
             }
@@ -1978,6 +2015,9 @@ function parseBinaryPrefetchBuffer(buffer, dataSize) {
               _type: 'Expression',
               value: values,
             };
+            if (process.env.LESS_GO_DEBUG) {
+              console.error(`[plugin-host] Expression done: finalOffset=${offset}`);
+            }
           }
           break;
 
@@ -1990,6 +2030,20 @@ function parseBinaryPrefetchBuffer(buffer, dataSize) {
             value = {
               _type: 'Anonymous',
               value: str,
+            };
+          }
+          break;
+
+        case VAR_TYPE_VARIABLE:
+          {
+            // Variable reference - read the name
+            const varNameLen = buffer.readUInt32LE(offset);
+            offset += 4;
+            const varName = buffer.toString('utf8', offset, offset + varNameLen);
+            offset += varNameLen;
+            value = {
+              _type: 'Variable',
+              _refName: varName,
             };
           }
           break;
@@ -2012,7 +2066,55 @@ function parseBinaryPrefetchBuffer(buffer, dataSize) {
     }
   }
 
+  // Resolution pass: resolve Variable references to their actual values
+  resolveVariableReferences(result);
+
   return result;
+}
+
+/**
+ * Recursively resolve Variable references in the parsed result.
+ * Variable nodes have _type: 'Variable' and _refName: '@varname'
+ */
+function resolveVariableReferences(result) {
+  for (const [name, entry] of result) {
+    entry.value = resolveValue(entry.value, result);
+  }
+}
+
+/**
+ * Recursively resolve a single value, replacing Variable refs with actual values.
+ */
+function resolveValue(value, result) {
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+
+  // Check if this is a Variable reference
+  if (value._type === 'Variable' && value._refName) {
+    const refName = value._refName;
+    const refEntry = result.get(refName);
+    if (refEntry && refEntry.value) {
+      // Recursively resolve the value (it might also contain Variable refs)
+      const resolvedValue = resolveValue(refEntry.value, result);
+      if (process.env.LESS_GO_DEBUG) {
+        console.error(`[plugin-host] Resolving variable ref ${refName} to ${resolvedValue?._type || 'null'}`);
+      }
+      return resolvedValue;
+    }
+    // Not found in prefetch - return null (will trigger on-demand lookup)
+    if (process.env.LESS_GO_DEBUG) {
+      console.error(`[plugin-host] Variable ref ${refName} not found in prefetch`);
+    }
+    return null;
+  }
+
+  // If it's an Expression, recursively resolve its values
+  if (value._type === 'Expression' && Array.isArray(value.value)) {
+    value.value = value.value.map(v => resolveValue(v, result));
+  }
+
+  return value;
 }
 
 /**
@@ -2110,6 +2212,42 @@ function readBinaryValue(buffer, offset) {
           value: {
             _type: 'Anonymous',
             value: str,
+          },
+          newOffset: offset,
+        };
+      }
+
+    case VAR_TYPE_EXPRESSION:
+      {
+        // Recursively handle nested expressions
+        const valueCount = buffer.readUInt32LE(offset);
+        offset += 4;
+        const values = [];
+        for (let j = 0; j < valueCount; j++) {
+          const { value: subValue, newOffset } = readBinaryValue(buffer, offset);
+          values.push(subValue);
+          offset = newOffset;
+        }
+        return {
+          value: {
+            _type: 'Expression',
+            value: values,
+          },
+          newOffset: offset,
+        };
+      }
+
+    case VAR_TYPE_VARIABLE:
+      {
+        // Variable reference - read the name, it will be resolved later
+        const varNameLen = buffer.readUInt32LE(offset);
+        offset += 4;
+        const varName = buffer.toString('utf8', offset, offset + varNameLen);
+        offset += varNameLen;
+        return {
+          value: {
+            _type: 'Variable',
+            _refName: varName, // Special marker for resolution
           },
           newOffset: offset,
         };

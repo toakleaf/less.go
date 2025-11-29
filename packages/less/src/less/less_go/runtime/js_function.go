@@ -67,10 +67,9 @@ func (m JSIPCMode) String() string {
 }
 
 // getDefaultIPCMode returns the default IPC mode based on the LESS_JS_IPC_MODE
-// environment variable. If not set or unrecognized, defaults to JSON mode.
-// Note: Shared memory mode currently has a bug where complex nested objects
-// (like DetachedRuleset with rules) are not fully transferred. JSON mode
-// works reliably for all node types.
+// environment variable. If not set or unrecognized, defaults to shared memory mode.
+// Shared memory uses binary format for zero-copy data transfer, which is much faster
+// than JSON serialization for large context data like Bootstrap4.
 func getDefaultIPCMode() JSIPCMode {
 	mode := os.Getenv("LESS_JS_IPC_MODE")
 	switch mode {
@@ -79,8 +78,8 @@ func getDefaultIPCMode() JSIPCMode {
 	case "sharedmem", "shm", "shared", "SHM", "SHARED":
 		return JSIPCModeSharedMemory
 	default:
-		// Default to JSON mode (shared memory has bugs with complex objects)
-		return JSIPCModeJSON
+		// Default to shared memory mode for best performance
+		return JSIPCModeSharedMemory
 	}
 }
 
@@ -576,6 +575,17 @@ func (jf *JSFunctionDefinition) CallWithContext(evalContext EvalContextProvider,
 // knownVariables contains variables that are commonly accessed by plugin functions.
 // We pre-serialize these to avoid IPC round-trips for each lookup.
 var knownVariables = []string{
+	// Bootstrap base colors (used by theme colors)
+	"@blue",
+	"@indigo",
+	"@purple",
+	"@pink",
+	"@red",
+	"@orange",
+	"@yellow",
+	"@green",
+	"@teal",
+	"@cyan",
 	// Bootstrap theme colors and utilities
 	"@theme-colors",
 	"@theme-color-interval",
@@ -583,7 +593,11 @@ var knownVariables = []string{
 	"@white",
 	"@gray-100",
 	"@gray-200",
+	"@gray-300",
+	"@gray-400",
+	"@gray-500",
 	"@gray-600",
+	"@gray-700",
 	"@gray-800",
 	"@gray-900",
 	"@yiq-contrasted-threshold",
@@ -600,6 +614,11 @@ var knownVariables = []string{
 	"@danger",
 	"@light",
 	"@dark",
+	// Additional Bootstrap variables
+	"@colors",
+	"@grays",
+	"@body-bg",
+	"@body-color",
 }
 
 // callWithPrefetchContext pre-fetches commonly needed variables and sends them
@@ -651,6 +670,12 @@ func (jf *JSFunctionDefinition) callWithPrefetchContext(evalContext EvalContextP
 	// Write binary data to shared memory
 	if err := shm.WriteAll(binaryData); err != nil {
 		return nil, fmt.Errorf("failed to write to shared memory: %w", err)
+	}
+	// Force sync to ensure data is visible to Node.js process
+	if err := shm.Sync(); err != nil {
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Printf("[callWithPrefetchContext] Warning: sync failed: %v\n", err)
+		}
 	}
 
 	if os.Getenv("LESS_GO_DEBUG") == "1" {
