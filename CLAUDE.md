@@ -82,6 +82,14 @@ When working on this project, please be aware of the following:
    - Profiling tools: `pnpm bench:profile`
    - Detailed analysis: `.claude/benchmarks/PERFORMANCE_ANALYSIS.md`
 
+   **Plugin IPC Performance:**
+   - **JSON mode is 70% faster than SHM** for plugin function calls
+   - Bootstrap4 with JSON: ~840ms | with SHM: ~1,420ms
+   - Default is JSON mode (optimal for many small function calls)
+   - Per-plugin IPC mode configuration available via `ipcMode` in plugin exports
+   - Environment override: `LESS_JS_IPC_MODE=json` or `LESS_JS_IPC_MODE=shm`
+   - See `.claude/benchmarks/PERFORMANCE_ANALYSIS.md` for details
+
 5. **How to Use Integration Tests Effectively**:
 
    The integration test suite (`packages/less/src/less/less_go/integration_suite_test.go`) provides comprehensive coverage
