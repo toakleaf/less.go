@@ -284,6 +284,8 @@ func TransformTree(root any, options map[string]any) any {
 	processedRoot = root
 
 	// Evaluate the root exactly like JavaScript: evaldRoot = root.eval(evalEnv)
+	// Note: Pre-eval visitors are run inside Ruleset.Eval after imports are processed
+	// (since plugins are loaded during import processing, not before)
 	if evaluator, ok := processedRoot.(interface{ Eval(any) any }); ok {
 		evaldRoot = evaluator.Eval(evalEnv)
 	} else if ruleset, ok := processedRoot.(*Ruleset); ok {
@@ -382,4 +384,3 @@ func containsVisitor(visitors []any, target any) bool {
 	}
 	return false
 }
-

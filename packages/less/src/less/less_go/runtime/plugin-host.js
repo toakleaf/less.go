@@ -428,6 +428,14 @@ function handleCommand(cmd) {
         handleRunPreEvalVisitors(id, data);
         break;
 
+      case 'runPreEvalVisitorsJSON':
+        handleRunPreEvalVisitorsJSON(id, data);
+        break;
+
+      case 'checkVariableReplacements':
+        handleCheckVariableReplacements(id, data);
+        break;
+
       case 'runPostEvalVisitors':
         handleRunPostEvalVisitors(id, data);
         break;
@@ -1359,6 +1367,202 @@ function handleRunPreEvalVisitors(id, data) {
     });
   } catch (err) {
     sendResponse(id, false, null, `Pre-eval visitors error: ${err.message}\n${err.stack || ''}`);
+  }
+}
+
+/**
+ * Recursively visit a JSON AST node with a visitor.
+ * @param {Object} node - The node to visit (JSON object)
+ * @param {Object} visitor - The visitor with visitXxx methods
+ * @param {string} parentPath - Path to this node for debugging
+ * @returns {Object} The potentially modified node
+ */
+function visitNodeRecursive(node, visitor, parentPath = '') {
+  if (!node || typeof node !== 'object') {
+    return node;
+  }
+
+  // Handle arrays
+  if (Array.isArray(node)) {
+    return node.map((child, i) => visitNodeRecursive(child, visitor, `${parentPath}[${i}]`));
+  }
+
+  // Get node type
+  const type = node._type || node.type || node.Type;
+  if (!type) {
+    // Not a typed node, but visit children anyway
+    const result = { ...node };
+    for (const [key, value] of Object.entries(node)) {
+      if (value && typeof value === 'object') {
+        result[key] = visitNodeRecursive(value, visitor, `${parentPath}.${key}`);
+      }
+    }
+    return result;
+  }
+
+  // Check for visitor method
+  const funcName = 'visit' + type;
+  let result = node;
+
+  if (visitor[funcName]) {
+    result = visitor[funcName](node);
+    // If visitor returned a different node, use it (replacement)
+    if (result !== node && result !== undefined) {
+      return result;
+    }
+    // If visitor returned undefined, keep original node
+    if (result === undefined) {
+      result = node;
+    }
+  }
+
+  // Visit children recursively
+  // Handle common child properties in Less AST nodes
+  const childProps = ['value', 'rules', 'elements', 'selectors', 'args', 'operands',
+                      'condition', 'lvalue', 'rvalue', 'params', 'mixinDefinitions',
+                      'variables', 'properties', 'extendList', 'features', 'paths'];
+
+  const newResult = { ...result };
+  let modified = false;
+
+  for (const prop of childProps) {
+    if (result[prop] !== undefined && result[prop] !== null) {
+      const visited = visitNodeRecursive(result[prop], visitor, `${parentPath}.${prop}`);
+      if (visited !== result[prop]) {
+        newResult[prop] = visited;
+        modified = true;
+      }
+    }
+  }
+
+  // Also visit any array properties that might contain nodes
+  for (const [key, value] of Object.entries(result)) {
+    if (Array.isArray(value) && !childProps.includes(key)) {
+      const visited = visitNodeRecursive(value, visitor, `${parentPath}.${key}`);
+      if (visited !== value) {
+        newResult[key] = visited;
+        modified = true;
+      }
+    }
+  }
+
+  // Call visitXxxOut if defined
+  const outFuncName = 'visit' + type + 'Out';
+  if (visitor[outFuncName]) {
+    visitor[outFuncName](modified ? newResult : result);
+  }
+
+  return modified ? newResult : result;
+}
+
+/**
+ * Run pre-eval visitors on a JSON AST.
+ * This is a simpler approach that works with JSON serialization.
+ * @param {number} id - Command ID
+ * @param {Object} data - { ast: JSON AST object }
+ */
+function handleRunPreEvalVisitorsJSON(id, data) {
+  const { ast } = data || {};
+
+  if (!ast) {
+    sendResponse(id, false, null, 'AST is required');
+    return;
+  }
+
+  try {
+    const preEvalVisitors = registeredVisitors.filter(v => v.isPreEvalVisitor);
+
+    if (preEvalVisitors.length === 0) {
+      // No visitors, return unchanged
+      sendResponse(id, true, {
+        success: true,
+        visitorCount: 0,
+        modifiedAst: ast,
+        modified: false,
+      });
+      return;
+    }
+
+    let currentAst = ast;
+    let totalModified = false;
+
+    for (const visitor of preEvalVisitors) {
+      // For each visitor, walk the tree recursively
+      const modifiedAst = visitNodeRecursive(currentAst, visitor, 'root');
+
+      // Check if tree was modified
+      if (JSON.stringify(modifiedAst) !== JSON.stringify(currentAst)) {
+        currentAst = modifiedAst;
+        totalModified = true;
+      }
+    }
+
+    sendResponse(id, true, {
+      success: true,
+      visitorCount: preEvalVisitors.length,
+      modifiedAst: currentAst,
+      modified: totalModified,
+    });
+  } catch (err) {
+    sendResponse(id, false, null, `Pre-eval visitors JSON error: ${err.message}\n${err.stack || ''}`);
+  }
+}
+
+/**
+ * Check which variables should be replaced by pre-eval visitors.
+ * This is an optimization to avoid serializing the entire AST.
+ * @param {number} id - Command ID
+ * @param {Object} data - { variables: [{id, name}, ...] }
+ */
+function handleCheckVariableReplacements(id, data) {
+  const { variables } = data || {};
+
+  if (!variables || !Array.isArray(variables)) {
+    sendResponse(id, false, null, 'Variables array is required');
+    return;
+  }
+
+  try {
+    const preEvalVisitors = registeredVisitors.filter(v => v.isPreEvalVisitor);
+
+    if (preEvalVisitors.length === 0) {
+      // No pre-eval visitors, no replacements
+      sendResponse(id, true, {
+        success: true,
+        replacements: {},
+      });
+      return;
+    }
+
+    const replacements = {};
+
+    for (const varInfo of variables) {
+      // Create a mock Variable node for the visitor to check
+      const mockNode = {
+        _type: 'Variable',
+        type: 'Variable',
+        name: varInfo.name,
+      };
+
+      // Check each visitor
+      for (const visitor of preEvalVisitors) {
+        if (visitor.visitVariable) {
+          const result = visitor.visitVariable(mockNode);
+          // If visitor returned a different node, it's a replacement
+          if (result !== mockNode && result !== undefined) {
+            replacements[varInfo.id] = convertJSResultToGo(result);
+            break; // First replacement wins
+          }
+        }
+      }
+    }
+
+    sendResponse(id, true, {
+      success: true,
+      replacements: replacements,
+    });
+  } catch (err) {
+    sendResponse(id, false, null, `Check variable replacements error: ${err.message}\n${err.stack || ''}`);
   }
 }
 
