@@ -199,14 +199,25 @@ func TransformTree(root any, options map[string]any) any {
 	}
 
 	// Create visitors exactly like JavaScript
+	// Use pooled visitors to avoid expensive reflection-based methodLookup map rebuilding
+	joinSelectorVisitor := GetJoinSelectorVisitor()
+	setTreeVisibilityVisitor := GetSetTreeVisibilityVisitor(true)
+	extendVisitor := GetProcessExtendsVisitor()
+	toCSSVisitor := GetToCSSVisitor(map[string]any{
+		"compress":    getBoolOption(options, "compress"),
+		"strictUnits": getBoolOption(options, "strictUnits"),
+	})
+	// Defer release of visitors back to pools
+	defer ReleaseJoinSelectorVisitor(joinSelectorVisitor)
+	defer ReleaseSetTreeVisibilityVisitor(setTreeVisibilityVisitor)
+	defer ReleaseProcessExtendsVisitor(extendVisitor)
+	defer ReleaseToCSSVisitor(toCSSVisitor)
+
 	visitorList := []any{
-		NewJoinSelectorVisitor(),
-		NewSetTreeVisibilityVisitor(true), // This is MarkVisibleSelectorsVisitor in JS
-		NewExtendVisitor(),
-		NewToCSSVisitor(map[string]any{
-			"compress":    getBoolOption(options, "compress"),
-			"strictUnits": getBoolOption(options, "strictUnits"),
-		}),
+		joinSelectorVisitor,
+		setTreeVisibilityVisitor, // This is MarkVisibleSelectorsVisitor in JS
+		extendVisitor,
+		toCSSVisitor,
 	}
 
 	preEvalVisitors := make([]any, 0)

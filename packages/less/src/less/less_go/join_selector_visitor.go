@@ -35,6 +35,19 @@ func NewJoinSelectorVisitor() *JoinSelectorVisitor {
 	return jsv
 }
 
+// Reset resets the JoinSelectorVisitor for reuse from the pool.
+// The visitor's methodLookup map is preserved (it's expensive to rebuild).
+func (jsv *JoinSelectorVisitor) Reset() {
+	// Clear contexts slice but keep capacity
+	for i := range jsv.contexts {
+		jsv.contexts[i] = nil
+	}
+	jsv.contexts = jsv.contexts[:0]
+	// Initialize with the default context
+	jsv.contexts = append(jsv.contexts, &contextInfo{paths: []any{}, multiMedia: false})
+	// Note: jsv.visitor is preserved - its methodLookup is reused
+}
+
 func (jsv *JoinSelectorVisitor) Run(root any) any {
 	return jsv.visitor.Visit(root)
 }
