@@ -96,17 +96,20 @@ This directory contains task files for issues that have been successfully resolv
 - **Summary**: Complete error validation including math validation, variable resolution, color function validation, and parser validation.
 
 ### js-plugins/ (folder)
-- **Completed**: 2025-11-30
+- **Status**: Archived planning documents (implementation pending)
 - **Issues**: JavaScript plugin system implementation
-- **Impact**: Enabled plugin-dependent tests including bootstrap4
+- **Impact**: Would enable plugin-dependent tests including bootstrap4
 - **Tests**: plugin, plugin-module, plugin-preeval, plugin-simple, plugin-tree-nodes, bootstrap4
-- **Summary**: Full plugin system implementation using Node.js runtime. Supports custom functions, visitors, pre/post processors, and file managers.
+- **Summary**: Detailed implementation plan and task breakdown for future plugin system work. Contains architecture design, agent prompts, and quickstart guide.
 
 ### performance/ (folder)
 - **Completed**: 2025-11-30
-- **Issues**: Regex compilation performance optimization
-- **Impact**: Significant performance improvement by caching compiled regexes
-- **Summary**: Fixed critical performance bug where regexes were being compiled repeatedly instead of once at package level.
+- **Issues**: Performance optimization
+- **Impact**: Significant performance improvement
+- **Summary**: Multiple optimizations implemented:
+  - sync.Pool for frequently allocated node types (reduces GC pressure)
+  - Regex compilation caching (eliminates repeated compilation)
+  - Plugin scope sync optimization (only when local plugins need it)
 
 ## Archive Policy
 
