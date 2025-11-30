@@ -683,6 +683,21 @@ func (r *Ruleset) Eval(context any) (any, error) {
 		}
 	}
 
+	// Pre-warm plugin function cache after imports are processed
+	// This batches all plugin function calls to reduce IPC overhead
+	if ruleset.Root && pluginEvalCtx != nil && pluginEvalCtx.LazyPluginBridge != nil {
+		if pluginEvalCtx.LazyPluginBridge.IsInitialized() {
+			warmCount, warmErr := WarmPluginCacheFromLazyBridge(ruleset, pluginEvalCtx.LazyPluginBridge, pluginEvalCtx)
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				if warmErr != nil {
+					fmt.Fprintf(os.Stderr, "[Ruleset.Eval] Cache pre-warming failed: %v\n", warmErr)
+				} else if warmCount > 0 {
+					fmt.Fprintf(os.Stderr, "[Ruleset.Eval] Pre-warmed %d plugin function cache entries\n", warmCount)
+				}
+			}
+		}
+	}
+
 	// Evaluate rules that need to be evaluated first
 	rsRules := ruleset.Rules
 	for i, rule := range rsRules {
