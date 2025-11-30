@@ -17,19 +17,20 @@ type Declaration struct {
 	variable  bool
 }
 
-// NewDeclaration creates a new Declaration instance
+// NewDeclaration creates a new Declaration instance.
+// OPTIMIZATION: Uses sync.Pool to reuse Declaration objects and reduce GC pressure.
+// Call Release() when the Declaration is no longer needed to return it to the pool.
 func NewDeclaration(name any, value any, important any, merge any, index int, fileInfo map[string]any, inline bool, variable any) (*Declaration, error) {
 	node := NewNode()
 	node.TypeIndex = GetTypeIndexForNodeType("Declaration")
 
-	d := &Declaration{
-		Node:      node,
-		name:      name,
-		important: "",
-		merge:     merge,
-		inline:    inline || false,
-		variable:  false,
-	}
+	d := GetDeclarationFromPool()
+	d.Node = node
+	d.name = name
+	d.important = ""
+	d.merge = merge
+	d.inline = inline
+	d.variable = false
 
 	// Set index and fileInfo
 	d.Index = index

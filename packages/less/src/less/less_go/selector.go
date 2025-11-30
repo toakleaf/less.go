@@ -28,15 +28,30 @@ type Selector struct {
 
 // NewSelector creates a new Selector instance.
 // elementsInput can be []*Element, *Element, or string.
-// For backward compatibility, parseFunc, parseContext, and parseImports are optional
+// For backward compatibility, parseFunc, parseContext, and parseImports are optional.
+// OPTIMIZATION: Uses sync.Pool to reuse Selector objects and reduce GC pressure.
+// Call Release() when the Selector is no longer needed to return it to the pool.
 func NewSelector(elementsInput any, extendList []any, condition any, index int, currentFileInfo map[string]any, visibilityInfo map[string]any, parseFunc ...any) (*Selector, error) {
-	s := &Selector{
-		Node:           NewNode(),
-		ExtendList:     extendList,
-		Condition:      condition,
-		EvaldCondition: condition == nil,
+	s := GetSelectorFromPool()
+	s.Node = NewNode()
+	s.Condition = condition
+	s.EvaldCondition = condition == nil
+
+	// Handle extendList - keep nil if input is nil (tests expect this)
+	if extendList == nil {
+		s.ExtendList = nil
+	} else if len(extendList) == 0 {
+		s.ExtendList = s.ExtendList[:0]
+	} else {
+		// Copy extendList to pooled slice
+		if cap(s.ExtendList) < len(extendList) {
+			s.ExtendList = make([]any, len(extendList))
+		} else {
+			s.ExtendList = s.ExtendList[:len(extendList)]
+		}
+		copy(s.ExtendList, extendList)
 	}
-	
+
 	s.Index = index
 	if currentFileInfo != nil {
 		s.SetFileInfo(currentFileInfo)
@@ -65,14 +80,23 @@ func NewSelector(elementsInput any, extendList []any, condition any, index int, 
 	// GetElements needs s.Index, s.FileInfo, and s.ParseFunc to be set first.
 	parsedElements, err := s.getElements(elementsInput)
 	if err != nil {
+		// Return selector to pool on error
+		ReleaseSelector(s)
 		// Add context to the error if it's not already a LessError
 		if _, ok := err.(*LessError); !ok {
-			err = fmt.Errorf("selector parsing failed at index %d in %s: %w", 
-				s.Index, s.FileInfo()["filename"], err)
+			err = fmt.Errorf("selector parsing failed at index %d in %s: %w",
+				index, currentFileInfo["filename"], err)
 		}
 		return nil, err
 	}
-	s.Elements = parsedElements
+
+	// Copy elements to pooled slice
+	if cap(s.Elements) < len(parsedElements) {
+		s.Elements = make([]*Element, len(parsedElements))
+	} else {
+		s.Elements = s.Elements[:len(parsedElements)]
+	}
+	copy(s.Elements, parsedElements)
 
 	// Set parent for elements
 	for _, el := range s.Elements {
