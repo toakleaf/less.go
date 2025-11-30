@@ -3,12 +3,30 @@ package less_go
 import (
 	"reflect"
 	"strconv"
+	"sync"
 )
 
 var _hasIndexed = false
 
 type VisitArgs struct {
 	VisitDeeper bool
+}
+
+// visitArgsPool pools VisitArgs to reduce allocations in Visit()
+var visitArgsPool = sync.Pool{
+	New: func() any {
+		return &VisitArgs{VisitDeeper: true}
+	},
+}
+
+func getVisitArgs() *VisitArgs {
+	args := visitArgsPool.Get().(*VisitArgs)
+	args.VisitDeeper = true // Reset to default
+	return args
+}
+
+func releaseVisitArgs(args *VisitArgs) {
+	visitArgsPool.Put(args)
 }
 
 type TreeRegistry struct {
@@ -59,10 +77,11 @@ type VisitFunc func(node any, visitArgs *VisitArgs) any
 type VisitOutFunc func(node any)
 
 type Visitor struct {
-	implementation any
-	visitInCache   map[int]VisitFunc
-	visitOutCache  map[int]VisitOutFunc
-	methodLookup   map[string]reflect.Value // Pre-built method lookup map
+	implementation   any
+	visitInCache     map[int]VisitFunc
+	visitOutCache    map[int]VisitOutFunc
+	methodLookup     map[string]reflect.Value // Pre-built method lookup map
+	cachedIsReplacing bool                     // Cached result of isReplacing() - computed once at construction
 }
 
 func NewVisitor(implementation any) *Visitor {
@@ -98,6 +117,9 @@ func NewVisitor(implementation any) *Visitor {
 			v.methodLookup[method.Name] = implValue.Method(i)
 		}
 	}
+
+	// Cache isReplacing result - it never changes after construction
+	v.cachedIsReplacing = v.computeIsReplacing()
 
 	return v
 }
@@ -139,13 +161,14 @@ func (v *Visitor) Visit(node any) any {
 		return node
 	}
 
-	visitArgs := &VisitArgs{VisitDeeper: true}
+	visitArgs := getVisitArgs()
+	defer releaseVisitArgs(visitArgs)
 
 	// Fast path: Check if implementation supports direct dispatch (no reflection)
 	if directDispatcher, ok := v.implementation.(DirectDispatchVisitor); ok {
 		newNode, handled := directDispatcher.VisitNode(node, visitArgs)
 		if handled {
-			if v.isReplacing() {
+			if v.cachedIsReplacing {
 				node = newNode
 			}
 		}
@@ -201,7 +224,7 @@ func (v *Visitor) Visit(node any) any {
 
 		if visitFunc != nil {
 			newNode := visitFunc(node, visitArgs)
-			if v.isReplacing() {
+			if v.cachedIsReplacing {
 				node = newNode
 			}
 		}
@@ -274,7 +297,7 @@ func (v *Visitor) VisitArray(nodes []any, nonReplacing ...bool) []any {
 		isNonReplacing = nonReplacing[0]
 	}
 
-	if isNonReplacing || !v.isReplacing() {
+	if isNonReplacing || !v.cachedIsReplacing {
 		for i := 0; i < cnt; i++ {
 			v.Visit(nodes[i])
 		}
@@ -322,14 +345,27 @@ func (v *Visitor) Flatten(arr []any, out *[]any) []any {
 	return *out
 }
 
-func (v *Visitor) isReplacing() bool {
+// computeIsReplacing computes the isReplacing value once at construction time.
+// This avoids repeated reflection/interface checks on every Visit() call.
+func (v *Visitor) computeIsReplacing() bool {
+	if v.implementation == nil {
+		return false
+	}
+
 	if impl, ok := v.implementation.(Implementation); ok {
 		return impl.IsReplacing()
 	}
 
 	// Use reflection to check for isReplacing property (like JS)
 	implValue := reflect.ValueOf(v.implementation)
+	if !implValue.IsValid() {
+		return false
+	}
+
 	if implValue.Kind() == reflect.Ptr {
+		if implValue.IsNil() {
+			return false
+		}
 		implValue = implValue.Elem()
 	}
 
@@ -354,7 +390,7 @@ func (v *Visitor) isReplacing() bool {
 			}
 		}
 	}
-	
+
 	return false
 }
 

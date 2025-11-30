@@ -353,9 +353,10 @@ func TestVisitArray(t *testing.T) {
 		// Create a custom visitor that returns nil for second node
 		callCount := 0
 		customVisitor := &Visitor{
-			implementation: impl,
-			visitInCache:   make(map[int]VisitFunc),
-			visitOutCache:  make(map[int]VisitOutFunc),
+			implementation:    impl,
+			visitInCache:      make(map[int]VisitFunc),
+			visitOutCache:     make(map[int]VisitOutFunc),
+			cachedIsReplacing: true, // Must set this since we're bypassing NewVisitor
 		}
 		customVisitor.visitInCache[1] = func(node any, args *VisitArgs) any {
 			callCount++
@@ -391,9 +392,10 @@ func TestVisitArray(t *testing.T) {
 		// Create a custom visitor that returns array-like node for second item
 		callCount := 0
 		customVisitor := &Visitor{
-			implementation: impl,
-			visitInCache:   make(map[int]VisitFunc),
-			visitOutCache:  make(map[int]VisitOutFunc),
+			implementation:    impl,
+			visitInCache:      make(map[int]VisitFunc),
+			visitOutCache:     make(map[int]VisitOutFunc),
+			cachedIsReplacing: true, // Must set this since we're bypassing NewVisitor
 		}
 		customVisitor.visitInCache[1] = func(node any, args *VisitArgs) any {
 			callCount++
@@ -653,49 +655,51 @@ func TestVisitorEdgeCases(t *testing.T) {
 func TestNodeReplacementBehavior(t *testing.T) {
 	t.Run("should replace node when isReplacing is true", func(t *testing.T) {
 		newNode := &VisitorMockNode{Type: "NewNode", TypeIndex: 2}
-		
+
 		// Create custom visitor that returns different node
 		impl := &MockImplementation{IsReplacingValue: true}
 		visitor := &Visitor{
-			implementation: impl,
-			visitInCache:   make(map[int]VisitFunc),
-			visitOutCache:  make(map[int]VisitOutFunc),
+			implementation:    impl,
+			visitInCache:      make(map[int]VisitFunc),
+			visitOutCache:     make(map[int]VisitOutFunc),
+			cachedIsReplacing: true, // Must set this since we're bypassing NewVisitor
 		}
-		
+
 		// Set up cached function that returns new node
 		visitor.visitInCache[1] = func(node any, args *VisitArgs) any {
 			return newNode
 		}
 		visitor.visitOutCache[1] = func(node any) {}
-		
+
 		mockNode := &VisitorMockNode{Type: "TestNode", TypeIndex: 1}
 		result := visitor.Visit(mockNode)
-		
+
 		if result != newNode {
 			t.Errorf("Expected result to be newNode when isReplacing=true, got %v", result)
 		}
 	})
-	
+
 	t.Run("should not replace node when isReplacing is false", func(t *testing.T) {
 		newNode := &VisitorMockNode{Type: "NewNode", TypeIndex: 2}
-		
+
 		// Create custom visitor that returns different node but isReplacing=false
 		impl := &MockImplementation{IsReplacingValue: false}
 		visitor := &Visitor{
-			implementation: impl,
-			visitInCache:   make(map[int]VisitFunc),
-			visitOutCache:  make(map[int]VisitOutFunc),
+			implementation:    impl,
+			visitInCache:      make(map[int]VisitFunc),
+			visitOutCache:     make(map[int]VisitOutFunc),
+			cachedIsReplacing: false, // Must set this since we're bypassing NewVisitor
 		}
-		
+
 		// Set up cached function that returns new node
 		visitor.visitInCache[1] = func(node any, args *VisitArgs) any {
 			return newNode
 		}
 		visitor.visitOutCache[1] = func(node any) {}
-		
+
 		mockNode := &VisitorMockNode{Type: "TestNode", TypeIndex: 1}
 		result := visitor.Visit(mockNode)
-		
+
 		if result != mockNode {
 			t.Errorf("Expected result to be original mockNode when isReplacing=false, got %v", result)
 		}
@@ -951,9 +955,10 @@ func TestVisitArrayFlattenScenarios(t *testing.T) {
 		// Custom visitor that returns arrayResult for second node
 		callCount := 0
 		customVisitor := &Visitor{
-			implementation: impl,
-			visitInCache:   make(map[int]VisitFunc),
-			visitOutCache:  make(map[int]VisitOutFunc),
+			implementation:    impl,
+			visitInCache:      make(map[int]VisitFunc),
+			visitOutCache:     make(map[int]VisitOutFunc),
+			cachedIsReplacing: true, // Must set this since we're bypassing NewVisitor
 		}
 		customVisitor.visitInCache[1] = func(node any, args *VisitArgs) any {
 			callCount++
@@ -985,9 +990,10 @@ func TestVisitArrayFlattenScenarios(t *testing.T) {
 		}
 		
 		customVisitor := &Visitor{
-			implementation: impl,
-			visitInCache:   make(map[int]VisitFunc),
-			visitOutCache:  make(map[int]VisitOutFunc),
+			implementation:    impl,
+			visitInCache:      make(map[int]VisitFunc),
+			visitOutCache:     make(map[int]VisitOutFunc),
+			cachedIsReplacing: true, // Must set this since we're bypassing NewVisitor
 		}
 		customVisitor.visitInCache[1] = func(node any, args *VisitArgs) any {
 			return emptyArray
