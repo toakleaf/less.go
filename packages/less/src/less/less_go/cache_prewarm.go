@@ -631,3 +631,413 @@ func serializeNodeForBatch(node any, evalContext any) any {
 	// Fallback - return as-is
 	return node
 }
+
+// =============================================================================
+// Context-Aware Batch Pre-Warming
+// =============================================================================
+// These functions enable pre-warming the plugin function cache by evaluating
+// arguments with context and batching multiple calls into a single IPC request.
+// This is critical for Bootstrap4-style compilations where thousands of plugin
+// function calls are made (map-get, color-yiq, breakpoint-next, etc.).
+// =============================================================================
+
+// EvaluatedPluginCall represents a plugin function call with fully evaluated arguments.
+type EvaluatedPluginCall struct {
+	FunctionName string
+	CacheKey     string
+	Args         []any // Evaluated and serialized arguments
+	Context      map[string]any
+}
+
+// PluginCallEvaluator walks the AST and collects plugin function calls,
+// evaluating their arguments using the provided context.
+type PluginCallEvaluator struct {
+	pluginFunctions map[string]bool
+	evalContext     *Eval
+	collected       map[string]*EvaluatedPluginCall
+	debug           bool
+}
+
+// NewPluginCallEvaluator creates a new evaluator with the given plugin function names.
+func NewPluginCallEvaluator(pluginFunctionNames []string, evalContext *Eval) *PluginCallEvaluator {
+	funcs := make(map[string]bool, len(pluginFunctionNames))
+	for _, name := range pluginFunctionNames {
+		funcs[name] = true
+	}
+	return &PluginCallEvaluator{
+		pluginFunctions: funcs,
+		evalContext:     evalContext,
+		collected:       make(map[string]*EvaluatedPluginCall),
+		debug:           os.Getenv("LESS_GO_DEBUG") == "1",
+	}
+}
+
+// CollectAndEvaluate walks the AST and collects all plugin function calls,
+// evaluating their arguments using the provided context.
+func (e *PluginCallEvaluator) CollectAndEvaluate(root any) []*EvaluatedPluginCall {
+	e.visit(root)
+
+	// Convert map to slice
+	result := make([]*EvaluatedPluginCall, 0, len(e.collected))
+	for _, call := range e.collected {
+		result = append(result, call)
+	}
+
+	if e.debug {
+		fmt.Printf("[PluginCallEvaluator] Collected and evaluated %d unique plugin calls\n", len(result))
+	}
+
+	return result
+}
+
+// visit recursively traverses an AST node.
+func (e *PluginCallEvaluator) visit(node any) {
+	if node == nil {
+		return
+	}
+
+	// Check if this is a Call node
+	if call, ok := node.(*Call); ok {
+		e.visitCall(call)
+	}
+
+	// Traverse children using reflection
+	e.visitChildren(node)
+}
+
+// visitCall evaluates a plugin function call and collects it.
+func (e *PluginCallEvaluator) visitCall(call *Call) {
+	if call == nil || call.Name == "" {
+		return
+	}
+
+	// Check if this is a plugin function
+	if !e.pluginFunctions[call.Name] {
+		return
+	}
+
+	// Try to evaluate all arguments
+	evaluatedArgs := make([]any, 0, len(call.Args))
+	for _, arg := range call.Args {
+		evaluated, ok := e.tryEvaluateArg(arg)
+		if !ok {
+			// Can't evaluate this argument - skip this call
+			if e.debug {
+				fmt.Printf("[PluginCallEvaluator] Skipping %s - couldn't evaluate arg of type %T\n", call.Name, arg)
+			}
+			return
+		}
+		evaluatedArgs = append(evaluatedArgs, evaluated)
+	}
+
+	// Create cache key from evaluated arguments
+	cacheKey := e.makeCacheKey(call.Name, evaluatedArgs)
+
+	// Check for duplicate
+	if _, exists := e.collected[cacheKey]; exists {
+		return
+	}
+
+	// Serialize arguments for batch IPC
+	serializedArgs := make([]any, len(evaluatedArgs))
+	for i, arg := range evaluatedArgs {
+		serializedArgs[i] = serializeNodeForBatch(arg, nil)
+	}
+
+	// Serialize context for variable lookup
+	var serializedContext map[string]any
+	if e.evalContext != nil && isContextDependentFunction(call.Name) {
+		serializedContext = serializeEvalContextForBatch(e.evalContext)
+	}
+
+	e.collected[cacheKey] = &EvaluatedPluginCall{
+		FunctionName: call.Name,
+		CacheKey:     cacheKey,
+		Args:         serializedArgs,
+		Context:      serializedContext,
+	}
+
+	if e.debug {
+		fmt.Printf("[PluginCallEvaluator] Collected: %s with key: %s\n", call.Name, truncateString(cacheKey, 60))
+	}
+}
+
+// tryEvaluateArg attempts to evaluate an argument using the context.
+// Returns (evaluatedArg, true) on success, (nil, false) if evaluation fails.
+func (e *PluginCallEvaluator) tryEvaluateArg(arg any) (any, bool) {
+	if arg == nil {
+		return nil, true
+	}
+
+	// Already evaluated types - pass through
+	switch v := arg.(type) {
+	case string, float64, int, int64, bool:
+		return v, true
+	case *Dimension, *Color, *Keyword, *Anonymous:
+		return v, true
+	case *Quoted:
+		if v != nil {
+			return v, true
+		}
+		return nil, true
+	}
+
+	// Try to evaluate nodes that need evaluation
+	if e.evalContext != nil {
+		// Try Eval(any) (any, error) signature
+		if evaluable, ok := arg.(interface{ Eval(any) (any, error) }); ok {
+			result, err := evaluable.Eval(e.evalContext)
+			if err == nil {
+				return result, true
+			}
+			// Evaluation failed - can't use this call
+			return nil, false
+		}
+
+		// Try Eval(any) any signature
+		if evaluable, ok := arg.(interface{ Eval(any) any }); ok {
+			result := evaluable.Eval(e.evalContext)
+			if result != nil {
+				return result, true
+			}
+			return nil, false
+		}
+	}
+
+	// Handle Expression with single value
+	if expr, ok := arg.(*Expression); ok {
+		if expr != nil && len(expr.Value) == 1 {
+			return e.tryEvaluateArg(expr.Value[0])
+		}
+	}
+
+	// Can't evaluate this argument
+	return nil, false
+}
+
+// makeCacheKey creates a cache key from evaluated arguments.
+// This matches the format used by JSFunctionDefinition.makeCacheKey.
+func (e *PluginCallEvaluator) makeCacheKey(funcName string, args []any) string {
+	key := funcName + ":"
+
+	for i, arg := range args {
+		if i > 0 {
+			key += "|"
+		}
+		key += e.argToKeyString(arg)
+	}
+
+	return key
+}
+
+// argToKeyString converts an evaluated argument to a string for cache key.
+func (e *PluginCallEvaluator) argToKeyString(arg any) string {
+	if arg == nil {
+		return "nil"
+	}
+
+	switch v := arg.(type) {
+	case string:
+		return v
+	case float64:
+		return fmt.Sprintf("%g", v)
+	case int:
+		return fmt.Sprintf("%d", v)
+	case int64:
+		return fmt.Sprintf("%d", v)
+	case bool:
+		return fmt.Sprintf("%t", v)
+	case *Dimension:
+		if v == nil {
+			return "nil"
+		}
+		unit := ""
+		if v.Unit != nil {
+			unit = v.Unit.ToString()
+		}
+		return fmt.Sprintf("%g%s", v.Value, unit)
+	case *Color:
+		if v == nil {
+			return "nil"
+		}
+		if len(v.RGB) >= 3 {
+			return fmt.Sprintf("rgba(%g,%g,%g,%g)", v.RGB[0], v.RGB[1], v.RGB[2], v.Alpha)
+		}
+		return "color"
+	case *Quoted:
+		if v == nil {
+			return "nil"
+		}
+		return fmt.Sprintf("%s%s%s", v.GetQuote(), v.GetValue(), v.GetQuote())
+	case *Keyword:
+		if v == nil {
+			return "nil"
+		}
+		return v.GetValue()
+	case *Anonymous:
+		if v == nil {
+			return "nil"
+		}
+		return fmt.Sprintf("%v", v.GetValue())
+	}
+
+	// Fallback - use type and value
+	return fmt.Sprintf("%T:%v", arg, arg)
+}
+
+// visitChildren traverses all child nodes.
+func (e *PluginCallEvaluator) visitChildren(node any) {
+	if node == nil {
+		return
+	}
+
+	v := reflect.ValueOf(node)
+	if v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return
+		}
+		v = v.Elem()
+	}
+
+	if v.Kind() != reflect.Struct {
+		return
+	}
+
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Field(i)
+		if !field.CanInterface() {
+			continue
+		}
+		e.visitFieldValue(field)
+	}
+}
+
+// visitFieldValue handles traversing a single field value.
+func (e *PluginCallEvaluator) visitFieldValue(field reflect.Value) {
+	switch field.Kind() {
+	case reflect.Ptr, reflect.Interface:
+		if !field.IsNil() {
+			e.visit(field.Interface())
+		}
+	case reflect.Slice, reflect.Array:
+		for i := 0; i < field.Len(); i++ {
+			elem := field.Index(i)
+			if elem.CanInterface() {
+				e.visit(elem.Interface())
+			}
+		}
+	case reflect.Map:
+		iter := field.MapRange()
+		for iter.Next() {
+			val := iter.Value()
+			if val.CanInterface() {
+				e.visit(val.Interface())
+			}
+		}
+	}
+}
+
+// WarmPluginCacheWithContext collects plugin function calls from the AST,
+// evaluates their arguments using the provided context, and pre-warms the cache
+// with a single batch IPC call.
+//
+// This is the recommended function for pre-warming plugin caches before evaluation.
+// Unlike WarmPluginCache, this function properly handles context-dependent functions
+// like map-get, color-yiq, and breakpoint-next that need variable lookup.
+//
+// Parameters:
+//   - root: The root AST node (typically a *Ruleset)
+//   - bridge: The NodeJSPluginBridge with the runtime and registered functions
+//   - evalContext: The evaluation context with frames for variable lookup
+//
+// Returns the number of cache entries warmed and any error.
+func WarmPluginCacheWithContext(root any, bridge *NodeJSPluginBridge, evalContext *Eval) (int, error) {
+	if bridge == nil || evalContext == nil {
+		return 0, nil
+	}
+
+	rt := bridge.GetRuntime()
+	if rt == nil {
+		return 0, nil
+	}
+
+	// Get the list of registered plugin functions
+	funcRegistry := bridge.GetFunctionRegistry()
+	if funcRegistry == nil {
+		return 0, nil
+	}
+
+	pluginFuncNames := funcRegistry.GetJSFunctionNames()
+	if len(pluginFuncNames) == 0 {
+		return 0, nil
+	}
+
+	debug := os.Getenv("LESS_GO_DEBUG") == "1"
+	if debug {
+		fmt.Printf("[WarmPluginCacheWithContext] Found %d plugin functions\n", len(pluginFuncNames))
+	}
+
+	// Collect and evaluate all plugin function calls from the AST
+	evaluator := NewPluginCallEvaluator(pluginFuncNames, evalContext)
+	calls := evaluator.CollectAndEvaluate(root)
+
+	if len(calls) == 0 {
+		if debug {
+			fmt.Printf("[WarmPluginCacheWithContext] No cacheable plugin calls found\n")
+		}
+		return 0, nil
+	}
+
+	// Build batch calls
+	batchCalls := make([]runtime.BatchCall, 0, len(calls))
+	for _, call := range calls {
+		batchCalls = append(batchCalls, runtime.BatchCall{
+			Key:     call.CacheKey,
+			Name:    call.FunctionName,
+			Args:    call.Args,
+			Context: call.Context,
+		})
+	}
+
+	if debug {
+		fmt.Printf("[WarmPluginCacheWithContext] Warming cache with %d batch calls\n", len(batchCalls))
+	}
+
+	// Execute batch call and cache results
+	cached, err := rt.BatchCallFunctionsAndCache(batchCalls)
+	if err != nil {
+		return 0, fmt.Errorf("batch cache warming failed: %w", err)
+	}
+
+	if debug {
+		fmt.Printf("[WarmPluginCacheWithContext] Successfully cached %d results\n", cached)
+	}
+
+	return cached, nil
+}
+
+// WarmPluginCacheWithContextFromLazyBridge is like WarmPluginCacheWithContext
+// but takes a LazyNodeJSPluginBridge. It only warms if the bridge is initialized.
+func WarmPluginCacheWithContextFromLazyBridge(root any, lazyBridge *LazyNodeJSPluginBridge, evalContext *Eval) (int, error) {
+	if lazyBridge == nil || !lazyBridge.IsInitialized() {
+		return 0, nil
+	}
+
+	bridge, err := lazyBridge.GetBridge()
+	if err != nil {
+		return 0, err
+	}
+
+	return WarmPluginCacheWithContext(root, bridge, evalContext)
+}
+
+// truncateString truncates a string to maxLen characters, adding "..." if truncated.
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	if maxLen <= 3 {
+		return "..."
+	}
+	return s[:maxLen-3] + "..."
+}

@@ -685,9 +685,10 @@ func (r *Ruleset) Eval(context any) (any, error) {
 
 	// Pre-warm plugin function cache after imports are processed
 	// This batches all plugin function calls to reduce IPC overhead
+	// Uses the context-aware version to properly handle functions like map-get, color-yiq
 	if ruleset.Root && pluginEvalCtx != nil && pluginEvalCtx.LazyPluginBridge != nil {
 		if pluginEvalCtx.LazyPluginBridge.IsInitialized() {
-			warmCount, warmErr := WarmPluginCacheFromLazyBridge(ruleset, pluginEvalCtx.LazyPluginBridge, pluginEvalCtx)
+			warmCount, warmErr := WarmPluginCacheWithContextFromLazyBridge(ruleset, pluginEvalCtx.LazyPluginBridge, pluginEvalCtx)
 			if os.Getenv("LESS_GO_DEBUG") == "1" {
 				if warmErr != nil {
 					fmt.Fprintf(os.Stderr, "[Ruleset.Eval] Cache pre-warming failed: %v\n", warmErr)

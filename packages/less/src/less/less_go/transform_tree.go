@@ -266,8 +266,8 @@ func TransformTree(root any, options map[string]any) any {
 			processImports = flag
 		}
 	}
-	
-	// Process imports if enabled (before evaluation)
+
+// Process imports if enabled (before evaluation)
 	var processedRoot any = root
 	if processImports {
 		if importer, ok := options["importManager"]; ok {
@@ -282,6 +282,26 @@ func TransformTree(root any, options map[string]any) any {
 		}
 	}
 	processedRoot = root
+
+	// Pre-warm plugin function cache with batch calls
+	// This must be done AFTER imports are processed (which loads plugins)
+	// but BEFORE evaluation to reduce IPC overhead for plugin functions.
+	// This batches multiple plugin function calls into a single IPC request.
+	if evalEnv.LazyPluginBridge != nil && evalEnv.LazyPluginBridge.IsInitialized() {
+		cached, err := WarmPluginCacheWithContextFromLazyBridge(processedRoot, evalEnv.LazyPluginBridge, evalEnv)
+		if err != nil && os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Printf("[TransformTree] Plugin cache warming error: %v\n", err)
+		} else if cached > 0 && os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Printf("[TransformTree] Pre-warmed %d plugin function cache entries\n", cached)
+		}
+	} else if evalEnv.PluginBridge != nil {
+		cached, err := WarmPluginCacheWithContext(processedRoot, evalEnv.PluginBridge, evalEnv)
+		if err != nil && os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Printf("[TransformTree] Plugin cache warming error: %v\n", err)
+		} else if cached > 0 && os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Printf("[TransformTree] Pre-warmed %d plugin function cache entries\n", cached)
+		}
+	}
 
 	// Evaluate the root exactly like JavaScript: evaldRoot = root.eval(evalEnv)
 	// Note: Pre-eval visitors are run inside Ruleset.Eval after imports are processed
