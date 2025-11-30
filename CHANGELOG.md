@@ -1,4 +1,167 @@
-## Change Log
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [1.0.0] - 2025-11-30
+
+This release marks the first stable version of **less.go**, a complete Go port of [less.js](https://github.com/less/less.js). The port achieves feature parity with less.js v4.2.2, with all 191 integration tests passing (100% success rate).
+
+### Added
+
+#### JavaScript Evaluation Support
+- Inline JavaScript evaluation via Node.js runtime integration
+- Variable interpolation `@{varName}` in JavaScript expressions
+- Variable access via `this.varName.toJS()` syntax
+- Array result handling (returns comma-separated values)
+- `js-type-errors` and `no-js-errors` test suites now passing
+
+#### Plugin System
+- Full JavaScript plugin support with Node.js runtime
+- Plugin scope management for JS plugins
+- Function registry integration for JS plugins
+- JavaScript bindings for plugin visitors
+- Post-processor integration with CSS output
+- Pre-eval visitor variable replacement
+- Plugin function inheritance for mixin calls
+- Context-aware JavaScript plugin function support
+- Binary shared memory for plugin context variables
+- Prefetch mode for plugin functions
+
+#### Built-in Functions
+- `image-width` and `image-height` functions
+
+#### Benchmarking Infrastructure
+- Suite-mode benchmarking for realistic workload testing
+- Bootstrap4 benchmark comparison tests
+- Go and JavaScript fair comparison benchmarks
+
+### Fixed
+
+#### Parser & Validation
+- Parser validation for malformed parenthesized expressions
+- Parser validation for invalid hex colors
+- Color function and `darken()` validation for invalid color strings
+- Validation for undefined variables in property interpolation
+- Property interpolation regex to not match regex capture groups
+- Function validation: ArgumentErrors now properly propagate
+- Context-aware validation
+
+#### Import System
+- Import-reference visibility handling and path deduplication
+- Import handling for mixin definitions and anonymous nodes
+- CSS @import output and path rewriting issues
+- CSS @import path handling for variable-interpolated imports
+- `processImports` option passing to transform tree
+- Import-reference tests: extra blank lines in CSS output
+- Import-reference-issues: visibility handling
+
+#### CSS Output
+- Container query CSS output with conditional newlines
+- CSS formatting for empty keyframes with comments
+- Nested at-rule newlines and comment handling
+- Indentation in nested `@supports` rules
+- Selector joining in `@supports`/`@document`
+- Indentation in nested at-rules
+- Comment silence checking in OutputRuleset
+
+#### Media Queries
+- Media query handling for detached rulesets
+- Media query selectors preserved during bubbling
+- Detached rulesets media query merging and context isolation
+- Selector bubbling during Media.Eval for nested media queries
+- QueryInParens.Eval returns new instance instead of mutating
+
+#### Extend System
+- Extend chaining visibility for import reference tests
+- Extend matching for selectors from reference imports
+- Chained extend visibility for reference imports
+
+#### Directives
+- `@font-face` and `@keyframes` bubbling out of parent rulesets
+- Directives bubbling: selector joining in `@supports`/`@document`
+- Container selector flattening with Accept method override
+
+#### URL Handling
+- URL path rewriting based on rewriteUrls mode
+- Static-urls test: CSS import path handling and output
+- url-args/urls test: MIME types and URL encoding
+- `data-uri` function argument evaluation
+
+#### Mixins & Functions
+- Mixin content visibility for reference imports
+- Property merge to not include non-merge rules
+- `percentage()` function evaluation in mixin context
+
+#### Plugin Runtime
+- Map comparison panic in plugin function results
+- JSResultNode conversion to proper AST nodes
+- Function scoping for imports inside detached rulesets
+- Unimplemented FlatAST serialization in shared memory mode
+- Bootstrap4 color form preservation in binary format
+- `jsify` to match less.js behavior for `@arguments`
+
+#### Other
+- JavaScript error propagation in SafeEval
+- BubbleSelectors idempotency to prevent duplicate selector wrapping
+- Division by zero tests to match JavaScript behavior
+- Nil pointer panic in bootstrap4 test
+
+### Changed
+
+#### Performance Optimizations
+- Optimize scope sync to only when local plugins need it
+- Implement sync.Pool for frequently allocated node types
+- JS-side prefetch cache to eliminate redundant file I/O
+- Cache key generation with type switches
+- GetFrames() optimized with cached ParserFrame slice
+- Capacity hints for map and slice allocations in mixin evaluation
+- Reduce IPC latency with buffered writes and single-pass JSON parsing
+- Eliminate heap allocations in extend findMatch
+- Implement sync.Pool for PluginScope objects
+- Pre-allocate map capacity in createMathEnabledContext
+- Context-free function registry for plugin performance
+- Cache binary prefetch buffer between plugin calls
+- Batch plugin cache pre-warming infrastructure
+- Remove redundant per-function result cache from JSFunctionDefinition
+- Batch IPC for plugin function calls
+- Reduce memory allocations in ProcessExtendsVisitor.findMatch
+- Add sync.Pool for math context objects
+- JSFunctionDefinition object reuse cache
+- Array iteration methods added to Expression/Value nodes
+- Eliminate scope sync IPC for Bootstrap4 speedup
+- Optimize Ruleset memory allocations
+- Reduce sprintf allocations in hot paths (7.4% fewer allocs)
+- Optimize Node allocation by removing ineffective sync.Pool
+- Optimize visitor pattern to reduce reflection overhead
+- Optimize regex compilation in selector.go
+
+#### Infrastructure
+- Enable SHM protocol by default for plugin IPC
+- Remove quarantine infrastructure for tests (all tests now passing)
+- Un-quarantine JavaScript tests
+
+---
+
+### Summary
+
+**less.go v1.0.0** represents a complete, production-ready Go implementation of the LESS CSS preprocessor, featuring:
+
+- **100 perfect CSS matches** (52.4%) - identical output to less.js
+- **91 correct error handling tests** (47.6%) - proper error detection
+- **191/191 integration tests passing** (100% success rate)
+- **3,012 unit tests passing** (100%)
+- Full JavaScript evaluation support via Node.js runtime
+- Comprehensive plugin system with shared memory optimization
+- Performance optimizations including sync.Pool, batch IPC, and caching
+
+---
+
+## Upstream less.js Changelog
+
+The following changelog entries are from the upstream [less.js](https://github.com/less/less.js) project, which less.go is ported from.
 
 ### v4.2.2 (2025-01-04)
 
