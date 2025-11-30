@@ -13,28 +13,29 @@ type Unit struct {
 }
 
 func NewUnit(numerator []string, denominator []string, backupUnit string) *Unit {
-	u := &Unit{
-		Node:        NewNode(),
-		Numerator:   make([]string, 0),
-		Denominator: make([]string, 0),
-	}
+	u := GetUnitFromPool()
+	u.Node = NewNode()
 
 	if numerator != nil {
-		numInterface := make([]any, len(numerator))
-		for i, v := range numerator {
-			numInterface[i] = v
+		numLen := len(numerator)
+		// Reuse pooled slice capacity if sufficient, otherwise allocate
+		if cap(u.Numerator) >= numLen {
+			u.Numerator = u.Numerator[:numLen]
+		} else {
+			u.Numerator = make([]string, numLen)
 		}
-		u.Numerator = make([]string, len(numerator))
 		copy(u.Numerator, numerator)
 		sort.Strings(u.Numerator)
 	}
 
 	if denominator != nil {
-		denInterface := make([]any, len(denominator))
-		for i, v := range denominator {
-			denInterface[i] = v
+		denLen := len(denominator)
+		// Reuse pooled slice capacity if sufficient, otherwise allocate
+		if cap(u.Denominator) >= denLen {
+			u.Denominator = u.Denominator[:denLen]
+		} else {
+			u.Denominator = make([]string, denLen)
 		}
-		u.Denominator = make([]string, len(denominator))
 		copy(u.Denominator, denominator)
 		sort.Strings(u.Denominator)
 	}

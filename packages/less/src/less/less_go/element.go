@@ -75,12 +75,11 @@ func NewElement(combinator any, value any, isVariable bool, index int, currentFi
 		val = v
 	}
 
-	e := &Element{
-		Node:       NewNode(),
-		Combinator: comb,
-		Value:      val,
-		IsVariable: isVariable,
-	}
+	e := GetElementFromPool()
+	e.Node = NewNode()
+	e.Combinator = comb
+	e.Value = val
+	e.IsVariable = isVariable
 
 	e.Index = index
 	if currentFileInfo != nil {
