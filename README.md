@@ -319,9 +319,10 @@ less.go maintains **1:1 compatibility** with Less.js v4.2.2:
 | Source Maps | ✅ Full support |
 
 **Test Coverage:**
-- 97 integration tests with perfect CSS match (identical to Less.js output)
-- 3,000+ unit tests passing
-- 96%+ overall test success rate
+- 191/191 integration tests passing (100%)
+- 100 perfect CSS matches (identical to Less.js output)
+- 91 error handling tests correctly failing as expected
+- 3,012 unit tests passing
 
 ## Performance
 
@@ -333,7 +334,7 @@ less.go delivers competitive performance with Less.js:
 |--------|---------|---------|-------|
 | **Cold Start** | ~1.0ms/file | ~0.9ms/file | less.go slightly faster |
 | **Warm (JIT optimized)** | ~0.4ms/file | ~0.9ms/file | Less.js 2x faster after JIT |
-| **Bootstrap 4** | ~500ms | ~840ms | With JS plugins enabled |
+| **Bootstrap 4** | ~500ms | ~1.2s | With JS plugins enabled |
 
 ### When to Use less.go
 
@@ -425,7 +426,7 @@ Before opening an issue:
 
 ## License
 
-Copyright (c) 2009-2024 [Alexis Sellier](http://cloudhead.io) & The Core Less Team
+Copyright (c) 2009-2025 [Alexis Sellier](http://cloudhead.io) & The Core Less Team
 Licensed under the [Apache License 2.0](LICENSE)
 
 ## Acknowledgments
