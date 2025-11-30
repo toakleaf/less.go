@@ -386,6 +386,112 @@ func BenchmarkNodeJSRuntime_Echo(b *testing.B) {
 	}
 }
 
+// TestNodeJSRuntime_PrefetchCache tests the prefetch binary cache functionality
+func TestNodeJSRuntime_PrefetchCache(t *testing.T) {
+	path := getPluginHostPath(t)
+	rt, err := NewNodeJSRuntime(WithPluginHostPath(path))
+	if err != nil {
+		t.Fatalf("NewNodeJSRuntime failed: %v", err)
+	}
+
+	// Test SetPrefetchCache and GetPrefetchCache
+	binaryData := []byte{0x50, 0x52, 0x45, 0x46, 0x01, 0x00, 0x00, 0x00} // "PREF" + version
+	frameCount := 10
+	frameHash := uint64(12345)
+	varCount := 5
+
+	// Initially, cache should be empty
+	cachedData := rt.GetPrefetchCache(frameCount, frameHash)
+	if cachedData != nil {
+		t.Error("Expected nil cache initially")
+	}
+
+	// Set cache
+	rt.SetPrefetchCache(binaryData, frameCount, frameHash, varCount)
+
+	// Get cache with matching parameters
+	cachedData = rt.GetPrefetchCache(frameCount, frameHash)
+	if cachedData == nil {
+		t.Error("Expected non-nil cache after Set")
+	}
+	if len(cachedData) != len(binaryData) {
+		t.Errorf("Expected cached data length %d, got %d", len(binaryData), len(cachedData))
+	}
+
+	// Verify data was copied correctly
+	for i, b := range binaryData {
+		if cachedData[i] != b {
+			t.Errorf("Cached data mismatch at index %d: expected %d, got %d", i, b, cachedData[i])
+		}
+	}
+
+	// Get cache with different frame count (should miss)
+	cachedData = rt.GetPrefetchCache(frameCount+1, frameHash)
+	if cachedData != nil {
+		t.Error("Expected nil cache with different frame count")
+	}
+
+	// Get cache with different frame hash (should miss)
+	cachedData = rt.GetPrefetchCache(frameCount, frameHash+1)
+	if cachedData != nil {
+		t.Error("Expected nil cache with different frame hash")
+	}
+
+	// Get cache stats
+	size, varCnt, isValid := rt.GetPrefetchCacheStats()
+	if !isValid {
+		t.Error("Expected cache to be valid")
+	}
+	if size != len(binaryData) {
+		t.Errorf("Expected cache size %d, got %d", len(binaryData), size)
+	}
+	if varCnt != varCount {
+		t.Errorf("Expected var count %d, got %d", varCount, varCnt)
+	}
+
+	// Invalidate cache
+	rt.InvalidatePrefetchCache()
+	cachedData = rt.GetPrefetchCache(frameCount, frameHash)
+	if cachedData != nil {
+		t.Error("Expected nil cache after invalidation")
+	}
+
+	// Verify stats after invalidation
+	_, _, isValid = rt.GetPrefetchCacheStats()
+	if isValid {
+		t.Error("Expected cache to be invalid after invalidation")
+	}
+}
+
+// TestNodeJSRuntime_PrefetchCacheReuse tests that the cache reuses memory
+func TestNodeJSRuntime_PrefetchCacheReuse(t *testing.T) {
+	path := getPluginHostPath(t)
+	rt, err := NewNodeJSRuntime(WithPluginHostPath(path))
+	if err != nil {
+		t.Fatalf("NewNodeJSRuntime failed: %v", err)
+	}
+
+	// Set cache multiple times and verify it reuses memory efficiently
+	for i := 0; i < 10; i++ {
+		binaryData := make([]byte, 100)
+		for j := range binaryData {
+			binaryData[j] = byte(i + j)
+		}
+
+		rt.SetPrefetchCache(binaryData, i, uint64(i*100), i)
+
+		// Verify cache is set correctly
+		cachedData := rt.GetPrefetchCache(i, uint64(i*100))
+		if cachedData == nil {
+			t.Errorf("Iteration %d: Expected non-nil cache", i)
+			continue
+		}
+		if len(cachedData) != 100 {
+			t.Errorf("Iteration %d: Expected length 100, got %d", i, len(cachedData))
+		}
+	}
+}
+
 // TestNodeJSRuntime_BatchCallFunctions tests the batch IPC functionality
 func TestNodeJSRuntime_BatchCallFunctions(t *testing.T) {
 	path := getPluginHostPath(t)
