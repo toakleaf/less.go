@@ -135,29 +135,35 @@ func (q *Quoted) ContainsVariables() bool {
 	return variableRegex.MatchString(q.value)
 }
 
-// Eval evaluates the quoted string, replacing variables and properties  
+// Eval evaluates the quoted string, replacing variables and properties
 func (q *Quoted) Eval(context any) (any, error) {
 	value := q.value
 
 	// Get frames from context safely - handle both EvalContext and map[string]any
-	var frames []ParserFrame
-	if evalCtx, ok := context.(interface{ GetFrames() []ParserFrame }); ok {
-		frames = evalCtx.GetFrames()
+	// Optimization: Use raw frames to avoid slice allocation when possible
+	var framesRaw []any
+	if evalCtx, ok := context.(*Eval); ok {
+		// Direct access to frames avoids slice allocation
+		framesRaw = evalCtx.Frames
+	} else if evalCtx, ok := context.(interface{ GetFramesRaw() []any }); ok {
+		framesRaw = evalCtx.GetFramesRaw()
 	} else if ctx, ok := context.(map[string]any); ok {
 		// Extract frames from map context
 		if framesAny, exists := ctx["frames"]; exists {
 			if frameSlice, ok := framesAny.([]any); ok {
-				frames = make([]ParserFrame, 0, len(frameSlice))
-				for _, f := range frameSlice {
-					if frame, ok := f.(ParserFrame); ok {
-						frames = append(frames, frame)
-					}
-				}
+				framesRaw = frameSlice
 			}
 		}
+	} else if evalCtx, ok := context.(interface{ GetFrames() []ParserFrame }); ok {
+		// Fallback: convert []ParserFrame to []any for compatibility with test mocks
+		frames := evalCtx.GetFrames()
+		framesRaw = make([]any, len(frames))
+		for i, f := range frames {
+			framesRaw[i] = f
+		}
 	}
-	if frames == nil {
-		frames = make([]ParserFrame, 0) // Provide empty frames if none available
+	if framesRaw == nil {
+		framesRaw = []any{} // Provide empty frames if none available
 	}
 
 	// Define iterativeReplace to match JavaScript implementation
@@ -195,7 +201,11 @@ func (q *Quoted) Eval(context any) (any, error) {
 	// variableReplacement handles @{name} syntax
 	variableReplacement := func(match string, name string) (string, error) {
 		// First try direct frame access for the test case
-		for _, frame := range frames {
+		for _, frameAny := range framesRaw {
+			frame, ok := frameAny.(ParserFrame)
+			if !ok {
+				continue
+			}
 			if varResult := frame.Variable("@" + name); varResult != nil {
 				if val, ok := varResult["value"]; ok {
 					var result string

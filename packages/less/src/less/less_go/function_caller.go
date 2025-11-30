@@ -28,6 +28,24 @@ func (c *Context) GetFrames() []ParserFrame {
 	return []ParserFrame{}
 }
 
+// GetFramesRaw returns the internal frames slice without type conversion.
+// This is more efficient for code that can handle type assertions inline.
+func (c *Context) GetFramesRaw() []any {
+	if c == nil || len(c.Frames) == 0 {
+		return []any{}
+	}
+	// Get frames from the first Frame's EvalContext
+	if c.Frames[0].EvalContext != nil {
+		if ec, ok := c.Frames[0].EvalContext.(*Eval); ok {
+			return ec.Frames
+		}
+		if ec, ok := c.Frames[0].EvalContext.(interface{ GetFramesRaw() []any }); ok {
+			return ec.GetFramesRaw()
+		}
+	}
+	return []any{}
+}
+
 // Frame represents a scope frame.
 type Frame struct {
 	FunctionRegistry FunctionRegistry

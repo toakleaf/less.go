@@ -348,20 +348,36 @@ func (j *JsEvalNode) jsify(obj any) string {
 func (j *JsEvalNode) buildVariableContext(context any) map[string]map[string]any {
 	variables := make(map[string]map[string]any)
 
-	// Get frames from context
-	var frames []ParserFrame
+	// Get frames from context - optimization: use raw frames to avoid allocation
+	var framesRaw []any
 
 	if evalCtx, ok := context.(*Eval); ok {
-		frames = evalCtx.GetFrames()
+		framesRaw = evalCtx.Frames // Direct access avoids slice allocation
 	} else if wrapper, ok := context.(*contextWrapper); ok {
-		frames = wrapper.GetFrames()
+		// Use GetFramesRaw if available, otherwise fall back to GetFrames
+		if rawCtx, ok := wrapper.ctx.(*Eval); ok {
+			framesRaw = rawCtx.Frames
+		} else if rawCtx, ok := wrapper.ctx.(interface{ GetFramesRaw() []any }); ok {
+			framesRaw = rawCtx.GetFramesRaw()
+		} else {
+			// Fall back to old behavior for compatibility
+			frames := wrapper.GetFrames()
+			for _, f := range frames {
+				framesRaw = append(framesRaw, f)
+			}
+		}
 	} else if mapCtx, ok := context.(map[string]any); ok {
-		if f, ok := mapCtx["frames"].([]ParserFrame); ok {
-			frames = f
+		if f, ok := mapCtx["frames"].([]any); ok {
+			framesRaw = f
+		} else if f, ok := mapCtx["frames"].([]ParserFrame); ok {
+			// Convert to []any for compatibility
+			for _, frame := range f {
+				framesRaw = append(framesRaw, frame)
+			}
 		}
 	}
 
-	if len(frames) == 0 {
+	if len(framesRaw) == 0 {
 		return variables
 	}
 
@@ -370,7 +386,11 @@ func (j *JsEvalNode) buildVariableContext(context any) map[string]map[string]any
 
 	// Collect variables from all frames (inner scopes first)
 	// We only keep the first definition of each variable (closest scope wins)
-	for _, frame := range frames {
+	for _, frameAny := range framesRaw {
+		frame, ok := frameAny.(ParserFrame)
+		if !ok {
+			continue
+		}
 		// ParserFrame doesn't have Variables() method, but Ruleset and other frames do
 		variablesProvider, ok := frame.(interface{ Variables() map[string]any })
 		if !ok {

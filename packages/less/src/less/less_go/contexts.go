@@ -296,6 +296,8 @@ func (e *Eval) IsInCalc() bool {
 }
 
 // GetFrames returns the evaluation frames (EvalContext interface)
+// NOTE: This method allocates a new slice. For performance-critical code,
+// use ForEachFrame() or GetFramesRaw() instead.
 func (e *Eval) GetFrames() []ParserFrame {
 	frames := make([]ParserFrame, 0, len(e.Frames))
 	for _, frame := range e.Frames {
@@ -304,6 +306,25 @@ func (e *Eval) GetFrames() []ParserFrame {
 		}
 	}
 	return frames
+}
+
+// GetFramesRaw returns the internal frames slice directly without type conversion.
+// This is more efficient than GetFrames() for code that can handle the type assertions inline.
+func (e *Eval) GetFramesRaw() []any {
+	return e.Frames
+}
+
+// ForEachFrame iterates over frames without allocating a new slice.
+// The callback should return true to continue iteration, false to stop.
+// This is the most efficient way to iterate over frames.
+func (e *Eval) ForEachFrame(fn func(ParserFrame) bool) {
+	for _, frame := range e.Frames {
+		if parserFrame, ok := frame.(ParserFrame); ok {
+			if !fn(parserFrame) {
+				return
+			}
+		}
+	}
 }
 
 // GetImportantScope returns the important scope stack (EvalContext interface)

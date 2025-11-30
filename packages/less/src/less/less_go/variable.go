@@ -151,8 +151,67 @@ func (v *Variable) Eval(context any) (any, error) {
 	defer func() { v.evaluating = false }()
 
 	// Handle different context types - interface-based (tests) or map-based (runtime)
-	if interfaceContext, ok := context.(interface{ GetFrames() []ParserFrame }); ok {
-		// Interface-based context (for tests)
+	// Optimization: Check for *Eval first to avoid GetFrames() allocation
+	if evalCtx, ok := context.(*Eval); ok {
+		// Direct access to frames avoids slice allocation
+		for _, frameAny := range evalCtx.Frames {
+			frame, ok := frameAny.(ParserFrame)
+			if !ok {
+				continue
+			}
+			if varResult := frame.Variable(name); varResult != nil {
+				// Handle important flag if present
+				if importantVal, exists := varResult["important"]; exists && importantVal != nil {
+					if len(evalCtx.ImportantScope) > 0 {
+						lastScope := evalCtx.ImportantScope[len(evalCtx.ImportantScope)-1]
+						// Convert boolean to appropriate string
+						if boolVal, ok := importantVal.(bool); ok && boolVal {
+							lastScope["important"] = "!important"
+						} else if strVal, ok := importantVal.(string); ok {
+							lastScope["important"] = strVal
+						}
+					}
+				}
+
+				// Get value from result
+				val, ok := varResult["value"]
+				if !ok {
+					continue
+				}
+
+				// If in calc context, wrap vars in a function call to cascade evaluate args first
+				if evalCtx.InCalc {
+					selfCall := NewCall("_SELF", []any{val}, v.GetIndex(), v.FileInfo())
+					// Set the CallerFactory so _SELF can be resolved later
+					selfCall.CallerFactory = NewDefaultFunctionCallerFactory(DefaultRegistry)
+					// Evaluate the Call object immediately (matches JavaScript: return (new Call('_SELF', [v.value])).eval(context))
+					return selfCall.Eval(context)
+				}
+
+				// Evaluate value - check both interface types
+				if evalable, ok := val.(interface{ Eval(any) (any, error) }); ok {
+					result, err := evalable.Eval(context)
+					return result, err
+				} else if evalCtxVal, ok := val.(interface{ Eval(EvalContext) (any, error) }); ok {
+					result, err := evalCtxVal.Eval(evalCtx)
+					return result, err
+				} else if evalSingle, ok := val.(interface{ Eval(any) any }); ok {
+					// Handle single-return Eval (e.g., DetachedRuleset.Eval)
+					if os.Getenv("LESS_GO_DEBUG") == "1" {
+						fmt.Fprintf(os.Stderr, "[DEBUG Variable.Eval] Calling single-return Eval on %T\n", val)
+					}
+					result := evalSingle.Eval(context)
+					return result, nil
+				} else {
+					if os.Getenv("LESS_GO_DEBUG") == "1" {
+						fmt.Fprintf(os.Stderr, "[DEBUG Variable.Eval] No Eval method found, returning val as-is: %T\n", val)
+					}
+					return val, nil
+				}
+			}
+		}
+	} else if interfaceContext, ok := context.(interface{ GetFrames() []ParserFrame }); ok {
+		// Interface-based context (for tests and other context types)
 		frames := interfaceContext.GetFrames()
 
 		for _, frame := range frames {

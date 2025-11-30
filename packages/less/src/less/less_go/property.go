@@ -49,32 +49,31 @@ func (p *Property) Eval(context any) (any, error) {
 	defer func() { p.evaluating = false }()
 
 	// Try to get frames from context - handle both EvalContext and map[string]any
-	var frames []ParserFrame
-	if evalCtx, ok := context.(interface{ GetFrames() []ParserFrame }); ok {
-		frames = evalCtx.GetFrames()
+	// Optimization: Check for *Eval first to avoid GetFrames() allocation
+	var framesRaw []any
+	if evalCtx, ok := context.(*Eval); ok {
+		// Direct access to frames avoids slice allocation
+		framesRaw = evalCtx.Frames
+	} else if evalCtx, ok := context.(interface{ GetFramesRaw() []any }); ok {
+		// Use GetFramesRaw() for other types that support it
+		framesRaw = evalCtx.GetFramesRaw()
 	} else if ctx, ok := context.(map[string]any); ok {
 		if framesAny, exists := ctx["frames"]; exists {
 			if frameSlice, ok := framesAny.([]any); ok {
-				frames = make([]ParserFrame, 0, len(frameSlice))
-				for _, f := range frameSlice {
-					if frame, ok := f.(ParserFrame); ok {
-						frames = append(frames, frame)
-					} else if frameMap, ok := f.(map[string]any); ok {
-						// Handle test frames that are map[string]any with property function
-						if propFunc, ok := frameMap["property"].(func(string) []any); ok {
-							// Create adapter frame
-							frames = append(frames, &mapFrame{
-								propertyFunc: propFunc,
-							})
-						}
-					}
-				}
+				framesRaw = frameSlice
 			}
+		}
+	} else if evalCtx, ok := context.(interface{ GetFrames() []ParserFrame }); ok {
+		// Fallback: convert []ParserFrame to []any for compatibility with test mocks
+		frames := evalCtx.GetFrames()
+		framesRaw = make([]any, len(frames))
+		for i, f := range frames {
+			framesRaw[i] = f
 		}
 	}
 
-	// Find property in frames using the find method
-	property := p.find(frames, func(frame ParserFrame) any {
+	// Find property in frames using the find method with inline type assertion
+	property := p.findRaw(framesRaw, context, func(frame ParserFrame) any {
 		vArr := frame.Property(p.name)
 		if vArr == nil || len(vArr) == 0 {
 			return nil
@@ -172,6 +171,34 @@ func (p *Property) Eval(context any) (any, error) {
 // find searches through frames for the first element that satisfies the predicate
 func (p *Property) find(frames []ParserFrame, predicate func(ParserFrame) any) any {
 	for _, frame := range frames {
+		if result := predicate(frame); result != nil {
+			return result
+		}
+	}
+	return nil
+}
+
+// findRaw searches through raw frames ([]any) with inline type assertion
+// This is more efficient than find() as it avoids allocating a []ParserFrame slice
+func (p *Property) findRaw(framesRaw []any, context any, predicate func(ParserFrame) any) any {
+	for _, f := range framesRaw {
+		var frame ParserFrame
+		if pf, ok := f.(ParserFrame); ok {
+			frame = pf
+		} else if frameMap, ok := f.(map[string]any); ok {
+			// Handle test frames that are map[string]any with property function
+			if propFunc, ok := frameMap["property"].(func(string) []any); ok {
+				// Create adapter frame
+				frame = &mapFrame{
+					propertyFunc: propFunc,
+				}
+			} else {
+				continue
+			}
+		} else {
+			continue
+		}
+
 		if result := predicate(frame); result != nil {
 			return result
 		}
