@@ -91,8 +91,6 @@ func resetRuleset(r *Ruleset) {
 	r.lookups = nil
 	r.variables = nil
 	r.properties = nil
-	r.rulesets = nil
-	r.variableCache = nil
 	r.OriginalRuleset = nil
 	r.FunctionRegistry = nil
 	r.SelectorsParseFunc = nil
