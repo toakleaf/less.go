@@ -65,6 +65,14 @@ func (j *JavaScript) Eval(context any) (any, error) {
 	case string:
 		// Match JavaScript: new Quoted(`"${result}"`, result, this.escaped, this._index)
 		return NewQuoted(`"`+v+`"`, v, j.escaped, j.GetIndex(), j.FileInfo()), nil
+	case *JSArrayResult:
+		// Arrays should be Anonymous (no quotes), not Quoted
+		// Match JavaScript: new Anonymous(result.join(', '))
+		return NewAnonymous(v.Value, 0, nil, false, false, nil), nil
+	case *JSEmptyResult:
+		// Empty result (undefined, NaN) should be empty Anonymous
+		// Match JavaScript: new Anonymous(undefined) which outputs nothing
+		return NewAnonymous("", 0, nil, false, false, nil), nil
 	case []any:
 		var values []string
 		for _, item := range v {

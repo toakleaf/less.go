@@ -45,6 +45,11 @@ type CompileOptions struct {
 	// When true, the compiler will start a Node.js runtime to handle @plugin directives
 	EnableJavaScriptPlugins bool
 
+	// JavascriptEnabled enables inline JavaScript evaluation in LESS files
+	// When true, `expression` syntax can be used for JavaScript expressions
+	// Note: This also requires EnableJavaScriptPlugins to be true for the runtime
+	JavascriptEnabled bool
+
 	// GlobalVars are variables to inject before compilation
 	GlobalVars map[string]any
 
@@ -164,6 +169,11 @@ func convertCompileOptionsToMap(options *CompileOptions) map[string]any {
 	}
 	if options.ModifyVars != nil {
 		result["modifyVars"] = options.ModifyVars
+	}
+	// When EnableJavaScriptPlugins is true, also enable JavascriptEnabled
+	// This ensures inline JavaScript expressions can be evaluated
+	if options.JavascriptEnabled || options.EnableJavaScriptPlugins {
+		result["javascriptEnabled"] = true
 	}
 
 	return result
@@ -317,6 +327,10 @@ func compileWithContext(lessContext *LessContext, input string, options map[stri
 				if pluginBridge := opts["pluginBridge"]; pluginBridge != nil {
 					toCSSOptions.PluginBridge = pluginBridge
 					toCSSOptions.PluginManager = opts["pluginManager"]
+				}
+				// Pass javascriptEnabled option for inline JavaScript evaluation
+				if javascriptEnabled, ok := opts["javascriptEnabled"].(bool); ok {
+					toCSSOptions.JavascriptEnabled = javascriptEnabled
 				}
 			}
 

@@ -41,21 +41,22 @@ type ToCSSResult struct {
 
 // ToCSSOptions represents options for CSS conversion
 type ToCSSOptions struct {
-	Compress         bool
-	DumpLineNumbers  any
-	StrictUnits      bool
-	NumPrecision     int
-	SourceMap        any
-	PluginManager    any
-	PluginBridge     any      // *LazyNodeJSPluginBridge or *NodeJSPluginBridge for JS plugin function lookup
-	Functions        any
-	ProcessImports   bool
-	ImportManager    any
-	RewriteUrls      any      // Can be string ("all", "local", "off") or RewriteUrlsType
-	Rootpath         string   // Root path for URL rewriting
-	Math             MathType // Math mode for operations (ALWAYS, PARENS_DIVISION, PARENS)
-	Paths            []string // Include paths for resolving imports and file references
-	UrlArgs          string   // Query string to append to URLs (e.g., "424242")
+	Compress          bool
+	DumpLineNumbers   any
+	StrictUnits       bool
+	NumPrecision      int
+	SourceMap         any
+	PluginManager     any
+	PluginBridge      any      // *LazyNodeJSPluginBridge or *NodeJSPluginBridge for JS plugin function lookup
+	Functions         any
+	ProcessImports    bool
+	ImportManager     any
+	RewriteUrls       any      // Can be string ("all", "local", "off") or RewriteUrlsType
+	Rootpath          string   // Root path for URL rewriting
+	Math              MathType // Math mode for operations (ALWAYS, PARENS_DIVISION, PARENS)
+	Paths             []string // Include paths for resolving imports and file references
+	UrlArgs           string   // Query string to append to URLs (e.g., "424242")
+	JavascriptEnabled bool     // Enable inline JavaScript evaluation
 }
 
 // ToCSS converts the parse tree to CSS
@@ -69,21 +70,22 @@ func (pt *ParseTree) ToCSS(options *ToCSSOptions) (*ToCSSResult, error) {
 	var optionsMap map[string]any
 	if options != nil {
 		optionsMap = map[string]any{
-			"compress":         options.Compress,
-			"dumpLineNumbers":  options.DumpLineNumbers,
-			"strictUnits":      options.StrictUnits,
-			"numPrecision":     options.NumPrecision,
-			"sourceMap":        options.SourceMap,
-			"pluginManager":    options.PluginManager,
-			"pluginBridge":     options.PluginBridge,
-			"functions":        options.Functions,
-			"processImports":   options.ProcessImports,
-			"importManager":    options.ImportManager,
-			"rewriteUrls":      options.RewriteUrls,
-			"rootpath":         options.Rootpath,
-			"math":             options.Math,
-			"paths":            options.Paths,
-			"urlArgs":          options.UrlArgs,
+			"compress":          options.Compress,
+			"dumpLineNumbers":   options.DumpLineNumbers,
+			"strictUnits":       options.StrictUnits,
+			"numPrecision":      options.NumPrecision,
+			"sourceMap":         options.SourceMap,
+			"pluginManager":     options.PluginManager,
+			"pluginBridge":      options.PluginBridge,
+			"functions":         options.Functions,
+			"processImports":    options.ProcessImports,
+			"importManager":     options.ImportManager,
+			"rewriteUrls":       options.RewriteUrls,
+			"rootpath":          options.Rootpath,
+			"math":              options.Math,
+			"paths":             options.Paths,
+			"urlArgs":           options.UrlArgs,
+			"javascriptEnabled": options.JavascriptEnabled,
 		}
 	} else {
 		optionsMap = make(map[string]any)
