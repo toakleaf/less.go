@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.0] - 2025-11-30
 
-This release marks the first stable version of **less.go**, a complete Go port of [less.js](https://github.com/less/less.js). The port achieves feature parity with less.js v4.2.2, with all 191 integration tests passing (96.3% success rate, 99.5% compilation rate).
+This release marks the first stable version of **less.go**, a complete Go port of [less.js](https://github.com/less/less.js). The port achieves feature parity with less.js v4.2.2, with all 191 integration tests passing (100% success rate).
 
 ### Added
 
@@ -149,9 +149,9 @@ This release marks the first stable version of **less.go**, a complete Go port o
 
 **less.go v1.0.0** represents a complete, production-ready Go implementation of the LESS CSS preprocessor, featuring:
 
-- **97 perfect CSS matches** (50.8%) - identical output to less.js
+- **100 perfect CSS matches** (52.4%) - identical output to less.js
 - **91 correct error handling tests** (47.6%) - proper error detection
-- **99.5% compilation rate** - only plugin-specific tests quarantined
+- **191/191 integration tests passing** (100% success rate)
 - **3,012 unit tests passing** (100%)
 - Full JavaScript evaluation support via Node.js runtime
 - Comprehensive plugin system with shared memory optimization
