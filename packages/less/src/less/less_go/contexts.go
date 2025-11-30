@@ -315,15 +315,15 @@ func (e *Eval) IsInCalc() bool {
 }
 
 // GetFrames returns the evaluation frames (EvalContext interface).
-// Returns the cached []ParserFrame slice - callers must NOT modify the returned slice.
+// Returns a freshly built []ParserFrame slice every time since Frames can be replaced
+// (not just modified) during ruleset evaluation.
 // This matches JavaScript behavior where context.frames returns a direct reference.
 func (e *Eval) GetFrames() []ParserFrame {
-	// Check if cache is valid (same length as source Frames)
-	// This handles cases where Frames are modified directly after construction
-	if len(e.parserFrames) != len(e.Frames) {
-		e.parserFrames = buildParserFramesCache(e.Frames)
-	}
-	return e.parserFrames
+	// Always rebuild the cache since Frames is a slice that gets replaced entirely
+	// during push/pop operations in Ruleset.Eval. Length-based caching doesn't work
+	// because replacing e.g. [.with-variables, root] with [.negations, root] keeps
+	// the same length but completely different content.
+	return buildParserFramesCache(e.Frames)
 }
 
 // GetImportantScope returns the important scope stack (EvalContext interface)
