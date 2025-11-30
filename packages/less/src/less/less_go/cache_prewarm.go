@@ -368,9 +368,11 @@ func WarmPluginCache(root any, bridge *NodeJSPluginBridge, evalContext any) (int
 			continue
 		}
 
-		// For now, skip functions that are known to require context (variable lookup)
+		// Skip functions that are known to require context (variable lookup).
 		// These include most Bootstrap4 functions like theme-color, color-yiq, etc.
-		// TODO: Add a registry of context-free functions that can be safely pre-warmed
+		// The blocklist approach (contextDependentFunctions) works well since most
+		// plugin functions need context anyway, and unknown functions are safely
+		// assumed to be context-free (worst case: cache miss, not incorrect results).
 		if isContextDependentFunction(call.FunctionName) {
 			if debug {
 				fmt.Printf("[WarmPluginCache] Skipping %s - requires context for variable lookup\n", call.FunctionName)
