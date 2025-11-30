@@ -752,7 +752,7 @@ func (r *Ruleset) Eval(context any) (any, error) {
 							return nil, err
 						}
 						// Match JavaScript filter logic: !(ruleset.variable(r.name))
-						filtered := make([]any, 0)
+						filtered := make([]any, 0, len(rules))
 						for _, r := range rules {
 							if decl, ok := r.(*Declaration); ok && decl.variable {
 								// Match JavaScript: return !(ruleset.variable(r.name))
@@ -797,7 +797,7 @@ func (r *Ruleset) Eval(context any) (any, error) {
 
 						if evalRules != nil {
 							// Match JavaScript: filter out all variable declarations
-							rules := make([]any, 0)
+							rules := make([]any, 0, len(evalRules))
 							for _, r := range evalRules {
 								if decl, ok := r.(*Declaration); ok && decl.variable {
 									// do not pollute the scope at all
