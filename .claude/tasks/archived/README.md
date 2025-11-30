@@ -95,6 +95,19 @@ This directory contains task files for issues that have been successfully resolv
 - **Tests**: All 62 eval-errors tests, all 27 parse-errors tests
 - **Summary**: Complete error validation including math validation, variable resolution, color function validation, and parser validation.
 
+### js-plugins/ (folder)
+- **Completed**: 2025-11-30
+- **Issues**: JavaScript plugin system implementation
+- **Impact**: Enabled plugin-dependent tests including bootstrap4
+- **Tests**: plugin, plugin-module, plugin-preeval, plugin-simple, plugin-tree-nodes, bootstrap4
+- **Summary**: Full plugin system implementation using Node.js runtime. Supports custom functions, visitors, pre/post processors, and file managers.
+
+### performance/ (folder)
+- **Completed**: 2025-11-30
+- **Issues**: Regex compilation performance optimization
+- **Impact**: Significant performance improvement by caching compiled regexes
+- **Summary**: Fixed critical performance bug where regexes were being compiled repeatedly instead of once at package level.
+
 ## Archive Policy
 
 Task files are moved here when:
