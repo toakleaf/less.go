@@ -77,7 +77,6 @@ func (n *Negative) evalValue(context any) any {
 	if n.Value == nil {
 		// JavaScript would throw "Cannot read properties of null (reading 'eval')"
 		// But our tests expect a safe default, so we return a negative with zero dimension
-		// TODO: Update test to match JavaScript behavior
 		if zeroDim, err := NewDimension(0, nil); err == nil {
 			return NewNegative(zeroDim)
 		}
