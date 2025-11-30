@@ -81,6 +81,12 @@ type evalContextAdapter struct {
 
 // GetFramesAny returns frames as []any for JavaScript serialization
 func (a *evalContextAdapter) GetFramesAny() []any {
+	// Fast path: if the underlying context is *Eval, use its GetFramesAny() directly
+	// to avoid double allocation (GetFrames() + conversion to []any)
+	if eval, ok := a.evalContext.(*Eval); ok {
+		return eval.GetFramesAny()
+	}
+	// Fallback for other EvalContext implementations
 	frames := a.evalContext.GetFrames()
 	result := make([]any, len(frames))
 	for i, frame := range frames {
