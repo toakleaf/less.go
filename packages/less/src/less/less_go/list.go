@@ -504,6 +504,8 @@ func EachWithContext(list any, rs any, ctx *Context) any {
 					InCalc:            evalCtx.InCalc,
 					MathOn:            evalCtx.MathOn,
 					DefaultFunc:       evalCtx.DefaultFunc,
+					PluginBridge:      evalCtx.PluginBridge,
+					LazyPluginBridge:  evalCtx.LazyPluginBridge,
 				}
 				finalEvalContext = newEvalCtx
 			}

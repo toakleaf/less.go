@@ -295,8 +295,6 @@ type TestResult struct {
 // Quarantined tests - features not yet implemented that we're punting on for now
 var quarantinedTests = map[string][]string{
 	"main": {
-		// JavaScript execution - to be implemented later
-		"javascript",
 		// Import test that depends on plugins - TESTING IF THIS NOW WORKS
 		// "import",
 	},
@@ -306,14 +304,9 @@ var quarantinedTests = map[string][]string{
 		// - All context-aware plugins work (breakpoints, theme-color-level, color-yiq, etc.)
 		// - Uses binary shared memory protocol for fast variable lookups
 	},
-	"js-type-errors": {
-		// JavaScript error tests - skip entire suite
-		"*",
-	},
-	"no-js-errors": {
-		// JavaScript error tests - skip entire suite
-		"*",
-	},
+	// JavaScript tests are now enabled! (2025-11-30)
+	// - inline JavaScript evaluation implemented via Node.js runtime
+	// - js-type-errors and no-js-errors properly detect and report errors
 }
 
 // isQuarantined checks if a test should be skipped
@@ -846,10 +839,11 @@ func isPluginTest(testName string) bool {
 	if strings.HasPrefix(testName, "plugin") {
 		return true
 	}
-	// Other tests that use @plugin directive
+	// Other tests that use @plugin directive or require Node.js runtime
 	pluginTests := map[string]bool{
 		"import":     true, // Uses @plugin "../../plugin/plugin-simple"
 		"bootstrap4": true, // Uses @plugin directives for breakpoints, map-get, color-yiq, etc.
+		"javascript": true, // Uses inline JavaScript evaluation which requires Node.js runtime
 	}
 	return pluginTests[testName]
 }

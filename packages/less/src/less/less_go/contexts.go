@@ -116,7 +116,8 @@ func NewEvalFromEval(parent *Eval, frames []any) *Eval {
 		FunctionRegistry:  parent.FunctionRegistry,
 		MediaBlocks:       parent.MediaBlocks,
 		MediaPath:         parent.MediaPath,
-		PluginBridge:      parent.PluginBridge, // Share plugin bridge across contexts
+		PluginBridge:      parent.PluginBridge,     // Share plugin bridge across contexts
+		LazyPluginBridge:  parent.LazyPluginBridge, // Share lazy plugin bridge for inline JS
 	}
 }
 
@@ -595,9 +596,11 @@ func copyFromOriginal(original map[string]any, destination any) {
 		if numPrecision, ok := original["numPrecision"].(int); ok {
 			d.NumPrecision = numPrecision
 		}
-		// Handle pluginBridge option
+		// Handle pluginBridge option (can be direct or lazy)
 		if pluginBridge, ok := original["pluginBridge"].(*NodeJSPluginBridge); ok {
 			d.PluginBridge = pluginBridge
+		} else if lazyBridge, ok := original["pluginBridge"].(*LazyNodeJSPluginBridge); ok {
+			d.LazyPluginBridge = lazyBridge
 		}
 	}
 }

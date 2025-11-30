@@ -267,6 +267,8 @@ func (d *Declaration) Eval(context any) (any, error) {
 					return nil, err
 				}
 				name = evaluatedName
+				// Only set variable=false for dynamic/interpolated names, not simple variable declarations
+				variable = false
 			}
 		} else if ok {
 			evaluatedName, err := evalName(context, nameArr)
@@ -274,8 +276,11 @@ func (d *Declaration) Eval(context any) (any, error) {
 				return nil, err
 			}
 			name = evaluatedName
+			// Only set variable=false for dynamic/interpolated names
+			variable = false
 		}
-		variable = false
+		// Note: Don't set variable=false for simple name extractions (like Keyword to string)
+		// The original d.variable value should be preserved in those cases
 	} else {
 		name = str
 	}

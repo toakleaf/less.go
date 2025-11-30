@@ -236,13 +236,22 @@ func (v *Variable) Eval(context any) (any, error) {
 			return nil, fmt.Errorf("no frames in evaluation context")
 		}
 
-		frames, ok := framesAny.([]any)
-		if !ok {
-			return nil, fmt.Errorf("frames is not []any")
+		// Handle frames as []any or []ParserFrame
+		var framesList []any
+		if frames, ok := framesAny.([]any); ok {
+			framesList = frames
+		} else if frames, ok := framesAny.([]ParserFrame); ok {
+			// Convert []ParserFrame to []any for uniform handling
+			framesList = make([]any, len(frames))
+			for i, f := range frames {
+				framesList[i] = f
+			}
+		} else {
+			return nil, fmt.Errorf("frames is not []any or []ParserFrame")
 		}
 
 		// Find variable in frames
-		for _, frameAny := range frames {
+		for _, frameAny := range framesList {
 			// Frames can be Rulesets that have Variable lookup methods
 			if frame, ok := frameAny.(interface{ Variable(string) map[string]any }); ok {
 				if varResult := frame.Variable(name); varResult != nil {

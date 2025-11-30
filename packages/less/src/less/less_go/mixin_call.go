@@ -196,6 +196,15 @@ func (mc *MixinCall) Eval(context any) ([]any, error) {
 				if funcRegistry, ok := ctxMap["functionRegistry"].(*Registry); ok {
 					newEvalCtx.FunctionRegistry = funcRegistry
 				}
+				// Copy JavaScript-related fields
+				if javascriptEnabled, ok := ctxMap["javascriptEnabled"].(bool); ok {
+					newEvalCtx.JavascriptEnabled = javascriptEnabled
+				}
+				if pluginBridge, ok := ctxMap["pluginBridge"].(*NodeJSPluginBridge); ok {
+					newEvalCtx.PluginBridge = pluginBridge
+				} else if lazyBridge, ok := ctxMap["pluginBridge"].(*LazyNodeJSPluginBridge); ok {
+					newEvalCtx.LazyPluginBridge = lazyBridge
+				}
 				condContext = newEvalCtx
 			}
 
