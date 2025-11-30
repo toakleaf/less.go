@@ -62,7 +62,6 @@ func (mpv *mockPreVisitor) IsPreVisitor() bool {
 // Mock plugin manager
 type mockPluginManager struct {
 	visitors []any
-	index    int
 }
 
 func (mpm *mockPluginManager) Visitor() any {
@@ -73,25 +72,6 @@ func (mpm *mockPluginManager) Visitor() any {
 type mockVisitorIterator struct {
 	visitors []any
 	index    int
-}
-
-// Mock visitor factory for testing
-type mockVisitorFactory struct{}
-
-func (mvf *mockVisitorFactory) NewJoinSelectorVisitor() any {
-	return &mockTransformVisitor{}
-}
-
-func (mvf *mockVisitorFactory) NewSetTreeVisibilityVisitor(visible any) any {
-	return &mockTransformVisitor{}
-}
-
-func (mvf *mockVisitorFactory) NewExtendVisitor() any {
-	return &mockTransformVisitor{}
-}
-
-func (mvf *mockVisitorFactory) NewToCSSVisitor(context map[string]any) any {
-	return &mockTransformVisitor{}
 }
 
 // Mock visitor that tracks execution order

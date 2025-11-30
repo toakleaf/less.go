@@ -225,15 +225,6 @@ func (mpt *mockParseTreeWithError) ToCSS(options map[string]any) (any, error) {
 	return nil, mpt.err
 }
 
-// Mock ParseTree that panics on toCSS to match JavaScript throw behavior
-type mockParseTreeWithPanic struct {
-	err error
-}
-
-func (mpt *mockParseTreeWithPanic) ToCSS(options map[string]any) any {
-	panic(mpt.err)
-}
-
 // Test: should create ParseTree with correct arguments
 // Matches JS test "should create ParseTree with correct arguments"
 func TestRenderCreateParseTreeCorrectArguments(t *testing.T) {

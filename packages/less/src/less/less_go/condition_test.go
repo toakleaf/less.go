@@ -155,12 +155,6 @@ func (m *ConditionMockEvaluable) Eval(context any) any {
 	return m.value
 }
 
-// Helper function to create test dimensions
-func createTestDimension(value float64) *Dimension {
-	dim, _ := NewDimension(value, "px")
-	return dim
-}
-
 // TestToBoolEdgeCasesForConsistency tests edge cases to ensure our implementation
 // stays consistent with JavaScript behavior even as we develop further
 func TestToBoolEdgeCasesForConsistency(t *testing.T) {

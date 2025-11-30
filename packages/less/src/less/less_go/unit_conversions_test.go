@@ -43,7 +43,7 @@ func TestUnitConversionsMatchJS(t *testing.T) {
 	// Iteratively evaluate simple arithmetic expressions, respecting left-to-right order
 	reMulSimple := regexp.MustCompile(`(\d+(\.\d+)?)\s*\*\s*(\d+(\.\d+)?)`)
 	reDivSimple := regexp.MustCompile(`(\d+(\.\d+)?)\s*/\s*(\d+(\.\d+)?)`)
-	reParenNum := regexp.MustCompile(`\(\s*(\d+(\.\d+)?)\s*\)`) // Regex for number in parentheses
+	reParenNum := regexp.MustCompile(`\(\s*(\d+(\.\d+)?)\s*\)`)
 
 	for {
 		// Find the index of the first occurrence of each operation
@@ -131,11 +131,6 @@ func TestUnitConversionsMatchJS(t *testing.T) {
 	compareUnitMap(t, "length", jsUnits["length"], UnitConversionsLength)
 	compareUnitMap(t, "duration", jsUnits["duration"], UnitConversionsDuration)
 	compareUnitMap(t, "angle", jsUnits["angle"], UnitConversionsAngle)
-}
-
-// Helper function for parsing floats robustly
-func parseFloat(s string) (float64, error) {
-	return strconv.ParseFloat(s, 64)
 }
 
 // Helper to compare a specific category of units

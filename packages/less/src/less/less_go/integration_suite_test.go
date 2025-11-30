@@ -592,13 +592,6 @@ func debugLog(format string, args ...interface{}) {
 	}
 }
 
-// traceLog prints trace messages when trace mode is enabled
-func traceLog(format string, args ...interface{}) {
-	if showTrace {
-		fmt.Printf("[TRACE] "+format+"\n", args...)
-	}
-}
-
 // formatDiff creates a visual diff between expected and actual CSS
 func formatDiff(expected, actual string) string {
 	if !showDiff {

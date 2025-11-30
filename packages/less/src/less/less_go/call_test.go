@@ -895,9 +895,7 @@ func TestCallArgumentPreprocessing_JavaScriptConsistency(t *testing.T) {
 
 // MockOperation for testing division detection
 type MockOperation struct {
-	op    string
-	left  any
-	right any
+	op string
 }
 
 func (m *MockOperation) GetOp() string {
