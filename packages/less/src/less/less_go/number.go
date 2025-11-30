@@ -29,16 +29,13 @@ func (w *NumberFunctionWrapper) Call(args ...any) (any, error) {
 }
 
 func (w *NumberFunctionWrapper) CallCtx(ctx *Context, args ...any) (any, error) {
-	// Number functions don't need context evaluation
 	return w.Call(args...)
 }
 
 func (w *NumberFunctionWrapper) NeedsEvalArgs() bool {
-	// Number functions need evaluated arguments
 	return true
 }
 
-// NumberFunctionAdapters create specific adapters for each function type
 func wrapMinMax(fn func(args ...interface{}) (interface{}, error)) func(args ...interface{}) (interface{}, error) {
 	return fn
 }
@@ -53,16 +50,12 @@ func wrapConvert(fn func(val *Dimension, unit *Dimension) (*Dimension, error)) f
 			return nil, fmt.Errorf("convert expects first argument to be a dimension")
 		}
 
-		// Second argument can be a Dimension or a Keyword representing the unit
 		var unitArg *Dimension
 		if dim, ok := args[1].(*Dimension); ok {
 			unitArg = dim
 		} else if kw, ok := args[1].(*Keyword); ok {
-			// Create a dimension with value 1 and the keyword's unit
-			// The convert function will extract the unit from this
 			unitArg = &Dimension{Value: 1.0, Unit: NewUnit([]string{kw.value}, nil, kw.value)}
 		} else if quoted, ok := args[1].(*Quoted); ok {
-			// Handle quoted strings like "deg"
 			unitArg = &Dimension{Value: 1.0, Unit: NewUnit([]string{quoted.value}, nil, quoted.value)}
 		} else {
 			return nil, fmt.Errorf("convert expects second argument to be a dimension, keyword, or string")
@@ -109,7 +102,6 @@ func wrapPercentage(fn func(n *Dimension) (*Dimension, error)) func(args ...inte
 
 		dim, ok := args[0].(*Dimension)
 		if !ok {
-			// Return LessError with type "Argument" to match JavaScript behavior
 			return nil, &LessError{
 				Type:    "Argument",
 				Message: "argument must be a number",
@@ -119,11 +111,8 @@ func wrapPercentage(fn func(n *Dimension) (*Dimension, error)) func(args ...inte
 	}
 }
 
-// GetWrappedNumberFunctions returns number functions wrapped with FunctionDefinition interface
 func GetWrappedNumberFunctions() map[string]interface{} {
 	wrappedFunctions := make(map[string]interface{})
-	
-	// Wrap each function with proper interface
 	wrappedFunctions["min"] = &NumberFunctionWrapper{name: "min", fn: wrapMinMax(Min)}
 	wrappedFunctions["max"] = &NumberFunctionWrapper{name: "max", fn: wrapMinMax(Max)}
 	wrappedFunctions["convert"] = &NumberFunctionWrapper{name: "convert", fn: wrapConvert(Convert)}
@@ -135,7 +124,6 @@ func GetWrappedNumberFunctions() map[string]interface{} {
 	return wrappedFunctions
 }
 
-// minMax is the helper function for min and max operations
 func minMax(isMin bool, args []interface{}) (interface{}, error) {
 	if len(args) == 0 {
 		return nil, &LessError{Type: "Argument", Message: "one or more arguments required"}
@@ -148,20 +136,14 @@ func minMax(isMin bool, args []interface{}) (interface{}, error) {
 
 	for i := 0; i < len(args); i++ {
 		current := args[i]
-		
-		// Check if it's a Dimension
 		dim, ok := current.(*Dimension)
 		if !ok {
-			// Check if it's an array-like value (JavaScript: Array.isArray(args[i].value))
-			// First check if it has a value property that's an array
 			if valuer, ok := current.(interface{ GetValue() interface{} }); ok {
 				if arr, ok := valuer.GetValue().([]interface{}); ok {
-					// Append array values to args
 					args = append(args, arr...)
 					continue
 				}
 			}
-			// Also check for nodes with .Value field
 			currentVal := reflect.ValueOf(current)
 			if currentVal.Kind() == reflect.Ptr {
 				currentVal = currentVal.Elem()
@@ -170,7 +152,6 @@ func minMax(isMin bool, args []interface{}) (interface{}, error) {
 				valueField := currentVal.FieldByName("Value")
 				if valueField.IsValid() && valueField.CanInterface() {
 					if arr, ok := valueField.Interface().([]interface{}); ok {
-						// Append array values to args
 						args = append(args, arr...)
 						continue
 					}
@@ -179,7 +160,6 @@ func minMax(isMin bool, args []interface{}) (interface{}, error) {
 			return nil, &LessError{Type: "Argument", Message: "incompatible types"}
 		}
 
-		// Get unified dimension
 		var currentUnified *Dimension
 		if dim.Unit.ToString() == "" && unitClone != "" {
 			// Create new dimension with unitClone
@@ -189,14 +169,10 @@ func minMax(isMin bool, args []interface{}) (interface{}, error) {
 		} else {
 			currentUnified = dim.Unify()
 		}
-
-		// Determine unit
 		unit := currentUnified.Unit.ToString()
 		if unit == "" && unitStatic != "" {
 			unit = unitStatic
 		}
-
-		// Update unitStatic if needed
 		if unit != "" && unitStatic == "" {
 			unitStatic = unit
 		} else if unit != "" && len(order) > 0 {
@@ -205,13 +181,9 @@ func minMax(isMin bool, args []interface{}) (interface{}, error) {
 				unitStatic = unit
 			}
 		}
-
-		// Update unitClone if needed
 		if unit != "" && unitClone == "" {
 			unitClone = dim.Unit.ToString()
 		}
-
-		// Find existing value with same unit
 		var j int
 		var found bool
 		if unitVal, exists := values[""]; exists && unit != "" && unit == unitStatic {
@@ -223,7 +195,6 @@ func minMax(isMin bool, args []interface{}) (interface{}, error) {
 		}
 
 		if !found {
-			// Check for incompatible types
 			if unitStatic != "" && unit != unitStatic {
 				return nil, &LessError{Type: "Argument", Message: "incompatible types"}
 			}
@@ -231,8 +202,6 @@ func minMax(isMin bool, args []interface{}) (interface{}, error) {
 			order = append(order, dim)
 			continue
 		}
-
-		// Get reference unified dimension
 		var referenceUnified *Dimension
 		refDim := order[j].(*Dimension)
 		if refDim.Unit.ToString() == "" && unitClone != "" {
@@ -242,8 +211,6 @@ func minMax(isMin bool, args []interface{}) (interface{}, error) {
 		} else {
 			referenceUnified = refDim.Unify()
 		}
-
-		// Compare values
 		if (isMin && currentUnified.Value < referenceUnified.Value) ||
 			(!isMin && currentUnified.Value > referenceUnified.Value) {
 			order[j] = dim
@@ -253,17 +220,13 @@ func minMax(isMin bool, args []interface{}) (interface{}, error) {
 	if len(order) == 1 {
 		return order[0], nil
 	}
-
-	// Return Anonymous with CSS representation
 	var cssArgs []string
 	for _, arg := range order {
 		if dim, ok := arg.(*Dimension); ok {
 			cssArgs = append(cssArgs, dim.ToCSS(nil))
 		} else if node, ok := arg.(interface{ ToCSS(any) string }); ok {
-			// Handle any node that can generate CSS
 			cssArgs = append(cssArgs, node.ToCSS(nil))
 		} else {
-			// Fallback to string representation
 			cssArgs = append(cssArgs, fmt.Sprintf("%v", arg))
 		}
 	}
@@ -286,11 +249,9 @@ func minMax(isMin bool, args []interface{}) (interface{}, error) {
 	return NewAnonymous(result, 0, nil, false, false, nil), nil
 }
 
-// Min returns the minimum value from the given arguments
 func Min(args ...interface{}) (interface{}, error) {
 	defer func() {
 		if r := recover(); r != nil {
-			// Return nil on any panic/error
 		}
 	}()
 	
@@ -301,11 +262,9 @@ func Min(args ...interface{}) (interface{}, error) {
 	return result, nil
 }
 
-// Max returns the maximum value from the given arguments
 func Max(args ...interface{}) (interface{}, error) {
 	defer func() {
 		if r := recover(); r != nil {
-			// Return nil on any panic/error
 		}
 	}()
 	
@@ -316,22 +275,16 @@ func Max(args ...interface{}) (interface{}, error) {
 	return result, nil
 }
 
-// Convert converts a dimension to the specified unit
 func Convert(val *Dimension, unit *Dimension) (*Dimension, error) {
-	// Extract the unit string from the unit argument
-	// In JavaScript, the second parameter is often a Keyword where .value is the string
-	// But in Go, we wrap it in a Dimension, so we need to extract the unit string
 	unitStr := unit.Unit.ToString()
 	result := val.ConvertTo(unitStr)
 	return result, nil
 }
 
-// Pi returns the value of pi as a dimension
 func Pi() (*Dimension, error) {
 	return NewDimension(math.Pi, nil)
 }
 
-// Mod calculates the modulo of two dimensions
 func Mod(a *Dimension, b *Dimension) (*Dimension, error) {
 	if b.Value == 0 {
 		return nil, &LessError{Type: "Argument", Message: "cannot divide by zero"}
@@ -340,12 +293,9 @@ func Mod(a *Dimension, b *Dimension) (*Dimension, error) {
 	return NewDimension(result, a.Unit)
 }
 
-// Pow calculates x raised to the power of y
 func Pow(x interface{}, y interface{}) (*Dimension, error) {
 	var xDim, yDim *Dimension
 	var err error
-
-	// Check if both are numbers first (auto-convert like JavaScript)
 	xIsNum := false
 	yIsNum := false
 	
@@ -354,16 +304,12 @@ func Pow(x interface{}, y interface{}) (*Dimension, error) {
 	} else if _, ok := x.(int); ok {
 		xIsNum = true
 	}
-	
 	if _, ok := y.(float64); ok {
 		yIsNum = true
 	} else if _, ok := y.(int); ok {
 		yIsNum = true
 	}
-	
-	// Both must be numbers or both must be dimensions
 	if xIsNum && yIsNum {
-		// Auto-convert numbers to dimensions
 		if xNum, ok := x.(float64); ok {
 			xDim, err = NewDimension(xNum, nil)
 			if err != nil {
@@ -399,7 +345,6 @@ func Pow(x interface{}, y interface{}) (*Dimension, error) {
 			return nil, &LessError{Type: "Argument", Message: "arguments must be numbers"}
 		}
 	} else {
-		// Mixed types not allowed
 		return nil, &LessError{Type: "Argument", Message: "arguments must be numbers"}
 	}
 
@@ -407,7 +352,6 @@ func Pow(x interface{}, y interface{}) (*Dimension, error) {
 	return NewDimension(result, xDim.Unit)
 }
 
-// Percentage converts a dimension to a percentage
 func Percentage(n *Dimension) (*Dimension, error) {
 	percentUnit := &Unit{
 		Numerator:  []string{"%"},
@@ -419,9 +363,7 @@ func Percentage(n *Dimension) (*Dimension, error) {
 	}, percentUnit, n)
 }
 
-// Helper function to join strings using efficient string concatenation
 func joinStrings(strs []string, separator string) string {
-	// Use strings.Builder for efficient string concatenation
 	var builder strings.Builder
 	for i, str := range strs {
 		if i > 0 {
@@ -432,9 +374,7 @@ func joinStrings(strs []string, separator string) string {
 	return builder.String()
 }
 
-// init registers number functions with the default registry
 func init() {
-	// Register all number functions
 	for name, fn := range GetWrappedNumberFunctions() {
 		DefaultRegistry.Add(name, fn)
 	}

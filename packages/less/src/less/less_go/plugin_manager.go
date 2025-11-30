@@ -61,12 +61,9 @@ func NewPluginManager(less LessInterface) *PluginManager {
 		pluginCache:      make(map[string]any),
 	}
 	
-	// Create a minimal PluginLoader stub for testing
 	if less != nil && less.GetPluginLoader() != nil {
 		pm.Loader = less.GetPluginLoader()(less)
 	}
-	
-	// Set functions registry
 	if less != nil && less.GetFunctions() != nil {
 		pm.functions = less.GetFunctions().GetFunctionRegistry()
 	}
@@ -96,11 +93,9 @@ func (pm *PluginManager) AddPlugin(plugin any, filename string, functionRegistry
 		pm.pluginCache[filename] = plugin
 	}
 	
-	// Check if plugin implements the Install method using type assertion
 	if p, ok := plugin.(Plugin); ok {
 		var registry any = functionRegistry
 		if registry == nil && pm.less != nil {
-			// pm.functions already contains the function registry
 			registry = pm.GetFunctions()
 		}
 		p.Install(pm.less, pm, registry)
@@ -130,8 +125,6 @@ func (pm *PluginManager) AddPreProcessor(preProcessor any, priority int) {
 		Processor: preProcessor,
 		Priority:  priority,
 	}
-	
-	// Insert at the calculated index
 	pm.preProcessors = slices.Insert(pm.preProcessors, indexToInsertAt, entry)
 }
 
@@ -148,8 +141,6 @@ func (pm *PluginManager) AddPostProcessor(postProcessor any, priority int) {
 		Processor: postProcessor,
 		Priority:  priority,
 	}
-	
-	// Insert at the calculated index
 	pm.postProcessors = slices.Insert(pm.postProcessors, indexToInsertAt, entry)
 }
 
@@ -186,11 +177,8 @@ type VisitorIterator struct {
 	pm *PluginManager
 }
 
-// First resets the iterator and returns undefined/nil (matching JavaScript behavior)
 func (vi *VisitorIterator) First() any {
 	vi.pm.iterator = -1
-	// JavaScript returns visitors[self.iterator] which is visitors[-1] = undefined
-	// In Go, we return nil to match this behavior
 	return nil
 }
 

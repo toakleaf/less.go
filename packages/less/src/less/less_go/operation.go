@@ -37,15 +37,11 @@ func (o *Operation) GetType() string {
 	return "Operation"
 }
 
-// Accept visits the operation's operands with the visitor
 func (o *Operation) Accept(visitor any) {
-	// Try as interface implementation
 	if visitorWithArray, ok := visitor.(interface{ VisitArray([]any) []any }); ok {
 		o.Operands = visitorWithArray.VisitArray(o.Operands)
 		return
 	}
-	
-	// Try as struct with VisitArray field
 	visitorType := reflect.ValueOf(visitor)
 	if visitorType.Kind() == reflect.Struct {
 		visitArrayField := visitorType.FieldByName("VisitArray")
@@ -58,20 +54,14 @@ func (o *Operation) Accept(visitor any) {
 	}
 }
 
-// Eval evaluates the operation - match JavaScript implementation closely
 func (o *Operation) Eval(context any) (any, error) {
-	// Match JavaScript: let a = this.operands[0].eval(context), b = this.operands[1].eval(context), op;
 	var a, b any
-	
-	// Check for nil operands
 	if len(o.Operands) < 2 || o.Operands[0] == nil || o.Operands[1] == nil {
 		return nil, &LessError{
 			Type:    "Operation",
 			Message: "Operation requires two operands",
 		}
 	}
-	
-	// Evaluate operand A
 	if aNode, ok := o.Operands[0].(interface{ Eval(any) (any, error) }); ok {
 		var err error
 		a, err = aNode.Eval(context)
@@ -83,8 +73,6 @@ func (o *Operation) Eval(context any) (any, error) {
 	} else {
 		a = o.Operands[0]
 	}
-	
-	// Evaluate operand B  
 	if bNode, ok := o.Operands[1].(interface{ Eval(any) (any, error) }); ok {
 		var err error
 		b, err = bNode.Eval(context)
@@ -96,10 +84,7 @@ func (o *Operation) Eval(context any) (any, error) {
 	} else {
 		b = o.Operands[1]
 	}
-	
-	// Match JavaScript: if (context.isMathOn(this.op))
 	mathOn := false
-	// First try the proper Eval context
 	debugTrace := os.Getenv("LESS_GO_TRACE") == "1"
 	if evalCtx, ok := context.(*Eval); ok {
 		mathOn = evalCtx.IsMathOnWithOp(o.Op)
@@ -107,38 +92,29 @@ func (o *Operation) Eval(context any) (any, error) {
 			fmt.Printf("[TRACE] Operation.Eval: op=%s, mathOn=%v, ParensStack len=%d\n", o.Op, mathOn, len(evalCtx.ParensStack))
 		}
 	} else if ctx, ok := context.(map[string]any); ok {
-		// Fallback to map-based context for compatibility
 		if mathOnFunc, ok := ctx["isMathOn"].(func(string) bool); ok {
 			mathOn = mathOnFunc(o.Op)
 		}
 	}
 
 	if mathOn {
-		// Match JavaScript: op = this.op === './' ? '/' : this.op;
 		op := o.Op
 		if op == "./" {
 			op = "/"
 		}
-		
-		// Match JavaScript: if (a instanceof Dimension && b instanceof Color) { a = a.toColor(); }
 		if aDim, aOk := a.(*Dimension); aOk {
 			if _, bOk := b.(*Color); bOk {
 				a = aDim.ToColor()
 			}
 		}
-		// Match JavaScript: if (b instanceof Dimension && a instanceof Color) { b = b.toColor(); }
 		if bDim, bOk := b.(*Dimension); bOk {
 			if _, aOk := a.(*Color); aOk {
 				b = bDim.ToColor()
 			}
 		}
-		
-		// Match JavaScript: if (!a.operate || !b.operate)
-		// Check if both operands have operate capability
 		aHasOperate := false
 		bHasOperate := false
 		
-		// Check if a can operate
 		if _, ok := a.(*Dimension); ok {
 			aHasOperate = true
 		} else if _, ok := a.(*Color); ok {
@@ -146,8 +122,6 @@ func (o *Operation) Eval(context any) (any, error) {
 		} else if _, ok := a.(*Anonymous); ok {
 			aHasOperate = true
 		}
-
-		// Check if b can operate
 		if _, ok := b.(*Dimension); ok {
 			bHasOperate = true
 		} else if _, ok := b.(*Color); ok {
@@ -157,7 +131,6 @@ func (o *Operation) Eval(context any) (any, error) {
 		}
 		
 		if !aHasOperate || !bHasOperate {
-			// Check for special case before throwing error
 			aOp, aIsOp := a.(*Operation)
 			_, bIsOp := b.(*Operation)
 			
@@ -170,15 +143,9 @@ func (o *Operation) Eval(context any) (any, error) {
 				Message: "Operation on an invalid type",
 			}
 		}
-		
-		// Handle Dimension operations
 		if aDim, aOk := a.(*Dimension); aOk {
 			if bDim, bOk := b.(*Dimension); bOk {
-				// Match JavaScript: return a.operate(context, op, b);
 				result := aDim.Operate(context, op, bDim)
-				// If operation produced NaN (e.g., 0/0), Operate returns nil
-				// Return error so SafeEval preserves the original Operation node
-				// This makes "0/0" output as "0/0" instead of "NaN"
 				if result == nil {
 					return nil, &LessError{
 						Type:    "Operation",
@@ -188,34 +155,23 @@ func (o *Operation) Eval(context any) (any, error) {
 				return result, nil
 			}
 		}
-		
-		// Handle Color operations  
 		if aColor, aOk := a.(*Color); aOk {
 			if bColor, bOk := b.(*Color); bOk {
-				// Match JavaScript: return a.operate(context, op, b);
 				result := aColor.OperateColor(context, op, bColor)
 				return result, nil
 			}
 		}
-		
-		// Try a generic Operate interface for other types
 		if aOperable, aOk := a.(interface{ Operate(any, string, any) any }); aOk {
 			return aOperable.Operate(context, op, b), nil
 		}
-		
-		// Should never reach here after operate check above
-		// Match JavaScript: throw { type: 'Operation', message: 'Operation on an invalid type' };
 		return nil, &LessError{
 			Type:    "Operation",
 			Message: "Operation on an invalid type",
 		}
 	}
-	
-	// Match JavaScript: return new Operation(this.op, [a, b], this.isSpaced);
 	return NewOperation(o.Op, []any{a, b}, o.IsSpaced), nil
 }
 
-// GenCSS generates CSS representation
 func (o *Operation) GenCSS(context any, output *CSSOutput) {
 	if operand0, ok := o.Operands[0].(interface{ GenCSS(any, *CSSOutput) }); ok {
 		operand0.GenCSS(context, output)
@@ -234,13 +190,10 @@ func (o *Operation) GenCSS(context any, output *CSSOutput) {
 	}
 }
 
-// IsMathParensDivision checks if the math mode is PARENS_DIVISION
 func IsMathParensDivision(context any) bool {
-	// First try the proper Eval context
 	if evalCtx, ok := context.(*Eval); ok {
 		return evalCtx.Math == MathParensDivision
 	}
-	// Fallback to map-based context for compatibility
 	if ctx, ok := context.(map[string]any); ok {
 		if mathType, ok := ctx["math"].(MathType); ok {
 			return mathType == Math.ParensDivision
