@@ -9,6 +9,9 @@ import (
 
 // BenchmarkSuites defines test suites with their options and files to benchmark
 // These are selected from our passing integration tests for fair comparison
+//
+// PURE GO TESTS: These tests do NOT require Node.js/plugin support and can be
+// benchmarked in pure Go mode for accurate Go vs JavaScript comparison.
 var benchmarkTestFiles = []struct {
 	suite   string
 	options map[string]any
@@ -19,75 +22,89 @@ var benchmarkTestFiles = []struct {
 		suite:  "main",
 		folder: "_main/",
 		options: map[string]any{
-			"relativeUrls":      true,
-			"silent":           true,
-			"javascriptEnabled": true,
+			"relativeUrls":       true,
+			"silent":             true,
+			"javascriptEnabled":  true,
 		},
+		// All passing _main tests EXCEPT those requiring plugins/Node.js
+		// Excluded: import, import-module, javascript, plugin, plugin-module, plugin-preeval
 		files: []string{
 			"calc",
 			"charsets",
 			"colors",
 			"colors2",
 			"comments",
+			"comments2",
+			"container",
+			"css-3",
 			"css-escapes",
 			"css-grid",
 			"css-guards",
+			"detached-rulesets",
+			"directives-bubling",
 			"empty",
+			"extend",
 			"extend-chaining",
 			"extend-clearfix",
 			"extend-exact",
 			"extend-media",
 			"extend-nest",
 			"extend-selector",
-			"extend",
 			"extract-and-length",
+			"functions",
 			"functions-each",
 			"ie-filters",
+			"impor",
 			"import-inline",
 			"import-interpolation",
 			"import-once",
+			"import-reference",
+			"import-reference-issues",
+			"import-remote",
 			"lazy-eval",
+			"media",
 			"merge",
 			"mixin-noparens",
+			"mixins",
 			"mixins-closure",
-			"mixins-guards-default-func",
 			"mixins-guards",
+			"mixins-guards-default-func",
 			"mixins-important",
 			"mixins-interpolated",
 			"mixins-named-args",
 			"mixins-nested",
 			"mixins-pattern",
-			"mixins",
 			"no-output",
 			"operations",
 			"parse-interpolation",
 			"permissive-parse",
+			"plugi",
 			"property-accessors",
 			"property-name-interp",
 			"rulesets",
 			"scope",
 			"selectors",
 			"strings",
-			"variables-in-at-rules",
+			"urls",
 			"variables",
+			"variables-in-at-rules",
 			"whitespace",
 		},
 	},
 	{
-		suite:  "namespacing",
-		folder: "namespacing/",
+		suite:   "namespacing",
+		folder:  "namespacing/",
 		options: map[string]any{},
+		// Excluded: namespacing-3 (context bug), namespacing-media (undefined namespace)
 		files: []string{
 			"namespacing-1",
 			"namespacing-2",
-			"namespacing-3",
 			"namespacing-4",
 			"namespacing-5",
 			"namespacing-6",
 			"namespacing-7",
 			"namespacing-8",
 			"namespacing-functions",
-			"namespacing-media",
 			"namespacing-operations",
 		},
 	},
@@ -140,6 +157,18 @@ var benchmarkTestFiles = []struct {
 		},
 	},
 	{
+		suite:  "static-urls",
+		folder: "static-urls/",
+		options: map[string]any{
+			"math":         "strict",
+			"relativeUrls": false,
+			"rootpath":     "folder (1)/",
+		},
+		files: []string{
+			"urls",
+		},
+	},
+	{
 		suite:  "units-strict",
 		folder: "units/strict/",
 		options: map[string]any{
@@ -162,13 +191,55 @@ var benchmarkTestFiles = []struct {
 		},
 	},
 	{
-		suite:  "rewrite-urls",
+		suite:  "url-args",
+		folder: "url-args/",
+		options: map[string]any{
+			"urlArgs": "424242",
+		},
+		files: []string{
+			"urls",
+		},
+	},
+	{
+		suite:  "rewrite-urls-all",
 		folder: "rewrite-urls-all/",
 		options: map[string]any{
 			"rewriteUrls": "all",
 		},
 		files: []string{
 			"rewrite-urls-all",
+		},
+	},
+	{
+		suite:  "rewrite-urls-local",
+		folder: "rewrite-urls-local/",
+		options: map[string]any{
+			"rewriteUrls": "local",
+		},
+		files: []string{
+			"rewrite-urls-local",
+		},
+	},
+	{
+		suite:  "rootpath-rewrite-urls-all",
+		folder: "rootpath-rewrite-urls-all/",
+		options: map[string]any{
+			"rootpath":    "http://example.com/assets/css/",
+			"rewriteUrls": "all",
+		},
+		files: []string{
+			"rootpath-rewrite-urls-all",
+		},
+	},
+	{
+		suite:  "rootpath-rewrite-urls-local",
+		folder: "rootpath-rewrite-urls-local/",
+		options: map[string]any{
+			"rootpath":    "http://example.com/assets/css/",
+			"rewriteUrls": "local",
+		},
+		files: []string{
+			"rootpath-rewrite-urls-local",
 		},
 	},
 	{
@@ -179,6 +250,52 @@ var benchmarkTestFiles = []struct {
 		},
 		files: []string{
 			"include-path",
+		},
+	},
+	{
+		suite:  "include-path-string",
+		folder: "include-path-string/",
+		options: map[string]any{
+			"paths": "data/",
+		},
+		files: []string{
+			"include-path-string",
+		},
+	},
+	{
+		suite:  "process-imports",
+		folder: "process-imports/",
+		options: map[string]any{
+			"processImports": false,
+		},
+		files: []string{
+			"google",
+		},
+	},
+}
+
+// PLUGIN TESTS: These tests require Node.js/plugin support and should be
+// benchmarked separately as they involve IPC overhead.
+var benchmarkPluginTestFiles = []struct {
+	suite   string
+	options map[string]any
+	folder  string
+	files   []string
+}{
+	{
+		suite:  "main-plugins",
+		folder: "_main/",
+		options: map[string]any{
+			"relativeUrls":       true,
+			"silent":             true,
+			"javascriptEnabled":  true,
+		},
+		// Tests that require plugin system / Node.js IPC
+		files: []string{
+			"import",
+			"javascript",
+			"plugin",
+			"plugin-preeval",
 		},
 	},
 }
@@ -342,6 +459,59 @@ func BenchmarkLargeSuite(b *testing.B) {
 			_, compileErr := compileLessForTest(factory, test.content, test.options)
 			// Ignore errors in batch benchmark to keep running, but we could track them
 			_ = compileErr
+		}
+	}
+}
+
+// BenchmarkPluginTests benchmarks tests that require Node.js/plugin support
+// These are benchmarked separately because they involve IPC overhead to Node.js
+// Use this benchmark to measure plugin system performance specifically
+func BenchmarkPluginTests(b *testing.B) {
+	testDataRoot := "../../../../test-data"
+	lessRoot := filepath.Join(testDataRoot, "less")
+
+	for _, suite := range benchmarkPluginTestFiles {
+		for _, fileName := range suite.files {
+			testName := fmt.Sprintf("%s/%s", suite.suite, fileName)
+			lessFile := filepath.Join(lessRoot, suite.folder, fileName+".less")
+
+			b.Run(testName, func(b *testing.B) {
+				// Read file once
+				lessData, err := ioutil.ReadFile(lessFile)
+				if err != nil {
+					b.Skipf("Cannot read %s: %v", lessFile, err)
+					return
+				}
+
+				// Prepare options
+				options := make(map[string]any)
+				for k, v := range suite.options {
+					options[k] = v
+				}
+				options["filename"] = lessFile
+
+				// Warmup runs
+				const warmupRuns = 5
+				for i := 0; i < warmupRuns; i++ {
+					compileOpts := &CompileOptions{
+						EnableJavaScriptPlugins: true,
+						Filename:                lessFile,
+					}
+					_, _ = Compile(string(lessData), compileOpts)
+				}
+
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					compileOpts := &CompileOptions{
+						EnableJavaScriptPlugins: true,
+						Filename:                lessFile,
+					}
+					_, compileErr := Compile(string(lessData), compileOpts)
+					if compileErr != nil {
+						b.Fatalf("Compile error: %v", compileErr)
+					}
+				}
+			})
 		}
 	}
 }
