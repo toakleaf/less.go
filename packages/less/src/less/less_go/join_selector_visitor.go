@@ -58,20 +58,21 @@ func (jsv *JoinSelectorVisitor) IsReplacing() bool {
 
 func (jsv *JoinSelectorVisitor) VisitNode(node any, visitArgs *VisitArgs) (any, bool) {
 	switch n := node.(type) {
+	case *AtRule:
+		return jsv.VisitAtRule(n, visitArgs), true
+	case *Container:
+		return jsv.VisitContainer(n, visitArgs), true
 	case *Declaration:
 		return jsv.VisitDeclaration(n, visitArgs), true
+	case *Media:
+		return jsv.VisitMedia(n, visitArgs), true
 	case *MixinDefinition:
 		return jsv.VisitMixinDefinition(n, visitArgs), true
 	case *Ruleset:
 		return jsv.VisitRuleset(n, visitArgs), true
-	case *Media:
-		return jsv.VisitMedia(n, visitArgs), true
-	case *Container:
-		return jsv.VisitContainer(n, visitArgs), true
-	case *AtRule:
-		return jsv.VisitAtRule(n, visitArgs), true
 	default:
-		return node, false
+		_ = n
+		return node, true // Node type handled (no-op, avoids reflection)
 	}
 }
 
@@ -81,7 +82,8 @@ func (jsv *JoinSelectorVisitor) VisitNodeOut(node any) bool {
 		jsv.VisitRulesetOut(n)
 		return true
 	default:
-		return false
+		_ = n
+		return true // Node type handled (no-op, avoids reflection)
 	}
 }
 

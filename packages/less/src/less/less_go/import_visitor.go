@@ -43,14 +43,17 @@ func (iv *ImportVisitor) IsReplacing() bool {
 
 func (iv *ImportVisitor) VisitNode(node any, visitArgs *VisitArgs) (any, bool) {
 	switch n := node.(type) {
-	case *Import:
-		iv.VisitImport(n, visitArgs)
+	case *AtRule:
+		iv.VisitAtRule(n, visitArgs)
 		return n, true
 	case *Declaration:
 		iv.VisitDeclaration(n, visitArgs)
 		return n, true
-	case *AtRule:
-		iv.VisitAtRule(n, visitArgs)
+	case *Import:
+		iv.VisitImport(n, visitArgs)
+		return n, true
+	case *Media:
+		iv.VisitMedia(n, visitArgs)
 		return n, true
 	case *MixinDefinition:
 		iv.VisitMixinDefinition(n, visitArgs)
@@ -58,21 +61,22 @@ func (iv *ImportVisitor) VisitNode(node any, visitArgs *VisitArgs) (any, bool) {
 	case *Ruleset:
 		iv.VisitRuleset(n, visitArgs)
 		return n, true
-	case *Media:
-		iv.VisitMedia(n, visitArgs)
-		return n, true
 	default:
-		return node, false
+		_ = n
+		return node, true // Node type handled (no-op, avoids reflection)
 	}
 }
 
 func (iv *ImportVisitor) VisitNodeOut(node any) bool {
 	switch n := node.(type) {
+	case *AtRule:
+		iv.VisitAtRuleOut(n)
+		return true
 	case *Declaration:
 		iv.VisitDeclarationOut(n)
 		return true
-	case *AtRule:
-		iv.VisitAtRuleOut(n)
+	case *Media:
+		iv.VisitMediaOut(n)
 		return true
 	case *MixinDefinition:
 		iv.VisitMixinDefinitionOut(n)
@@ -80,11 +84,9 @@ func (iv *ImportVisitor) VisitNodeOut(node any) bool {
 	case *Ruleset:
 		iv.VisitRulesetOut(n)
 		return true
-	case *Media:
-		iv.VisitMediaOut(n)
-		return true
 	default:
-		return false
+		_ = n
+		return true // Node type handled (no-op, avoids reflection)
 	}
 }
 
