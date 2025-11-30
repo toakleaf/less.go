@@ -12,6 +12,7 @@ const TOTAL_RUNS = 30;
 const WARMUP_RUNS = 5;
 
 // Test suites matching the Go benchmarks
+// PURE GO TESTS: These tests do NOT require Node.js/plugin support
 const benchmarkTestFiles = [
 	{
 		suite: 'main',
@@ -21,53 +22,68 @@ const benchmarkTestFiles = [
 			silent: true,
 			javascriptEnabled: true
 		},
+		// All passing _main tests EXCEPT those requiring plugins/Node.js
+		// Excluded: import, import-module, javascript, plugin, plugin-module, plugin-preeval
 		files: [
 			'calc',
 			'charsets',
 			'colors',
 			'colors2',
 			'comments',
+			'comments2',
+			'container',
+			'css-3',
 			'css-escapes',
 			'css-grid',
 			'css-guards',
+			'detached-rulesets',
+			'directives-bubling',
 			'empty',
+			'extend',
 			'extend-chaining',
 			'extend-clearfix',
 			'extend-exact',
 			'extend-media',
 			'extend-nest',
 			'extend-selector',
-			'extend',
 			'extract-and-length',
+			'functions',
 			'functions-each',
 			'ie-filters',
+			'impor',
 			'import-inline',
 			'import-interpolation',
 			'import-once',
+			'import-reference',
+			'import-reference-issues',
+			'import-remote',
 			'lazy-eval',
+			'media',
 			'merge',
 			'mixin-noparens',
+			'mixins',
 			'mixins-closure',
-			'mixins-guards-default-func',
 			'mixins-guards',
+			'mixins-guards-default-func',
 			'mixins-important',
 			'mixins-interpolated',
 			'mixins-named-args',
 			'mixins-nested',
 			'mixins-pattern',
-			'mixins',
 			'no-output',
 			'operations',
 			'parse-interpolation',
 			'permissive-parse',
+			'plugi',
 			'property-accessors',
 			'property-name-interp',
 			'rulesets',
 			'scope',
 			'selectors',
 			'strings',
-			'variables-in-at-rules',
+			'urls',
 			'variables',
+			'variables-in-at-rules',
 			'whitespace'
 		]
 	},
@@ -75,17 +91,16 @@ const benchmarkTestFiles = [
 		suite: 'namespacing',
 		folder: 'namespacing/',
 		options: {},
+		// Excluded: namespacing-3 (context bug), namespacing-media (undefined namespace)
 		files: [
 			'namespacing-1',
 			'namespacing-2',
-			'namespacing-3',
 			'namespacing-4',
 			'namespacing-5',
 			'namespacing-6',
 			'namespacing-7',
 			'namespacing-8',
 			'namespacing-functions',
-			'namespacing-media',
 			'namespacing-operations'
 		]
 	},
@@ -138,6 +153,18 @@ const benchmarkTestFiles = [
 		]
 	},
 	{
+		suite: 'static-urls',
+		folder: 'static-urls/',
+		options: {
+			math: 'strict',
+			relativeUrls: false,
+			rootpath: 'folder (1)/'
+		},
+		files: [
+			'urls'
+		]
+	},
+	{
 		suite: 'units-strict',
 		folder: 'units/strict/',
 		options: {
@@ -160,13 +187,55 @@ const benchmarkTestFiles = [
 		]
 	},
 	{
-		suite: 'rewrite-urls',
+		suite: 'url-args',
+		folder: 'url-args/',
+		options: {
+			urlArgs: '424242'
+		},
+		files: [
+			'urls'
+		]
+	},
+	{
+		suite: 'rewrite-urls-all',
 		folder: 'rewrite-urls-all/',
 		options: {
 			rewriteUrls: 'all'
 		},
 		files: [
 			'rewrite-urls-all'
+		]
+	},
+	{
+		suite: 'rewrite-urls-local',
+		folder: 'rewrite-urls-local/',
+		options: {
+			rewriteUrls: 'local'
+		},
+		files: [
+			'rewrite-urls-local'
+		]
+	},
+	{
+		suite: 'rootpath-rewrite-urls-all',
+		folder: 'rootpath-rewrite-urls-all/',
+		options: {
+			rootpath: 'http://example.com/assets/css/',
+			rewriteUrls: 'all'
+		},
+		files: [
+			'rootpath-rewrite-urls-all'
+		]
+	},
+	{
+		suite: 'rootpath-rewrite-urls-local',
+		folder: 'rootpath-rewrite-urls-local/',
+		options: {
+			rootpath: 'http://example.com/assets/css/',
+			rewriteUrls: 'local'
+		},
+		files: [
+			'rootpath-rewrite-urls-local'
 		]
 	},
 	{
@@ -177,6 +246,26 @@ const benchmarkTestFiles = [
 		},
 		files: [
 			'include-path'
+		]
+	},
+	{
+		suite: 'include-path-string',
+		folder: 'include-path-string/',
+		options: {
+			paths: 'data/'
+		},
+		files: [
+			'include-path-string'
+		]
+	},
+	{
+		suite: 'process-imports',
+		folder: 'process-imports/',
+		options: {
+			processImports: false
+		},
+		files: [
+			'google'
 		]
 	}
 ];
