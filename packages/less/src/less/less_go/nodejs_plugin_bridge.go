@@ -207,11 +207,15 @@ func (b *NodeJSPluginBridge) EnterScope() *runtime.PluginScope {
 // Returns the parent scope, or nil if already at root.
 //
 // OPTIMIZATION: Only updates Go scope, skips Node.js IPC entirely.
+// OPTIMIZATION: Releases the child scope to sync.Pool for reuse.
 func (b *NodeJSPluginBridge) ExitScope() *runtime.PluginScope {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if parent := b.scope.Parent(); parent != nil {
+		oldScope := b.scope
 		b.scope = parent
+		// Release old scope to pool for reuse
+		oldScope.Release()
 	}
 	return b.scope
 }
