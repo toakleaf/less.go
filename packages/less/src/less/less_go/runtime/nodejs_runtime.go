@@ -87,18 +87,24 @@ type NodeJSRuntime struct {
 	prefetchShmMu sync.Mutex
 
 	// Function result cache - shared across all JSFunctionDefinitions
-	// Key format: "funcName:arg1|arg2|..."
+	// Key format: "funcName@scopeDepth:arg1|arg2|..."
 	funcResultCache   map[string]any
 	funcResultCacheMu sync.RWMutex
+
+	// Current plugin scope depth - tracks the depth of the function scope stack
+	// in Node.js. This is used to include scope depth in cache keys so that
+	// shadowed functions don't share cached results with their parent versions.
+	scopeDepth atomic.Int32
+
+	// Scope sequence number - increments every time EnterScope is called.
+	// This ensures sibling scopes (same depth but different functions) don't
+	// share cached results.
+	scopeSeq atomic.Int64
 
 	// High-performance shared memory protocol (optional)
 	shmProtocol   *SharedMemoryProtocol
 	shmProtocolMu sync.Mutex
 	useSHMProtocol bool // Whether to use the binary SHM protocol
-
-	// Scope depth tracking for cache key generation
-	// Incremented by EnterScope, decremented by ExitScope
-	scopeDepth atomic.Int32
 
 	// Prefetch binary data cache - avoids re-serializing variables on every plugin call
 	prefetchCache   *PrefetchCache
@@ -772,6 +778,17 @@ func (rt *NodeJSRuntime) SetCachedResult(key string, value any) {
 	rt.funcResultCacheMu.Lock()
 	rt.funcResultCache[key] = value
 	rt.funcResultCacheMu.Unlock()
+}
+
+// IncrementScopeSeq increments the scope sequence number and returns the new value.
+// This should be called whenever EnterScope is called.
+func (rt *NodeJSRuntime) IncrementScopeSeq() int64 {
+	return rt.scopeSeq.Add(1)
+}
+
+// GetScopeSeq returns the current scope sequence number.
+func (rt *NodeJSRuntime) GetScopeSeq() int64 {
+	return rt.scopeSeq.Load()
 }
 
 // ClearFunctionCache clears all cached function results.

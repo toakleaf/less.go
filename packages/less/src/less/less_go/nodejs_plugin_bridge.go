@@ -202,26 +202,29 @@ func (b *NodeJSPluginBridge) CallFunctionWithContext(name string, evalContext ru
 
 // EnterScope creates and enters a new child scope.
 // This is used when entering a ruleset or mixin that might have local plugins.
-// It also notifies the Node.js runtime to enter a new function scope for proper scoping.
+//
+// This MUST sync with Node.js to ensure plugin functions loaded at this scope
+// level are properly scoped and can shadow functions from parent scopes.
 func (b *NodeJSPluginBridge) EnterScope() *runtime.PluginScope {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+
+	// Create child scope in Go
 	b.scope = b.scope.CreateChild()
 
-	// Synchronize with Node.js function scope
-	// This is required for correct plugin function scoping when local plugins
-	// shadow global plugins (e.g., test-shadow returning 'local' vs 'global')
+	// Sync with Node.js - tell it to enter a new scope
 	if b.runtime != nil {
-		// Increment scope depth for cache key differentiation
-		newDepth := b.runtime.IncrementScopeDepth()
-		resp, err := b.runtime.SendCommand(runtime.Command{
-			Cmd: "enterScope",
+		// Track scope depth and sequence in runtime for cache key generation
+		b.runtime.IncrementScopeDepth()
+		b.runtime.IncrementScopeSeq() // Ensures sibling scopes don't share cache
+
+		_, err := b.runtime.SendCommand(runtime.Command{
+			Cmd:  "enterScope",
+			Data: map[string]any{},
 		})
-		if os.Getenv("LESS_GO_DEBUG") == "1" {
-			fmt.Fprintf(os.Stderr, "[NodeJSPluginBridge.EnterScope] Sent enterScope command, newDepth=%d, resp=%v, err=%v\n", newDepth, resp, err)
+		if err != nil && os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Fprintf(os.Stderr, "[NodeJSPluginBridge] EnterScope IPC error: %v\n", err)
 		}
-	} else if os.Getenv("LESS_GO_DEBUG") == "1" {
-		fmt.Fprintf(os.Stderr, "[NodeJSPluginBridge.EnterScope] b.runtime is nil, skipping IPC\n")
 	}
 
 	return b.scope
@@ -229,28 +232,30 @@ func (b *NodeJSPluginBridge) EnterScope() *runtime.PluginScope {
 
 // ExitScope exits the current scope and returns to the parent.
 // Returns the parent scope, or nil if already at root.
-// It also notifies the Node.js runtime to exit the current function scope.
+//
+// This MUST sync with Node.js to ensure scope changes are reflected.
 func (b *NodeJSPluginBridge) ExitScope() *runtime.PluginScope {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+
 	if parent := b.scope.Parent(); parent != nil {
 		oldScope := b.scope
 		b.scope = parent
 		// Release old scope to pool for reuse
 		oldScope.Release()
-	}
 
-	// Synchronize with Node.js function scope
-	// This is required for correct plugin function scoping when exiting rulesets
-	// that have local plugins
-	if b.runtime != nil {
-		// Decrement scope depth for cache key differentiation
-		newDepth := b.runtime.DecrementScopeDepth()
-		_, _ = b.runtime.SendCommand(runtime.Command{
-			Cmd: "exitScope",
-		})
-		if os.Getenv("LESS_GO_DEBUG") == "1" {
-			fmt.Fprintf(os.Stderr, "[NodeJSPluginBridge.ExitScope] Sent exitScope command, newDepth=%d\n", newDepth)
+		// Sync with Node.js - tell it to exit the current scope
+		if b.runtime != nil {
+			// Track scope depth in runtime for cache key generation
+			b.runtime.DecrementScopeDepth()
+
+			_, err := b.runtime.SendCommand(runtime.Command{
+				Cmd:  "exitScope",
+				Data: map[string]any{},
+			})
+			if err != nil && os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Fprintf(os.Stderr, "[NodeJSPluginBridge] ExitScope IPC error: %v\n", err)
+			}
 		}
 	}
 
@@ -261,24 +266,31 @@ func (b *NodeJSPluginBridge) ExitScope() *runtime.PluginScope {
 // This is used when re-registering plugin functions inherited from ancestor frames
 // (e.g., when a mixin defined inside a namespace with @plugin is called).
 // The function must already exist in the Node.js runtime - this just makes it
-// visible at the current scope level.
+// visible at the current scope level in BOTH Go and Node.js.
+//
+// This MUST sync with Node.js because function lookups happen at the Node.js side
+// during function calls, and the Node.js scope stack must have the function at
+// the correct depth for shadowing to work properly.
 func (b *NodeJSPluginBridge) AddFunctionToCurrentScope(name string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	// Add to Go scope
-	// Use cached JSFunctionDefinition to avoid redundant allocations
 	fn := runtime.GetOrCreateJSFunctionDefinition(name, b.runtime)
 	b.scope.AddFunction(name, fn)
 
-	// Synchronize with Node.js function scope
-	// This is required for mixin calls to inherit plugin functions from their
-	// defining scope (e.g., when #ns { @plugin "..."; .mixin() {...} } is called)
+	// Sync with Node.js - re-register function at current scope depth
+	// Use fire-and-forget since we don't need a response
 	if b.runtime != nil {
-		_, _ = b.runtime.SendCommand(runtime.Command{
-			Cmd:  "addFunctionToScope",
-			Data: map[string]any{"name": name},
+		err := b.runtime.SendCommandFireAndForget(runtime.Command{
+			Cmd: "addFunctionToScopeNoReply",
+			Data: map[string]any{
+				"name": name,
+			},
 		})
+		if err != nil && os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Fprintf(os.Stderr, "[NodeJSPluginBridge] AddFunctionToCurrentScope IPC error: %v\n", err)
+		}
 	}
 }
 
