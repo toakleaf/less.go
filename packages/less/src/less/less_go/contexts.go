@@ -36,30 +36,38 @@ func NewParse(options map[string]any) *Parse {
 	return p
 }
 
-type Eval struct {
-	Paths           []string
-	Compress        bool
-	Math            MathType
-	StrictUnits     bool
-	SourceMap       bool
-	ImportMultiple  bool
-	UrlArgs         string
-	JavascriptEnabled bool
-	PluginManager   any
-	ImportantScope  []map[string]any
-	RewriteUrls     RewriteUrlsType
-	NumPrecision    int
+// ImportantScopeEntry represents a single entry in the !important scope stack.
+// This replaces map[string]any with a typed struct to eliminate reflection overhead.
+type ImportantScopeEntry struct {
+	Important string // The " !important" suffix value when set
+}
 
-	Frames           []any
-	parserFrames     []ParserFrame // Cached typed frames to avoid allocation in GetFrames()
-	CalcStack        []bool
-	ParensStack      []bool
-	InCalc           bool
-	MathOn           bool
-	DefaultFunc      *DefaultFunc
+// Eval is the primary evaluation context for Less compilation.
+// OPTIMIZATION: Uses typed fields instead of map[string]any to eliminate reflection overhead.
+type Eval struct {
+	Paths             []string
+	Compress          bool
+	Math              MathType
+	StrictUnits       bool
+	SourceMap         bool
+	ImportMultiple    bool
+	UrlArgs           string
+	JavascriptEnabled bool
+	PluginManager     any
+	ImportantScope    []ImportantScopeEntry // Typed struct replaces []map[string]any
+	RewriteUrls       RewriteUrlsType
+	NumPrecision      int
+
+	Frames       []any
+	parserFrames []ParserFrame // Cached typed frames to avoid allocation in GetFrames()
+	CalcStack    []bool
+	ParensStack  []bool
+	InCalc       bool
+	MathOn       bool
+	DefaultFunc  *DefaultFunc
 	FunctionRegistry *Registry
-	MediaBlocks      []any
-	MediaPath        []any
+	MediaBlocks  []any
+	MediaPath    []any
 
 	PluginBridge     *NodeJSPluginBridge
 	LazyPluginBridge *LazyNodeJSPluginBridge // Lazy bridge for deferred initialization
@@ -83,7 +91,7 @@ func NewEval(options map[string]any, frames []any) *Eval {
 		Frames:         frames,
 		parserFrames:   buildParserFramesCache(frames),
 		MathOn:         true,
-		ImportantScope: []map[string]any{},
+		ImportantScope: []ImportantScopeEntry{},
 		NumPrecision:   0, // Default to 0 to preserve full JavaScript number precision
 		RewriteUrls:    RewriteUrlsOff, // Default to OFF to match JavaScript default (false)
 	}
@@ -174,7 +182,7 @@ func (e *Eval) ToMap() map[string]any {
 		"urlArgs":           e.UrlArgs,
 		"javascriptEnabled": e.JavascriptEnabled,
 		"pluginManager":     e.PluginManager,
-		"importantScope":    e.ImportantScope,
+		"importantScope":    e.GetImportantScopeAny(), // Convert to []map[string]any
 		"rewriteUrls":       e.RewriteUrls,
 		"numPrecision":      e.NumPrecision,
 		"mediaBlocks":       e.MediaBlocks,
@@ -202,7 +210,8 @@ func (e *Eval) CopyEvalToMap(target map[string]any, includeMediaContext bool) {
 	target["urlArgs"] = e.UrlArgs
 	target["javascriptEnabled"] = e.JavascriptEnabled
 	target["pluginManager"] = e.PluginManager
-	target["importantScope"] = e.ImportantScope
+	// Convert ImportantScope to []map[string]any for backward compatibility
+	target["importantScope"] = e.GetImportantScopeAny()
 	target["rewriteUrls"] = e.RewriteUrls
 	target["numPrecision"] = e.NumPrecision
 	target["inCalc"] = e.InCalc
@@ -274,14 +283,12 @@ func (e *Eval) GetFrames() []ParserFrame {
 }
 
 func (e *Eval) GetImportantScope() []map[string]bool {
-	// Convert from []map[string]any to []map[string]bool
+	// Convert from []ImportantScopeEntry to []map[string]bool for interface compatibility
 	result := make([]map[string]bool, len(e.ImportantScope))
 	for i, scope := range e.ImportantScope {
-		scopeBool := make(map[string]bool)
-		for k, v := range scope {
-			if boolVal, ok := v.(bool); ok {
-				scopeBool[k] = boolVal
-			}
+		scopeBool := make(map[string]bool, 1)
+		if scope.Important != "" {
+			scopeBool["important"] = true
 		}
 		result[i] = scopeBool
 	}
@@ -505,13 +512,23 @@ func copyFromOriginal(original map[string]any, destination any) {
 		if pluginManager, ok := original["pluginManager"]; ok {
 			d.PluginManager = pluginManager
 		}
-		if importantScope, ok := original["importantScope"].([]map[string]any); ok {
+		// Handle ImportantScope - convert from various formats to []ImportantScopeEntry
+		if importantScope, ok := original["importantScope"].([]ImportantScopeEntry); ok {
 			d.ImportantScope = importantScope
+		} else if importantScope, ok := original["importantScope"].([]map[string]any); ok {
+			d.ImportantScope = make([]ImportantScopeEntry, len(importantScope))
+			for i, scope := range importantScope {
+				if imp, ok := scope["important"].(string); ok {
+					d.ImportantScope[i].Important = imp
+				}
+			}
 		} else if importantScope, ok := original["importantScope"].([]any); ok {
-			d.ImportantScope = make([]map[string]any, len(importantScope))
+			d.ImportantScope = make([]ImportantScopeEntry, len(importantScope))
 			for i, scope := range importantScope {
 				if scopeMap, ok := scope.(map[string]any); ok {
-					d.ImportantScope[i] = scopeMap
+					if imp, ok := scopeMap["important"].(string); ok {
+						d.ImportantScope[i].Important = imp
+					}
 				}
 			}
 		}
@@ -598,6 +615,110 @@ func (e *Eval) GetFramesAny() []any {
 	return e.Frames
 }
 
+// NewMixinEvalContext creates a new *Eval context for mixin evaluation.
+// OPTIMIZATION: Directly creates *Eval instead of map[string]any, avoiding reflection.
+// The new context shares the parent's configuration but has new frames and fresh media context.
+func (e *Eval) NewMixinEvalContext(frames []any) *Eval {
+	return &Eval{
+		Paths:             e.Paths,
+		Compress:          e.Compress,
+		Math:              e.Math,
+		StrictUnits:       e.StrictUnits,
+		SourceMap:         e.SourceMap,
+		ImportMultiple:    e.ImportMultiple,
+		UrlArgs:           e.UrlArgs,
+		JavascriptEnabled: e.JavascriptEnabled,
+		PluginManager:     e.PluginManager,
+		ImportantScope:    e.ImportantScope, // Share the same scope stack
+		RewriteUrls:       e.RewriteUrls,
+		NumPrecision:      e.NumPrecision,
+		Frames:            frames,
+		parserFrames:      buildParserFramesCache(frames),
+		CalcStack:         nil, // Fresh stacks
+		ParensStack:       nil,
+		InCalc:            e.InCalc,
+		MathOn:            e.MathOn,
+		DefaultFunc:       e.DefaultFunc,
+		FunctionRegistry:  e.FunctionRegistry,
+		// NOTE: MediaBlocks and MediaPath are NOT copied - matching JavaScript behavior
+		// where mixin body evaluation gets a fresh media context
+		PluginBridge:     e.PluginBridge,
+		LazyPluginBridge: e.LazyPluginBridge,
+	}
+}
+
+// CopyWithFrames creates a shallow copy of the Eval context with new frames.
+// OPTIMIZATION: This is more efficient than CopyEvalToMap for internal use.
+func (e *Eval) CopyWithFrames(frames []any) *Eval {
+	return &Eval{
+		Paths:             e.Paths,
+		Compress:          e.Compress,
+		Math:              e.Math,
+		StrictUnits:       e.StrictUnits,
+		SourceMap:         e.SourceMap,
+		ImportMultiple:    e.ImportMultiple,
+		UrlArgs:           e.UrlArgs,
+		JavascriptEnabled: e.JavascriptEnabled,
+		PluginManager:     e.PluginManager,
+		ImportantScope:    e.ImportantScope,
+		RewriteUrls:       e.RewriteUrls,
+		NumPrecision:      e.NumPrecision,
+		Frames:            frames,
+		parserFrames:      buildParserFramesCache(frames),
+		CalcStack:         e.CalcStack,
+		ParensStack:       e.ParensStack,
+		InCalc:            e.InCalc,
+		MathOn:            e.MathOn,
+		DefaultFunc:       e.DefaultFunc,
+		FunctionRegistry:  e.FunctionRegistry,
+		MediaBlocks:       e.MediaBlocks,
+		MediaPath:         e.MediaPath,
+		PluginBridge:      e.PluginBridge,
+		LazyPluginBridge:  e.LazyPluginBridge,
+	}
+}
+
+// GetImportantScopeAny converts ImportantScope to []map[string]any for backward compatibility.
+// OPTIMIZATION: This is only called when converting to map contexts; direct struct access is preferred.
 func (e *Eval) GetImportantScopeAny() []map[string]any {
-	return e.ImportantScope
+	result := make([]map[string]any, len(e.ImportantScope))
+	for i, scope := range e.ImportantScope {
+		m := make(map[string]any, 1)
+		if scope.Important != "" {
+			m["important"] = scope.Important
+		}
+		result[i] = m
+	}
+	return result
+}
+
+// PushImportantScope adds a new empty scope entry to the important scope stack.
+// OPTIMIZATION: Direct struct manipulation instead of map allocation.
+func (e *Eval) PushImportantScope() {
+	e.ImportantScope = append(e.ImportantScope, ImportantScopeEntry{})
+}
+
+// PopImportantScope removes the top scope entry from the important scope stack.
+func (e *Eval) PopImportantScope() ImportantScopeEntry {
+	if len(e.ImportantScope) == 0 {
+		return ImportantScopeEntry{}
+	}
+	last := e.ImportantScope[len(e.ImportantScope)-1]
+	e.ImportantScope = e.ImportantScope[:len(e.ImportantScope)-1]
+	return last
+}
+
+// SetImportantInCurrentScope sets the important value in the current scope.
+func (e *Eval) SetImportantInCurrentScope(important string) {
+	if len(e.ImportantScope) > 0 {
+		e.ImportantScope[len(e.ImportantScope)-1].Important = important
+	}
+}
+
+// GetImportantFromCurrentScope gets the important value from the current scope.
+func (e *Eval) GetImportantFromCurrentScope() string {
+	if len(e.ImportantScope) > 0 {
+		return e.ImportantScope[len(e.ImportantScope)-1].Important
+	}
+	return ""
 }

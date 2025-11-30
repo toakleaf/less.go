@@ -389,7 +389,7 @@ func evalContextToMap(context any) map[string]any {
 			"urlArgs":           ctx.UrlArgs,
 			"javascriptEnabled": ctx.JavascriptEnabled,
 			"pluginManager":     ctx.PluginManager,
-			"importantScope":    ctx.ImportantScope,
+			"importantScope":    ctx.GetImportantScopeAny(), // Convert to []map[string]any
 			"rewriteUrls":       ctx.RewriteUrls,
 			"mediaBlocks":       ctx.MediaBlocks,
 			"mediaPath":         ctx.MediaPath,
