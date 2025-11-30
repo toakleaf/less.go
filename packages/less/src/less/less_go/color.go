@@ -7,9 +7,6 @@ import (
 	"strings"
 )
 
-// formatNumberForCSS formats a number for CSS output
-// This is used after Fround has already applied precision formatting
-// Match JavaScript behavior: just convert to string, removing trailing zeros
 func formatNumberForCSS(n float64) string {
 	// Round to 8 decimal places to match JavaScript's string conversion behavior
 	// JavaScript limits precision to avoid floating-point errors while maintaining reasonable accuracy
@@ -26,7 +23,6 @@ func formatNumberForCSS(n float64) string {
 	return s
 }
 
-// Color represents a color node in the Less AST
 type Color struct {
 	*Node
 	RGB   []float64
@@ -34,7 +30,6 @@ type Color struct {
 	Value string
 }
 
-// NewColor creates a new Color instance
 func NewColor(rgb any, alpha float64, originalForm string) *Color {
 	c := &Color{
 		Node:  NewNode(),
@@ -150,7 +145,6 @@ func NewColor(rgb any, alpha float64, originalForm string) *Color {
 	return c
 }
 
-// Luma calculates the relative luminance of the color
 func (c *Color) Luma() float64 {
 	if len(c.RGB) == 0 {
 		return 0
@@ -166,12 +160,10 @@ func (c *Color) Luma() float64 {
 	return 0.2126*r + 0.7152*g + 0.0722*b
 }
 
-// GenCSS generates CSS representation
 func (c *Color) GenCSS(context any, output *CSSOutput) {
 	output.Add(c.ToCSS(context), nil, nil)
 }
 
-// ToCSS generates CSS string representation
 func (c *Color) ToCSS(context any) string {
 	if len(c.RGB) == 0 {
 		return "#000000"
@@ -291,7 +283,6 @@ func (c *Color) ToCSS(context any) string {
 	return color
 }
 
-// OperateColor performs color operations
 func (c *Color) OperateColor(context any, op string, other *Color) *Color {
 	// Handle empty or nil colors
 	if other == nil {
@@ -337,7 +328,6 @@ func (c *Color) OperateColor(context any, op string, other *Color) *Color {
 	return result
 }
 
-// ToRGB converts color to RGB hex string
 func (c *Color) ToRGB() string {
 	if len(c.RGB) == 0 {
 		return "#000000"
@@ -345,7 +335,6 @@ func (c *Color) ToRGB() string {
 	return toHex(c.RGB)
 }
 
-// ToHSL converts color to HSL
 func (c *Color) ToHSL() HSL {
 	if len(c.RGB) == 0 {
 		return HSL{H: 0, S: 0, L: 0, A: c.Alpha}
@@ -395,7 +384,6 @@ func (c *Color) ToHSL() HSL {
 	}
 }
 
-// ToHSV converts color to HSV
 func (c *Color) ToHSV() HSV {
 	if len(c.RGB) == 0 {
 		return HSV{H: 0, S: 0, V: 0, A: c.Alpha}
@@ -443,7 +431,6 @@ func (c *Color) ToHSV() HSV {
 	}
 }
 
-// ToARGB converts color to ARGB hex string
 func (c *Color) ToARGB() string {
 	if len(c.RGB) == 0 {
 		return "#00000000"
@@ -454,7 +441,6 @@ func (c *Color) ToARGB() string {
 	return toHex(argb)
 }
 
-// Compare compares two colors
 func (c *Color) Compare(other *Color) int {
 	if other == nil {
 		// If the other color is nil, consider them unequal unless this color is also effectively nil (empty)
@@ -489,7 +475,6 @@ func (c *Color) Compare(other *Color) int {
 	return 1 // Colors are not equal
 }
 
-// HSL represents HSL color values
 type HSL struct {
 	H float64
 	S float64
@@ -497,7 +482,6 @@ type HSL struct {
 	A float64
 }
 
-// HSV represents HSV color values
 type HSV struct {
 	H float64
 	S float64
@@ -505,7 +489,6 @@ type HSV struct {
 	A float64
 }
 
-// FromKeyword creates a color from a keyword
 func FromKeyword(keyword string) *Color {
 	key := strings.ToLower(keyword)
 	if hex, ok := Colors[key]; ok {
@@ -522,17 +505,14 @@ func FromKeyword(keyword string) *Color {
 	return nil
 }
 
-// GetType returns the node type
 func (c *Color) GetType() string {
 	return "Color"
 }
 
-// GetAllowRoot returns whether color nodes are allowed at root level
 func (c *Color) GetAllowRoot() bool {
 	return false
 }
 
-// GetRGB returns the RGB values of the color for binary serialization
 func (c *Color) GetRGB() []float64 {
 	if c == nil || c.RGB == nil {
 		return []float64{0, 0, 0}
@@ -540,7 +520,6 @@ func (c *Color) GetRGB() []float64 {
 	return c.RGB
 }
 
-// GetAlpha returns the alpha value of the color for binary serialization
 func (c *Color) GetAlpha() float64 {
 	if c == nil {
 		return 1.0
@@ -548,8 +527,6 @@ func (c *Color) GetAlpha() float64 {
 	return c.Alpha
 }
 
-// GetColorValue returns the original color value string (e.g., "#fff" or "#ffffff")
-// This is used for binary serialization to preserve the original form
 func (c *Color) GetColorValue() string {
 	if c == nil {
 		return ""
@@ -557,12 +534,10 @@ func (c *Color) GetColorValue() string {
 	return c.Value
 }
 
-// Eval evaluates the color - returns itself
 func (c *Color) Eval(context any) any {
 	return c
 }
 
-// Helper functions
 func adjustGamma(n float64) float64 {
 	if n <= 0.03928 {
 		return n / 12.92

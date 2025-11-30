@@ -6,9 +6,7 @@ import (
 	"strings"
 )
 
-// Parse represents the parsing context
 type Parse struct {
-	// Options
 	Paths           []string
 	RewriteUrls     RewriteUrlsType
 	Rootpath        string
@@ -20,14 +18,11 @@ type Parse struct {
 	ChunkInput      bool
 	Mime            string
 	UseFileCache    bool
-	// Context
-	ProcessImports bool
-	// Used by the import manager to stop multiple import visitors being created
-	PluginManager any
+	ProcessImports  bool
+	PluginManager   any
 	Quiet         bool
 }
 
-// NewParse creates a new Parse context with the given options
 func NewParse(options map[string]any) *Parse {
 	p := &Parse{
 		RewriteUrls: RewriteUrlsOff, // Default to OFF to match JavaScript default (false)
@@ -41,9 +36,7 @@ func NewParse(options map[string]any) *Parse {
 	return p
 }
 
-// Eval represents the evaluation context
 type Eval struct {
-	// Options
 	Paths           []string
 	Compress        bool
 	Math            MathType
@@ -57,25 +50,21 @@ type Eval struct {
 	RewriteUrls     RewriteUrlsType
 	NumPrecision    int
 
-	// Internal state
 	Frames           []any
 	parserFrames     []ParserFrame // Cached typed frames to avoid allocation in GetFrames()
 	CalcStack        []bool
 	ParensStack      []bool
 	InCalc           bool
 	MathOn           bool
-	DefaultFunc      *DefaultFunc // For default() function in mixin guards
-	FunctionRegistry *Registry    // Function registry for built-in and custom functions
-	MediaBlocks      []any        // Stack of media blocks for media query merging
-	MediaPath        []any        // Path of nested media queries for merging
+	DefaultFunc      *DefaultFunc
+	FunctionRegistry *Registry
+	MediaBlocks      []any
+	MediaPath        []any
 
-	// Plugin support - bridge to Node.js plugin system for scoped function lookup
 	PluginBridge     *NodeJSPluginBridge
 	LazyPluginBridge *LazyNodeJSPluginBridge // Lazy bridge for deferred initialization
 }
 
-// buildParserFramesCache builds the cached []ParserFrame slice from []any frames.
-// This avoids repeated allocation and type assertion in GetFrames().
 func buildParserFramesCache(frames []any) []ParserFrame {
 	if len(frames) == 0 {
 		return nil
@@ -89,7 +78,6 @@ func buildParserFramesCache(frames []any) []ParserFrame {
 	return parserFrames
 }
 
-// NewEval creates a new Eval context with the given options and frames
 func NewEval(options map[string]any, frames []any) *Eval {
 	e := &Eval{
 		Frames:         frames,
@@ -108,8 +96,6 @@ func NewEval(options map[string]any, frames []any) *Eval {
 	return e
 }
 
-// NewEvalFromEval creates a new Eval context by copying from another Eval
-// This avoids the allocation overhead of ToMap() + NewEval()
 func NewEvalFromEval(parent *Eval, frames []any) *Eval {
 	return &Eval{
 		Paths:             parent.Paths,
@@ -134,12 +120,11 @@ func NewEvalFromEval(parent *Eval, frames []any) *Eval {
 		FunctionRegistry:  parent.FunctionRegistry,
 		MediaBlocks:       parent.MediaBlocks,
 		MediaPath:         parent.MediaPath,
-		PluginBridge:      parent.PluginBridge,     // Share plugin bridge across contexts
-		LazyPluginBridge:  parent.LazyPluginBridge, // Share lazy plugin bridge for inline JS
+		PluginBridge:      parent.PluginBridge,
+		LazyPluginBridge:  parent.LazyPluginBridge,
 	}
 }
 
-// EnterCalc enters a calc context
 func (e *Eval) EnterCalc() {
 	if e.CalcStack == nil {
 		e.CalcStack = make([]bool, 0)
@@ -148,7 +133,6 @@ func (e *Eval) EnterCalc() {
 	e.InCalc = true
 }
 
-// ExitCalc exits a calc context
 func (e *Eval) ExitCalc() {
 	if len(e.CalcStack) > 0 {
 		e.CalcStack = e.CalcStack[:len(e.CalcStack)-1]
@@ -158,7 +142,6 @@ func (e *Eval) ExitCalc() {
 	}
 }
 
-// InParenthesis enters a parenthesis context
 func (e *Eval) InParenthesis() {
 	debugTrace := os.Getenv("LESS_GO_TRACE") == "1"
 	if e.ParensStack == nil {
@@ -170,7 +153,6 @@ func (e *Eval) InParenthesis() {
 	}
 }
 
-// OutOfParenthesis exits a parenthesis context
 func (e *Eval) OutOfParenthesis() {
 	debugTrace := os.Getenv("LESS_GO_TRACE") == "1"
 	if len(e.ParensStack) > 0 {
@@ -181,8 +163,6 @@ func (e *Eval) OutOfParenthesis() {
 	}
 }
 
-// ToMap converts the Eval context to a map for copying to child contexts
-// This matches the JavaScript behavior where a parent context is passed to new Eval()
 func (e *Eval) ToMap() map[string]any {
 	return map[string]any{
 		"paths":             e.Paths,
@@ -197,9 +177,8 @@ func (e *Eval) ToMap() map[string]any {
 		"importantScope":    e.ImportantScope,
 		"rewriteUrls":       e.RewriteUrls,
 		"numPrecision":      e.NumPrecision,
-		"mediaBlocks":       e.MediaBlocks, // CRITICAL: Preserve media query context for nested evaluations
-		"mediaPath":         e.MediaPath,   // CRITICAL: Preserve media query path for nested evaluations
-		// Add ParensStack management functions that reference the same stacks
+		"mediaBlocks":       e.MediaBlocks,
+		"mediaPath":         e.MediaPath,
 		"inParenthesis": func() {
 			e.InParenthesis()
 		},
@@ -213,12 +192,6 @@ func (e *Eval) ToMap() map[string]any {
 	}
 }
 
-// CopyEvalToMap efficiently copies Eval fields to an existing map, excluding frames
-// This avoids the overhead of creating closures every time when they're not needed
-// Parameters:
-//   - includeMediaContext: if true, also copy mediaBlocks and mediaPath
-//     (should be false for mixin evaluation to match JavaScript behavior where
-//     mediaBlocks/mediaPath are NOT in evalCopyProperties)
 func (e *Eval) CopyEvalToMap(target map[string]any, includeMediaContext bool) {
 	target["paths"] = e.Paths
 	target["compress"] = e.Compress
@@ -234,8 +207,6 @@ func (e *Eval) CopyEvalToMap(target map[string]any, includeMediaContext bool) {
 	target["numPrecision"] = e.NumPrecision
 	target["inCalc"] = e.InCalc
 	target["mathOn"] = e.MathOn
-
-	// Always copy closure functions - they're needed for math evaluation
 	target["_evalContext"] = e
 	target["inParenthesis"] = func() {
 		e.InParenthesis()
@@ -247,16 +218,11 @@ func (e *Eval) CopyEvalToMap(target map[string]any, includeMediaContext bool) {
 		return e.IsMathOnWithOp(op)
 	}
 
-	// Only include mediaBlocks/mediaPath if requested
-	// In JavaScript's contexts.Eval constructor, these are NOT copied (they're not in
-	// evalCopyProperties), so mixin body evaluation gets a fresh media context.
-	// This is critical for correct media query merging order.
 	if includeMediaContext {
 		target["mediaBlocks"] = e.MediaBlocks
 		target["mediaPath"] = e.MediaPath
 	}
 
-	// Copy plugin bridges so that mixin bodies can access plugin functions
 	if e.PluginBridge != nil {
 		target["pluginBridge"] = e.PluginBridge
 	} else if e.LazyPluginBridge != nil {
@@ -264,17 +230,10 @@ func (e *Eval) CopyEvalToMap(target map[string]any, includeMediaContext bool) {
 	}
 }
 
-// IsMathOn determines if math operations are enabled (EvalContext interface)
-// Matches JavaScript: isMathOn() - when called without operator, still checks parens in PARENS mode
 func (e *Eval) IsMathOn() bool {
-	// Match JavaScript exactly: call isMathOnWithOp with empty operator
-	// In JavaScript, when op is undefined, the condition `op === '/'` is false,
-	// so it skips that check and proceeds to the parens check
 	return e.IsMathOnWithOp("")
 }
 
-// IsMathOnWithOp determines if math operations are enabled for the given operator
-// Matches JavaScript: isMathOn(op) with operator parameter
 func (e *Eval) IsMathOnWithOp(op string) bool {
 	debugTrace := os.Getenv("LESS_GO_TRACE") == "1"
 	if debugTrace {
@@ -283,14 +242,12 @@ func (e *Eval) IsMathOnWithOp(op string) bool {
 	if !e.MathOn {
 		return false
 	}
-	// Special handling for division operator
 	if op == "/" && e.Math != MathAlways && (len(e.ParensStack) == 0) {
 		if debugTrace {
 			fmt.Printf("[TRACE] IsMathOnWithOp(%s): division without parens, returning false\n", op)
 		}
 		return false
 	}
-	// In PARENS mode (Math > PARENS_DIVISION), all operations require parentheses
 	if e.Math > MathParensDivision {
 		result := len(e.ParensStack) > 0
 		if debugTrace {
@@ -304,29 +261,18 @@ func (e *Eval) IsMathOnWithOp(op string) bool {
 	return true
 }
 
-// SetMathOn sets the math operation state (EvalContext interface)
 func (e *Eval) SetMathOn(mathOn bool) {
 	e.MathOn = mathOn
 }
 
-// IsInCalc returns whether we're in a calc context (EvalContext interface)
 func (e *Eval) IsInCalc() bool {
 	return e.InCalc
 }
 
-// GetFrames returns the evaluation frames (EvalContext interface).
-// Returns a freshly built []ParserFrame slice every time since Frames can be replaced
-// (not just modified) during ruleset evaluation.
-// This matches JavaScript behavior where context.frames returns a direct reference.
 func (e *Eval) GetFrames() []ParserFrame {
-	// Always rebuild the cache since Frames is a slice that gets replaced entirely
-	// during push/pop operations in Ruleset.Eval. Length-based caching doesn't work
-	// because replacing e.g. [.with-variables, root] with [.negations, root] keeps
-	// the same length but completely different content.
 	return buildParserFramesCache(e.Frames)
 }
 
-// GetImportantScope returns the important scope stack (EvalContext interface)
 func (e *Eval) GetImportantScope() []map[string]bool {
 	// Convert from []map[string]any to []map[string]bool
 	result := make([]map[string]bool, len(e.ImportantScope))
@@ -342,30 +288,20 @@ func (e *Eval) GetImportantScope() []map[string]bool {
 	return result
 }
 
-// GetDefaultFunc returns the default function instance (EvalContext interface)
 func (e *Eval) GetDefaultFunc() *DefaultFunc {
 	return e.DefaultFunc
 }
 
-// PathRequiresRewrite determines if a path needs to be rewritten
-// Match JavaScript: const isRelative = this.rewriteUrls === Constants.RewriteUrls.LOCAL ? isPathLocalRelative : isPathRelative;
 func (e *Eval) PathRequiresRewrite(path string) bool {
 	if os.Getenv("LESS_GO_DEBUG") == "1" {
 		fmt.Printf("[DEBUG PathRequiresRewrite] path=%s, e.RewriteUrls=%d (Off=0, Local=1, All=2)\n", path, e.RewriteUrls)
 	}
-	// Match JavaScript logic: if rewriteUrls === LOCAL, use isPathLocalRelative, otherwise use isPathRelative
-	// Note: In JavaScript, boolean false (default) is not equal to LOCAL, so it uses isPathRelative
-	// This means paths are rewritten even when rewriteUrls is OFF/false!
 	if e.RewriteUrls == RewriteUrlsLocal {
 		return isPathLocalRelative(path)
 	}
-	// For OFF, ALL, or any other value, use isPathRelative
 	return isPathRelative(path)
 }
 
-// RewritePath rewrites a path with the given rootpath
-// For url() values, this adds "./" prefix when the original path was local relative
-// but the normalized path is not (to preserve explicit relativeness)
 func (e *Eval) RewritePath(path, rootpath string) string {
 	if rootpath == "" {
 		rootpath = ""
@@ -384,9 +320,6 @@ func (e *Eval) RewritePath(path, rootpath string) string {
 	return newPath
 }
 
-// RewritePathForImport rewrites a path with the given rootpath for @import statements
-// Unlike RewritePath for url() values, this does NOT add "./" prefix
-// because @import paths should be output without explicit relative prefix
 func (e *Eval) RewritePathForImport(path, rootpath string) string {
 	if rootpath == "" {
 		rootpath = ""
@@ -395,7 +328,6 @@ func (e *Eval) RewritePathForImport(path, rootpath string) string {
 	return e.NormalizePath(combined)
 }
 
-// NormalizePath normalizes a path by removing . and .. segments
 func (e *Eval) NormalizePath(path string) string {
 	segments := strings.Split(path, "/")
 	pathSegments := make([]string, 0)
@@ -418,44 +350,34 @@ func (e *Eval) NormalizePath(path string) string {
 	return strings.Join(pathSegments, "/")
 }
 
-// Helper functions
 func isPathRelative(path string) bool {
-	// JavaScript regex: /^(?:[a-z-]+:|\/|#)/i
-	// This matches any scheme (e.g., http:, https:, file:, data:, etc.), absolute paths, or hash fragments
 	if path == "" {
 		return true
 	}
-	
-	// Check for absolute path or hash fragment
+
 	if strings.HasPrefix(path, "/") || strings.HasPrefix(path, "#") {
 		return false
 	}
-	
-	// Check for any scheme (case-insensitive)
-	// Look for pattern: [a-z-]+:
+
 	lowerPath := strings.ToLower(path)
 	colonIndex := strings.Index(lowerPath, ":")
 	if colonIndex > 0 {
-		// Check if all characters before colon are valid scheme characters (a-z or -)
 		scheme := lowerPath[:colonIndex]
 		for _, ch := range scheme {
 			if !((ch >= 'a' && ch <= 'z') || ch == '-') {
-				return true // Not a valid scheme, so it's relative
+				return true
 			}
 		}
-		return false // Valid scheme found, so it's not relative
+		return false
 	}
-	
+
 	return true
 }
 
 func isPathLocalRelative(path string) bool {
-	// Match paths starting with "." (includes both "./" and "../")
-	// This matches the JavaScript regex /^\./.test(path)
 	return strings.HasPrefix(path, ".")
 }
 
-// copyFromOriginal copies properties from a map to a struct
 func copyFromOriginal(original map[string]any, destination any) {
 	if original == nil {
 		return
@@ -529,7 +451,6 @@ func copyFromOriginal(original map[string]any, destination any) {
 		debugTrace := os.Getenv("LESS_GO_TRACE") == "1"
 		if math, ok := original["math"].(MathType); ok {
 			d.Math = math
-			// When Math mode is set, enable MathOn unless explicitly disabled
 			if mathOn, hasMathOn := original["mathOn"].(bool); hasMathOn {
 				d.MathOn = mathOn
 			} else {
@@ -539,7 +460,6 @@ func copyFromOriginal(original map[string]any, destination any) {
 				fmt.Printf("[TRACE] copyFromOriginal: MathType case, Math=%d, MathOn=%v\n", d.Math, d.MathOn)
 			}
 		} else if mathStr, ok := original["math"].(string); ok {
-			// Convert string values to MathType enum
 			switch mathStr {
 			case "always":
 				d.Math = MathAlways
@@ -548,7 +468,6 @@ func copyFromOriginal(original map[string]any, destination any) {
 			case "parens", "strict":
 				d.Math = MathParens
 			}
-			// When Math mode is set, enable MathOn unless explicitly disabled
 			if mathOn, hasMathOn := original["mathOn"].(bool); hasMathOn {
 				d.MathOn = mathOn
 			} else {
@@ -560,14 +479,12 @@ func copyFromOriginal(original map[string]any, destination any) {
 			}
 		} else if mathInt, ok := original["math"].(int); ok {
 			d.Math = MathType(mathInt)
-			// When Math mode is set, enable MathOn unless explicitly disabled
 			if mathOn, hasMathOn := original["mathOn"].(bool); hasMathOn {
 				d.MathOn = mathOn
 			} else {
 				d.MathOn = true
 			}
 		} else if mathOn, ok := original["mathOn"].(bool); ok {
-			// If only mathOn is specified without math mode, just set it
 			d.MathOn = mathOn
 		}
 		if strictUnits, ok := original["strictUnits"].(bool); ok {
@@ -591,7 +508,6 @@ func copyFromOriginal(original map[string]any, destination any) {
 		if importantScope, ok := original["importantScope"].([]map[string]any); ok {
 			d.ImportantScope = importantScope
 		} else if importantScope, ok := original["importantScope"].([]any); ok {
-			// Handle case where it comes as []any and needs conversion
 			d.ImportantScope = make([]map[string]any, len(importantScope))
 			for i, scope := range importantScope {
 				if scopeMap, ok := scope.(map[string]any); ok {
@@ -615,7 +531,6 @@ func copyFromOriginal(original map[string]any, destination any) {
 		if numPrecision, ok := original["numPrecision"].(int); ok {
 			d.NumPrecision = numPrecision
 		}
-		// Handle pluginBridge option (can be direct or lazy)
 		if pluginBridge, ok := original["pluginBridge"].(*NodeJSPluginBridge); ok {
 			d.PluginBridge = pluginBridge
 		} else if lazyBridge, ok := original["pluginBridge"].(*LazyNodeJSPluginBridge); ok {
@@ -624,9 +539,6 @@ func copyFromOriginal(original map[string]any, destination any) {
 	}
 }
 
-// EnterPluginScope creates and enters a new child plugin scope.
-// This should be called when entering a ruleset or mixin that might have local @plugin directives.
-// Returns the new scope, or nil if no plugin bridge is available.
 func (e *Eval) EnterPluginScope() any {
 	if e.PluginBridge != nil {
 		return e.PluginBridge.EnterScope()
@@ -638,8 +550,6 @@ func (e *Eval) EnterPluginScope() any {
 	return nil
 }
 
-// ExitPluginScope exits the current plugin scope and returns to the parent.
-// This should be called when exiting a ruleset or mixin.
 func (e *Eval) ExitPluginScope() {
 	if e.PluginBridge != nil {
 		e.PluginBridge.ExitScope()
@@ -651,8 +561,6 @@ func (e *Eval) ExitPluginScope() {
 	}
 }
 
-// LookupPluginFunction looks up a function by name in the plugin scope hierarchy.
-// Returns the function definition and true if found, nil and false otherwise.
 func (e *Eval) LookupPluginFunction(name string) (any, bool) {
 	if e.PluginBridge != nil {
 		return e.PluginBridge.LookupFunction(name)
@@ -664,7 +572,6 @@ func (e *Eval) LookupPluginFunction(name string) (any, bool) {
 	return nil, false
 }
 
-// HasPluginFunction checks if a function exists in the plugin scope hierarchy.
 func (e *Eval) HasPluginFunction(name string) bool {
 	if e.PluginBridge != nil {
 		return e.PluginBridge.HasFunction(name)
@@ -676,8 +583,6 @@ func (e *Eval) HasPluginFunction(name string) bool {
 	return false
 }
 
-// CallPluginFunction calls a JavaScript plugin function by name with evaluation context.
-// This allows plugin functions to access Less variables via this.context.
 func (e *Eval) CallPluginFunction(name string, args ...any) (any, error) {
 	if e.PluginBridge != nil {
 		return e.PluginBridge.CallFunctionWithContext(name, e, args...)
@@ -689,14 +594,10 @@ func (e *Eval) CallPluginFunction(name string, args ...any) (any, error) {
 	return nil, fmt.Errorf("no plugin bridge available")
 }
 
-// GetFramesAny returns the frames as []any (implements runtime.EvalContextProvider).
-// This is used for serializing the evaluation context to JavaScript plugin functions.
 func (e *Eval) GetFramesAny() []any {
 	return e.Frames
 }
 
-// GetImportantScopeAny returns the important scope as []map[string]any (implements runtime.EvalContextProvider).
-// This is used for serializing the evaluation context to JavaScript plugin functions.
 func (e *Eval) GetImportantScopeAny() []map[string]any {
 	return e.ImportantScope
 }

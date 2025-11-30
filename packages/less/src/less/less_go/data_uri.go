@@ -13,7 +13,6 @@ import (
 	"strings"
 )
 
-// DataURI implements the data-uri function
 func DataURI(context map[string]any, mimetypeNode, filePathNode any) any {
 	// Handle parameter shifting - if only one parameter, it's the file path
 	var mimetype string
@@ -160,7 +159,6 @@ func DataURI(context map[string]any, mimetypeNode, filePathNode any) any {
 	return urlNode
 }
 
-// createFallbackURL creates a fallback URL node when data-uri fails
 func createFallbackURL(context map[string]any, node any) any {
 	index := 0
 	if idx, ok := context["index"].(int); ok {
@@ -181,7 +179,6 @@ func createFallbackURL(context map[string]any, node any) any {
 	return evaluated
 }
 
-// logWarningAndFallback logs a warning and creates a fallback URL
 func logWarningAndFallback(context map[string]any, filePath string, mimetypeNode, filePathNode any) any {
 	// Log warning if logger is available
 	if logger, ok := context["logger"].(map[string]any); ok {
@@ -196,14 +193,12 @@ func logWarningAndFallback(context map[string]any, filePath string, mimetypeNode
 	return createFallbackURL(context, filePathNode)
 }
 
-// GetDataURIFunctions returns the data-uri function registry
 func GetDataURIFunctions() map[string]any {
 	return map[string]any{
 		"data-uri": DataURI,
 	}
 }
 
-// GetWrappedDataURIFunctions returns data-uri functions for registry
 func GetWrappedDataURIFunctions() map[string]interface{} {
 	return map[string]interface{}{
 		"data-uri":     &DataURIFunctionWrapper{},
@@ -213,7 +208,6 @@ func GetWrappedDataURIFunctions() map[string]interface{} {
 	}
 }
 
-// DataURIFunctionWrapper wraps the data-uri function to implement FunctionDefinition
 type DataURIFunctionWrapper struct{}
 
 func (w *DataURIFunctionWrapper) Call(args ...any) (any, error) {
@@ -242,7 +236,6 @@ func (w *DataURIFunctionWrapper) NeedsEvalArgs() bool {
 	return false
 }
 
-// ImageSizeFunctionWrapper wraps the image-size function to implement FunctionDefinition
 type ImageSizeFunctionWrapper struct{}
 
 func (w *ImageSizeFunctionWrapper) Call(args ...any) (any, error) {
@@ -266,7 +259,6 @@ func (w *ImageSizeFunctionWrapper) NeedsEvalArgs() bool {
 	return false
 }
 
-// ImageWidthFunctionWrapper wraps the image-width function to implement FunctionDefinition
 type ImageWidthFunctionWrapper struct{}
 
 func (w *ImageWidthFunctionWrapper) Call(args ...any) (any, error) {
@@ -290,7 +282,6 @@ func (w *ImageWidthFunctionWrapper) NeedsEvalArgs() bool {
 	return false
 }
 
-// ImageHeightFunctionWrapper wraps the image-height function to implement FunctionDefinition
 type ImageHeightFunctionWrapper struct{}
 
 func (w *ImageHeightFunctionWrapper) Call(args ...any) (any, error) {
@@ -314,7 +305,6 @@ func (w *ImageHeightFunctionWrapper) NeedsEvalArgs() bool {
 	return false
 }
 
-// buildContextMap builds a context map from the Context for data-uri and image-size functions
 func buildContextMap(ctx *Context) map[string]any {
 	contextMap := make(map[string]any)
 	var paths []string
@@ -349,7 +339,6 @@ func buildContextMap(ctx *Context) map[string]any {
 	return contextMap
 }
 
-// createGoEnvironment creates a simplified environment for Go-based file operations
 func createGoEnvironment() map[string]any {
 	fileManager := NewFileSystemFileManager()
 	return map[string]any{
@@ -373,7 +362,6 @@ func createGoEnvironment() map[string]any {
 	}
 }
 
-// ImageSize implements the image-size function
 func ImageSize(context map[string]any, filePathNode any) any {
 	var filePath string
 	if quoted, ok := filePathNode.(*Quoted); ok {
@@ -452,7 +440,6 @@ func ImageSize(context map[string]any, filePathNode any) any {
 	return expr
 }
 
-// ImageWidth implements the image-width function
 func ImageWidth(context map[string]any, filePathNode any) any {
 	var filePath string
 	if quoted, ok := filePathNode.(*Quoted); ok {
@@ -511,7 +498,6 @@ func ImageWidth(context map[string]any, filePathNode any) any {
 	return widthDim
 }
 
-// ImageHeight implements the image-height function
 func ImageHeight(context map[string]any, filePathNode any) any {
 	var filePath string
 	if quoted, ok := filePathNode.(*Quoted); ok {
@@ -570,7 +556,6 @@ func ImageHeight(context map[string]any, filePathNode any) any {
 	return heightDim
 }
 
-// getImageDimensions extracts width and height from an image file
 func getImageDimensions(filename, contents string) (int, int) {
 	lower := strings.ToLower(filename)
 	if strings.HasSuffix(lower, ".svg") {
@@ -584,7 +569,6 @@ func getImageDimensions(filename, contents string) (int, int) {
 	return config.Width, config.Height
 }
 
-// parseSVGDimensions extracts dimensions from SVG content
 func parseSVGDimensions(contents string) (int, int) {
 	type SVGRoot struct {
 		Width  string `xml:"width,attr"`
@@ -600,7 +584,6 @@ func parseSVGDimensions(contents string) (int, int) {
 	return width, height
 }
 
-// parseDimension parses a dimension string like "100" or "100px" to an integer
 func parseDimension(dim string) int {
 	dim = strings.TrimSpace(dim)
 	dim = strings.TrimSuffix(dim, "px")
@@ -614,7 +597,6 @@ func parseDimension(dim string) int {
 	return value
 }
 
-// getMimeType returns the MIME type for a filename
 func getMimeType(filename string) string {
 	lower := strings.ToLower(filename)
 	mimeTypes := map[string]string{
@@ -647,7 +629,6 @@ func getMimeType(filename string) string {
 	return "application/octet-stream"
 }
 
-// getCharset returns the charset for a MIME type
 func getCharset(mimeType string) string {
 	if strings.HasPrefix(mimeType, "text/") {
 		return "UTF-8"
@@ -658,7 +639,6 @@ func getCharset(mimeType string) string {
 	return "binary"
 }
 
-// encodeBase64 encodes a string to base64
 func encodeBase64(data string) string {
 	return base64.StdEncoding.EncodeToString([]byte(data))
 }
@@ -688,9 +668,6 @@ func encodeURIComponent(s string) string {
 	return encoded
 }
 
-// evaluateArgsWithContext evaluates function arguments using the given context
-// This is needed for functions like data-uri that receive unevaluated arguments
-// (e.g., variables or nested function calls)
 func evaluateArgsWithContext(ctx *Context, args []any) []any {
 	if ctx == nil || len(ctx.Frames) == 0 {
 		return args
@@ -712,7 +689,6 @@ func evaluateArgsWithContext(ctx *Context, args []any) []any {
 	return evaluated
 }
 
-// evaluateArgWithContext evaluates a single argument using the given eval context
 func evaluateArgWithContext(arg any, evalCtx any) any {
 	if arg == nil {
 		return nil

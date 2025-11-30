@@ -5,7 +5,6 @@ import (
 	"strings"
 )
 
-// Element represents an element node in the Less AST
 type Element struct {
 	*Node
 	Combinator  *Combinator
@@ -13,7 +12,6 @@ type Element struct {
 	IsVariable  bool
 }
 
-// NewElement creates a new Element instance
 func NewElement(combinator any, value any, isVariable bool, index int, currentFileInfo map[string]any, visibilityInfo map[string]any) *Element {
 	var comb *Combinator
 	switch c := combinator.(type) {
@@ -96,17 +94,14 @@ func NewElement(combinator any, value any, isVariable bool, index int, currentFi
 	return e
 }
 
-// Type returns the type of the node
 func (e *Element) Type() string {
 	return "Element"
 }
 
-// GetType returns the type of the node for visitor pattern consistency
 func (e *Element) GetType() string {
 	return "Element"
 }
 
-// Accept visits the node with a visitor
 func (e *Element) Accept(visitor any) {
 	if v, ok := visitor.(interface{ Visit(any) any }); ok {
 		// Visit the combinator and handle its return value
@@ -134,7 +129,6 @@ func (e *Element) Accept(visitor any) {
 	}
 }
 
-// Eval evaluates the element and returns a new Element with evaluated values
 func (e *Element) Eval(context any) (any, error) {
 	var evaluatedValue any = e.Value
 	wasInterpolated := false
@@ -241,7 +235,6 @@ func (e *Element) Eval(context any) (any, error) {
 	return newElement, nil
 }
 
-// Clone creates a copy of the Element
 func (e *Element) Clone() *Element {
 	return NewElement(
 		e.Combinator,
@@ -253,7 +246,6 @@ func (e *Element) Clone() *Element {
 	)
 }
 
-// GenCSS generates CSS representation
 func (e *Element) GenCSS(context any, output *CSSOutput) {
 	if output == nil {
 		return
@@ -261,7 +253,6 @@ func (e *Element) GenCSS(context any, output *CSSOutput) {
 	output.Add(e.ToCSS(context), e.FileInfo(), e.GetIndex())
 }
 
-// ToCSS converts the element to its CSS string representation
 func (e *Element) ToCSS(context any) string {
 	// Match JavaScript logic: context = context || {}
 	ctx := make(map[string]any)

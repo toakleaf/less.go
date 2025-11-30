@@ -4,8 +4,6 @@ import (
 	"reflect"
 )
 
-// createBoundFunction creates a function that simulates JavaScript's .bind() behavior
-// It preserves the context (externalEnvironment) for function calls
 func createBoundFunction(fn any, context map[string]any) func() string {
 	return func() string {
 		// Handle different function types that might exist in the environment
@@ -37,7 +35,6 @@ func createBoundFunction(fn any, context map[string]any) func() string {
 	}
 }
 
-// createBoundFunctionAny creates a function that returns any type
 func createBoundFunctionAny(fn any, context map[string]any) func() any {
 	return func() any {
 		switch f := fn.(type) {
@@ -62,18 +59,15 @@ func createBoundFunctionAny(fn any, context map[string]any) func() any {
 	}
 }
 
-// EnvironmentFileManager represents a file manager interface
 type EnvironmentFileManager interface {
 	Supports(filename, currentDirectory string, options map[string]any, environment map[string]any) bool
 	SupportsSync(filename, currentDirectory string, options map[string]any, environment map[string]any) bool
 }
 
-// EnvironmentPluginManager represents a plugin manager interface for environments
 type EnvironmentPluginManager interface {
 	GetFileManagers() []EnvironmentFileManager
 }
 
-// EnvironmentEnvironment represents an environment with file managers and external functions
 type EnvironmentEnvironment struct {
 	FileManagers           []EnvironmentFileManager
 	EncodeBase64          func() string
@@ -83,7 +77,6 @@ type EnvironmentEnvironment struct {
 	externalEnvironment   map[string]any // Store original external environment for context binding
 }
 
-// NewEnvironment creates a new EnvironmentEnvironment instance
 func NewEnvironment(externalEnvironment map[string]any, fileManagers []EnvironmentFileManager) *EnvironmentEnvironment {
 	env := &EnvironmentEnvironment{}
 	
@@ -130,9 +123,6 @@ func NewEnvironment(externalEnvironment map[string]any, fileManagers []Environme
 	return env
 }
 
-// GetFileManager returns the first file manager that supports the given file
-// Matches JavaScript signature: getFileManager(filename, currentDirectory, options, environment, isSync)
-// Note: currentDirectory should be passed as *string to distinguish between nil (undefined) and empty string
 func (e *EnvironmentEnvironment) GetFileManager(filename string, currentDirectory *string, options map[string]any, environment map[string]any, isSync bool) EnvironmentFileManager {
 	// Match JavaScript: if (!filename) { logger.warn(...) }
 	if filename == "" {
@@ -184,18 +174,14 @@ func (e *EnvironmentEnvironment) GetFileManager(filename string, currentDirector
 	return nil
 }
 
-// AddFileManager adds a file manager to the environment
 func (e *EnvironmentEnvironment) AddFileManager(fileManager EnvironmentFileManager) {
 	e.FileManagers = append(e.FileManagers, fileManager)
 }
 
-// ClearFileManagers clears all file managers from the environment
 func (e *EnvironmentEnvironment) ClearFileManagers() {
 	e.FileManagers = make([]EnvironmentFileManager, 0)
 }
 
-// warn is a helper method to issue warnings (mirrors JavaScript behavior)
-// Matches JavaScript: this.warn = function(message) { ... }
 func (e *EnvironmentEnvironment) warn(message string) {
 	Warn(message)
 }

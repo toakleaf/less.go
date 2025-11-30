@@ -7,14 +7,12 @@ import (
 	"strings"
 )
 
-// CompileResult represents the result of compiling LESS to CSS
 type CompileResult struct {
 	CSS     string   `json:"css"`
 	Map     string   `json:"map,omitempty"`
 	Imports []string `json:"imports,omitempty"`
 }
 
-// CompileOptions represents options for the Compile function
 type CompileOptions struct {
 	// Paths are additional include paths for @import resolution
 	Paths []string
@@ -80,10 +78,8 @@ func Compile(input string, options *CompileOptions) (*CompileResult, error) {
 		options = &CompileOptions{}
 	}
 
-	// Convert CompileOptions to map for internal functions
 	optionsMap := convertCompileOptionsToMap(options)
 
-	// Create context - use plugin-enabled context if JavaScript plugins are enabled
 	var lessContext *LessContext
 	var cleanup func() error
 
@@ -101,10 +97,8 @@ func Compile(input string, options *CompileOptions) (*CompileResult, error) {
 		lessContext = NewLessContext(optionsMap)
 	}
 
-	// Set up functions
 	lessContext.Functions = createFunctions(nil).(*DefaultFunctions)
 
-	// Perform compilation with error handling
 	result, err := compileWithContext(lessContext, input, optionsMap)
 	if err != nil {
 		return nil, err
@@ -136,7 +130,6 @@ func CompileFile(filename string, options *CompileOptions) (*CompileResult, erro
 	return Compile(string(content), options)
 }
 
-// convertCompileOptionsToMap converts CompileOptions to a map for internal use
 func convertCompileOptionsToMap(options *CompileOptions) map[string]any {
 	result := make(map[string]any)
 
@@ -179,15 +172,10 @@ func convertCompileOptionsToMap(options *CompileOptions) map[string]any {
 	return result
 }
 
-// compileWithContext performs the actual compilation using the given context
 func compileWithContext(lessContext *LessContext, input string, options map[string]any) (*CompileResult, error) {
-	// Create environment and parseTree
 	env := createEnvironment(nil, nil)
-
-	// Create plugin manager early so it can be passed to import manager
 	pluginManager := NewPluginManager(lessContext)
 
-	// Create parse function
 	parseFunc := CreateParse(env, nil, func(environment any, context *Parse, rootFileInfo map[string]any) *ImportManager {
 		factory := NewImportManager(&SimpleImportManagerEnvironment{})
 
@@ -204,7 +192,7 @@ func compileWithContext(lessContext *LessContext, input string, options map[stri
 			"parserFactory": func(parserContext map[string]any, parserImports map[string]any, parserFileInfo map[string]any, currentIndex int) ParserInterface {
 				return NewParser(parserContext, parserImports, parserFileInfo, currentIndex)
 			},
-			"pluginManager": pluginManager, // Pass plugin manager to import manager
+			"pluginManager": pluginManager,
 		}
 
 		if context != nil && context.Paths != nil && len(context.Paths) > 0 {
@@ -226,11 +214,9 @@ func compileWithContext(lessContext *LessContext, input string, options map[stri
 		return factory(environment, contextMap, fileInfo)
 	})
 
-	// Create channels for result
 	resultChan := make(chan *CompileResult, 1)
 	errorChan := make(chan error, 1)
 
-	// Merge context options with provided options
 	mergedOptions := make(map[string]any)
 	if lessContext.Options != nil {
 		for k, v := range lessContext.Options {
@@ -241,22 +227,18 @@ func compileWithContext(lessContext *LessContext, input string, options map[stri
 		mergedOptions[k] = v
 	}
 
-	// Pass the plugin manager to the parse function
 	mergedOptions["pluginManager"] = pluginManager
 
-	// Pass the plugin bridge through options for use in TransformTree/Eval
 	if lessContext.PluginBridge != nil {
 		mergedOptions["pluginBridge"] = lessContext.PluginBridge
 	}
 
-	// Call parse with callback
 	parseFunc(input, mergedOptions, func(err error, root any, imports *ImportManager, opts map[string]any) {
 		if err != nil {
 			errorChan <- err
 			return
 		}
 
-		// Compile with panic recovery
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
@@ -279,14 +261,11 @@ func compileWithContext(lessContext *LessContext, input string, options map[stri
 				}
 			}()
 
-			// Create ParseTree and call ToCSS
 			parseTreeFactory := DefaultParseTreeFactory(nil)
 			parseTreeInstance := parseTreeFactory.NewParseTree(root, imports)
 
-			// Get functions
 			functionsObj := createFunctions(env)
 
-			// Convert options
 			toCSSOptions := &ToCSSOptions{
 				Compress:       false,
 				StrictUnits:    false,
@@ -323,12 +302,10 @@ func compileWithContext(lessContext *LessContext, input string, options map[stri
 				if processImports, ok := opts["processImports"].(bool); ok {
 					toCSSOptions.ProcessImports = processImports
 				}
-				// Pass the plugin bridge and plugin manager if present
 				if pluginBridge := opts["pluginBridge"]; pluginBridge != nil {
 					toCSSOptions.PluginBridge = pluginBridge
 					toCSSOptions.PluginManager = opts["pluginManager"]
 				}
-				// Pass javascriptEnabled option for inline JavaScript evaluation
 				if javascriptEnabled, ok := opts["javascriptEnabled"].(bool); ok {
 					toCSSOptions.JavascriptEnabled = javascriptEnabled
 				}
@@ -348,7 +325,6 @@ func compileWithContext(lessContext *LessContext, input string, options map[stri
 		}()
 	})
 
-	// Wait for result
 	select {
 	case err := <-errorChan:
 		return nil, err

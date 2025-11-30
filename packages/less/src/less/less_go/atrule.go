@@ -6,7 +6,6 @@ import (
 	"strings"
 )
 
-// AtRule represents an at-rule node in the Less AST
 type AtRule struct {
 	*Node
 	Name        string
@@ -18,7 +17,6 @@ type AtRule struct {
 	AllExtends  []*Extend // For storing extends found by ExtendFinderVisitor
 }
 
-// NewAtRule creates a new AtRule instance
 func NewAtRule(name string, value any, rules any, index int, currentFileInfo map[string]any, debugInfo any, isRooted bool, visibilityInfo map[string]any) *AtRule {
 	node := NewNode()
 	node.TypeIndex = GetTypeIndexForNodeType("AtRule")
@@ -97,44 +95,34 @@ func NewAtRule(name string, value any, rules any, index int, currentFileInfo map
 	return atRule
 }
 
-// Type returns the node type
 func (a *AtRule) Type() string {
 	return "AtRule"
 }
 
-// GetType returns the node type
 func (a *AtRule) GetType() string {
 	return "AtRule"
 }
 
-// GetName returns the at-rule name
 func (a *AtRule) GetName() string {
 	return a.Name
 }
 
-// GetDebugInfo returns debug info for the at-rule
 func (a *AtRule) GetDebugInfo() any {
 	return a.DebugInfo
 }
 
-// GetIsRooted returns whether the at-rule is rooted
 func (a *AtRule) GetIsRooted() bool {
 	return a.IsRooted
 }
 
-// GetRules returns the rules array (for ToCSSVisitor extraction)
-// All at-rules with rules should be extractable (not just @supports/@document)
-// This matches JavaScript behavior where any node with .rules gets extracted
 func (a *AtRule) GetRules() []any {
 	return a.Rules
 }
 
-// SetRules sets the rules array (for ToCSSVisitor extraction)
 func (a *AtRule) SetRules(rules []any) {
 	a.Rules = rules
 }
 
-// ToCSS converts the at-rule to CSS string
 func (a *AtRule) ToCSS(context any) string {
 	var strs []string
 	output := &CSSOutput{
@@ -149,11 +137,7 @@ func (a *AtRule) ToCSS(context any) string {
 	return strings.Join(strs, "")
 }
 
-// Accept visits the node with a visitor
-// Matches JavaScript behavior: visits all rules and value for ALL at-rules
 func (a *AtRule) Accept(visitor any) {
-	// Visit rules for ALL at-rules (not just @supports/@document)
-	// This matches JavaScript behavior exactly
 	if a.Rules != nil {
 		// Try the variadic signature first (matches Visitor.VisitArray)
 		if v, ok := visitor.(interface{ VisitArray([]any, ...bool) []any }); ok {
@@ -171,7 +155,6 @@ func (a *AtRule) Accept(visitor any) {
 	}
 }
 
-// IsRulesetLike checks if the at-rule is ruleset-like
 func (a *AtRule) IsRulesetLike() any {
 	if a.Rules != nil {
 		return a.Rules
@@ -179,7 +162,6 @@ func (a *AtRule) IsRulesetLike() any {
 	return !a.IsCharset()
 }
 
-// IsCharset checks if this is a @charset rule
 func (a *AtRule) IsCharset() bool {
 	return a.Name == "@charset"
 }
@@ -198,7 +180,6 @@ func stripVendorPrefix(name string) string {
 	return name
 }
 
-// GenCSS generates CSS representation
 func (a *AtRule) GenCSS(context any, output *CSSOutput) {
 	// Check visibility - skip if node blocks visibility and is not explicitly visible
 	// This implements the reference import functionality where nodes from referenced
@@ -273,7 +254,6 @@ func (a *AtRule) GenCSS(context any, output *CSSOutput) {
 	}
 }
 
-// Eval evaluates the at-rule
 func (a *AtRule) Eval(context any) (any, error) {
 	if os.Getenv("LESS_GO_DEBUG") == "1" {
 		fmt.Printf("[DEBUG AtRule.Eval] name=%q, hasRules=%v, isRooted=%v\n", a.Name, len(a.Rules) > 0, a.IsRooted)
@@ -352,7 +332,6 @@ func (a *AtRule) Eval(context any) (any, error) {
 	return NewAtRule(a.Name, value, rules, a.GetIndex(), a.FileInfo(), a.DebugInfo, a.IsRooted, a.VisibilityInfo()), nil
 }
 
-// EvalTop evaluates the at-rule at the top level (implementing NestableAtRulePrototype pattern)
 func (a *AtRule) EvalTop(context any) any {
 	// For AtRules, we DON'T clear mediaBlocks like Media does
 	// Instead, we return an empty ruleset as a placeholder
@@ -362,7 +341,6 @@ func (a *AtRule) EvalTop(context any) any {
 	return NewRuleset([]any{}, []any{}, false, nil)
 }
 
-// EvalNested evaluates the at-rule in a nested context (implementing NestableAtRulePrototype pattern)
 func (a *AtRule) EvalNested(context any) any {
 	// Handle both *Eval and map[string]any contexts
 	var mediaPath []any
@@ -416,9 +394,6 @@ func (a *AtRule) EvalNested(context any) any {
 	return NewRuleset([]any{}, []any{}, false, nil)
 }
 
-// BubbleSelectors bubbles selectors up the tree (implementing NestableAtRulePrototype pattern)
-// This matches JavaScript's nested-at-rule.js bubbleSelectors method exactly:
-//   this.rules = [new Ruleset(utils.copyArray(selectors), [this.rules[0]])];
 func (a *AtRule) BubbleSelectors(selectors any) {
 	if selectors == nil {
 		return
@@ -455,7 +430,6 @@ func (a *AtRule) BubbleSelectors(selectors any) {
 	a.SetParent(a.Rules, a.Node)
 }
 
-// Permute creates permutations of the given array (implementing NestableAtRulePrototype pattern)
 func (a *AtRule) Permute(arr []any) any {
 	if len(arr) == 0 {
 		return []any{}
@@ -490,7 +464,6 @@ func (a *AtRule) Permute(arr []any) any {
 	}
 }
 
-// Variable returns a variable from the first rule (if rules exist)
 func (a *AtRule) Variable(name string) any {
 	if len(a.Rules) > 0 {
 		// Assuming that there is only one rule at this point - that is how parser constructs the rule
@@ -501,7 +474,6 @@ func (a *AtRule) Variable(name string) any {
 	return nil
 }
 
-// Find finds rules matching a selector (delegates to first rule if exists)
 func (a *AtRule) Find(selector any, self any, filter func(any) bool) []any {
 	if len(a.Rules) > 0 {
 		// Assuming that there is only one rule at this point - that is how parser constructs the rule
@@ -512,7 +484,6 @@ func (a *AtRule) Find(selector any, self any, filter func(any) bool) []any {
 	return nil
 }
 
-// Rulesets returns rulesets from the first rule (if rules exist)
 func (a *AtRule) Rulesets() []any {
 	if len(a.Rules) > 0 {
 		// Assuming that there is only one rule at this point - that is how parser constructs the rule
@@ -523,7 +494,6 @@ func (a *AtRule) Rulesets() []any {
 	return nil
 }
 
-// OutputRuleset outputs CSS for rules with proper formatting
 func (a *AtRule) OutputRuleset(context any, output *CSSOutput, rules []any) {
 	ruleCnt := len(rules)
 
@@ -669,12 +639,10 @@ func (a *AtRule) OutputRuleset(context any, output *CSSOutput, rules []any) {
 	ctx["tabLevel"] = tabLevel - 1
 }
 
-// SetAllExtends sets the AllExtends field (used by ExtendFinderVisitor)
 func (a *AtRule) SetAllExtends(extends []*Extend) {
 	a.AllExtends = extends
 }
 
-// GetAllExtends returns the AllExtends field (used by ProcessExtendsVisitor)
 func (a *AtRule) GetAllExtends() []*Extend {
 	return a.AllExtends
 } 

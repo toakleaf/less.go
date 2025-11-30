@@ -9,16 +9,12 @@ import (
 	"strings"
 )
 
-// Dimension represents a number with a unit
-// It embeds Node and holds a numeric value and a unit.
 type Dimension struct {
 	*Node
 	Value float64
 	Unit  *Unit
 }
 
-// NewDimension creates a new Dimension instance.
-// value can be a number (int, float64) or a numeric string. unit can be a string or *Unit. If unit is nil or empty string, an empty Unit is used.
 func NewDimension(value any, unit any) (*Dimension, error) {
 	var v float64
 	switch t := value.(type) {
@@ -71,12 +67,8 @@ func NewDimension(value any, unit any) (*Dimension, error) {
 	return d, nil
 }
 
-// NewDimensionFrom is a helper constructor that creates a Dimension from a float64 value and *Unit.
-// Returns nil if the value is NaN (matches JavaScript behavior where NaN dimensions are invalid).
+// Returns nil if the value is NaN.
 func NewDimensionFrom(value float64, unit *Unit) *Dimension {
-	// Match NewDimension behavior: reject NaN values
-	// This ensures that operations like 0/0 that produce NaN don't create invalid dimensions
-	// Instead, SafeEval will return the original Operation node, which outputs as "0/0" in CSS
 	if math.IsNaN(value) {
 		return nil
 	}
@@ -89,22 +81,18 @@ func NewDimensionFrom(value float64, unit *Unit) *Dimension {
 	return d
 }
 
-// GetType returns the node type
 func (d *Dimension) GetType() string {
 	return "Dimension"
 }
 
-// GetValue returns the numeric value of the dimension
 func (d *Dimension) GetValue() float64 {
 	return d.Value
 }
 
-// GetUnit returns the unit of the dimension
 func (d *Dimension) GetUnit() any {
 	return d.Unit
 }
 
-// Accept accepts a visitor and updates the unit.
 func (d *Dimension) Accept(visitor any) {
 	// Handle both *Visitor and interface{ Visit(any) any }
 	if v, ok := visitor.(*Visitor); ok {
@@ -120,17 +108,14 @@ func (d *Dimension) Accept(visitor any) {
 	}
 }
 
-// Eval returns the dimension itself.
 func (d *Dimension) Eval(context any) (any, error) {
 	return d, nil
 }
 
-// ToColor converts the Dimension to a grayscale Color.
 func (d *Dimension) ToColor() *Color {
 	return NewColor([]float64{d.Value, d.Value, d.Value}, 1, "")
 }
 
-// GenCSS generates the CSS representation for the Dimension.
 func (d *Dimension) GenCSS(context any, output *CSSOutput) {
 	var strictUnits bool
 	var compress bool
@@ -199,7 +184,6 @@ func (d *Dimension) GenCSS(context any, output *CSSOutput) {
 	d.Unit.GenCSS(context, output)
 }
 
-// ToCSS generates CSS string representation
 func (d *Dimension) ToCSS(context any) string {
 	var strs []string
 	output := &CSSOutput{
@@ -222,7 +206,6 @@ func (d *Dimension) ToCSS(context any) string {
 	return strings.Join(strs, "")
 }
 
-// Operate performs an arithmetic operation between two Dimensions and returns a new Dimension.
 func (d *Dimension) Operate(context any, op string, other *Dimension) *Dimension {
 	value := d.OperateArithmetic(context, op, d.Value, other.Value)
 	unit := d.Unit.Clone()
@@ -286,12 +269,10 @@ func (d *Dimension) Operate(context any, op string, other *Dimension) *Dimension
 	return NewDimensionFrom(value, unit)
 }
 
-// OperateArithmetic wraps Node.Operate for performing arithmetic operations.
 func (d *Dimension) OperateArithmetic(context any, op string, a, b float64) float64 {
 	return d.Node.Operate(context, op, a, b)
 }
 
-// Compare compares the Dimension with another. It returns a pointer to int if comparable, or nil if not (simulating undefined in JS).
 func (d *Dimension) Compare(other any) *int {
 	o, ok := other.(*Dimension)
 	if !ok || o == nil {
@@ -312,13 +293,11 @@ func (d *Dimension) Compare(other any) *int {
 	return &cmp
 }
 
-// Unify converts the Dimension to standard units.
 func (d *Dimension) Unify() *Dimension {
 	conv := map[string]any{ "length": "px", "duration": "s", "angle": "rad" }
 	return d.ConvertTo(conv)
 }
 
-// ConvertTo converts the Dimension to specified units. 'conversions' may be a string or a map from group to target unit.
 func (d *Dimension) ConvertTo(conversions any) *Dimension {
 	value := d.Value
 	unit := d.Unit.Clone()

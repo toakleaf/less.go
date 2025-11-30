@@ -5,8 +5,6 @@ import (
 	"sync"
 )
 
-// Extend represents an extend node in the Less AST.
-// It corresponds to the JS Extend class in tree/extend.js.
 type Extend struct {
     *Node
     Selector any
@@ -23,22 +21,17 @@ type Extend struct {
     HasFoundMatches bool
 }
 
-// extendNextID is a package-level counter for unique object IDs.
-// Protected by mutex for thread safety.
 var (
 	extendNextID int
 	extendIDMutex sync.Mutex
 )
 
-// ResetExtendID resets the extend ID counter - useful for tests
 func ResetExtendID() {
 	extendIDMutex.Lock()
 	extendNextID = 0
 	extendIDMutex.Unlock()
 }
 
-// NewExtend creates a new Extend node with the given selector, option, index,
-// file information, and visibility information.
 func NewExtend(selector any, option string, index int, currentFileInfo map[string]any, visibilityInfo map[string]any) *Extend {
     // Get next ID with thread safety
     extendIDMutex.Lock()
@@ -78,18 +71,14 @@ func NewExtend(selector any, option string, index int, currentFileInfo map[strin
     return e
 }
 
-// Type returns the node type for Extend.
 func (e *Extend) Type() string {
     return "Extend"
 }
 
-// GetType returns the node type for visitor pattern consistency
 func (e *Extend) GetType() string {
     return "Extend"
 }
 
-// Accept calls the visitor on the selector.
-// Panics if visitor is nil.
 func (e *Extend) Accept(visitor any) {
     if visitor == nil {
         panic("Extend.Accept: visitor is nil")
@@ -99,8 +88,6 @@ func (e *Extend) Accept(visitor any) {
     }
 }
 
-// Eval evaluates the selector within the given context and returns a new Extend.
-// Matches JavaScript logic: this.selector.eval(context)
 func (e *Extend) Eval(context any) (*Extend, error) {
     var newSelector any = e.Selector
     
@@ -126,14 +113,10 @@ func (e *Extend) Eval(context any) (*Extend, error) {
     return NewExtend(newSelector, e.Option, e.GetIndex(), e.FileInfo(), e.VisibilityInfo()), nil
 }
 
-// Clone creates a copy of the Extend node.
-// The context parameter is unused but present for compatibility with JS API.
 func (e *Extend) Clone(context any) *Extend {
     return NewExtend(e.Selector, e.Option, e.GetIndex(), e.FileInfo(), e.VisibilityInfo())
 }
 
-// FindSelfSelectors concatenates the provided selectors into a single self selector.
-// Panics on error creating the underlying Selector.
 func (e *Extend) FindSelfSelectors(selectors []any) {
     var selfElements []*Element
     for i, selNode := range selectors {
@@ -154,8 +137,6 @@ func (e *Extend) FindSelfSelectors(selectors []any) {
     newSel.CopyVisibilityInfo(e.VisibilityInfo())
 }
 
-// IsVisible returns whether the extend is visible (compatibility method for JS API)
-// Match JavaScript: if nodeVisible is explicitly set, use that; otherwise return !blocksVisibility()
 func (e *Extend) IsVisible() bool {
     visible := e.Node.IsVisible()
     if visible != nil {
@@ -165,10 +146,5 @@ func (e *Extend) IsVisible() bool {
     return !e.Node.BlocksVisibility()
 }
 
-// GenCSS outputs nothing for Extend nodes - they are processed by ExtendVisitor
-// and don't generate any CSS output themselves.
-// This matches JavaScript behavior where Extend has no genCSS method.
 func (e *Extend) GenCSS(context any, output *CSSOutput) {
-    // Extend nodes produce no CSS output
-    // They are used only during the extend processing phase
 } 
