@@ -29,7 +29,7 @@ function createMockAST() {
                 nextIndex: 0,
                 parentIndex: 0,
                 propsOffset: 0,
-                propsLength: 34,
+                propsLength: 30,  // '{"name":"color","value":"red"}' is 30 bytes
             },
             // Node 2: Dimension (grandchild)
             {
@@ -38,8 +38,8 @@ function createMockAST() {
                 childIndex: 0,
                 nextIndex: 0,
                 parentIndex: 1,
-                propsOffset: 34,
-                propsLength: 27,
+                propsOffset: 30,
+                propsLength: 24,  // '{"value":10,"unit":"px"}' is 24 bytes
             },
         ],
         stringTable: ['color', '10', 'px'],
