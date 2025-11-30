@@ -61,6 +61,30 @@ func NewExtendFinderVisitor() *ExtendFinderVisitor {
 	return efv
 }
 
+// Reset resets the ExtendFinderVisitor for reuse from the pool.
+// The visitor's methodLookup map is preserved (it's expensive to rebuild).
+func (efv *ExtendFinderVisitor) Reset() {
+	// Clear contexts slice but keep capacity
+	for i := range efv.contexts {
+		efv.contexts[i] = nil
+	}
+	efv.contexts = efv.contexts[:0]
+
+	// Clear allExtendsStack but keep capacity
+	for i := range efv.allExtendsStack {
+		for j := range efv.allExtendsStack[i] {
+			efv.allExtendsStack[i][j] = nil
+		}
+		efv.allExtendsStack[i] = efv.allExtendsStack[i][:0]
+	}
+	efv.allExtendsStack = efv.allExtendsStack[:0]
+	// Initialize with an empty first level
+	efv.allExtendsStack = append(efv.allExtendsStack, make([]any, 0))
+
+	efv.foundExtends = false
+	// Note: efv.visitor is preserved - its methodLookup is reused
+}
+
 func (efv *ExtendFinderVisitor) Run(root any) any {
 	root = efv.visitor.Visit(root)
 	// Convert []any to []*Extend for type consistency
@@ -303,8 +327,37 @@ func NewProcessExtendsVisitor() *ProcessExtendsVisitor {
 	return pev
 }
 
+// Reset resets the ProcessExtendsVisitor for reuse from the pool.
+// The visitor's methodLookup map is preserved (it's expensive to rebuild).
+func (pev *ProcessExtendsVisitor) Reset() {
+	// Clear extendIndices map but keep the map itself
+	for k := range pev.extendIndices {
+		delete(pev.extendIndices, k)
+	}
+
+	// Clear allExtendsStack but keep capacity
+	for i := range pev.allExtendsStack {
+		for j := range pev.allExtendsStack[i] {
+			pev.allExtendsStack[i][j] = nil
+		}
+		pev.allExtendsStack[i] = pev.allExtendsStack[i][:0]
+	}
+	pev.allExtendsStack = pev.allExtendsStack[:0]
+
+	pev.extendChainCount = 0
+
+	// Clear mediaAtRuleStack but keep capacity
+	for i := range pev.mediaAtRuleStack {
+		pev.mediaAtRuleStack[i] = nil
+	}
+	pev.mediaAtRuleStack = pev.mediaAtRuleStack[:0]
+	// Note: pev.visitor is preserved - its methodLookup is reused
+}
+
 func (pev *ProcessExtendsVisitor) Run(root any) any {
-	extendFinder := NewExtendFinderVisitor()
+	// Use pooled ExtendFinderVisitor to avoid expensive reflection-based methodLookup rebuilding
+	extendFinder := GetExtendFinderVisitor()
+	defer ReleaseExtendFinderVisitor(extendFinder)
 	pev.extendIndices = make(map[string]bool)
 	root = extendFinder.Run(root)
 

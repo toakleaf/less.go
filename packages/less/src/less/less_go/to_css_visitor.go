@@ -20,6 +20,13 @@ func NewCSSVisitorUtils(context any) *CSSVisitorUtils {
 	return utils
 }
 
+// Reset resets the CSSVisitorUtils for reuse from the pool.
+// The visitor's methodLookup map is preserved (it's expensive to rebuild).
+func (u *CSSVisitorUtils) Reset(context any) {
+	u.context = context
+	// Note: u.visitor is preserved - its methodLookup is reused
+}
+
 // ContainsSilentNonBlockedChild checks if body rules contain silent non-blocked children
 func (u *CSSVisitorUtils) ContainsSilentNonBlockedChild(bodyRules []any) bool {
 	if bodyRules == nil {
@@ -471,6 +478,19 @@ func NewToCSSVisitor(context any) *ToCSSVisitor {
 	}
 	v.visitor = NewVisitor(v)
 	return v
+}
+
+// Reset resets the ToCSSVisitor for reuse from the pool.
+// The visitor's methodLookup map is preserved (it's expensive to rebuild).
+func (v *ToCSSVisitor) Reset(context any) {
+	v.context = context
+	v.charset = false
+	v.isReplacing = true
+	// Reset the utils with the new context
+	if v.utils != nil {
+		v.utils.Reset(context)
+	}
+	// Note: v.visitor is preserved - its methodLookup is reused
 }
 
 // Run runs the visitor on the root node

@@ -24,6 +24,11 @@ func NewSetTreeVisibilityVisitor(visible any) *SetTreeVisibilityVisitor {
 	}
 }
 
+// Reset resets the SetTreeVisibilityVisitor for reuse from the pool.
+func (v *SetTreeVisibilityVisitor) Reset(visible any) {
+	v.visible = isTruthyValue(visible)
+}
+
 // isTruthyValue determines if a value is truthy (JavaScript-like behavior)
 // This is evaluated once at construction time to avoid repeated checks
 func isTruthyValue(value any) bool {
