@@ -295,110 +295,84 @@ func (j *JsEvalNode) EvaluateJavaScript(expression string, context any) (any, er
 	return j.processJSResult(resp.Result)
 }
 
-// jsify converts Less values to a simple string representation suitable for error messages.
+// jsify converts Less values to JavaScript-compatible string representation.
+// This matches the less.js jsify function behavior:
+//   - If obj.value is an array with length > 1: wrap in [] and call toCSS() on each element
+//   - Otherwise: call toCSS() on the whole object
 func (j *JsEvalNode) jsify(obj any) string {
 	if obj == nil {
 		return "null"
 	}
 
-	// Check for Node types and get their value
-	if node, ok := obj.(*Node); ok {
-		obj = node.Value // Use the actual value within the node
+	// Helper function to call toCSS on an item
+	toCSS := func(item any) string {
+		if cssableAny, ok := item.(interface{ ToCSS(any) string }); ok {
+			return cssableAny.ToCSS(nil)
+		}
+		if cssableSimple, ok := item.(interface{ ToCSS() string }); ok {
+			return cssableSimple.ToCSS()
+		}
+		// Fallback for primitive types
+		switch v := item.(type) {
+		case string:
+			return v
+		case float64:
+			if math.IsNaN(v) {
+				return "NaN"
+			}
+			return strconv.FormatFloat(v, 'f', -1, 64)
+		case int:
+			return strconv.Itoa(v)
+		case bool:
+			return fmt.Sprintf("%t", v)
+		case nil:
+			return "null"
+		default:
+			return fmt.Sprintf("%v", v)
+		}
 	}
 
-	// If obj is a map containing a "value" key, extract it
+	// If obj is a map containing a "value" key, extract it (for compatibility)
 	if mapVal, ok := obj.(map[string]any); ok {
 		if val, exists := mapVal["value"]; exists {
 			obj = val
 		}
 	}
 
-	// Handle specific types
+	// Match less.js: check if obj has a value array with length > 1
+	// For Value and Expression types, wrap in [] and call toCSS on each element
 	switch v := obj.(type) {
-	case string:
-		return v // Return string directly
-	case float64:
-		if math.IsNaN(v) {
-			return "NaN"
-		}
-		// Format float without unnecessary trailing zeros
-		return strconv.FormatFloat(v, 'f', -1, 64)
-	case int:
-		return strconv.Itoa(v)
-	case bool:
-		return fmt.Sprintf("%t", v)
-	case nil:
-		return "null"
-	case *Quoted:
-		// Return the CSS representation which includes quotes for strings
-		// This is needed for JavaScript variable substitution to produce valid JS
-		return v.ToCSS(nil)
-	case *Dimension:
-		return v.ToCSS(nil) // Use the CSS representation
-	case *Color:
-		return v.ToCSS(nil) // Use the CSS representation
-	case *Anonymous:
-		// If Anonymous contains a simple type, stringify that
-		switch anonVal := v.Value.(type) {
-		case string:
-			return anonVal
-		case float64:
-			return strconv.FormatFloat(anonVal, 'f', -1, 64)
-		case int:
-			return strconv.Itoa(anonVal)
-		case bool:
-			return fmt.Sprintf("%t", anonVal)
-		case nil:
-			return "null"
-		default:
-			// Fallback for complex Anonymous values: use ToCSS
-			return v.ToCSS(nil)
-		}
 	case *Value:
-		// Value contains an array of values
-		// Match less.js: only wrap in [] if more than 1 element
 		if len(v.Value) > 1 {
 			var parts []string
 			for _, item := range v.Value {
-				parts = append(parts, j.jsify(item))
+				parts = append(parts, toCSS(item))
 			}
 			return "[" + strings.Join(parts, ", ") + "]"
-		} else if len(v.Value) == 1 {
-			return j.jsify(v.Value[0])
 		}
-		return ""
+		return toCSS(obj)
 	case *Expression:
-		// Expression contains an array of values
-		// Match less.js: only wrap in [] if more than 1 element
 		if len(v.Value) > 1 {
 			var parts []string
 			for _, item := range v.Value {
-				parts = append(parts, j.jsify(item))
+				parts = append(parts, toCSS(item))
 			}
 			return "[" + strings.Join(parts, ", ") + "]"
-		} else if len(v.Value) == 1 {
-			return j.jsify(v.Value[0])
+		}
+		return toCSS(obj)
+	case []any:
+		if len(v) > 1 {
+			var parts []string
+			for _, item := range v {
+				parts = append(parts, toCSS(item))
+			}
+			return "[" + strings.Join(parts, ", ") + "]"
+		} else if len(v) == 1 {
+			return toCSS(v[0])
 		}
 		return ""
-	case []any:
-		// Handle arrays recursively
-		var parts []string
-		for _, item := range v {
-			parts = append(parts, j.jsify(item)) // Recursively call jsify
-		}
-		// Return comma-separated string wrapped in square brackets
-		return "[" + strings.Join(parts, ", ") + "]"
 	default:
-		// Fallback: Try ToCSS(any) first
-		if cssableAny, ok := obj.(interface{ ToCSS(any) string }); ok {
-			return cssableAny.ToCSS(nil)
-		}
-		// Then try ToCSS() for simpler mocks/types
-		if cssableSimple, ok := obj.(interface{ ToCSS() string }); ok {
-			return cssableSimple.ToCSS()
-		}
-		// Last resort: Use default Go formatting
-		return fmt.Sprintf("%v", obj)
+		return toCSS(obj)
 	}
 }
 
