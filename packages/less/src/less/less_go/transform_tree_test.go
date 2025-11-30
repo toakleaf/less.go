@@ -541,9 +541,10 @@ func TestTransformTreePluginManager(t *testing.T) {
 		}
 	})
 
-	// TODO: Fix this test - the mock setup for post-eval visitors is complex
-	// The core post-eval functionality is implemented correctly in the code
-	// but the test mock doesn't properly simulate the JavaScript behavior
+	// Basic post-eval visitor test - verifies no crashes with empty iterations.
+	// Comprehensive post-eval visitor testing is in TestTransformTreeComprehensivePluginManager
+	// ("should handle complex visitor scenario with all types") which uses mockComplexPluginManager
+	// to properly simulate JavaScript behavior with all visitor types.
 	t.Run("should run post-eval visitors after main visitors", func(t *testing.T) {
 		defer setupTestEnvironment()()
 
@@ -554,7 +555,6 @@ func TestTransformTreePluginManager(t *testing.T) {
 		options := map[string]any{"pluginManager": pluginManager}
 
 		_ = TransformTree(root, options)
-		// The fact that this doesn't crash shows the post-eval logic is implemented
 	})
 }
 
