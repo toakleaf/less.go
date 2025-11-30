@@ -435,7 +435,7 @@ func TestContexts(t *testing.T) {
 				if len(evalContext.ImportantScope) != 1 {
 					t.Error("Should have one importantScope entry")
 				}
-				if evalContext.ImportantScope[0]["important"] != " !important" {
+				if evalContext.ImportantScope[0].Important != " !important" {
 					t.Error("Should initialize with provided importantScope")
 				}
 			})
@@ -588,7 +588,7 @@ func TestCopyFromOriginal(t *testing.T) {
 		if eval.Math != MathAlways {
 			t.Error("Should copy valid math property")
 		}
-		if len(eval.ImportantScope) != 1 || eval.ImportantScope[0]["important"] != " !important" {
+		if len(eval.ImportantScope) != 1 || eval.ImportantScope[0].Important != " !important" {
 			t.Error("Should copy valid importantScope property")
 		}
 	})
