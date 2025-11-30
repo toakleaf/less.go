@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 	"unsafe"
@@ -874,60 +875,201 @@ func (jf *JSFunctionDefinition) callWithSHMProtocol(evalContext EvalContextProvi
 }
 
 // makeCacheKey creates a cache key from the function arguments.
-// Uses JSON serialization for a stable, comparable key.
+// Uses type-specific serialization for a stable, comparable key.
 func (jf *JSFunctionDefinition) makeCacheKey(args []any) string {
-	// Serialize args to create a stable key
-	// For performance, we use a simple approach that works for most cases
-	var key string
+	// Fast path for common cases
+	switch len(args) {
+	case 0:
+		return ""
+	case 1:
+		return jf.argToString(args[0])
+	case 2:
+		return jf.argToString(args[0]) + "|" + jf.argToString(args[1])
+	}
+
+	// General case: use strings.Builder for efficient concatenation
+	var builder strings.Builder
 	for i, arg := range args {
 		if i > 0 {
-			key += "|"
+			builder.WriteByte('|')
 		}
-		key += jf.argToString(arg)
+		builder.WriteString(jf.argToString(arg))
 	}
-	return key
+	return builder.String()
 }
 
 // argToString converts an argument to a string for cache key purposes.
+// Optimized to use type switches instead of reflection for common node types.
 func (jf *JSFunctionDefinition) argToString(arg any) string {
 	if arg == nil {
 		return "nil"
 	}
-	// Use reflection to get a stable string representation
+
+	// Fast path: handle primitive types with direct type assertions
+	switch v := arg.(type) {
+	case string:
+		return v
+	case int:
+		return fmt.Sprintf("%d", v)
+	case int64:
+		return fmt.Sprintf("%d", v)
+	case float64:
+		return fmt.Sprintf("%g", v)
+	case float32:
+		return fmt.Sprintf("%g", v)
+	case bool:
+		if v {
+			return "true"
+		}
+		return "false"
+	}
+
+	// Check for node types using interface assertions (faster than reflection)
+	// First, try to get the node type
+	if typer, ok := arg.(interface{ GetType() string }); ok {
+		nodeType := typer.GetType()
+
+		switch nodeType {
+		case "Dimension":
+			// Dimension: use value + unit for cache key
+			if getter, ok := arg.(interface{ GetValue() float64 }); ok {
+				val := getter.GetValue()
+				unitStr := ""
+				// Try to get unit string
+				if unitGetter, ok := arg.(interface{ GetUnit() any }); ok {
+					if unit := unitGetter.GetUnit(); unit != nil {
+						if toStringer, ok := unit.(interface{ ToString() string }); ok {
+							unitStr = toStringer.ToString()
+						}
+					}
+				}
+				return fmt.Sprintf("%g%s", val, unitStr)
+			}
+
+		case "Color":
+			// Color: use RGB + Alpha for cache key
+			if rgbGetter, ok := arg.(interface{ GetRGB() []float64 }); ok {
+				rgb := rgbGetter.GetRGB()
+				alpha := 1.0
+				if alphaGetter, ok := arg.(interface{ GetAlpha() float64 }); ok {
+					alpha = alphaGetter.GetAlpha()
+				}
+				if len(rgb) >= 3 {
+					return fmt.Sprintf("rgba(%g,%g,%g,%g)", rgb[0], rgb[1], rgb[2], alpha)
+				}
+			}
+
+		case "Quoted":
+			// Quoted: use value + quote character for cache key
+			if getter, ok := arg.(interface{ GetValue() string }); ok {
+				quote := ""
+				if quoteGetter, ok := arg.(interface{ GetQuote() string }); ok {
+					quote = quoteGetter.GetQuote()
+				}
+				escaped := false
+				if escGetter, ok := arg.(interface{ GetEscaped() bool }); ok {
+					escaped = escGetter.GetEscaped()
+				}
+				if escaped {
+					return "~" + getter.GetValue()
+				}
+				return quote + getter.GetValue() + quote
+			}
+
+		case "Keyword":
+			// Keyword: use value directly
+			if getter, ok := arg.(interface{ GetValue() string }); ok {
+				return "kw:" + getter.GetValue()
+			}
+
+		case "Expression":
+			// Expression: serialize each element
+			if getter, ok := arg.(interface{ GetValue() []any }); ok {
+				vals := getter.GetValue()
+				if len(vals) == 0 {
+					return "expr:[]"
+				}
+				// Build cache key from children
+				result := "expr:["
+				for i, child := range vals {
+					if i > 0 {
+						result += ","
+					}
+					result += jf.argToString(child)
+				}
+				result += "]"
+				return result
+			}
+
+		case "Value":
+			// Value: serialize each element (similar to Expression)
+			if getter, ok := arg.(interface{ GetValue() []any }); ok {
+				vals := getter.GetValue()
+				if len(vals) == 0 {
+					return "val:[]"
+				}
+				result := "val:["
+				for i, child := range vals {
+					if i > 0 {
+						result += ","
+					}
+					result += jf.argToString(child)
+				}
+				result += "]"
+				return result
+			}
+
+		case "Url":
+			// URL: use ToCSS for full representation
+			if cssable, ok := arg.(interface{ ToCSS(any) string }); ok {
+				return "url:" + cssable.ToCSS(nil)
+			}
+
+		case "Anonymous":
+			// Anonymous: use its value
+			if getter, ok := arg.(interface{ GetValue() any }); ok {
+				return "anon:" + jf.argToString(getter.GetValue())
+			}
+
+		case "Paren":
+			// Paren: use its value
+			if getter, ok := arg.(interface{ GetValue() any }); ok {
+				return "paren:" + jf.argToString(getter.GetValue())
+			}
+
+		case "Operation":
+			// Operation: use ToCSS
+			if cssable, ok := arg.(interface{ ToCSS(any) string }); ok {
+				return "op:" + cssable.ToCSS(nil)
+			}
+
+		default:
+			// For other node types, try ToCSS
+			if cssable, ok := arg.(interface{ ToCSS(any) string }); ok {
+				return nodeType + ":" + cssable.ToCSS(nil)
+			}
+		}
+	}
+
+	// Try ToCSS interface for any unhandled types with ToCSS method
+	if cssable, ok := arg.(interface{ ToCSS(any) string }); ok {
+		return cssable.ToCSS(nil)
+	}
+
+	// Try fmt.Stringer interface
+	if stringer, ok := arg.(fmt.Stringer); ok {
+		return stringer.String()
+	}
+
+	// Last resort: use reflection for unknown types
 	v := reflect.ValueOf(arg)
 	switch v.Kind() {
-	case reflect.String:
-		return v.String()
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return fmt.Sprintf("%d", v.Int())
-	case reflect.Float32, reflect.Float64:
-		return fmt.Sprintf("%g", v.Float())
-	case reflect.Bool:
-		return fmt.Sprintf("%t", v.Bool())
 	case reflect.Ptr, reflect.Interface:
 		if v.IsNil() {
 			return "nil"
 		}
-		// For pointers, try to get a string representation of the underlying value
-		elem := v.Elem()
-		if elem.Kind() == reflect.Struct {
-			// Try to call ToCSS or String method
-			if m := v.MethodByName("ToCSS"); m.IsValid() {
-				results := m.Call([]reflect.Value{reflect.ValueOf(make(map[string]any))})
-				if len(results) > 0 {
-					return fmt.Sprintf("%v", results[0].Interface())
-				}
-			}
-			if m := v.MethodByName("String"); m.IsValid() {
-				results := m.Call(nil)
-				if len(results) > 0 {
-					return fmt.Sprintf("%v", results[0].Interface())
-				}
-			}
-		}
 		return fmt.Sprintf("%p", arg) // Use pointer address as fallback
 	default:
-		// For complex types, use fmt.Sprintf which handles most cases
 		return fmt.Sprintf("%v", arg)
 	}
 }
