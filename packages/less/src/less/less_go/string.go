@@ -61,13 +61,21 @@ func (w *StringFunctionWrapper) NeedsEvalArgs() bool {
 	return true
 }
 
-// GetWrappedStringFunctions returns string functions wrapped with FunctionDefinition interface
-func GetWrappedStringFunctions() map[string]interface{} {
-	wrappedFunctions := make(map[string]interface{})
+// wrappedStringFunctions holds the pre-computed wrapped string functions map.
+// Initialized once at package init time for efficiency.
+var wrappedStringFunctions map[string]interface{}
+
+func init() {
+	wrappedStringFunctions = make(map[string]interface{})
 	for name := range StringFunctions {
-		wrappedFunctions[name] = &StringFunctionWrapper{name: name, fn: StringFunctions[name]}
+		wrappedStringFunctions[name] = &StringFunctionWrapper{name: name, fn: StringFunctions[name]}
 	}
-	return wrappedFunctions
+}
+
+// GetWrappedStringFunctions returns string functions wrapped with FunctionDefinition interface.
+// The map is pre-computed at init time and cached for efficiency.
+func GetWrappedStringFunctions() map[string]interface{} {
+	return wrappedStringFunctions
 }
 
 // E escapes a string value, creating a Quoted with escaped=true

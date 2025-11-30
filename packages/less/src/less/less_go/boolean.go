@@ -102,8 +102,12 @@ func GetBooleanFunctions() map[string]any {
 	}
 }
 
-func GetWrappedBooleanFunctions() map[string]interface{} {
-	return map[string]interface{}{
+// wrappedBooleanFunctions holds the pre-computed wrapped boolean functions map.
+// Initialized once at package init time for efficiency.
+var wrappedBooleanFunctions map[string]interface{}
+
+func init() {
+	wrappedBooleanFunctions = map[string]interface{}{
 		"boolean": &FlexibleFunctionDef{
 			name:      "boolean",
 			minArgs:   1,
@@ -115,6 +119,12 @@ func GetWrappedBooleanFunctions() map[string]interface{} {
 		"if":        &IfFunctionDef{},
 		"isdefined": &IsDefinedFunctionDef{},
 	}
+}
+
+// GetWrappedBooleanFunctions returns boolean functions wrapped for registry.
+// The map is pre-computed at init time and cached for efficiency.
+func GetWrappedBooleanFunctions() map[string]interface{} {
+	return wrappedBooleanFunctions
 }
 
 type IfFunctionDef struct{}

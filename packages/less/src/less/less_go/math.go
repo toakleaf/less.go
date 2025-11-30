@@ -71,21 +71,29 @@ func wrapRound(fn func(*Dimension, *Dimension) (*Dimension, error)) func(args ..
 	}
 }
 
+// wrappedMathFunctions holds the pre-computed wrapped math functions map.
+// Initialized once at package init time for efficiency.
+var wrappedMathFunctions map[string]interface{}
+
+func initWrappedMathFunctions() {
+	wrappedMathFunctions = make(map[string]interface{})
+	wrappedMathFunctions["ceil"] = &MathFunctionWrapper{name: "ceil", fn: wrapUnaryMath(Ceil)}
+	wrappedMathFunctions["floor"] = &MathFunctionWrapper{name: "floor", fn: wrapUnaryMath(Floor)}
+	wrappedMathFunctions["sqrt"] = &MathFunctionWrapper{name: "sqrt", fn: wrapUnaryMath(Sqrt)}
+	wrappedMathFunctions["abs"] = &MathFunctionWrapper{name: "abs", fn: wrapUnaryMath(Abs)}
+	wrappedMathFunctions["tan"] = &MathFunctionWrapper{name: "tan", fn: wrapUnaryMath(Tan)}
+	wrappedMathFunctions["sin"] = &MathFunctionWrapper{name: "sin", fn: wrapUnaryMath(Sin)}
+	wrappedMathFunctions["cos"] = &MathFunctionWrapper{name: "cos", fn: wrapUnaryMath(Cos)}
+	wrappedMathFunctions["atan"] = &MathFunctionWrapper{name: "atan", fn: wrapUnaryMath(Atan)}
+	wrappedMathFunctions["asin"] = &MathFunctionWrapper{name: "asin", fn: wrapUnaryMath(Asin)}
+	wrappedMathFunctions["acos"] = &MathFunctionWrapper{name: "acos", fn: wrapUnaryMath(Acos)}
+	wrappedMathFunctions["round"] = &MathFunctionWrapper{name: "round", fn: wrapRound(Round)}
+}
+
+// GetWrappedMathFunctions returns math functions wrapped for registry.
+// The map is pre-computed at init time and cached for efficiency.
 func GetWrappedMathFunctions() map[string]interface{} {
-	wrappedFunctions := make(map[string]interface{})
-	wrappedFunctions["ceil"] = &MathFunctionWrapper{name: "ceil", fn: wrapUnaryMath(Ceil)}
-	wrappedFunctions["floor"] = &MathFunctionWrapper{name: "floor", fn: wrapUnaryMath(Floor)}
-	wrappedFunctions["sqrt"] = &MathFunctionWrapper{name: "sqrt", fn: wrapUnaryMath(Sqrt)}
-	wrappedFunctions["abs"] = &MathFunctionWrapper{name: "abs", fn: wrapUnaryMath(Abs)}
-	wrappedFunctions["tan"] = &MathFunctionWrapper{name: "tan", fn: wrapUnaryMath(Tan)}
-	wrappedFunctions["sin"] = &MathFunctionWrapper{name: "sin", fn: wrapUnaryMath(Sin)}
-	wrappedFunctions["cos"] = &MathFunctionWrapper{name: "cos", fn: wrapUnaryMath(Cos)}
-	wrappedFunctions["atan"] = &MathFunctionWrapper{name: "atan", fn: wrapUnaryMath(Atan)}
-	wrappedFunctions["asin"] = &MathFunctionWrapper{name: "asin", fn: wrapUnaryMath(Asin)}
-	wrappedFunctions["acos"] = &MathFunctionWrapper{name: "acos", fn: wrapUnaryMath(Acos)}
-	wrappedFunctions["round"] = &MathFunctionWrapper{name: "round", fn: wrapRound(Round)}
-	
-	return wrappedFunctions
+	return wrappedMathFunctions
 }
 
 func Ceil(n *Dimension) (*Dimension, error) {
@@ -159,6 +167,7 @@ func Round(n *Dimension, f *Dimension) (*Dimension, error) {
 }
 
 func init() {
+	initWrappedMathFunctions()
 	for name, fn := range GetWrappedMathFunctions() {
 		DefaultRegistry.Add(name, fn)
 	}
