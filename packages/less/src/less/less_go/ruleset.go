@@ -45,11 +45,11 @@ type Ruleset struct {
 	StrictImports bool
 	AllowRoot     bool
 	// Private fields for caching
-	lookups       map[string][]any
-	variables     map[string]any
-	properties    map[string][]any
-	rulesets      []any                     // Cache for Rulesets() results
-	variableCache map[string]map[string]any // Cache for Variable() results (transformed declarations)
+	lookups    map[string][]any
+	variables  map[string]any
+	properties map[string][]any
+	// NOTE: rulesets and variableCache were removed - caching these caused stale data
+	// issues when Rules are modified during evaluation (mixin expansion, visitors, etc.)
 	// Original ruleset reference for eval
 	OriginalRuleset *Ruleset
 	Root            bool
@@ -1336,10 +1336,8 @@ func hasNoVisibleContent(rs *Ruleset) bool {
 }
 
 func (r *Ruleset) ResetCache() {
-	r.rulesets = nil
 	r.variables = nil
 	r.properties = nil
-	r.variableCache = nil
 	// Use nil instead of make() - lookups is lazily initialized in Find() when needed
 	// This avoids allocating a map that may never be used
 	r.lookups = nil
@@ -1463,12 +1461,10 @@ func (r *Ruleset) Properties() map[string][]any {
 }
 
 func (r *Ruleset) Variable(name string) map[string]any {
-	// Check cache first
-	if r.variableCache != nil {
-		if cached, ok := r.variableCache[name]; ok {
-			return cached
-		}
-	}
+	// NOTE: We intentionally do NOT cache Variable() results because:
+	// 1. The underlying variables map can change during evaluation
+	// 2. Caching nil for missing variables breaks mixin lookups when variables are added later
+	// 3. The Variables() map itself is already cached per ruleset
 
 	vars := r.Variables()
 	if decl, exists := vars[name]; exists {
@@ -1508,20 +1504,8 @@ func (r *Ruleset) Variable(name string) map[string]any {
 			}
 		}
 
-		// Cache the result
-		if r.variableCache == nil {
-			r.variableCache = make(map[string]map[string]any)
-		}
-		r.variableCache[name] = result
-
 		return result
 	}
-
-	// Cache nil result to avoid repeated lookups for missing variables
-	if r.variableCache == nil {
-		r.variableCache = make(map[string]map[string]any)
-	}
-	r.variableCache[name] = nil
 
 	return nil
 }
@@ -1674,14 +1658,11 @@ func (r *Ruleset) transformDeclaration(decl any) any {
 }
 
 func (r *Ruleset) Rulesets() []any {
-	// Check cache first
-	if r.rulesets != nil {
-		return r.rulesets
-	}
-
+	// NOTE: We intentionally do NOT cache Rulesets() results because Rules can be
+	// modified during evaluation (e.g., mixin expansion, visitor transformations).
+	// Caching would return stale data and break guard conditions and mixin lookups.
 	if r.Rules == nil {
-		r.rulesets = []any{}
-		return r.rulesets
+		return []any{}
 	}
 
 	// Pre-allocate with estimated capacity - typically a fraction of rules are rulesets
@@ -1692,8 +1673,6 @@ func (r *Ruleset) Rulesets() []any {
 		}
 	}
 
-	// Cache the result
-	r.rulesets = filtered
 	return filtered
 }
 

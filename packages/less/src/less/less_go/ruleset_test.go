@@ -727,7 +727,7 @@ func TestMatchCondition(t *testing.T) {
 func TestResetCache(t *testing.T) {
 	t.Run("should reset all cache properties", func(t *testing.T) {
 		ruleset := NewRuleset(nil, nil, false, nil)
-		ruleset.rulesets = []any{"cached"}
+		// Note: rulesets cache was removed to avoid stale data issues
 		ruleset.variables = map[string]any{"cached": true}
 		ruleset.properties = map[string][]any{"cached": {"true"}}
 		ruleset.lookups = make(map[string][]any)
@@ -735,9 +735,6 @@ func TestResetCache(t *testing.T) {
 
 		ruleset.ResetCache()
 
-		if ruleset.rulesets != nil {
-			t.Errorf("Expected rulesets to be nil")
-		}
 		if ruleset.variables != nil {
 			t.Errorf("Expected variables to be nil")
 		}
