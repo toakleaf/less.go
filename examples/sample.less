@@ -1,0 +1,199 @@
+// Sample LESS file for testing the examples
+// This file demonstrates various LESS features
+
+// Variables
+@primary-color: #4a90d9;
+@secondary-color: #6c757d;
+@success-color: #28a745;
+@danger-color: #dc3545;
+@spacing: 16px;
+@border-radius: 4px;
+
+// Mixins
+.border-radius(@radius: @border-radius) {
+    border-radius: @radius;
+}
+
+.box-shadow(@x: 0, @y: 2px, @blur: 4px, @color: rgba(0,0,0,0.1)) {
+    box-shadow: @x @y @blur @color;
+}
+
+.transition(@property: all, @duration: 0.3s, @timing: ease) {
+    transition: @property @duration @timing;
+}
+
+// Base styles
+* {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    line-height: 1.5;
+    color: #333;
+    margin: 0;
+    padding: @spacing;
+}
+
+// Buttons
+.btn {
+    display: inline-block;
+    padding: (@spacing / 2) @spacing;
+    font-size: 14px;
+    font-weight: 500;
+    text-align: center;
+    text-decoration: none;
+    cursor: pointer;
+    border: 1px solid transparent;
+    .border-radius();
+    .transition();
+
+    &:hover {
+        transform: translateY(-1px);
+    }
+
+    &:active {
+        transform: translateY(0);
+    }
+
+    // Button variants
+    &-primary {
+        color: #fff;
+        background-color: @primary-color;
+        border-color: @primary-color;
+
+        &:hover {
+            background-color: darken(@primary-color, 10%);
+            border-color: darken(@primary-color, 10%);
+        }
+    }
+
+    &-secondary {
+        color: #fff;
+        background-color: @secondary-color;
+        border-color: @secondary-color;
+
+        &:hover {
+            background-color: darken(@secondary-color, 10%);
+            border-color: darken(@secondary-color, 10%);
+        }
+    }
+
+    &-success {
+        color: #fff;
+        background-color: @success-color;
+        border-color: @success-color;
+
+        &:hover {
+            background-color: darken(@success-color, 10%);
+        }
+    }
+
+    &-danger {
+        color: #fff;
+        background-color: @danger-color;
+        border-color: @danger-color;
+
+        &:hover {
+            background-color: darken(@danger-color, 10%);
+        }
+    }
+}
+
+// Cards
+.card {
+    background: #fff;
+    .border-radius(8px);
+    .box-shadow();
+    overflow: hidden;
+
+    &-header {
+        padding: @spacing;
+        background: lighten(@primary-color, 45%);
+        border-bottom: 1px solid lighten(@primary-color, 35%);
+    }
+
+    &-body {
+        padding: @spacing;
+    }
+
+    &-footer {
+        padding: @spacing;
+        background: #f8f9fa;
+        border-top: 1px solid #e9ecef;
+    }
+}
+
+// Navigation
+nav {
+    background: @primary-color;
+    padding: @spacing;
+
+    ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        gap: @spacing;
+    }
+
+    li {
+        a {
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+            padding: (@spacing / 2) @spacing;
+            .border-radius();
+            .transition();
+
+            &:hover {
+                color: #fff;
+                background: rgba(255, 255, 255, 0.1);
+            }
+        }
+    }
+}
+
+// Grid system
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 @spacing;
+}
+
+.row {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 0 (-@spacing / 2);
+}
+
+// Generate column classes
+.generate-columns(@n, @i: 1) when (@i =< @n) {
+    .col-@{i} {
+        flex: 0 0 percentage(@i / @n);
+        max-width: percentage(@i / @n);
+        padding: 0 (@spacing / 2);
+    }
+    .generate-columns(@n, (@i + 1));
+}
+
+.generate-columns(12);
+
+// Utilities
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+.text-left { text-align: left; }
+
+.mt-1 { margin-top: @spacing / 4; }
+.mt-2 { margin-top: @spacing / 2; }
+.mt-3 { margin-top: @spacing; }
+.mt-4 { margin-top: @spacing * 2; }
+
+.mb-1 { margin-bottom: @spacing / 4; }
+.mb-2 { margin-bottom: @spacing / 2; }
+.mb-3 { margin-bottom: @spacing; }
+.mb-4 { margin-bottom: @spacing * 2; }
+
+.p-1 { padding: @spacing / 4; }
+.p-2 { padding: @spacing / 2; }
+.p-3 { padding: @spacing; }
+.p-4 { padding: @spacing * 2; }
