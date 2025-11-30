@@ -1365,20 +1365,32 @@ func (r *Ruleset) ResetCache() {
 // Variables returns a map of all variables in the ruleset
 func (r *Ruleset) Variables() map[string]any {
 	if r.variables != nil {
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Fprintf(os.Stderr, "[Variables] Returning cached %d variables\n", len(r.variables))
+		}
 		return r.variables
 	}
 
 	if r.Rules == nil {
 		r.variables = make(map[string]any, 8)
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Fprintf(os.Stderr, "[Variables] Rules is nil, returning empty map\n")
+		}
 		return r.variables
 	}
 
 	// Use reduce-like pattern from JavaScript version
 	r.variables = make(map[string]any, 8)
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Fprintf(os.Stderr, "[Variables] Building variables from %d rules\n", len(r.Rules))
+	}
 	for _, rule := range r.Rules {
 		if decl, ok := rule.(*Declaration); ok && decl.variable {
 			if name, ok := decl.name.(string); ok {
 				r.variables[name] = decl
+				if os.Getenv("LESS_GO_DEBUG") == "1" {
+					fmt.Fprintf(os.Stderr, "[Variables] Found variable: %s\n", name)
+				}
 			}
 		}
 		// Handle import rules with variables like JavaScript version

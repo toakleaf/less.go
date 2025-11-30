@@ -59,10 +59,15 @@ func (n *Negative) Eval(context any) any {
 		op := NewOperation("*", []any{dim, n.Value}, false)
 
 		// Operation.Eval returns (any, error) but JavaScript just returns the result
-		result, _ := op.Eval(context)
+		result, err := op.Eval(context)
+		if err != nil {
+			// If Operation.Eval fails (e.g., invalid operand), fall through to evalValue
+			// This matches JavaScript behavior where errors bubble up naturally
+			return n.evalValue(context)
+		}
 		return result
 	}
-	
+
 	// Match JavaScript: return new Negative(this.value.eval(context));
 	return n.evalValue(context)
 }

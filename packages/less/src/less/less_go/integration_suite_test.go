@@ -285,44 +285,11 @@ type TestResult struct {
 	Suite        string
 	TestName     string
 	Status       string // "pass", "fail", "skip"
-	Category     string // "perfect_match", "compilation_failed", "output_differs", "correctly_failed", "expected_error", "quarantined"
+	Category     string // "perfect_match", "compilation_failed", "output_differs", "correctly_failed", "expected_error"
 	ExpectError  bool   // Whether this test should fail
 	Error        string
 	ExpectedCSS  string
 	ActualCSS    string
-}
-
-// Quarantined tests - features not yet implemented that we're punting on for now
-var quarantinedTests = map[string][]string{
-	"main": {
-		// Import test that depends on plugins - TESTING IF THIS NOW WORKS
-		// "import",
-	},
-	"third-party": {
-		// Bootstrap4 is now FULLY WORKING! (2025-11-29)
-		// - Compiles in ~1.3s with perfect CSS output match
-		// - All context-aware plugins work (breakpoints, theme-color-level, color-yiq, etc.)
-		// - Uses binary shared memory protocol for fast variable lookups
-	},
-	// JavaScript tests are now enabled! (2025-11-30)
-	// - inline JavaScript evaluation implemented via Node.js runtime
-	// - js-type-errors and no-js-errors properly detect and report errors
-}
-
-// isQuarantined checks if a test should be skipped
-func isQuarantined(suiteName, testName string) bool {
-	if tests, exists := quarantinedTests[suiteName]; exists {
-		// Check for wildcard (skip entire suite)
-		for _, pattern := range tests {
-			if pattern == "*" {
-				return true
-			}
-			if pattern == testName {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func runTestSuite(t *testing.T, suite TestSuite, lessRoot, cssRoot string) {
@@ -351,18 +318,6 @@ func runTestSuite(t *testing.T, suite TestSuite, lessRoot, cssRoot string) {
 				Suite:       suite.Name,
 				TestName:    testName,
 				ExpectError: false,
-			}
-
-			// Check if test is quarantined
-			if isQuarantined(suite.Name, testName) {
-				result.Status = "skip"
-				result.Category = "quarantined"
-				result.Error = "Quarantined: Feature not yet implemented (plugin system or JavaScript execution)"
-				addTestResult(result)
-				if !quietMode {
-					t.Skipf("⏸️  Quarantined: %s (feature not yet implemented)", testName)
-				}
-				return
 			}
 
 			// Read the .less file
@@ -540,18 +495,6 @@ func runErrorTestSuite(t *testing.T, suite TestSuite, lessRoot string) {
 				Suite:       suite.Name,
 				TestName:    testName,
 				ExpectError: true,
-			}
-
-			// Check if test is quarantined
-			if isQuarantined(suite.Name, testName) {
-				result.Status = "skip"
-				result.Category = "quarantined"
-				result.Error = "Quarantined: Feature not yet implemented (plugin system or JavaScript execution)"
-				addTestResult(result)
-				if !quietMode {
-					t.Skipf("⏸️  Quarantined: %s (feature not yet implemented)", testName)
-				}
-				return
 			}
 
 			// Read the .less file
@@ -857,7 +800,6 @@ func printTestSummary(t *testing.T, results []TestResult) {
 		outputDiffers     []TestResult
 		correctlyFailed   []TestResult
 		expectedError     []TestResult
-		quarantined       []TestResult
 		skipped           []TestResult
 	)
 
@@ -873,20 +815,18 @@ func printTestSummary(t *testing.T, results []TestResult) {
 			correctlyFailed = append(correctlyFailed, result)
 		case "expected_error":
 			expectedError = append(expectedError, result)
-		case "quarantined":
-			quarantined = append(quarantined, result)
 		case "skip":
 			skipped = append(skipped, result)
 		}
 	}
 
 	total := len(results)
-	activeTotal := total - len(quarantined) - len(skipped)
+	activeTotal := total - len(skipped)
 
 	// If JSON output is requested, print JSON and return
 	if jsonOutput {
 		printJSONSummary(t, results, perfectMatches, compilationFailed, outputDiffers,
-			correctlyFailed, expectedError, quarantined, skipped)
+			correctlyFailed, expectedError, skipped)
 		return
 	}
 
@@ -916,8 +856,6 @@ func printTestSummary(t *testing.T, results []TestResult) {
 	t.Logf("⚠️  Expected Error:           %3d  (%.1f%% of active tests)",
 		len(expectedError),
 		float64(len(expectedError))/float64(activeTotal)*100)
-	t.Logf("⏸️  Quarantined:              %3d  (not counted - plugin/JS features)",
-		len(quarantined))
 	if len(skipped) > 0 {
 		t.Logf("⏭️  Skipped:                  %3d  (not counted - file errors)", len(skipped))
 	}
@@ -971,17 +909,6 @@ func printTestSummary(t *testing.T, results []TestResult) {
 	if len(expectedError) > 0 {
 		t.Logf("⚠️  EXPECTED ERROR BUT SUCCEEDED (%d tests) - Should fail but doesn't", len(expectedError))
 		printTestList(t, expectedError)
-		t.Logf("")
-	}
-
-	// Quarantined
-	if len(quarantined) > 0 {
-		t.Logf("⏸️  QUARANTINED (%d tests) - Plugin/JS features not implemented", len(quarantined))
-		if debugMode {
-			printTestList(t, quarantined)
-		} else {
-			t.Logf("   (run with LESS_GO_DEBUG=1 to see full list)")
-		}
 		t.Logf("")
 	}
 
@@ -1067,24 +994,23 @@ func groupBySuite(tests []TestResult) map[string][]TestResult {
 
 // printJSONSummary prints results as JSON for programmatic parsing
 func printJSONSummary(t *testing.T, results []TestResult, perfectMatches, compilationFailed,
-	outputDiffers, correctlyFailed, expectedError, quarantined, skipped []TestResult) {
+	outputDiffers, correctlyFailed, expectedError, skipped []TestResult) {
 
 	summary := map[string]interface{}{
-		"total_tests": len(results),
-		"active_tests": len(results) - len(quarantined) - len(skipped),
+		"total_tests":  len(results),
+		"active_tests": len(results) - len(skipped),
 		"categories": map[string]interface{}{
-			"perfect_match":       len(perfectMatches),
-			"compilation_failed":  len(compilationFailed),
-			"output_differs":      len(outputDiffers),
-			"correctly_failed":    len(correctlyFailed),
-			"expected_error":      len(expectedError),
-			"quarantined":         len(quarantined),
-			"skipped":             len(skipped),
+			"perfect_match":      len(perfectMatches),
+			"compilation_failed": len(compilationFailed),
+			"output_differs":     len(outputDiffers),
+			"correctly_failed":   len(correctlyFailed),
+			"expected_error":     len(expectedError),
+			"skipped":            len(skipped),
 		},
-		"success_rate": float64(len(perfectMatches)+len(correctlyFailed)) / float64(len(results)-len(quarantined)-len(skipped)) * 100,
-		"compilation_rate": float64(len(results)-len(quarantined)-len(skipped)-len(compilationFailed)) / float64(len(results)-len(quarantined)-len(skipped)) * 100,
-		"perfect_match_rate": float64(len(perfectMatches)) / float64(len(results)-len(quarantined)-len(skipped)) * 100,
-		"results": results,
+		"success_rate":      float64(len(perfectMatches)+len(correctlyFailed)) / float64(len(results)-len(skipped)) * 100,
+		"compilation_rate":  float64(len(results)-len(skipped)-len(compilationFailed)) / float64(len(results)-len(skipped)) * 100,
+		"perfect_match_rate": float64(len(perfectMatches)) / float64(len(results)-len(skipped)) * 100,
+		"results":           results,
 	}
 
 	// Format as JSON (simple manual formatting to avoid import)
@@ -1100,7 +1026,6 @@ func printJSONSummary(t *testing.T, results []TestResult, perfectMatches, compil
 	t.Logf(`    "output_differs": %d,`, len(outputDiffers))
 	t.Logf(`    "correctly_failed": %d,`, len(correctlyFailed))
 	t.Logf(`    "expected_error": %d,`, len(expectedError))
-	t.Logf(`    "quarantined": %d,`, len(quarantined))
 	t.Logf(`    "skipped": %d`, len(skipped))
 	t.Logf(`  }`)
 	t.Logf("}")
