@@ -70,7 +70,6 @@ func NewVisitor(implementation any) *Visitor {
 		implementation: implementation,
 		visitInCache:   make(map[int]VisitFunc),
 		visitOutCache:  make(map[int]VisitOutFunc),
-		methodLookup:   make(map[string]reflect.Value),
 	}
 
 	if !_hasIndexed {
@@ -87,15 +86,19 @@ func NewVisitor(implementation any) *Visitor {
 		_hasIndexed = true
 	}
 
-	// Pre-build method lookup map to avoid MethodByName calls
+	// Only build method lookup map if NOT using direct dispatch
+	// This avoids reflection overhead for implementations that handle all node types
 	if implementation != nil {
-		implValue := reflect.ValueOf(implementation)
-		implType := implValue.Type()
-		numMethods := implType.NumMethod()
+		if _, usesDirectDispatch := implementation.(DirectDispatchVisitor); !usesDirectDispatch {
+			v.methodLookup = make(map[string]reflect.Value)
+			implValue := reflect.ValueOf(implementation)
+			implType := implValue.Type()
+			numMethods := implType.NumMethod()
 
-		for i := 0; i < numMethods; i++ {
-			method := implType.Method(i)
-			v.methodLookup[method.Name] = implValue.Method(i)
+			for i := 0; i < numMethods; i++ {
+				method := implType.Method(i)
+				v.methodLookup[method.Name] = implValue.Method(i)
+			}
 		}
 	}
 
