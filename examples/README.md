@@ -88,6 +88,53 @@ go run main.go -cache=false         # Disable caching
 - Static file serving
 - Compile time headers
 
+### 5. JavaScript Plugins (`plugin/`)
+
+Demonstrates the plugin infrastructure and built-in LESS functions.
+
+**Prerequisites:** Node.js must be installed and available in PATH.
+
+```bash
+cd plugin
+go run main.go
+```
+
+**Note:** The plugin system is under active development. While `@plugin` directives are parsed and plugins are loaded, custom plugin function execution is still being implemented. The example shows both the plugin infrastructure and the comprehensive built-in functions available.
+
+**Current Status:**
+- [x] `@plugin` directive parsing
+- [x] Plugin file loading via Node.js
+- [ ] Custom function execution (in progress)
+
+**Built-in functions that work now:**
+- Math: `pi()`, `round()`, `ceil()`, `floor()`, `sqrt()`, `abs()`, `min()`, `max()`
+- Colors: `lighten()`, `darken()`, `saturate()`, `fade()`, `mix()`, `spin()`
+- Strings: `escape()`, `replace()`, `e()`
+- Type checks: `iscolor()`, `isnumber()`, `isstring()`, etc.
+
+**Plugin file structure (for when full support is ready):**
+
+```javascript
+// my-plugin.js
+functions.add('triple', function(n) {
+    return less.dimension(n.value * 3, n.unit);
+});
+
+functions.add('my-color', function() {
+    return less.color([255, 100, 50]);
+});
+```
+
+```less
+// styles.less
+@plugin "my-plugin.js";
+
+.example {
+    width: triple(10px);    // Expected: 30px
+    color: my-color();      // Expected: #ff6432
+}
+```
+
 ## Quick Start
 
 1. Navigate to the examples directory:
@@ -170,6 +217,8 @@ result, err := less.CompileFile("styles.less", &less.CompileOptions{
 | `UrlArgs` | `string` | Query string for URLs |
 | `Rootpath` | `string` | Base path for URL rewriting |
 | `RewriteUrls` | `RewriteUrlsType` | URL rewriting mode |
+| `EnableJavaScriptPlugins` | `bool` | Enable `@plugin` directive support (requires Node.js) |
+| `JavascriptEnabled` | `bool` | Enable inline JavaScript evaluation (deprecated) |
 
 ### Math Modes
 
