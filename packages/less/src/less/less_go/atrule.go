@@ -891,8 +891,15 @@ func (a *AtRule) OutputRuleset(context any, output *CSSOutput, rules []any) {
 						// Check if ruleset will produce any output by looking at its rules
 						hasNonSilentContent := false
 						for _, ruleContent := range rs.Rules {
-							// Skip comments as they're typically silent
-							if _, isComment := ruleContent.(*Comment); !isComment {
+							// Check if this is a comment and whether it's silent
+							if comment, isComment := ruleContent.(*Comment); isComment {
+								// Non-silent comments (block comments) ARE content
+								if !comment.IsSilent(ctx) {
+									hasNonSilentContent = true
+									break
+								}
+							} else {
+								// Any other rule type is non-silent content
 								hasNonSilentContent = true
 								break
 							}
