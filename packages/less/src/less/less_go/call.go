@@ -1022,7 +1022,8 @@ func (c *Call) tryJSPluginFunction(context any, evalContext EvalContext) (any, e
 		}
 		// Convert JSResultNode to proper Go AST nodes
 		converted := convertJSResultToAST(result, context)
-		if debug && converted != result {
+		// Use type comparison instead of value comparison to avoid panic on uncomparable types (like maps)
+		if debug && fmt.Sprintf("%T", converted) != fmt.Sprintf("%T", result) {
 			fmt.Printf("[tryJSPluginFunction] Converted result to: %T\n", converted)
 		}
 		return converted, nil
@@ -1080,7 +1081,8 @@ func (c *Call) tryJSPluginFunction(context any, evalContext EvalContext) (any, e
 
 	// Convert JSResultNode to proper Go AST nodes
 	converted := convertJSResultToAST(result, context)
-	if debug && converted != result {
+	// Use type comparison instead of value comparison to avoid panic on uncomparable types (like maps)
+	if debug && fmt.Sprintf("%T", converted) != fmt.Sprintf("%T", result) {
 		fmt.Printf("[tryJSPluginFunction] Converted result to: %T\n", converted)
 	}
 	return converted, nil
@@ -1194,21 +1196,36 @@ func (c *Call) isComment(node any) bool {
 	return false
 }
 
-// convertJSResultToAST converts a JSResultNode to proper Go AST nodes.
+// convertJSResultToAST converts a JSResultNode or raw map to proper Go AST nodes.
 // This is needed because JS functions return generic JSResultNode objects
 // that need to be converted to actual AST node types for proper evaluation.
+// Also handles raw map[string]interface{} from the cache.
 func convertJSResultToAST(result any, context any) any {
-	jsNode, ok := result.(*runtime.JSResultNode)
-	if !ok {
+	var nodeType string
+	var properties map[string]any
+
+	// Handle both *runtime.JSResultNode and raw map[string]interface{}
+	if jsNode, ok := result.(*runtime.JSResultNode); ok {
+		nodeType = jsNode.NodeType
+		properties = jsNode.Properties
+	} else if rawMap, ok := result.(map[string]any); ok {
+		// Handle raw map from cache - look for _type field
+		if t, ok := rawMap["_type"].(string); ok {
+			nodeType = t
+			properties = rawMap
+		} else {
+			return result
+		}
+	} else {
 		return result
 	}
 
 	debug := os.Getenv("LESS_GO_DEBUG") == "1"
 
-	switch jsNode.NodeType {
+	switch nodeType {
 	case "DetachedRuleset":
 		// Convert to Go *DetachedRuleset
-		rulesetData, ok := jsNode.Properties["ruleset"].(map[string]any)
+		rulesetData, ok := properties["ruleset"].(map[string]any)
 		if !ok {
 			if debug {
 				fmt.Printf("[convertJSResultToAST] DetachedRuleset missing ruleset property\n")
@@ -1234,7 +1251,7 @@ func convertJSResultToAST(result any, context any) any {
 		return detached
 
 	case "Anonymous":
-		value := jsNode.Properties["value"]
+		value := properties["value"]
 		if value == nil {
 			value = ""
 		}
@@ -1242,11 +1259,11 @@ func convertJSResultToAST(result any, context any) any {
 
 	case "Dimension":
 		val := 0.0
-		if v, ok := jsNode.Properties["value"].(float64); ok {
+		if v, ok := properties["value"].(float64); ok {
 			val = v
 		}
 		unit := ""
-		if u, ok := jsNode.Properties["unit"].(string); ok {
+		if u, ok := properties["unit"].(string); ok {
 			unit = u
 		}
 		// Create proper unit - use empty numerator for no unit
@@ -1260,7 +1277,7 @@ func convertJSResultToAST(result any, context any) any {
 
 	case "Keyword":
 		value := ""
-		if v, ok := jsNode.Properties["value"].(string); ok {
+		if v, ok := properties["value"].(string); ok {
 			value = v
 		}
 		return NewKeyword(value)
@@ -1269,13 +1286,13 @@ func convertJSResultToAST(result any, context any) any {
 		value := ""
 		quote := "\""
 		escaped := false
-		if v, ok := jsNode.Properties["value"].(string); ok {
+		if v, ok := properties["value"].(string); ok {
 			value = v
 		}
-		if q, ok := jsNode.Properties["quote"].(string); ok {
+		if q, ok := properties["quote"].(string); ok {
 			quote = q
 		}
-		if e, ok := jsNode.Properties["escaped"].(bool); ok {
+		if e, ok := properties["escaped"].(bool); ok {
 			escaped = e
 		}
 		return NewQuoted(quote, value, escaped, 0, nil)
@@ -1284,28 +1301,28 @@ func convertJSResultToAST(result any, context any) any {
 		rgb := []float64{0, 0, 0}
 		alpha := 1.0
 		value := ""
-		if r, ok := jsNode.Properties["rgb"].([]any); ok && len(r) >= 3 {
+		if r, ok := properties["rgb"].([]any); ok && len(r) >= 3 {
 			for i := 0; i < 3 && i < len(r); i++ {
 				if v, ok := r[i].(float64); ok {
 					rgb[i] = v
 				}
 			}
 		}
-		if a, ok := jsNode.Properties["alpha"].(float64); ok {
+		if a, ok := properties["alpha"].(float64); ok {
 			alpha = a
 		}
 		// Preserve the original color value (e.g., "#fff") for proper CSS output
-		if v, ok := jsNode.Properties["value"].(string); ok {
+		if v, ok := properties["value"].(string); ok {
 			value = v
 		}
 		return NewColor(rgb, alpha, value)
 
 	case "AtRule":
 		name := ""
-		if n, ok := jsNode.Properties["name"].(string); ok {
+		if n, ok := properties["name"].(string); ok {
 			name = n
 		}
-		value := jsNode.Properties["value"]
+		value := properties["value"]
 		// Convert value if needed
 		if valueStr, ok := value.(string); ok {
 			value = NewAnonymous(valueStr, 0, nil, false, false, nil)
@@ -1317,14 +1334,14 @@ func convertJSResultToAST(result any, context any) any {
 
 	case "Combinator":
 		value := " "
-		if v, ok := jsNode.Properties["value"].(string); ok {
+		if v, ok := properties["value"].(string); ok {
 			value = v
 		}
 		return NewCombinator(value)
 
 	case "Value":
 		// Convert Value's children array to Go values
-		if valueArr, ok := jsNode.Properties["value"].([]any); ok {
+		if valueArr, ok := properties["value"].([]any); ok {
 			convertedValues := make([]any, 0, len(valueArr))
 			for _, item := range valueArr {
 				if itemMap, ok := item.(map[string]any); ok {
@@ -1355,7 +1372,7 @@ func convertJSResultToAST(result any, context any) any {
 	default:
 		// For unhandled types, return as-is
 		if debug {
-			fmt.Printf("[convertJSResultToAST] Unhandled node type: %s\n", jsNode.NodeType)
+			fmt.Printf("[convertJSResultToAST] Unhandled node type: %s\n", nodeType)
 		}
 		return result
 	}
