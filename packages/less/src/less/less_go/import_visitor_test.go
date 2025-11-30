@@ -125,8 +125,6 @@ func TestNewImportVisitorRun(t *testing.T) {
 			t.Error("Expected finish to be called")
 		}
 	})
-
-	t.Skip("Error handling test - TODO: Fix visitor panic handling")
 }
 
 func TestNewImportVisitorVisitImport(t *testing.T) {
