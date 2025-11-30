@@ -16,10 +16,10 @@
  * @returns {Object}
  */
 function createNode(type, props = {}) {
-  return {
-    _type: type,
-    ...props,
-  };
+    return {
+        _type: type,
+        ...props,
+    };
 }
 
 // Node constructors - organized by category
@@ -34,10 +34,10 @@ function createNode(type, props = {}) {
  * @returns {Object}
  */
 function dimension(value, unit) {
-  return createNode('Dimension', {
-    value: typeof value === 'number' ? value : parseFloat(value),
-    unit: unit || '',
-  });
+    return createNode('Dimension', {
+        value: typeof value === 'number' ? value : parseFloat(value),
+        unit: unit || '',
+    });
 }
 
 /**
@@ -48,15 +48,15 @@ function dimension(value, unit) {
  * @returns {Object}
  */
 function color(rgb, alpha) {
-  // Handle both [r,g,b] array and {r,g,b} object
-  let rgbArray = rgb;
-  if (!Array.isArray(rgb)) {
-    rgbArray = [rgb.r || 0, rgb.g || 0, rgb.b || 0];
-  }
-  return createNode('Color', {
-    rgb: rgbArray,
-    alpha: alpha !== undefined ? alpha : 1,
-  });
+    // Handle both [r,g,b] array and {r,g,b} object
+    let rgbArray = rgb;
+    if (!Array.isArray(rgb)) {
+        rgbArray = [rgb.r || 0, rgb.g || 0, rgb.b || 0];
+    }
+    return createNode('Color', {
+        rgb: rgbArray,
+        alpha: alpha !== undefined ? alpha : 1,
+    });
 }
 
 /**
@@ -68,11 +68,11 @@ function color(rgb, alpha) {
  * @returns {Object}
  */
 function quoted(quote, value, escaped) {
-  return createNode('Quoted', {
-    quote: quote || '"',
-    value: value || '',
-    escaped: escaped || false,
-  });
+    return createNode('Quoted', {
+        quote: quote || '"',
+        value: value || '',
+        escaped: escaped || false,
+    });
 }
 
 /**
@@ -82,9 +82,9 @@ function quoted(quote, value, escaped) {
  * @returns {Object}
  */
 function keyword(value) {
-  return createNode('Keyword', {
-    value: value || '',
-  });
+    return createNode('Keyword', {
+        value: value || '',
+    });
 }
 
 /**
@@ -94,9 +94,9 @@ function keyword(value) {
  * @returns {Object}
  */
 function anonymous(value) {
-  return createNode('Anonymous', {
-    value: value || '',
-  });
+    return createNode('Anonymous', {
+        value: value || '',
+    });
 }
 
 /**
@@ -107,16 +107,16 @@ function anonymous(value) {
  * @returns {Object}
  */
 function url(value, paths) {
-  if (typeof value === 'string') {
+    if (typeof value === 'string') {
+        return createNode('URL', {
+            value: quoted('"', value),
+            paths: paths,
+        });
+    }
     return createNode('URL', {
-      value: quoted('"', value),
-      paths: paths,
+        value: value,
+        paths: paths,
     });
-  }
-  return createNode('URL', {
-    value: value,
-    paths: paths,
-  });
 }
 
 /**
@@ -126,9 +126,9 @@ function url(value, paths) {
  * @returns {Object}
  */
 function variable(name) {
-  return createNode('Variable', {
-    name: name || '',
-  });
+    return createNode('Variable', {
+        name: name || '',
+    });
 }
 
 /**
@@ -139,10 +139,10 @@ function variable(name) {
  * @returns {Object}
  */
 function unit(numerator, denominator) {
-  return createNode('Unit', {
-    numerator: numerator || [],
-    denominator: denominator || [],
-  });
+    return createNode('Unit', {
+        numerator: numerator || [],
+        denominator: denominator || [],
+    });
 }
 
 // === Structural Types ===
@@ -154,10 +154,10 @@ function unit(numerator, denominator) {
  * @returns {Object}
  */
 function value(val) {
-  const children = Array.isArray(val) ? val : [val];
-  return createNode('Value', {
-    children: children,
-  });
+    const children = Array.isArray(val) ? val : [val];
+    return createNode('Value', {
+        children: children,
+    });
 }
 
 /**
@@ -167,10 +167,10 @@ function value(val) {
  * @returns {Object}
  */
 function expression(val) {
-  const children = Array.isArray(val) ? val : [val];
-  return createNode('Expression', {
-    children: children,
-  });
+    const children = Array.isArray(val) ? val : [val];
+    return createNode('Expression', {
+        children: children,
+    });
 }
 
 /**
@@ -180,10 +180,10 @@ function expression(val) {
  * @returns {Object}
  */
 function paren(node) {
-  return createNode('Paren', {
-    value: node,
-    children: [node],
-  });
+    return createNode('Paren', {
+        value: node,
+        children: [node],
+    });
 }
 
 /**
@@ -193,10 +193,10 @@ function paren(node) {
  * @returns {Object}
  */
 function negative(node) {
-  return createNode('Negative', {
-    value: node,
-    children: [node],
-  });
+    return createNode('Negative', {
+        value: node,
+        children: [node],
+    });
 }
 
 // === Operations ===
@@ -209,11 +209,11 @@ function negative(node) {
  * @returns {Object}
  */
 function operation(op, operands) {
-  return createNode('Operation', {
-    op: op,
-    operands: operands,
-    children: operands,
-  });
+    return createNode('Operation', {
+        op: op,
+        operands: operands,
+        children: operands,
+    });
 }
 
 /**
@@ -226,13 +226,13 @@ function operation(op, operands) {
  * @returns {Object}
  */
 function condition(op, lvalue, rvalue, negate) {
-  return createNode('Condition', {
-    op: op,
-    lvalue: lvalue,
-    rvalue: rvalue,
-    negate: negate || false,
-    children: [lvalue, rvalue],
-  });
+    return createNode('Condition', {
+        op: op,
+        lvalue: lvalue,
+        rvalue: rvalue,
+        negate: negate || false,
+        children: [lvalue, rvalue],
+    });
 }
 
 // === Function Calls ===
@@ -245,11 +245,11 @@ function condition(op, lvalue, rvalue, negate) {
  * @returns {Object}
  */
 function call(name, args) {
-  return createNode('Call', {
-    name: name,
-    args: args || [],
-    children: args || [],
-  });
+    return createNode('Call', {
+        name: name,
+        args: args || [],
+        children: args || [],
+    });
 }
 
 // === Selectors ===
@@ -261,9 +261,9 @@ function call(name, args) {
  * @returns {Object}
  */
 function combinator(val) {
-  return createNode('Combinator', {
-    value: val || '',
-  });
+    return createNode('Combinator', {
+        value: val || '',
+    });
 }
 
 /**
@@ -274,12 +274,12 @@ function combinator(val) {
  * @returns {Object}
  */
 function element(comb, val) {
-  const combNode = typeof comb === 'string' ? combinator(comb) : comb;
-  return createNode('Element', {
-    combinator: combNode,
-    value: val,
-    children: combNode ? [combNode] : [],
-  });
+    const combNode = typeof comb === 'string' ? combinator(comb) : comb;
+    return createNode('Element', {
+        combinator: combNode,
+        value: val,
+        children: combNode ? [combNode] : [],
+    });
 }
 
 /**
@@ -289,11 +289,11 @@ function element(comb, val) {
  * @returns {Object}
  */
 function selector(elements) {
-  const elems = Array.isArray(elements) ? elements : [elements];
-  return createNode('Selector', {
-    elements: elems,
-    children: elems,
-  });
+    const elems = Array.isArray(elements) ? elements : [elements];
+    return createNode('Selector', {
+        elements: elems,
+        children: elems,
+    });
 }
 
 // === Rules ===
@@ -306,13 +306,13 @@ function selector(elements) {
  * @returns {Object}
  */
 function ruleset(selectors, rules) {
-  const sels = Array.isArray(selectors) ? selectors : selectors ? [selectors] : [];
-  const rs = rules || [];
-  return createNode('Ruleset', {
-    selectors: sels,
-    rules: rs,
-    children: [...sels, ...rs],
-  });
+    const sels = Array.isArray(selectors) ? selectors : selectors ? [selectors] : [];
+    const rs = rules || [];
+    return createNode('Ruleset', {
+        selectors: sels,
+        rules: rs,
+        children: [...sels, ...rs],
+    });
 }
 
 /**
@@ -327,15 +327,15 @@ function ruleset(selectors, rules) {
  * @returns {Object}
  */
 function declaration(name, val, important, merge, inline, isVariable) {
-  return createNode('Declaration', {
-    name: name,
-    value: val,
-    important: important || '',
-    merge: merge || false,
-    inline: inline || false,
-    variable: isVariable || false,
-    children: [val],
-  });
+    return createNode('Declaration', {
+        name: name,
+        value: val,
+        important: important || '',
+        merge: merge || false,
+        inline: inline || false,
+        variable: isVariable || false,
+        children: [val],
+    });
 }
 
 /**
@@ -345,10 +345,10 @@ function declaration(name, val, important, merge, inline, isVariable) {
  * @returns {Object}
  */
 function detachedruleset(rulesetNode) {
-  return createNode('DetachedRuleset', {
-    ruleset: rulesetNode,
-    children: rulesetNode ? [rulesetNode] : [],
-  });
+    return createNode('DetachedRuleset', {
+        ruleset: rulesetNode,
+        children: rulesetNode ? [rulesetNode] : [],
+    });
 }
 
 // === At-Rules ===
@@ -364,17 +364,17 @@ function detachedruleset(rulesetNode) {
  * @returns {Object}
  */
 function atrule(name, val, rules, index, isRooted) {
-  const children = [];
-  if (val) children.push(val);
-  if (rules) children.push(...rules);
+    const children = [];
+    if (val) children.push(val);
+    if (rules) children.push(...rules);
 
-  return createNode('AtRule', {
-    name: name,
-    value: val,
-    rules: rules,
-    isRooted: isRooted || false,
-    children: children,
-  });
+    return createNode('AtRule', {
+        name: name,
+        value: val,
+        rules: rules,
+        isRooted: isRooted || false,
+        children: children,
+    });
 }
 
 // === Other ===
@@ -387,10 +387,10 @@ function atrule(name, val, rules, index, isRooted) {
  * @returns {Object}
  */
 function assignment(key, val) {
-  return createNode('Assignment', {
-    key: key,
-    value: val,
-  });
+    return createNode('Assignment', {
+        key: key,
+        value: val,
+    });
 }
 
 /**
@@ -402,11 +402,11 @@ function assignment(key, val) {
  * @returns {Object}
  */
 function attribute(key, op, val) {
-  return createNode('Attribute', {
-    key: key,
-    op: op || '',
-    value: val,
-  });
+    return createNode('Attribute', {
+        key: key,
+        op: op || '',
+        value: val,
+    });
 }
 
 /**
@@ -417,10 +417,10 @@ function attribute(key, op, val) {
  * @returns {Object}
  */
 function comment(val, isLineComment) {
-  return createNode('Comment', {
-    value: val,
-    isLineComment: isLineComment || false,
-  });
+    return createNode('Comment', {
+        value: val,
+        isLineComment: isLineComment || false,
+    });
 }
 
 /**
@@ -430,55 +430,55 @@ function comment(val, isLineComment) {
  * @returns {Object}
  */
 function unicodeDescriptor(val) {
-  return createNode('UnicodeDescriptor', {
-    value: val,
-  });
+    return createNode('UnicodeDescriptor', {
+        value: val,
+    });
 }
 
 // Export all constructors
 module.exports = {
-  // Core helper
-  createNode,
+    // Core helper
+    createNode,
 
-  // Value types
-  dimension,
-  color,
-  quoted,
-  keyword,
-  anonymous,
-  url,
-  variable,
-  unit,
+    // Value types
+    dimension,
+    color,
+    quoted,
+    keyword,
+    anonymous,
+    url,
+    variable,
+    unit,
 
-  // Structural types
-  value,
-  expression,
-  paren,
-  negative,
+    // Structural types
+    value,
+    expression,
+    paren,
+    negative,
 
-  // Operations
-  operation,
-  condition,
+    // Operations
+    operation,
+    condition,
 
-  // Function calls
-  call,
+    // Function calls
+    call,
 
-  // Selectors
-  combinator,
-  element,
-  selector,
+    // Selectors
+    combinator,
+    element,
+    selector,
 
-  // Rules
-  ruleset,
-  declaration,
-  detachedruleset,
+    // Rules
+    ruleset,
+    declaration,
+    detachedruleset,
 
-  // At-rules
-  atrule,
+    // At-rules
+    atrule,
 
-  // Other
-  assignment,
-  attribute,
-  comment,
-  unicodeDescriptor,
+    // Other
+    assignment,
+    attribute,
+    comment,
+    unicodeDescriptor,
 };
