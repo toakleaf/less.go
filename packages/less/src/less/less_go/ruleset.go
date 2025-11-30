@@ -650,8 +650,12 @@ func (r *Ruleset) Eval(context any) (any, error) {
 		rules = CopyArray(r.Rules)
 	}
 
-	// Create new ruleset
-	ruleset := NewRuleset(selectors, rules, r.StrictImports, r.VisibilityInfo(), r.SelectorsParseFunc, r.ValueParseFunc, r.ParseContext, r.ParseImports)
+	// Create new ruleset using arena when available
+	var arena *NodeArena
+	if evalCtx != nil {
+		arena = evalCtx.Arena
+	}
+	ruleset := NewRulesetWithArena(arena, selectors, rules, r.StrictImports, r.VisibilityInfo(), r.SelectorsParseFunc, r.ValueParseFunc, r.ParseContext, r.ParseImports)
 	ruleset.OriginalRuleset = r
 
 	// Debug: trace creation of div rulesets
