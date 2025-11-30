@@ -101,24 +101,6 @@ func scaled(n any, size float64) (float64, error) {
 	return number(n)
 }
 
-// toHSL converts a color to HSL
-func toHSL(color any) (*HSL, error) {
-	if c, ok := color.(*Color); ok {
-		hsl := c.ToHSL()
-		return &hsl, nil
-	}
-	return nil, fmt.Errorf("argument cannot be evaluated to a color")
-}
-
-// toHSV converts a color to HSV
-func toHSV(color any) (*HSV, error) {
-	if c, ok := color.(*Color); ok {
-		hsv := c.ToHSV()
-		return &hsv, nil
-	}
-	return nil, fmt.Errorf("argument cannot be evaluated to a color")
-}
-
 // hslaHelper creates a color from HSL values, preserving the original color's format
 func hslaHelper(origColor *Color, h, s, l, a float64) *Color {
 	color := colorHSLA(h, s, l, a)

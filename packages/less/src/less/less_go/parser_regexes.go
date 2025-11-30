@@ -72,11 +72,10 @@ var (
 
 // Function and call patterns
 var (
-	reFunctionURL     = regexp.MustCompile(`(?i)^url\(`)
-	reFunctionName    = regexp.MustCompile(`^([\w-]+|%|~|progid:[\w.]+)\(`)
-	reCallValid       = regexp.MustCompile(`^[\w]+\(`)
-	reURLContent      = regexp.MustCompile(`^(?:(?:\\[()'""])|[^()'""])+`)
-	reProgid          = regexp.MustCompile(`^[\w]+`)
+	reFunctionURL  = regexp.MustCompile(`(?i)^url\(`)
+	reFunctionName = regexp.MustCompile(`^([\w-]+|%|~|progid:[\w.]+)\(`)
+	reCallValid    = regexp.MustCompile(`^[\w]+\(`)
+	reURLContent   = regexp.MustCompile(`^(?:(?:\\[()'""])|[^()'""])+`)
 )
 
 // Keyword patterns
@@ -150,5 +149,4 @@ var (
 	reBase64Suffix    = regexp.MustCompile(`;base64$`)
 	reVariableAtBrace = regexp.MustCompile(`@\{([\w-]+)\}`)
 	reFilenameOnly    = regexp.MustCompile(`[^/\\]*$`)
-	reMixinCallEsc    = regexp.MustCompile(`^[.#]\\\(`)
 )

@@ -44,14 +44,6 @@ func getPotentialMatch() *PotentialMatch {
 	return potentialMatchPool.Get().(*PotentialMatch)
 }
 
-// putPotentialMatch returns a PotentialMatch to the pool
-func putPotentialMatch(pm *PotentialMatch) {
-	if pm != nil {
-		pm.Reset()
-		potentialMatchPool.Put(pm)
-	}
-}
-
 type ExtendFinderVisitor struct {
 	visitor          *Visitor
 	contexts         []any

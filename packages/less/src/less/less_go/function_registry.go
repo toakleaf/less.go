@@ -24,12 +24,6 @@ func (r *Registry) Add(name string, fn any) {
 	// precautionary case conversion, as later querying of
 	// the registry by function-caller uses lower case as well.
 	name = strings.ToLower(name)
-
-	// Check if the key already exists (equivalent to hasOwnProperty check)
-	if _, exists := r.data[name]; exists {
-		// TODO: Implement warning when function already exists
-		_ = exists // Suppress unused variable warning
-	}
 	r.data[name] = fn
 }
 

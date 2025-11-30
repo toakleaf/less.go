@@ -359,10 +359,6 @@ func (p *SharedMemoryProtocol) IsJSReady() bool {
 
 // Helper methods for control block access
 
-func (p *SharedMemoryProtocol) getControlPtr(offset uint32) *byte {
-	return &p.controlBlock[offset]
-}
-
 func (p *SharedMemoryProtocol) getUint32(offset uint32) uint32 {
 	return binary.LittleEndian.Uint32(p.controlBlock[offset:])
 }

@@ -517,16 +517,3 @@ func hasJoinSelectors(ruleset *Ruleset) bool {
 	// For now, assume all rulesets have this capability
 	return true
 }
-
-
-func hasIsRooted(atRule *AtRule) bool {
-	// Check if atRule has IsRooted method
-	// For now, return false as a safe default
-	return false
-}
-
-func getIsRooted(atRule *AtRule) bool {
-	// Get the IsRooted value
-	// For now, return false as a safe default
-	return false
-}
