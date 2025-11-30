@@ -96,6 +96,10 @@ type NodeJSRuntime struct {
 	shmProtocolMu sync.Mutex
 	useSHMProtocol bool // Whether to use the binary SHM protocol
 
+	// Scope depth tracking for cache key generation
+	// Incremented by EnterScope, decremented by ExitScope
+	scopeDepth atomic.Int32
+
 	// Prefetch binary data cache - avoids re-serializing variables on every plugin call
 	prefetchCache   *PrefetchCache
 	prefetchCacheMu sync.RWMutex
@@ -731,6 +735,29 @@ func (rt *NodeJSRuntime) GetPrefetchBuffer(size int) (*SharedMemory, error) {
 	return shm, nil
 }
 
+// GetScopeDepth returns the current scope depth for cache key generation.
+// This is used to differentiate cached results from different scopes.
+func (rt *NodeJSRuntime) GetScopeDepth() int {
+	return int(rt.scopeDepth.Load())
+}
+
+// IncrementScopeDepth increases the scope depth by 1.
+// Called when entering a new plugin scope.
+func (rt *NodeJSRuntime) IncrementScopeDepth() int {
+	return int(rt.scopeDepth.Add(1))
+}
+
+// DecrementScopeDepth decreases the scope depth by 1.
+// Called when exiting a plugin scope.
+func (rt *NodeJSRuntime) DecrementScopeDepth() int {
+	depth := rt.scopeDepth.Add(-1)
+	if depth < 0 {
+		rt.scopeDepth.Store(0)
+		return 0
+	}
+	return int(depth)
+}
+
 // GetCachedResult retrieves a cached function result by key.
 // Returns the cached value and true if found, or nil and false if not cached.
 func (rt *NodeJSRuntime) GetCachedResult(key string) (any, bool) {
@@ -756,10 +783,10 @@ func (rt *NodeJSRuntime) ClearFunctionCache() {
 }
 
 // ClearCachedResultsForFunction clears cached results for a specific function.
-// The cache key format is "funcName:arg1|arg2|...", so this deletes all entries
-// that start with the function name followed by a colon.
+// The cache key format is "funcName@scopeDepth:arg1|arg2|...", so this deletes all entries
+// that start with the function name followed by "@".
 func (rt *NodeJSRuntime) ClearCachedResultsForFunction(funcName string) {
-	prefix := funcName + ":"
+	prefix := funcName + "@"
 	rt.funcResultCacheMu.Lock()
 	defer rt.funcResultCacheMu.Unlock()
 	for key := range rt.funcResultCache {

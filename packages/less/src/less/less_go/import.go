@@ -624,6 +624,28 @@ func (i *Import) DoEval(context any) (any, error) {
 				// Store loaded function names on the containing Ruleset.
 				// This enables mixin calls to inherit plugin functions from ancestor frames.
 				if plugin, ok := result.(*runtime.Plugin); ok && len(plugin.Functions) > 0 {
+					// Clear cached results for this plugin's functions
+					// This is necessary because different plugins may define the same function name
+					// with different implementations (e.g., plugin-scope1 and plugin-scope2 both define foo())
+					var runtimeBridge *runtime.NodeJSRuntime
+					if evalCtx, ok := context.(*Eval); ok {
+						if evalCtx.LazyPluginBridge != nil {
+							if rt, err := evalCtx.LazyPluginBridge.GetBridge(); err == nil && rt != nil {
+								runtimeBridge = rt.GetRuntime()
+							}
+						} else if evalCtx.PluginBridge != nil {
+							runtimeBridge = evalCtx.PluginBridge.GetRuntime()
+						}
+					}
+					if runtimeBridge != nil {
+						for _, funcName := range plugin.Functions {
+							runtimeBridge.ClearCachedResultsForFunction(funcName)
+							if debug {
+								fmt.Fprintf(os.Stderr, "[Import.DoEval] Cleared cache for function '%s'\n", funcName)
+							}
+						}
+					}
+
 					// Find the first Ruleset in the context frames
 					var frames []any
 					if evalCtx, ok := context.(*Eval); ok {

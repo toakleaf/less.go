@@ -703,11 +703,14 @@ func (jf *JSFunctionDefinition) CallWithContext(evalContext EvalContextProvider,
 	}
 
 	// Check shared runtime cache (shared across all instances of this function)
-	// Key format: "funcName:arg1|arg2|..."
-	cacheKey := jf.name + ":" + jf.makeCacheKey(args)
+	// Key format: "funcName@scopeDepth:arg1|arg2|..."
+	// Include scope depth to differentiate results from different plugin scopes
+	// This prevents stale global results from shadowing local plugin results
+	scopeDepth := jf.runtime.GetScopeDepth()
+	cacheKey := fmt.Sprintf("%s@%d:%s", jf.name, scopeDepth, jf.makeCacheKey(args))
 	if result, ok := jf.runtime.GetCachedResult(cacheKey); ok {
 		if os.Getenv("LESS_GO_DEBUG") == "1" {
-			fmt.Printf("[CallWithContext] Cache HIT for %s: %s\n", jf.name, cacheKey[:min(80, len(cacheKey))])
+			fmt.Printf("[CallWithContext] Cache HIT for %s at depth %d: %s\n", jf.name, scopeDepth, cacheKey[:min(80, len(cacheKey))])
 		}
 		return result, nil
 	}
