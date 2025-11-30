@@ -1,33 +1,57 @@
-# Performance Analysis: CRITICAL BUG FOUND
+# Performance Analysis: REGEX OPTIMIZATION COMPLETE ✅
 
-## TL;DR - ACTIONABLE
+## TL;DR - STATUS
 
-**ROOT CAUSE IDENTIFIED**: 81% of memory and 76% of allocations are from **REGEX COMPILATION**.
+**REGEX COMPILATION ISSUE: FIXED** (as of 2025-11-30)
 
-We are compiling regexes on every parse instead of pre-compiling them once. **This is NOT "unoptimized" - it's a critical bug.**
+All regex compilations have been moved to package-level variables and are now compiled once at startup.
 
-**Fix**: Move 99 regex compilations to package-level variables.
-**Expected improvement**: 5-10x faster, 80% less memory.
-**Priority**: IMMEDIATE
+### What Was Done
 
-## Profiling Evidence (From Real Run)
+All 99 dynamic regex compilations have been moved to package-level `var` blocks:
+
+| File | Pre-compiled Regexes |
+|------|---------------------|
+| `parser_regexes.go` | 50+ patterns (parser hot paths) |
+| `quoted.go` | 3 patterns (variable/property interpolation) |
+| `selector.go` | 1 pattern (mixin elements) |
+| `import.go` | 1 pattern (CSS detection) |
+
+### Only Exception
+
+`string.go:222` - Dynamic regex in `Replace()` function. **Cannot be pre-compiled** because the pattern is user-provided via LESS `replace()` function arguments.
+
+### Verification
+
+To verify no dynamic compilations remain in hot paths:
+```bash
+grep -n "regexp\.\(Must\)\?Compile" packages/less/src/less/less_go/*.go | grep -v "_test.go" | grep -v "trace_examples"
+```
+
+Should only show:
+- Package-level `var` declarations (parser_regexes.go, quoted.go, selector.go, import.go)
+- `string.go:222` (user-provided pattern, cannot pre-compile)
+
+## Historical Profiling Evidence
+
+The following profiling data motivated the regex optimization:
 
 ```
-TOP MEMORY ALLOCATIONS:
+TOP MEMORY ALLOCATIONS (BEFORE FIX):
   1.40GB (30.80%) - regexp/syntax.(*compiler).inst
   1.10GB (24.21%) - regexp/syntax.(*parser).newRegexp
   3.71GB (81.73%) - regexp.compile (CUMULATIVE)
 
-ALLOCATION COUNTS:
+ALLOCATION COUNTS (BEFORE FIX):
   10,542,240 allocs (19.69%) - regexp/syntax.(*parser).newRegexp
    5,315,351 allocs (9.93%) - regexp/syntax.(*compiler).inst
   40,664,606 allocs (75.96%) - regexp.compile (CUMULATIVE)
 ```
 
-**Dynamic Regex Compilations Found:**
-- **99 total occurrences** across codebase
+**Original Problem:**
+- **99 total occurrences** of dynamic regex compilation
 - **60 in parser.go alone**
-- Every one compiles the regex from scratch on every call
+- Every regex compiled from scratch on every parse call
 
 ## Is Compilation Time Included?
 
@@ -176,11 +200,12 @@ for _, item := range items {
 
 ## Optimization Roadmap
 
-### Phase 1: Profile and Identify (Current)
+### Phase 1: Profile and Identify (COMPLETE ✅)
 - [x] Set up benchmarks
 - [x] Add profiling tools
-- [ ] Run profiling on representative workload
-- [ ] Identify top 10 hot spots
+- [x] Run profiling on representative workload
+- [x] Identify top 10 hot spots
+- [x] **Regex optimization complete** - All 99 regexes pre-compiled at package level
 
 ### Phase 2: Low-Hanging Fruit
 Focus on changes that give big wins with low risk:
