@@ -1,15 +1,10 @@
 // Package main demonstrates JavaScript plugin support in less.go.
 //
-// This example shows how the @plugin directive works and the plugin
-// infrastructure. Plugins are loaded via a Node.js runtime.
+// This example shows how to use JavaScript plugins that extend LESS with
+// custom functions. Plugins are executed via a Node.js runtime.
 //
 // Prerequisites:
 //   - Node.js must be installed and available in PATH
-//
-// IMPORTANT: The plugin system in less.go is still under development.
-// While @plugin directives are parsed and plugins are loaded, custom
-// plugin functions are not yet being executed. This example demonstrates
-// the infrastructure that's in place and the intended usage patterns.
 //
 // Usage:
 //
@@ -27,134 +22,166 @@ import (
 )
 
 func main() {
-	// Get the directory where this example is located
-	exampleDir, err := os.Getwd()
+	// Get the directory where this Go file is located
+	// We need absolute paths for reliable plugin loading
+	exampleDir, err := filepath.Abs(".")
 	if err != nil {
-		log.Fatalf("Failed to get working directory: %v", err)
+		log.Fatalf("Failed to get absolute path: %v", err)
 	}
 
-	pluginPath := filepath.Join(exampleDir, "sample-plugin.js")
+	// Use absolute path for the plugin to ensure reliable loading
+	pluginPath, err := filepath.Abs(filepath.Join(exampleDir, "sample-plugin.js"))
+	if err != nil {
+		log.Fatalf("Failed to get absolute plugin path: %v", err)
+	}
 
 	// Check if the plugin file exists
 	if _, err := os.Stat(pluginPath); os.IsNotExist(err) {
 		log.Fatalf("Plugin file not found: %s\nMake sure to run this example from the examples/plugin directory", pluginPath)
 	}
 
-	// Demonstrate that @plugin directive is parsed and plugins load
-	fmt.Println("=== Plugin Loading Demo ===")
-	fmt.Println("The @plugin directive is parsed and plugins are loaded.")
-	fmt.Println("Custom function execution is still under development.")
-	fmt.Println()
+	// Example 1: Using custom plugin functions
+	fmt.Println("=== Example 1: Custom Plugin Functions ===")
 
 	lessSource := fmt.Sprintf(`
-// The @plugin directive loads a JavaScript plugin
+// Load the custom plugin (using absolute path for reliability)
 @plugin "%s";
 
-// Built-in LESS functions work normally
-.builtin-functions {
-    // pi() is a built-in LESS function
-    pi-value: pi();
+// Use custom functions from the plugin
+.math-demo {
+    // double(n) multiplies a value by 2
+    doubled: double(21px);
 
-    // Built-in color functions
-    color: lighten(#4a90d9, 20%%);
+    // add(a, b) adds two numbers
+    sum: add(10, 5);
 
-    // Built-in math
-    calc: (100px / 2);
+    // sqrt-val(n) returns square root
+    root: sqrt-val(16);
 }
 
-// Plugin functions are parsed but not yet executed
-// Once the plugin system is complete, these will work:
-.plugin-functions {
-    // Will output the function call as-is for now
-    custom: my-plugin-function();
+.color-demo {
+    // brand-color() returns a predefined brand color
+    background: brand-color();
+
+    // make-rgb(r, g, b) creates a color
+    custom: make-rgb(255, 128, 0);
+}
+
+.string-demo {
+    // greet(name) returns a greeting string
+    content: greet("World");
+
+    // prefix(str) adds a vendor prefix
+    custom-prop: prefix("transform");
 }
 `, pluginPath)
 
+	// Note: Filename must be set to a path in the same directory as the plugin
+	// for relative plugin paths to resolve correctly
 	result, err := less.Compile(lessSource, &less.CompileOptions{
-		Filename:                "styles.less",
+		Filename:                filepath.Join(exampleDir, "styles.less"),
 		EnableJavaScriptPlugins: true,
-		Paths:                   []string{exampleDir},
 	})
 	if err != nil {
 		log.Fatalf("Compilation error: %v", err)
 	}
 
-	fmt.Println("Compiled CSS:")
 	fmt.Println(result.CSS)
 
-	// Show built-in functions that work
-	fmt.Println("=== Built-in Functions Demo ===")
-	fmt.Println("These LESS built-in functions work without plugins:")
-	fmt.Println()
+	// Example 2: Plugin with scoped visibility
+	fmt.Println("=== Example 2: Plugin Scoping ===")
 
-	builtinSource := `
-// Math functions
-.math {
-    pi: pi();
-    percentage: percentage(0.5);
-    round: round(1.67);
-    ceil: ceil(2.4);
-    floor: floor(2.6);
-    sqrt: sqrt(25);
-    abs: abs(-5);
-    min: min(3, 5, 1);
-    max: max(3, 5, 1);
-    mod: mod(5, 2);
+	scopedSource := fmt.Sprintf(`
+// Plugin loaded at root level - available everywhere
+@plugin "%s";
+
+.global-scope {
+    value: double(5px);
 }
 
-// Color functions
-.colors {
-    lighten: lighten(#4a90d9, 20%);
-    darken: darken(#4a90d9, 20%);
-    saturate: saturate(#4a90d9, 20%);
-    desaturate: desaturate(#4a90d9, 20%);
-    fade: fade(#4a90d9, 50%);
-    mix: mix(#ff0000, #0000ff, 50%);
-    spin: spin(#4a90d9, 30);
+.namespace {
+    // Plugins loaded inside a block are scoped to that block
+    .nested {
+        // Inherits parent scope
+        value: add(3, 7);
+    }
 }
+`, pluginPath)
 
-// String functions
-.strings {
-    escape: escape("hello world");
-    replace: replace("hello", "l", "L");
-}
-
-// Type functions
-.types {
-    is-color: iscolor(#fff);
-    is-number: isnumber(42);
-    is-string: isstring("hello");
-    is-pixel: ispixel(100px);
-    is-percentage: ispercentage(50%);
-}
-`
-
-	result2, err := less.Compile(builtinSource, nil)
+	result2, err := less.Compile(scopedSource, &less.CompileOptions{
+		Filename:                filepath.Join(exampleDir, "scoped.less"),
+		EnableJavaScriptPlugins: true,
+	})
 	if err != nil {
 		log.Fatalf("Compilation error: %v", err)
 	}
 
 	fmt.Println(result2.CSS)
 
-	// Print plugin status
-	fmt.Println("=== Plugin System Status ===")
+	// Example 3: Combining plugins with LESS features
+	fmt.Println("=== Example 3: Plugins with Variables and Mixins ===")
+
+	combinedSource := fmt.Sprintf(`
+@plugin "%s";
+
+// Use plugin function results in variables
+@brand: brand-color();
+@spacing: double(8px);
+
+// Mixin using plugin functions
+.button-style(@size) {
+    padding: double(@size);
+    background: @brand;
+    border-radius: add(2, 2) * 1px;
+}
+
+.button {
+    .button-style(5px);
+}
+
+.container {
+    padding: @spacing;
+    margin: double(@spacing);
+}
+`, pluginPath)
+
+	result3, err := less.Compile(combinedSource, &less.CompileOptions{
+		Filename:                filepath.Join(exampleDir, "combined.less"),
+		EnableJavaScriptPlugins: true,
+	})
+	if err != nil {
+		log.Fatalf("Compilation error: %v", err)
+	}
+
+	fmt.Println(result3.CSS)
+
+	// Print summary
+	fmt.Println("=== Plugin System Summary ===")
 	fmt.Println(`
-Current Implementation:
-  [x] @plugin directive parsing
-  [x] Plugin file loading via Node.js
-  [x] Plugin function registration
-  [ ] Custom function execution (in progress)
-  [ ] Functions with arguments
-  [ ] Color return values
-  [ ] Visitor plugins
+Plugin support is fully functional! You can:
+  - Load plugins via @plugin directive
+  - Call custom functions with arguments
+  - Return dimensions, colors, strings, and keywords
+  - Maintain state across function calls
+  - Use plugin results in variables and expressions
 
-For now, use the many built-in LESS functions which cover most needs:
-  - Math: pi(), round(), ceil(), floor(), sqrt(), abs(), min(), max()
-  - Colors: lighten(), darken(), saturate(), fade(), mix(), spin()
-  - Strings: escape(), replace(), e()
-  - Type checks: iscolor(), isnumber(), isstring(), etc.
+Creating your own plugin:
 
-Full plugin support is being actively developed. Check the less.go
-repository for updates.
+  // my-plugin.js
+  functions.add('triple', function(n) {
+      return less.dimension(n.value * 3, n.unit);
+  });
+
+  functions.add('my-color', function() {
+      return less.color([255, 100, 50]);
+  });
+
+Then use it:
+
+  @plugin "my-plugin.js";
+  .example {
+      width: triple(10px);    // 30px
+      color: my-color();      // #ff6432
+  }
 `)
 }

@@ -90,29 +90,24 @@ go run main.go -cache=false         # Disable caching
 
 ### 5. JavaScript Plugins (`plugin/`)
 
-Demonstrates the plugin infrastructure and built-in LESS functions.
+Demonstrates how to extend LESS with custom JavaScript functions via plugins.
 
 **Prerequisites:** Node.js must be installed and available in PATH.
 
 ```bash
-cd plugin
-go run main.go
+# Run from the project root for best results
+go run examples/plugin/main.go
 ```
 
-**Note:** The plugin system is under active development. While `@plugin` directives are parsed and plugins are loaded, custom plugin function execution is still being implemented. The example shows both the plugin infrastructure and the comprehensive built-in functions available.
+**Features shown:**
+- Loading plugins via `@plugin` directive
+- Custom math functions (`double()`, `add()`, `sqrt-val()`)
+- Custom color functions (`brand-color()`, `make-rgb()`)
+- Custom string functions (`greet()`, `prefix()`)
+- Plugin scoping (global vs local visibility)
+- Combining plugins with variables and mixins
 
-**Current Status:**
-- [x] `@plugin` directive parsing
-- [x] Plugin file loading via Node.js
-- [ ] Custom function execution (in progress)
-
-**Built-in functions that work now:**
-- Math: `pi()`, `round()`, `ceil()`, `floor()`, `sqrt()`, `abs()`, `min()`, `max()`
-- Colors: `lighten()`, `darken()`, `saturate()`, `fade()`, `mix()`, `spin()`
-- Strings: `escape()`, `replace()`, `e()`
-- Type checks: `iscolor()`, `isnumber()`, `isstring()`, etc.
-
-**Plugin file structure (for when full support is ready):**
+**Creating your own plugin:**
 
 ```javascript
 // my-plugin.js
@@ -130,8 +125,8 @@ functions.add('my-color', function() {
 @plugin "my-plugin.js";
 
 .example {
-    width: triple(10px);    // Expected: 30px
-    color: my-color();      // Expected: #ff6432
+    width: triple(10px);    // 30px
+    color: my-color();      // #ff6432
 }
 ```
 
