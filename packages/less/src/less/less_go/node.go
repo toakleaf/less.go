@@ -27,10 +27,10 @@ func (n *Node) GenCSSSourceMap(context map[string]any, output *SourceMapOutput) 
 }
 
 // NewNode creates a new Node instance.
-// Direct allocation is more efficient than sync.Pool when objects aren't returned
-// to the pool - which is the case for AST nodes that become garbage after compilation.
+// OPTIMIZATION: Uses sync.Pool to reuse Node objects and reduce GC pressure.
+// Call ReleaseNode when the Node is no longer needed to return it to the pool.
 func NewNode() *Node {
-	return &Node{}
+	return GetNodeFromPool()
 }
 
 // SetParent sets the parent for one or more nodes

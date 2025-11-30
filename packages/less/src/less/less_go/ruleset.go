@@ -78,26 +78,51 @@ type Ruleset struct {
 	LoadedPluginFunctions map[string]bool
 }
 
-// NewRuleset creates a new Ruleset instance
+// NewRuleset creates a new Ruleset instance.
+// OPTIMIZATION: Uses sync.Pool to reuse Ruleset objects and reduce GC pressure.
+// Call Release() when the Ruleset is no longer needed to return it to the pool.
 func NewRuleset(selectors []any, rules []any, strictImports bool, visibilityInfo map[string]any, parseFuncs ...any) *Ruleset {
 	node := NewNode()
 	node.TypeIndex = GetTypeIndexForNodeType("Ruleset")
 
-	r := &Ruleset{
-		Node:          node,
-		Selectors:     selectors,
-		Rules:         rules,
-		StrictImports: strictImports,
-		AllowRoot:     true,
-		lookups:       nil, // Lazily initialized when first used
-		variables:     nil,
-		properties:    nil,
-		rulesets:      nil,
+	r := GetRulesetFromPool()
+	r.Node = node
+	r.StrictImports = strictImports
+	r.AllowRoot = true
+
+	// Handle selectors - keep nil if input is nil (tests expect this)
+	if selectors == nil {
+		r.Selectors = nil
+	} else if len(selectors) == 0 {
+		r.Selectors = r.Selectors[:0]
+	} else {
+		// Copy selectors to pooled slice
+		if cap(r.Selectors) < len(selectors) {
+			r.Selectors = make([]any, len(selectors))
+		} else {
+			r.Selectors = r.Selectors[:len(selectors)]
+		}
+		copy(r.Selectors, selectors)
+	}
+
+	// Handle rules - keep nil if input is nil (tests expect this)
+	if rules == nil {
+		r.Rules = nil
+	} else if len(rules) == 0 {
+		r.Rules = r.Rules[:0]
+	} else {
+		// Copy rules to pooled slice
+		if cap(r.Rules) < len(rules) {
+			r.Rules = make([]any, len(rules))
+		} else {
+			r.Rules = r.Rules[:len(rules)]
+		}
+		copy(r.Rules, rules)
 	}
 
 	r.CopyVisibilityInfo(visibilityInfo)
-	r.SetParent(selectors, r.Node)
-	r.SetParent(rules, r.Node)
+	r.SetParent(r.Selectors, r.Node)
+	r.SetParent(r.Rules, r.Node)
 
 	// Handle optional parse functions
 	if len(parseFuncs) > 0 {

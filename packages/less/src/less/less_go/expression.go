@@ -15,16 +15,27 @@ type Expression struct {
 	ParensInOp bool
 }
 
-// NewExpression creates a new Expression instance
+// NewExpression creates a new Expression instance.
+// OPTIMIZATION: Uses sync.Pool to reuse Expression objects and reduce GC pressure.
+// Call Release() when the Expression is no longer needed to return it to the pool.
 func NewExpression(value []any, noSpacing bool) (*Expression, error) {
 	if value == nil {
 		return nil, fmt.Errorf("Expression requires an array parameter")
 	}
-	return &Expression{
-		Node:      NewNode(),
-		Value:     value,
-		NoSpacing: noSpacing,
-	}, nil
+
+	e := GetExpressionFromPool()
+	e.Node = NewNode()
+	e.NoSpacing = noSpacing
+
+	// Copy value to pooled slice
+	if cap(e.Value) < len(value) {
+		e.Value = make([]any, len(value))
+	} else {
+		e.Value = e.Value[:len(value)]
+	}
+	copy(e.Value, value)
+
+	return e, nil
 }
 
 // Accept visits the array of values with a visitor
