@@ -59,6 +59,7 @@ type Eval struct {
 
 	// Internal state
 	Frames           []any
+	parserFrames     []ParserFrame // Cached typed frames to avoid allocation in GetFrames()
 	CalcStack        []bool
 	ParensStack      []bool
 	InCalc           bool
@@ -73,14 +74,30 @@ type Eval struct {
 	LazyPluginBridge *LazyNodeJSPluginBridge // Lazy bridge for deferred initialization
 }
 
+// buildParserFramesCache builds the cached []ParserFrame slice from []any frames.
+// This avoids repeated allocation and type assertion in GetFrames().
+func buildParserFramesCache(frames []any) []ParserFrame {
+	if len(frames) == 0 {
+		return nil
+	}
+	parserFrames := make([]ParserFrame, 0, len(frames))
+	for _, frame := range frames {
+		if parserFrame, ok := frame.(ParserFrame); ok {
+			parserFrames = append(parserFrames, parserFrame)
+		}
+	}
+	return parserFrames
+}
+
 // NewEval creates a new Eval context with the given options and frames
 func NewEval(options map[string]any, frames []any) *Eval {
 	e := &Eval{
-		Frames:       frames,
-		MathOn:       true,
+		Frames:         frames,
+		parserFrames:   buildParserFramesCache(frames),
+		MathOn:         true,
 		ImportantScope: []map[string]any{},
-		NumPrecision: 0, // Default to 0 to preserve full JavaScript number precision
-		RewriteUrls: RewriteUrlsOff, // Default to OFF to match JavaScript default (false)
+		NumPrecision:   0, // Default to 0 to preserve full JavaScript number precision
+		RewriteUrls:    RewriteUrlsOff, // Default to OFF to match JavaScript default (false)
 	}
 	copyFromOriginal(options, e)
 	if paths, ok := options["paths"].(string); ok {
@@ -108,6 +125,7 @@ func NewEvalFromEval(parent *Eval, frames []any) *Eval {
 		RewriteUrls:       parent.RewriteUrls,
 		NumPrecision:      parent.NumPrecision,
 		Frames:            frames,
+		parserFrames:      buildParserFramesCache(frames),
 		CalcStack:         nil, // Fresh stacks for new context
 		ParensStack:       nil,
 		InCalc:            false,
@@ -295,15 +313,16 @@ func (e *Eval) IsInCalc() bool {
 	return e.InCalc
 }
 
-// GetFrames returns the evaluation frames (EvalContext interface)
+// GetFrames returns the evaluation frames (EvalContext interface).
+// Returns the cached []ParserFrame slice - callers must NOT modify the returned slice.
+// This matches JavaScript behavior where context.frames returns a direct reference.
 func (e *Eval) GetFrames() []ParserFrame {
-	frames := make([]ParserFrame, 0, len(e.Frames))
-	for _, frame := range e.Frames {
-		if parserFrame, ok := frame.(ParserFrame); ok {
-			frames = append(frames, parserFrame)
-		}
+	// Check if cache is valid (same length as source Frames)
+	// This handles cases where Frames are modified directly after construction
+	if len(e.parserFrames) != len(e.Frames) {
+		e.parserFrames = buildParserFramesCache(e.Frames)
 	}
-	return frames
+	return e.parserFrames
 }
 
 // GetImportantScope returns the important scope stack (EvalContext interface)
