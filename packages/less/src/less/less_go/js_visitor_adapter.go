@@ -8,6 +8,11 @@ import (
 
 // JSVisitorAdapter adapts a runtime.JSVisitor to work with the PluginManager's
 // visitor system. It implements the interfaces expected by transform_tree.go.
+//
+// NOTE: This is part of an EXPERIMENTAL binary buffer visitor approach that is
+// NOT currently used in production. The actual visitor execution uses the JSON
+// pathway via NodeJSPluginBridge.RunPreEvalVisitorsJSON(). See the comment on
+// applyReplacements() for more details.
 type JSVisitorAdapter struct {
 	visitor *runtime.JSVisitor
 	runtime *runtime.NodeJSRuntime
@@ -64,35 +69,41 @@ func (a *JSVisitorAdapter) Run(root any) any {
 
 // applyReplacements applies the node replacements from the visitor result
 // to the Go AST. This modifies the tree based on what the JS visitor changed.
+//
+// NOTE: This is an EXPERIMENTAL binary buffer approach that is NOT currently used.
+// The production visitor system uses NodeJSPluginBridge.RunPreEvalVisitorsJSON()
+// which handles visitor execution and AST modification entirely in Node.js,
+// returning the complete modified AST as JSON. That approach works correctly
+// and all plugin tests pass.
+//
+// This binary buffer approach was designed as a potential optimization to avoid
+// full AST serialization, but was never completed. The JSVisitorAdapter and
+// JSVisitorRegistry are only used in test files, not in production code.
+//
+// If performance optimization via binary buffer visitors is needed in the future,
+// implement this method by:
+// 1. Building a map of node indices to actual Go AST nodes during serialization
+// 2. For each replacement, finding the parent node and replacing the child at the given index
+// 3. Deserializing replacement data back into Go AST node types
 func (a *JSVisitorAdapter) applyReplacements(root any, replacements []runtime.VisitorReplacementSet) any {
-	// For now, we'll implement a basic replacement strategy.
-	// Full implementation would need to traverse the AST and find nodes by index.
-	//
-	// The replacement structure is:
-	// - VisitorReplacementSet contains a visitorIndex and list of NodeReplacements
-	// - NodeReplacement contains parentIndex, childIndex, and replacement data
-	//
-	// To apply replacements properly, we need to:
-	// 1. Build a map of node indices to actual Go nodes
-	// 2. For each replacement, find the parent and replace the child at the given index
-	//
-	// This is a complex operation that depends on the AST structure.
-	// For now, we'll just return the root unchanged and log replacements.
-
 	for _, set := range replacements {
 		for _, repl := range set.Replacements {
-			// Log for debugging
+			// Log for debugging - in production, replacements would be applied here
 			fmt.Printf("[JSVisitorAdapter] Replacement requested: parent=%d, child=%d, type=%T\n",
 				repl.ParentIndex, repl.ChildIndex, repl.Replacement)
 		}
 	}
 
-	// TODO: Implement actual replacement logic once we have AST traversal support
+	// Binary buffer replacement logic not implemented - see NOTE above.
+	// Production code uses the JSON pathway instead.
 	return root
 }
 
 // JSVisitorRegistry manages JavaScript visitors registered by plugins.
 // It integrates with the PluginManager to provide visitors to transform_tree.
+//
+// NOTE: This is part of an EXPERIMENTAL binary buffer visitor approach that is
+// NOT currently used in production. See JSVisitorAdapter for details.
 type JSVisitorRegistry struct {
 	runtime  *runtime.NodeJSRuntime
 	manager  *runtime.VisitorManager
