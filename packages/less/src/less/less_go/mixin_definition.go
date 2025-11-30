@@ -200,21 +200,33 @@ func (md *MixinDefinition) EvalParams(context any, mixinEnv any, args []any, eva
 	}
 
 	// Create new evaluation context
-	newFrames := []any{frame}
+	// Pre-calculate frames capacity to avoid reallocation
+	var newFrames []any
 	if env, ok := mixinEnv.(map[string]any); ok {
 		if frames, ok := env["frames"].([]any); ok {
+			newFrames = make([]any, 1, 1+len(frames))
+			newFrames[0] = frame
 			newFrames = append(newFrames, frames...)
+		} else {
+			newFrames = []any{frame}
 		}
+	} else {
+		newFrames = []any{frame}
 	}
-	
-	evalContext := map[string]any{
-		"frames": newFrames,
-	}
+
+	// Pre-allocate evalContext with capacity based on mixinEnv size
+	var evalContext map[string]any
 	if env, ok := mixinEnv.(map[string]any); ok {
+		evalContext = make(map[string]any, len(env))
+		evalContext["frames"] = newFrames
 		for k, v := range env {
 			if k != "frames" {
 				evalContext[k] = v
 			}
+		}
+	} else {
+		evalContext = map[string]any{
+			"frames": newFrames,
 		}
 	}
 
@@ -341,7 +353,7 @@ func (md *MixinDefinition) EvalParams(context any, mixinEnv any, args []any, eva
 				// fmt.Printf("DEBUG: Parameter name: %s\n", name)
 				
 				if variadic, ok := paramMap["variadic"].(bool); ok && variadic {
-					varargs = []any{}
+					varargs = make([]any, 0, argsLength-argIndex)
 					for j := argIndex; j < argsLength; j++ {
 						if argMap, ok := args[j].(map[string]any); ok {
 							argValue := argMap["value"]
@@ -636,10 +648,11 @@ func (md *MixinDefinition) EvalCall(context any, args []any, important bool) (*R
 	// Create mixin environment
 	// NOTE: Do NOT copy mediaBlocks/mediaPath from parent context, matching JavaScript's
 	// contexts.Eval which doesn't include them in evalCopyProperties
-	mixinEnv := map[string]any{
-		"frames": mixinFrames,
-	}
+	// Pre-allocate mixinEnv with capacity based on context size
+	var mixinEnv map[string]any
 	if ctx, ok := context.(map[string]any); ok {
+		mixinEnv = make(map[string]any, len(ctx))
+		mixinEnv["frames"] = mixinFrames
 		for k, v := range ctx {
 			if k != "frames" && k != "mediaBlocks" && k != "mediaPath" {
 				mixinEnv[k] = v
@@ -648,7 +661,13 @@ func (md *MixinDefinition) EvalCall(context any, args []any, important bool) (*R
 	} else if evalCtx, ok := context.(*Eval); ok {
 		// Efficiently copy Eval fields to map, but NOT mediaBlocks/mediaPath
 		// (matching JavaScript's contexts.Eval which doesn't include them in evalCopyProperties)
+		mixinEnv = make(map[string]any, 8) // Typical Eval context has ~8 fields
+		mixinEnv["frames"] = mixinFrames
 		evalCtx.CopyEvalToMap(mixinEnv, false)
+	} else {
+		mixinEnv = map[string]any{
+			"frames": mixinFrames,
+		}
 	}
 
 	// Evaluate parameters
@@ -710,13 +729,17 @@ func (md *MixinDefinition) EvalCall(context any, args []any, important bool) (*R
 	}
 
 	// Evaluate ruleset with proper context
-	evalFrames := []any{md, frame}
+	// Pre-allocate evalFrames with capacity based on mixinFrames length
+	evalFrames := make([]any, 2, 2+len(mixinFrames))
+	evalFrames[0] = md
+	evalFrames[1] = frame
 	evalFrames = append(evalFrames, mixinFrames...)
-	
-	evalContext := map[string]any{
-		"frames": evalFrames,
-	}
+
+	// Pre-allocate evalContext with capacity based on context size
+	var evalContext map[string]any
 	if ctx, ok := context.(map[string]any); ok {
+		evalContext = make(map[string]any, len(ctx))
+		evalContext["frames"] = evalFrames
 		for k, v := range ctx {
 			// Skip "frames" (already set), and "mediaBlocks"/"mediaPath" which should NOT be
 			// inherited. In JavaScript's contexts.Eval constructor, mediaBlocks and mediaPath
@@ -730,7 +753,13 @@ func (md *MixinDefinition) EvalCall(context any, args []any, important bool) (*R
 	} else if evalCtx, ok := context.(*Eval); ok {
 		// Efficiently copy Eval fields to map (with closures for compatibility)
 		// Pass false for includeMediaContext to NOT copy mediaBlocks/mediaPath
+		evalContext = make(map[string]any, 8) // Typical Eval context has ~8 fields
+		evalContext["frames"] = evalFrames
 		evalCtx.CopyEvalToMap(evalContext, false)
+	} else {
+		evalContext = map[string]any{
+			"frames": evalFrames,
+		}
 	}
 
 	// Debug: trace evalContext mediaPath after copy
@@ -910,12 +939,15 @@ func (md *MixinDefinition) MatchCondition(args []any, context any) bool {
 			fmt.Printf("[TRACE] MixinDefinition.Eval: cloned Eval context, MathOn=%v\n", newEvalCtx.MathOn)
 		}
 	} else {
-		// Map context - copy properties
-		mixinEnvMap := make(map[string]any)
+		// Map context - copy properties with pre-allocated capacity
+		var mixinEnvMap map[string]any
 		if ctx, ok := context.(map[string]any); ok {
+			mixinEnvMap = make(map[string]any, len(ctx)+1)
 			for k, v := range ctx {
 				mixinEnvMap[k] = v
 			}
+		} else {
+			mixinEnvMap = make(map[string]any, 1)
 		}
 		mixinEnvMap["frames"] = mixinFrames
 		mixinEnv = mixinEnvMap
@@ -951,15 +983,19 @@ func (md *MixinDefinition) MatchCondition(args []any, context any) bool {
 		newEvalCtx.Frames = evalFrames
 		evalContext = newEvalCtx
 	} else {
-		// Map context
-		evalContextMap := map[string]any{
-			"frames": evalFrames,
-		}
+		// Map context - pre-allocate with capacity based on context size
+		var evalContextMap map[string]any
 		if ctx, ok := context.(map[string]any); ok {
+			evalContextMap = make(map[string]any, len(ctx))
+			evalContextMap["frames"] = evalFrames
 			for k, v := range ctx {
 				if k != "frames" {
 					evalContextMap[k] = v
 				}
+			}
+		} else {
+			evalContextMap = map[string]any{
+				"frames": evalFrames,
 			}
 		}
 		evalContext = evalContextMap
