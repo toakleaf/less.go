@@ -66,7 +66,8 @@ for (let i = 0; i < ITERATIONS; i++) {
 
     try {
         // Run the pre-compiled binary directly
-        const goOutput = execSync(`${goBinaryPath} -test.bench=BenchmarkLargeSuite -test.benchmem -test.benchtime=1x`, {
+        // -test.run=^$ skips all regular tests, running only the benchmark
+        const goOutput = execSync(`${goBinaryPath} -test.run=^$ -test.bench=BenchmarkLargeSuite -test.benchmem -test.benchtime=1x`, {
             encoding: 'utf8',
             cwd: path.join(__dirname, '..', 'packages/less/src/less/less_go'),
             maxBuffer: 10 * 1024 * 1024,
