@@ -1956,8 +1956,10 @@ func (p *Parsers) AtRule() any {
 			if !hasBlock && p.parser.parserInput.CurrentChar() != ';' {
 				p.parser.error(fmt.Sprintf("%s rule is missing block or ending semi-colon", name), "")
 			}
+		} else if anon, ok := value.(*Anonymous); ok && anon.Value == "" {
+			// Match JavaScript behavior: if value has empty content, treat as nil
+			value = nil
 		}
-		// TODO: Implement proper value content checking when value is not nil
 	}
 
 	if hasBlock {
