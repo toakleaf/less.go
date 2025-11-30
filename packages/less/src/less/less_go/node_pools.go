@@ -47,6 +47,23 @@ var declarationPool = sync.Pool{
 	},
 }
 
+// elementPool is a pool for reusing Element objects.
+var elementPool = sync.Pool{
+	New: func() any {
+		return &Element{}
+	},
+}
+
+// unitPool is a pool for reusing Unit objects.
+var unitPool = sync.Pool{
+	New: func() any {
+		return &Unit{
+			Numerator:   make([]string, 0, 4),
+			Denominator: make([]string, 0, 2),
+		}
+	},
+}
+
 func GetNodeFromPool() *Node {
 	return nodePool.Get().(*Node)
 }
@@ -217,4 +234,62 @@ func ReleaseDeclaration(d *Declaration) {
 
 func (d *Declaration) Release() {
 	ReleaseDeclaration(d)
+}
+
+func resetElement(e *Element) {
+	e.Node = nil
+	e.Combinator = nil
+	e.Value = nil
+	e.IsVariable = false
+}
+
+func GetElementFromPool() *Element {
+	e := elementPool.Get().(*Element)
+	resetElement(e)
+	return e
+}
+
+func ReleaseElement(e *Element) {
+	if e == nil {
+		return
+	}
+	resetElement(e)
+	elementPool.Put(e)
+}
+
+func (e *Element) Release() {
+	ReleaseElement(e)
+}
+
+func resetUnit(u *Unit) {
+	u.Node = nil
+	// Clear slices but keep capacity
+	for i := range u.Numerator {
+		u.Numerator[i] = ""
+	}
+	u.Numerator = u.Numerator[:0]
+
+	for i := range u.Denominator {
+		u.Denominator[i] = ""
+	}
+	u.Denominator = u.Denominator[:0]
+	u.BackupUnit = ""
+}
+
+func GetUnitFromPool() *Unit {
+	u := unitPool.Get().(*Unit)
+	resetUnit(u)
+	return u
+}
+
+func ReleaseUnit(u *Unit) {
+	if u == nil {
+		return
+	}
+	resetUnit(u)
+	unitPool.Put(u)
+}
+
+func (u *Unit) Release() {
+	ReleaseUnit(u)
 }

@@ -212,6 +212,7 @@ func (d *Dimension) Operate(context any, op string, other *Dimension) *Dimension
 
 	if op == "+" || op == "-" {
 		if len(unit.Numerator) == 0 && len(unit.Denominator) == 0 {
+			unit.Release() // Release empty clone before replacing
 			unit = other.Unit.Clone()
 			if d.Unit.BackupUnit != "" {
 				unit.BackupUnit = d.Unit.BackupUnit
@@ -279,17 +280,28 @@ func (d *Dimension) Compare(other any) *int {
 		return nil
 	}
 	var a, b *Dimension
+	var unifiedA, unifiedB *Unit // Track temp units for release
 	if d.Unit.IsEmpty() || o.Unit.IsEmpty() {
 		a = d
 		b = o
 	} else {
 		a = d.Unify()
 		b = o.Unify()
+		unifiedA = a.Unit
+		unifiedB = b.Unit
 		if a.Unit.Compare(b.Unit) != 0 {
+			unifiedA.Release()
+			unifiedB.Release()
 			return nil
 		}
 	}
 	cmp := NumericCompare(a.Value, b.Value)
+	if unifiedA != nil {
+		unifiedA.Release()
+	}
+	if unifiedB != nil {
+		unifiedB.Release()
+	}
 	return &cmp
 }
 
