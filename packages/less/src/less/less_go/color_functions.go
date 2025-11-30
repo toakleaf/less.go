@@ -60,6 +60,7 @@ func RegisterColorFunctions(registry *Registry) {
 
 // init registers color functions with the default registry
 func init() {
+	initWrappedColorFunctions()
 	RegisterColorFunctions(DefaultRegistry)
 }
 
@@ -1320,11 +1321,19 @@ func (w *ColorFunctionWrapper) NeedsEvalArgs() bool {
 	}
 }
 
-// GetWrappedColorFunctions returns color functions wrapped for registry
-func GetWrappedColorFunctions() map[string]interface{} {
-	wrapped := make(map[string]interface{})
+// wrappedColorFunctions holds the pre-computed wrapped color functions map.
+// Initialized once at package init time for efficiency.
+var wrappedColorFunctions map[string]interface{}
+
+func initWrappedColorFunctions() {
+	wrappedColorFunctions = make(map[string]interface{})
 	for name, fn := range GetColorFunctions() {
-		wrapped[name] = &ColorFunctionWrapper{name: name, fn: fn}
+		wrappedColorFunctions[name] = &ColorFunctionWrapper{name: name, fn: fn}
 	}
-	return wrapped
+}
+
+// GetWrappedColorFunctions returns color functions wrapped for registry.
+// The map is pre-computed at init time and cached for efficiency.
+func GetWrappedColorFunctions() map[string]interface{} {
+	return wrappedColorFunctions
 }

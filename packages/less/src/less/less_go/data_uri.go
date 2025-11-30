@@ -199,13 +199,23 @@ func GetDataURIFunctions() map[string]any {
 	}
 }
 
-func GetWrappedDataURIFunctions() map[string]interface{} {
-	return map[string]interface{}{
+// wrappedDataURIFunctions holds the pre-computed wrapped data-uri functions map.
+// Initialized once at package init time for efficiency.
+var wrappedDataURIFunctions map[string]interface{}
+
+func init() {
+	wrappedDataURIFunctions = map[string]interface{}{
 		"data-uri":     &DataURIFunctionWrapper{},
 		"image-size":   &ImageSizeFunctionWrapper{},
 		"image-width":  &ImageWidthFunctionWrapper{},
 		"image-height": &ImageHeightFunctionWrapper{},
 	}
+}
+
+// GetWrappedDataURIFunctions returns data-uri functions wrapped for registry.
+// The map is pre-computed at init time and cached for efficiency.
+func GetWrappedDataURIFunctions() map[string]interface{} {
+	return wrappedDataURIFunctions
 }
 
 type DataURIFunctionWrapper struct{}

@@ -28,11 +28,16 @@ func (tf *TypesFunctions) GetFunctions() map[string]any {
 	}
 }
 
-// GetWrappedTypesFunctions returns type functions wrapped in FunctionDefinition adapters
-func GetWrappedTypesFunctions() map[string]interface{} {
-	tf := &TypesFunctions{}
+// wrappedTypesFunctions holds the pre-computed wrapped types functions map.
+// Initialized once at package init time for efficiency.
+var wrappedTypesFunctions map[string]interface{}
 
-	return map[string]interface{}{
+// typesFunctionsInstance is the singleton TypesFunctions instance used by the wrapped functions.
+var typesFunctionsInstance = &TypesFunctions{}
+
+func init() {
+	tf := typesFunctionsInstance
+	wrappedTypesFunctions = map[string]interface{}{
 		"isruleset":    &TypeFunctionDef{name: "isruleset", fn: tf.IsRuleset, argCount: 1},
 		"iscolor":      &TypeFunctionDef{name: "iscolor", fn: tf.IsColor, argCount: 1},
 		"isnumber":     &TypeFunctionDef{name: "isnumber", fn: tf.IsNumber, argCount: 1},
@@ -46,6 +51,12 @@ func GetWrappedTypesFunctions() map[string]interface{} {
 		"unit":         &TypeFunctionDef{name: "unit", fn: tf.Unit, minArgCount: 1, maxArgCount: 2},
 		"get-unit":     &TypeFunctionDef{name: "get-unit", fn: tf.GetUnit, argCount: 1},
 	}
+}
+
+// GetWrappedTypesFunctions returns type functions wrapped in FunctionDefinition adapters.
+// The map is pre-computed at init time and cached for efficiency.
+func GetWrappedTypesFunctions() map[string]interface{} {
+	return wrappedTypesFunctions
 }
 
 // TypeFunctionDef wraps type functions to implement FunctionDefinition

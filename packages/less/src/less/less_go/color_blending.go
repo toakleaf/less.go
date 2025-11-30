@@ -161,19 +161,28 @@ func wrapBlendFunc(fn func(*Color, *Color) *Color) func(any, any) any {
 	}
 }
 
-func GetWrappedColorBlendingFunctions() map[string]interface{} {
+// wrappedColorBlendingFunctions holds the pre-computed wrapped color blending functions map.
+// Initialized once at package init time for efficiency.
+var wrappedColorBlendingFunctions map[string]interface{}
+
+func init() {
 	// Get the raw blend functions
 	blendFuncs := GetColorBlendingFunctions()
 
 	// Wrap each blend function to handle any -> *Color conversion
-	wrapped := make(map[string]interface{})
+	wrappedColorBlendingFunctions = make(map[string]interface{})
 	for name, fn := range blendFuncs {
 		if blendFn, ok := fn.(func(*Color, *Color) *Color); ok {
-			wrapped[name] = &ColorFunctionWrapper{
+			wrappedColorBlendingFunctions[name] = &ColorFunctionWrapper{
 				name: name,
 				fn:   wrapBlendFunc(blendFn),
 			}
 		}
 	}
-	return wrapped
+}
+
+// GetWrappedColorBlendingFunctions returns color blending functions wrapped for registry.
+// The map is pre-computed at init time and cached for efficiency.
+func GetWrappedColorBlendingFunctions() map[string]interface{} {
+	return wrappedColorBlendingFunctions
 }

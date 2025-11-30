@@ -161,13 +161,21 @@ func buildSvgContext(ctx *Context) SvgContext {
 	return svgCtx
 }
 
-// GetWrappedSvgFunctions returns svg functions wrapped with FunctionDefinition interface
-func GetWrappedSvgFunctions() map[string]interface{} {
-	wrappedFunctions := make(map[string]interface{})
+// wrappedSvgFunctions holds the pre-computed wrapped svg functions map.
+// Initialized once at package init time for efficiency.
+var wrappedSvgFunctions map[string]interface{}
+
+func init() {
+	wrappedSvgFunctions = make(map[string]interface{})
 	for name := range SvgFunctions {
-		wrappedFunctions[name] = &SvgFunctionWrapper{name: name}
+		wrappedSvgFunctions[name] = &SvgFunctionWrapper{name: name}
 	}
-	return wrappedFunctions
+}
+
+// GetWrappedSvgFunctions returns svg functions wrapped with FunctionDefinition interface.
+// The map is pre-computed at init time and cached for efficiency.
+func GetWrappedSvgFunctions() map[string]interface{} {
+	return wrappedSvgFunctions
 }
 
 // SvgContext represents the context needed for svg function execution

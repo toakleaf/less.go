@@ -111,17 +111,25 @@ func wrapPercentage(fn func(n *Dimension) (*Dimension, error)) func(args ...inte
 	}
 }
 
+// wrappedNumberFunctions holds the pre-computed wrapped number functions map.
+// Initialized once at package init time for efficiency.
+var wrappedNumberFunctions map[string]interface{}
+
+func initWrappedNumberFunctions() {
+	wrappedNumberFunctions = make(map[string]interface{})
+	wrappedNumberFunctions["min"] = &NumberFunctionWrapper{name: "min", fn: wrapMinMax(Min)}
+	wrappedNumberFunctions["max"] = &NumberFunctionWrapper{name: "max", fn: wrapMinMax(Max)}
+	wrappedNumberFunctions["convert"] = &NumberFunctionWrapper{name: "convert", fn: wrapConvert(Convert)}
+	wrappedNumberFunctions["pi"] = &NumberFunctionWrapper{name: "pi", fn: wrapPi(Pi)}
+	wrappedNumberFunctions["mod"] = &NumberFunctionWrapper{name: "mod", fn: wrapMod(Mod)}
+	wrappedNumberFunctions["pow"] = &NumberFunctionWrapper{name: "pow", fn: wrapPow(Pow)}
+	wrappedNumberFunctions["percentage"] = &NumberFunctionWrapper{name: "percentage", fn: wrapPercentage(Percentage)}
+}
+
+// GetWrappedNumberFunctions returns number functions wrapped for registry.
+// The map is pre-computed at init time and cached for efficiency.
 func GetWrappedNumberFunctions() map[string]interface{} {
-	wrappedFunctions := make(map[string]interface{})
-	wrappedFunctions["min"] = &NumberFunctionWrapper{name: "min", fn: wrapMinMax(Min)}
-	wrappedFunctions["max"] = &NumberFunctionWrapper{name: "max", fn: wrapMinMax(Max)}
-	wrappedFunctions["convert"] = &NumberFunctionWrapper{name: "convert", fn: wrapConvert(Convert)}
-	wrappedFunctions["pi"] = &NumberFunctionWrapper{name: "pi", fn: wrapPi(Pi)}
-	wrappedFunctions["mod"] = &NumberFunctionWrapper{name: "mod", fn: wrapMod(Mod)}
-	wrappedFunctions["pow"] = &NumberFunctionWrapper{name: "pow", fn: wrapPow(Pow)}
-	wrappedFunctions["percentage"] = &NumberFunctionWrapper{name: "percentage", fn: wrapPercentage(Percentage)}
-	
-	return wrappedFunctions
+	return wrappedNumberFunctions
 }
 
 func minMax(isMin bool, args []interface{}) (interface{}, error) {
@@ -375,6 +383,7 @@ func joinStrings(strs []string, separator string) string {
 }
 
 func init() {
+	initWrappedNumberFunctions()
 	for name, fn := range GetWrappedNumberFunctions() {
 		DefaultRegistry.Add(name, fn)
 	}
