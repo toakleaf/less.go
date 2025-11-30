@@ -145,6 +145,12 @@ func TestConditionEval(t *testing.T) {
 	}
 }
 
+// createTestDimension creates a Dimension for testing comparison operations
+func createTestDimension(value float64) *Dimension {
+	dim, _ := NewDimension(value, nil)
+	return dim
+}
+
 // ConditionMockEvaluable is a simple mock that implements the Eval interface
 type ConditionMockEvaluable struct {
 	value any
