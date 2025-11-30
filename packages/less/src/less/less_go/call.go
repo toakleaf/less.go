@@ -255,7 +255,7 @@ func (c *DefaultParserFunctionCaller) createMathEnabledContext() (any, bool) {
 	// Try to create a map context with math enabled
 	if mapCtx, ok := c.context.(*MapEvalContext); ok {
 		// Clone the context and enable math
-		newCtx := make(map[string]any)
+		newCtx := make(map[string]any, len(mapCtx.ctx))
 		for k, v := range mapCtx.ctx {
 			newCtx[k] = v
 		}
