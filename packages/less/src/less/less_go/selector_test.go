@@ -376,7 +376,10 @@ func TestSelector(t *testing.T) {
 		})
 
 		t.Run("should evaluate complex selector elements", func(t *testing.T) {
-			sel, _ := NewSelector([]*Element{e1, e2}, nil, nil, mockIndex, mockFileInfo, nil)
+			// Create fresh elements to avoid shared state issues
+			freshE1 := NewElement("", "div", false, mockIndex, mockFileInfo, nil)
+			freshE2 := NewElement(":", "hover", false, mockIndex, mockFileInfo, nil)
+			sel, _ := NewSelector([]*Element{freshE1, freshE2}, nil, nil, mockIndex, mockFileInfo, nil)
 			res, err := sel.Eval(map[string]any{})
 			if err != nil {
 				t.Fatalf("Unexpected error: %v", err)
