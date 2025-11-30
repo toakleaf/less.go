@@ -797,7 +797,6 @@ func TestQueryInParens(t *testing.T) {
 }
 
 type TestVisitor struct {
-type TestVisitor struct {
 	visit func(any) any
 }
 
