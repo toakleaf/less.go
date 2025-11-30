@@ -31,7 +31,6 @@ type Value struct {
 	Value []any
 }
 
-// NewValue creates a new Value instance
 func NewValue(value any) (*Value, error) {
 	if value == nil {
 		return nil, &ValueError{Message: "Value requires an array argument"}
@@ -53,17 +52,14 @@ func NewValue(value any) (*Value, error) {
 	return v, nil
 }
 
-// Type returns the type of the node
 func (v *Value) Type() string {
 	return "Value"
 }
 
-// GetType returns the type of the node
 func (v *Value) GetType() string {
 	return "Value"
 }
 
-// GetTypeIndex returns the type index for visitor pattern
 func (v *Value) GetTypeIndex() int {
 	return GetTypeIndexForNodeType("Value")
 }
@@ -73,7 +69,6 @@ func (v *Value) GetValue() []any {
 	return v.Value
 }
 
-// Accept visits the node with a visitor
 func (v *Value) Accept(visitor any) {
 	if v.Value != nil {
 		// Try variadic signature first (matching Visitor.VisitArray)
@@ -86,7 +81,6 @@ func (v *Value) Accept(visitor any) {
 	}
 }
 
-// Eval evaluates the value node
 func (v *Value) Eval(context any) (any, error) {
 	if os.Getenv("LESS_GO_DEBUG") == "1" {
 		if len(v.Value) > 0 {
@@ -130,7 +124,6 @@ func (v *Value) Eval(context any) (any, error) {
 		return v.Value[0], nil
 	}
 
-	// Evaluate each value in the array
 	evaluatedValues := make([]any, len(v.Value))
 	for i, val := range v.Value {
 		// Check for Variable specifically first
@@ -161,7 +154,6 @@ func (v *Value) Eval(context any) (any, error) {
 	return newValue, nil
 }
 
-// GenCSS generates CSS representation
 func (v *Value) GenCSS(context any, output *CSSOutput) {
 	if output == nil {
 		return
@@ -193,7 +185,6 @@ func (v *Value) GenCSS(context any, output *CSSOutput) {
 	}
 }
 
-// ToCSS generates CSS string representation
 func (v *Value) ToCSS(context any) string {
 	var strs []string
 	output := &CSSOutput{

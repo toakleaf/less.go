@@ -78,7 +78,6 @@ type Ruleset struct {
 	LoadedPluginFunctions map[string]bool
 }
 
-// NewRuleset creates a new Ruleset instance.
 // OPTIMIZATION: Uses sync.Pool to reuse Ruleset objects and reduce GC pressure.
 // Call Release() when the Ruleset is no longer needed to return it to the pool.
 func NewRuleset(selectors []any, rules []any, strictImports bool, visibilityInfo map[string]any, parseFuncs ...any) *Ruleset {
@@ -159,17 +158,14 @@ func NewRuleset(selectors []any, rules []any, strictImports bool, visibilityInfo
 	return r
 }
 
-// Type returns the type of the node
 func (r *Ruleset) Type() string {
 	return "Ruleset"
 }
 
-// GetType returns the type of the node
 func (r *Ruleset) GetType() string {
 	return "Ruleset"
 }
 
-// GetTypeIndex returns the type index for visitor pattern
 func (r *Ruleset) GetTypeIndex() int {
 	// Return from Node field if set, otherwise get from registry
 	if r.Node != nil && r.Node.TypeIndex != 0 {
@@ -178,12 +174,10 @@ func (r *Ruleset) GetTypeIndex() int {
 	return GetTypeIndexForNodeType("Ruleset")
 }
 
-// IsRuleset returns true (this is a ruleset)
 func (r *Ruleset) IsRuleset() bool {
 	return true
 }
 
-// IsRulesetLike returns true (this is ruleset-like)
 func (r *Ruleset) IsRulesetLike() bool {
 	return true
 }
@@ -251,12 +245,10 @@ func (r *Ruleset) ToCSSString(context any) string {
 
 // Interface methods required by JoinSelectorVisitor and ToCSSVisitor
 
-// GetRoot returns whether this is a root ruleset
 func (r *Ruleset) GetRoot() bool {
 	return r.Root
 }
 
-// SetRoot sets the root value for this ruleset
 func (r *Ruleset) SetRoot(value any) {
 	// Handle both bool and any types
 	oldRoot := r.Root
@@ -273,17 +265,15 @@ func (r *Ruleset) SetRoot(value any) {
 	}
 }
 
-// GetSelectors returns the selectors array
 func (r *Ruleset) GetSelectors() []any {
 	return r.Selectors
 }
 
-// SetSelectors sets the selectors array (required by JoinSelectorVisitor)
+// Required by JoinSelectorVisitor
 func (r *Ruleset) SetSelectors(selectors []any) {
 	r.Selectors = selectors
 }
 
-// GetPaths returns the paths array
 func (r *Ruleset) GetPaths() []any {
 	// Convert [][]any to []any for interface compatibility
 	if r.Paths == nil {
@@ -296,7 +286,6 @@ func (r *Ruleset) GetPaths() []any {
 	return result
 }
 
-// SetPaths sets the paths array
 func (r *Ruleset) SetPaths(paths []any) {
 	// Debug: trace when paths are set
 	if os.Getenv("LESS_GO_DEBUG_VIS") == "1" && len(r.Selectors) > 0 {
@@ -326,27 +315,24 @@ func (r *Ruleset) SetPaths(paths []any) {
 	}
 }
 
-// GetRules returns the rules array (required by ToCSSVisitor)
+// Required by ToCSSVisitor
 func (r *Ruleset) GetRules() []any {
 	return r.Rules
 }
 
-// SetRules sets the rules array (required by ToCSSVisitor)
+// Required by ToCSSVisitor
 func (r *Ruleset) SetRules(rules []any) {
 	r.Rules = rules
 }
 
-// GetFirstRoot returns whether this is the first root
 func (r *Ruleset) GetFirstRoot() bool {
 	return r.FirstRoot
 }
 
-// GetAllowImports returns the AllowImports value
 func (r *Ruleset) GetAllowImports() bool {
 	return r.AllowImports
 }
 
-// Accept visits the ruleset with a visitor
 func (r *Ruleset) Accept(visitor any) {
 	// Try the variadic bool version first (for the mock visitor)
 	if v, ok := visitor.(interface{ VisitArray([]any, ...bool) []any }); ok {
@@ -403,7 +389,6 @@ func (r *Ruleset) Accept(visitor any) {
 	}
 }
 
-// Eval evaluates the ruleset in the given context
 func (r *Ruleset) Eval(context any) (any, error) {
 	if context == nil {
 		return nil, fmt.Errorf("context is required for Ruleset.Eval")
@@ -1111,7 +1096,6 @@ func (r *Ruleset) EvalImports(context any) error {
 	return nil
 }
 
-// MakeImportant creates a new Ruleset with all rules marked as important
 func (r *Ruleset) MakeImportant() any {
 	var newRules []any
 	if r.Rules != nil {
@@ -1128,12 +1112,10 @@ func (r *Ruleset) MakeImportant() any {
 	return NewRuleset(r.Selectors, newRules, r.StrictImports, r.VisibilityInfo())
 }
 
-// MatchArgs checks if the ruleset matches the given arguments
 func (r *Ruleset) MatchArgs(args []any) bool {
 	return len(args) == 0
 }
 
-// MatchCondition checks if the ruleset matches the given condition
 func (r *Ruleset) MatchCondition(args []any, context any) bool {
 	if len(r.Selectors) == 0 {
 		return false
@@ -1352,7 +1334,6 @@ func hasNoVisibleContent(rs *Ruleset) bool {
 	return true
 }
 
-// ResetCache resets all cached values
 func (r *Ruleset) ResetCache() {
 	r.rulesets = nil
 	r.variables = nil
@@ -1362,7 +1343,6 @@ func (r *Ruleset) ResetCache() {
 	r.lookups = nil
 }
 
-// Variables returns a map of all variables in the ruleset
 func (r *Ruleset) Variables() map[string]any {
 	if r.variables != nil {
 		if os.Getenv("LESS_GO_DEBUG") == "1" {
@@ -1416,7 +1396,6 @@ func (r *Ruleset) Variables() map[string]any {
 	return r.variables
 }
 
-// Properties returns a map of all properties in the ruleset
 func (r *Ruleset) Properties() map[string][]any {
 	if r.properties != nil {
 		return r.properties
@@ -1481,7 +1460,6 @@ func (r *Ruleset) Properties() map[string][]any {
 	return r.properties
 }
 
-// Variable returns a specific variable by name
 func (r *Ruleset) Variable(name string) map[string]any {
 	vars := r.Variables()
 	if decl, exists := vars[name]; exists {
@@ -1527,7 +1505,6 @@ func (r *Ruleset) Variable(name string) map[string]any {
 	return nil
 }
 
-// Property returns a specific property by name
 func (r *Ruleset) Property(name string) []any {
 	props := r.Properties()
 	if decl, exists := props[name]; exists {
@@ -1542,24 +1519,22 @@ func (r *Ruleset) Property(name string) []any {
 	return nil
 }
 
-// HasVariable checks if a variable exists
 func (r *Ruleset) HasVariable(name string) bool {
 	vars := r.Variables()
 	_, exists := vars[name]
 	return exists
 }
 
-// HasVariables indicates whether this ruleset supports variables (matches JavaScript rules.variables)
+// Matches JavaScript rules.variables
 func (r *Ruleset) HasVariables() bool {
 	return true // Rulesets always support variables
 }
 
-// HasProperties indicates whether this ruleset supports properties (matches JavaScript rules.properties)
+// Matches JavaScript rules.properties
 func (r *Ruleset) HasProperties() bool {
 	return true // Rulesets always support properties
 }
 
-// LastDeclaration returns the last declaration in the ruleset
 func (r *Ruleset) LastDeclaration() any {
 	if r.Rules == nil {
 		return nil
@@ -1575,7 +1550,6 @@ func (r *Ruleset) LastDeclaration() any {
 	return nil
 }
 
-// ParseValue parses a declaration value
 func (r *Ruleset) ParseValue(toParse any) any {
 	if toParse == nil {
 		return nil
@@ -1593,7 +1567,6 @@ func (r *Ruleset) ParseValue(toParse any) any {
 	return r.transformDeclaration(toParse)
 }
 
-// transformDeclaration transforms a declaration by parsing its value if needed
 func (r *Ruleset) transformDeclaration(decl any) any {
 	if d, ok := decl.(*Declaration); ok {
 		// Match JavaScript logic: if (decl.value instanceof Anonymous && !decl.parsed)
@@ -1679,7 +1652,6 @@ func (r *Ruleset) transformDeclaration(decl any) any {
 	return decl
 }
 
-// Rulesets returns all nested rulesets
 func (r *Ruleset) Rulesets() []any {
 	if r.Rules == nil {
 		return []any{}
@@ -1696,7 +1668,6 @@ func (r *Ruleset) Rulesets() []any {
 	return filtered
 }
 
-// PrependRule adds a rule to the beginning of the rules list
 func (r *Ruleset) PrependRule(rule any) {
 	if r.Rules == nil {
 		r.Rules = []any{rule}
@@ -1822,7 +1793,6 @@ func (r *Ruleset) Find(selector any, self any, filter func(any) bool) []any {
 	return rules
 }
 
-// GenCSS generates CSS for the ruleset
 func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 	// Debug: trace all div ruleset entries to GenCSS
 	if os.Getenv("LESS_GO_DEBUG_VIS") == "1" && len(r.Selectors) > 0 {
@@ -2328,7 +2298,6 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 	}
 }
 
-// JoinSelectors joins multiple selectors with the current context
 func (r *Ruleset) JoinSelectors(paths *[][]any, context [][]any, selectors []any) {
 	for _, selector := range selectors {
 		r.JoinSelector(paths, context, selector)
@@ -2649,7 +2618,6 @@ func (r *Ruleset) JoinSelector(paths *[][]any, context [][]any, selector any) {
 	}
 }
 
-// GetDebugInfo returns debug information for the ruleset
 func GetDebugInfo(context map[string]any, ruleset *Ruleset, separator string) string {
 	if context == nil || ruleset == nil {
 		return ""
@@ -2701,18 +2669,15 @@ func GetDebugInfo(context map[string]any, ruleset *Ruleset, separator string) st
 	return result
 }
 
-// asComment formats debug info as a CSS comment
 func asComment(lineNumber int, fileName string) string {
 	return fmt.Sprintf("/* line %d, %s */", lineNumber, fileName)
 }
 
-// asMediaQuery formats debug info as a media query
 func asMediaQuery(lineNumber int, fileName string) string {
-	return fmt.Sprintf("@media -sass-debug-info{filename{font-family:file\\:\\/\\/%s}line{font-family:\\00003%d}}", 
+	return fmt.Sprintf("@media -sass-debug-info{filename{font-family:file\\:\\/\\/%s}line{font-family:\\00003%d}}",
 		strings.ReplaceAll(fileName, "/", "\\/"), lineNumber)
 }
 
-// Helper function to create debug context from ruleset
 func createDebugContextFromRuleset(context map[string]any, ruleset *Ruleset) map[string]any {
 	fileInfo := ruleset.FileInfo()
 	if fileInfo == nil {
@@ -2745,7 +2710,6 @@ func createDebugContextFromRuleset(context map[string]any, ruleset *Ruleset) map
 
 // Helper methods for array manipulation and rule checking
 
-// removeRuleAtIndex removes a rule at the specified index
 func (r *Ruleset) removeRuleAtIndex(rules []any, index int) []any {
 	newRules := make([]any, len(rules)-1)
 	copy(newRules, rules[:index])
@@ -2753,7 +2717,6 @@ func (r *Ruleset) removeRuleAtIndex(rules []any, index int) []any {
 	return newRules
 }
 
-// insertRuleAtIndex inserts a rule at the specified index
 func (r *Ruleset) insertRuleAtIndex(rules []any, index int, rule any) []any {
 	newRules := make([]any, len(rules)+1)
 	copy(newRules, rules[:index])
@@ -2762,7 +2725,7 @@ func (r *Ruleset) insertRuleAtIndex(rules []any, index int, rule any) []any {
 	return newRules
 }
 
-// shouldIncludeSubRule determines if a subrule should be included (matches JavaScript logic)
+// Matches JavaScript logic
 func (r *Ruleset) shouldIncludeSubRule(subRule any, parentRuleset *Ruleset) bool {
 	// Copy visibility info like JavaScript version
 	if subNode, ok := subRule.(interface{ CopyVisibilityInfo(map[string]any) }); ok {
@@ -2777,7 +2740,6 @@ func (r *Ruleset) shouldIncludeSubRule(subRule any, parentRuleset *Ruleset) bool
 	return true // Include everything else
 }
 
-// isVariableDeclaration checks if a rule is a variable declaration
 func (r *Ruleset) isVariableDeclaration(rule any) bool {
 	// Handle real Declaration types
 	if decl, ok := rule.(*Declaration); ok {
@@ -2811,12 +2773,12 @@ func flattenArray(arr []any) []any {
 	return result
 }
 
-// SetAllExtends sets the AllExtends field (used by ExtendFinderVisitor)
+// Used by ExtendFinderVisitor
 func (r *Ruleset) SetAllExtends(extends []*Extend) {
 	r.AllExtends = extends
 }
 
-// GetAllExtends returns the AllExtends field (used by ProcessExtendsVisitor)
+// Used by ProcessExtendsVisitor
 func (r *Ruleset) GetAllExtends() []*Extend {
 	return r.AllExtends
 }

@@ -17,8 +17,6 @@ func floatsAlmostEqual(a, b float64) bool {
 }
 
 func TestUnitConversionsMatchJS(t *testing.T) {
-	// Read the JavaScript file
-	// Since we're in packages/less/src/less/data, we need to go up to the less directory
 	jsPath := filepath.Join("..", "..", "less", "data", "unit-conversions.js")
 	jsContentBytes, err := os.ReadFile(jsPath)
 	if err != nil {
@@ -26,8 +24,6 @@ func TestUnitConversionsMatchJS(t *testing.T) {
 	}
 	jsContent := string(jsContentBytes)
 
-	// Extract the JSON-like object content from the JavaScript file
-	// Remove "export default ", leading/trailing whitespace, and the final semicolon
 	re := regexp.MustCompile(`export default\s*(\{[\s\S]*\});`)
 	matches := re.FindStringSubmatch(jsContent)
 	if len(matches) < 2 {
@@ -35,23 +31,16 @@ func TestUnitConversionsMatchJS(t *testing.T) {
 	}
 	jsObjectString := matches[1]
 
-	// Pre-process the string to evaluate simple arithmetic and make it JSON-compliant
-	
-	// Replace Math.PI
 	jsObjectString = strings.ReplaceAll(jsObjectString, "Math.PI", fmt.Sprintf("%.15f", math.Pi))
-
-	// Iteratively evaluate simple arithmetic expressions, respecting left-to-right order
 	reMulSimple := regexp.MustCompile(`(\d+(\.\d+)?)\s*\*\s*(\d+(\.\d+)?)`)
 	reDivSimple := regexp.MustCompile(`(\d+(\.\d+)?)\s*/\s*(\d+(\.\d+)?)`)
 	reParenNum := regexp.MustCompile(`\(\s*(\d+(\.\d+)?)\s*\)`)
 
 	for {
-		// Find the index of the first occurrence of each operation
 		mulIdx := reMulSimple.FindStringIndex(jsObjectString)
 		divIdx := reDivSimple.FindStringIndex(jsObjectString)
 		parenIdx := reParenNum.FindStringIndex(jsObjectString)
 
-		// Determine the first operation based on index (-1 if not found)
 		firstIdx := -1
 		operationType := ""
 
@@ -70,17 +59,14 @@ func TestUnitConversionsMatchJS(t *testing.T) {
 			operationType = "div"
 		}
 
-		// If no operations found, break the loop
 		if operationType == "" {
 			break
 		}
 
-		// Perform the first operation found
 		switch operationType {
 		case "paren":
 			match := reParenNum.FindStringSubmatch(jsObjectString)
 			if len(match) > 1 {
-				// Replace the parenthesized number with just the number
 				jsObjectString = strings.Replace(jsObjectString, match[0], match[1], 1)
 			}
 		case "mul":
@@ -102,42 +88,31 @@ func TestUnitConversionsMatchJS(t *testing.T) {
 					result := fmt.Sprintf("%.15f", num/den)
 					jsObjectString = strings.Replace(jsObjectString, match[0], result, 1)
 				} else if den == 0 {
-					jsObjectString = strings.Replace(jsObjectString, match[0], "0", 1) // Handle division by zero
+					jsObjectString = strings.Replace(jsObjectString, match[0], "0", 1)
 				}
 			}
 		}
 	}
-	
-	// Convert JavaScript object syntax to JSON syntax
-	// Add quotes around keys that don't have them
+
 	jsObjectString = regexp.MustCompile(`([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:`).ReplaceAllString(jsObjectString, `$1"$2":`)
-
-	// Replace single quotes with double quotes for inner object keys
 	jsObjectString = regexp.MustCompile(`'([^']+)':`).ReplaceAllString(jsObjectString, `"$1":`)
-
-	// Remove trailing commas common in JS objects
 	jsObjectString = regexp.MustCompile(`,(\s*[}\]])`).ReplaceAllString(jsObjectString, "$1")
 
-	// Declare the variable to hold the parsed JSON
 	var jsUnits map[string]map[string]float64
 
 	err = json.Unmarshal([]byte(jsObjectString), &jsUnits)
 	if err != nil {
-		// Provide more context on failure
 		t.Fatalf("Failed to parse JS object string as JSON: %v\nOriginal JS Path: %s\nProcessed JS Object String:\n%s", err, jsPath, jsObjectString)
 	}
 
-	// Compare maps
 	compareUnitMap(t, "length", jsUnits["length"], UnitConversionsLength)
 	compareUnitMap(t, "duration", jsUnits["duration"], UnitConversionsDuration)
 	compareUnitMap(t, "angle", jsUnits["angle"], UnitConversionsAngle)
 }
 
-// Helper to compare a specific category of units
 func compareUnitMap(t *testing.T, category string, jsMap map[string]float64, goMap map[string]float64) {
-	t.Helper() // Marks this function as a test helper
+	t.Helper()
 
-	// Compare JS to Go
 	for jsKey, jsValue := range jsMap {
 		goValue, exists := goMap[jsKey]
 		if !exists {
@@ -149,16 +124,13 @@ func compareUnitMap(t *testing.T, category string, jsMap map[string]float64, goM
 		}
 	}
 
-	// Compare Go to JS
 	for goKey, goValue := range goMap {
 		jsValue, exists := jsMap[goKey]
 		if !exists {
 			t.Errorf("[%s] Unit '%s' exists in Go but not in JS", category, goKey)
-			continue // Avoid redundant value comparison if key is missing
+			continue
 		}
-		// Check value equality again (though covered above) to ensure symmetry, using the same tolerance
 		if !floatsAlmostEqual(goValue, jsValue) {
-			// This error should ideally not trigger if the first loop passed, but included for completeness
 			t.Errorf("[%s] Unit '%s' has different values (Go->JS check): Go=%.15f, JS=%.15f", category, goKey, goValue, jsValue)
 		}
 	}

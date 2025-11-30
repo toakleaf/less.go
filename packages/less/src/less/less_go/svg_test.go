@@ -5,7 +5,6 @@ import (
 	"testing"
 )
 
-// MockSvgEvalContext for testing
 type MockSvgEvalContext struct {
 	compressed bool
 }
@@ -58,8 +57,8 @@ func TestSvgGradient(t *testing.T) {
 	t.Run("should handle to bottom direction with color list", func(t *testing.T) {
 		direction := NewQuoted("", "to bottom", false, 0, nil)
 		colorList, _ := NewExpression([]interface{}{
-			NewColor([]float64{255, 0, 0}, 1, ""),   // red
-			NewColor([]float64{0, 0, 255}, 1, ""),   // blue
+			NewColor([]float64{255, 0, 0}, 1, ""),
+			NewColor([]float64{0, 0, 255}, 1, ""),
 		}, false)
 
 		result, err := SvgGradient(ctx, direction, colorList)
@@ -92,8 +91,8 @@ func TestSvgGradient(t *testing.T) {
 	t.Run("should handle to right direction with color list", func(t *testing.T) {
 		direction := NewQuoted("", "to right", false, 0, nil)
 		colorList, _ := NewExpression([]interface{}{
-			NewColor([]float64{255, 0, 0}, 1, ""),   // red
-			NewColor([]float64{0, 255, 0}, 1, ""),   // green
+			NewColor([]float64{255, 0, 0}, 1, ""),
+			NewColor([]float64{0, 255, 0}, 1, ""),
 		}, false)
 
 		result, err := SvgGradient(ctx, direction, colorList)
@@ -177,8 +176,8 @@ func TestSvgGradient(t *testing.T) {
 	t.Run("should handle colors with partial alpha", func(t *testing.T) {
 		direction := NewQuoted("", "to bottom", false, 0, nil)
 		colorList, _ := NewExpression([]interface{}{
-			NewColor([]float64{255, 0, 0}, 0.5, ""), // red with 50% alpha
-			NewColor([]float64{0, 0, 255}, 1, ""),   // blue with full alpha
+			NewColor([]float64{255, 0, 0}, 0.5, ""),
+			NewColor([]float64{0, 0, 255}, 1, ""),
 		}, false)
 
 		result, err := SvgGradient(ctx, direction, colorList)
@@ -195,8 +194,8 @@ func TestSvgGradient(t *testing.T) {
 	t.Run("should not include stop-opacity for full alpha", func(t *testing.T) {
 		direction := NewQuoted("", "to bottom", false, 0, nil)
 		colorList, _ := NewExpression([]interface{}{
-			NewColor([]float64{255, 0, 0}, 1, ""), // red with full alpha
-			NewColor([]float64{0, 0, 255}, 1, ""), // blue with full alpha
+			NewColor([]float64{255, 0, 0}, 1, ""),
+			NewColor([]float64{0, 0, 255}, 1, ""),
 		}, false)
 
 		result, err := SvgGradient(ctx, direction, colorList)
@@ -212,13 +211,13 @@ func TestSvgGradient(t *testing.T) {
 
 	t.Run("should handle three colors with middle position", func(t *testing.T) {
 		direction := NewQuoted("", "to bottom", false, 0, nil)
-		color1 := NewColor([]float64{255, 0, 0}, 1, "") // red (first, no position)
+		color1 := NewColor([]float64{255, 0, 0}, 1, "")
 		dim50, _ := NewDimension(50, "%")
-		colorWithPos, _ := NewExpression([]interface{}{      // green (middle, must have position)
+		colorWithPos, _ := NewExpression([]interface{}{
 			NewColor([]float64{0, 255, 0}, 1, ""),
 			dim50,
 		}, false)
-		color3 := NewColor([]float64{0, 0, 255}, 1, "") // blue (last, no position)
+		color3 := NewColor([]float64{0, 0, 255}, 1, "")
 
 		result, err := SvgGradient(ctx, direction, color1, colorWithPos, color3)
 		if err != nil {
@@ -263,7 +262,7 @@ func TestSvgGradient(t *testing.T) {
 	t.Run("should throw error when color list has less than 2 colors", func(t *testing.T) {
 		direction := NewQuoted("", "to bottom", false, 0, nil)
 		colorList, _ := NewExpression([]interface{}{
-			NewColor([]float64{255, 0, 0}, 1, ""), // only one color
+			NewColor([]float64{255, 0, 0}, 1, ""),
 		}, false)
 
 		_, err := SvgGradient(ctx, direction, colorList)
@@ -275,8 +274,8 @@ func TestSvgGradient(t *testing.T) {
 	t.Run("should handle zero alpha correctly", func(t *testing.T) {
 		direction := NewQuoted("", "to bottom", false, 0, nil)
 		colorList, _ := NewExpression([]interface{}{
-			NewColor([]float64{255, 0, 0}, 0, ""), // red with 0% alpha
-			NewColor([]float64{0, 0, 255}, 1, ""), // blue with full alpha
+			NewColor([]float64{255, 0, 0}, 0, ""),
+			NewColor([]float64{0, 0, 255}, 1, ""),
 		}, false)
 
 		result, err := SvgGradient(ctx, direction, colorList)

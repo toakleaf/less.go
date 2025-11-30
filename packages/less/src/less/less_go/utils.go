@@ -24,7 +24,6 @@ func GetLocation(index any, inputStream string) Location {
 				n--
 			}
 
-			// Count newlines before index for line number
 			if idx > 0 {
 				lineCount := strings.Count(inputStream[:idx], "\n")
 				line = &lineCount
@@ -136,7 +135,6 @@ func CopyOptions(obj1, obj2 map[string]any) map[string]any {
 	return opts
 }
 
-// Merge merges properties from obj2 into obj1
 func Merge(obj1, obj2 map[string]any) map[string]any {
 	for k, v := range obj2 {
 		obj1[k] = v
@@ -144,7 +142,6 @@ func Merge(obj1, obj2 map[string]any) map[string]any {
 	return obj1
 }
 
-// FlattenArray flattens a nested slice structure
 func FlattenArray(arr []any, result ...[]any) []any {
 	var res []any
 	if len(result) > 0 {
@@ -163,7 +160,6 @@ func FlattenArray(arr []any, result ...[]any) []any {
 	return res
 }
 
-// IsNullOrUndefined checks if a value is nil
 func IsNullOrUndefined(val any) bool {
 	return val == nil
-} 
+}

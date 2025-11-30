@@ -4,14 +4,12 @@ import (
 	"testing"
 )
 
-// MockImplementation implements the visitor implementation interface for testing
 type MockImplementation struct {
 	IsReplacingValue bool
 	VisitedNodes     []string
 	VisitCount       int
 }
 
-// MockImplementationWithVisitDeeper adds visitDeeper control for testing
 type MockImplementationWithVisitDeeper struct {
 	IsReplacingValue bool
 	VisitedNodes     []string
@@ -67,10 +65,9 @@ type VisitorMockNode struct {
 	TypeIndex int
 	AcceptFn  func(visitor any)
 	Value     any
-	length    int // For array-like behavior
-	Self      *VisitorMockNode // For circular reference testing
-	// Array-like fields for testing nodes with length property
-	Elements  []any // For array-like node testing with numeric indexing
+	length    int
+	Self      *VisitorMockNode
+	Elements  []any
 }
 
 func (m *VisitorMockNode) GetType() string {
@@ -87,12 +84,10 @@ func (m *VisitorMockNode) Accept(visitor any) {
 	}
 }
 
-// GetLength returns the length for array-like behavior
 func (m *VisitorMockNode) GetLength() int {
 	return m.length
 }
 
-// GetElement returns element at index for array-like behavior
 func (m *VisitorMockNode) GetElement(i int) any {
 	if i >= 0 && i < len(m.Elements) {
 		return m.Elements[i]
@@ -104,10 +99,6 @@ func (m *VisitorMockNode) GetValue() any {
 	return m.Value
 }
 
-// Only include Splice method if this is actually an array-like node
-// Most regular nodes should NOT have this method
-
-// MockArrayLikeNode implements ArrayLikeNode for testing
 type MockArrayLikeNode struct {
 	Items []any
 }
@@ -123,9 +114,7 @@ func (m *MockArrayLikeNode) Get(i int) any {
 	return nil
 }
 
-func (m *MockArrayLikeNode) Splice() {
-	// marker method for array-like detection
-}
+func (m *MockArrayLikeNode) Splice() {}
 
 func TestNewVisitor(t *testing.T) {
 	impl := &MockImplementation{IsReplacingValue: false}

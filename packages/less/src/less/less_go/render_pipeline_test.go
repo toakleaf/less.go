@@ -4,34 +4,28 @@ import (
 	"testing"
 )
 
-// TestRenderPipeline investigates why parsed files produce no CSS output
 func TestRenderPipeline(t *testing.T) {
 	t.Run("trace_render_pipeline", func(t *testing.T) {
-		// Create factory
 		factory := Factory(nil, nil)
-		
-		// Simple CSS input that should parse
+
 		input := "body { color: red; }"
 		options := map[string]any{
 			"filename": "test.less",
 		}
 		
 		t.Logf("Testing input: %s", input)
-		
-		// Step 1: Test render function exists
+
 		renderFunc, exists := factory["render"]
 		if !exists {
 			t.Fatal("render function not found in factory")
 		}
 		t.Logf("✓ Render function exists: %T", renderFunc)
-		
-		// Step 2: Call render function
+
 		if fn, ok := renderFunc.(func(string, ...any) any); ok {
 			result := fn(input, options)
 			t.Logf("Render result type: %T", result)
 			t.Logf("Render result value: %+v", result)
-			
-			// Analyze the result
+
 			switch v := result.(type) {
 			case string:
 				if v == "" {
@@ -55,7 +49,6 @@ func TestRenderPipeline(t *testing.T) {
 	})
 
 	t.Run("trace_parse_function", func(t *testing.T) {
-		// Test the parse function directly
 		factory := Factory(nil, nil)
 		
 		parseFunc, exists := factory["parse"]
@@ -73,8 +66,7 @@ func TestRenderPipeline(t *testing.T) {
 			result := fn(input, options)
 			t.Logf("Parse result type: %T", result)
 			t.Logf("Parse result value: %+v", result)
-			
-			// Analyze parse result
+
 			switch v := result.(type) {
 			case map[string]any:
 				t.Logf("Parse result is map with keys: %v", getMapKeys(v))
@@ -96,13 +88,11 @@ func TestRenderPipeline(t *testing.T) {
 		for key, value := range factory {
 			t.Logf("  %s: %T", key, value)
 		}
-		
-		// Check if ParseTree exists and is callable
+
 		if parseTree, exists := factory["ParseTree"]; exists {
 			t.Logf("ParseTree component: %T = %+v", parseTree, parseTree)
 		}
-		
-		// Check render and parse function signatures
+
 		if render, exists := factory["render"]; exists {
 			t.Logf("Render function: %T", render)
 		}
@@ -113,13 +103,11 @@ func TestRenderPipeline(t *testing.T) {
 	})
 
 	t.Run("trace_css_generation", func(t *testing.T) {
-		// Test the CSS generation pipeline specifically
 		factory := Factory(nil, nil)
 		
 		input := "body { color: red; }"
 		options := map[string]any{"filename": "test.less"}
-		
-		// Get parse function and parse
+
 		parseFunc, _ := factory["parse"].(func(string, ...any) any)
 		parseResult := parseFunc(input, options)
 		
@@ -130,8 +118,7 @@ func TestRenderPipeline(t *testing.T) {
 			t.Logf("  Selectors count: %d", len(ruleset.Selectors))
 			t.Logf("  Root: %v", ruleset.Root)
 			t.Logf("  Paths count: %d", len(ruleset.Paths))
-			
-			// Inspect the rules to see what they contain
+
 			for i, rule := range ruleset.Rules {
 				if i < 3 { // Limit to first 3 rules
 					if nestedRuleset, ok := rule.(*Ruleset); ok {
@@ -147,8 +134,7 @@ func TestRenderPipeline(t *testing.T) {
 					}
 				}
 			}
-			
-			// Test TransformTree
+
 			optionsMap := map[string]any{
 				"compress":      false,
 				"strictUnits":   false,
@@ -158,13 +144,11 @@ func TestRenderPipeline(t *testing.T) {
 			t.Logf("Testing TransformTree...")
 			evaldRoot := TransformTree(ruleset, optionsMap)
 			t.Logf("TransformTree result type: %T", evaldRoot)
-			
-			// Check the transformed result structure
+
 			if transformedRuleset, ok := evaldRoot.(*Ruleset); ok {
 				t.Logf("After TransformTree:")
 				t.Logf("  Root ruleset: Root=%v, Selectors=%d, Rules=%d, Paths=%d", transformedRuleset.Root, len(transformedRuleset.Selectors), len(transformedRuleset.Rules), len(transformedRuleset.Paths))
-				
-				// Check nested rulesets
+
 				for i, rule := range transformedRuleset.Rules {
 					if i < 3 {
 						if nestedRuleset, ok := rule.(*Ruleset); ok {
@@ -173,8 +157,7 @@ func TestRenderPipeline(t *testing.T) {
 					}
 				}
 			}
-			
-			// Test ToCSS on the transformed root
+
 			if cssGenerator, ok := evaldRoot.(interface {
 				ToCSS(map[string]any) (string, error)
 			}); ok {
@@ -194,7 +177,6 @@ func TestRenderPipeline(t *testing.T) {
 	})
 }
 
-// Helper function to get map keys
 func getMapKeys(m map[string]any) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {

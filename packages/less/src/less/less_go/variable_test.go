@@ -5,10 +5,8 @@ import (
 	"testing"
 )
 
-// Force imports to trigger init functions
 var _ = GetListFunctions
 
-// Manually register _SELF for testing
 func init() {
 	listFunctions := GetListFunctions()
 	if selfFn, ok := listFunctions["_SELF"].(func(any) any); ok {

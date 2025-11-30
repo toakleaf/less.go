@@ -7,23 +7,18 @@ import (
 	"testing"
 )
 
-// testCondition implements Eval for testing selector condition evaluation
-// and always returns true.
 type testCondition struct{}
 
 func (t *testCondition) Eval(context any) any {
 	return true
 }
 
-// testExtend implements Eval for testing selector extendList evaluation
-// and returns a map documenting the evaluation.
 type testExtend struct{}
 
 func (e *testExtend) Eval(context any) any {
 	return map[string]any{"evaluated": true, "value": "extended"}
 }
 
-// selVisitor always returns a fixed value for any Visit call.
 type selVisitor struct {
 	returnVal any
 }
@@ -37,12 +32,8 @@ func (v *selVisitor) VisitElement(node any, visitArgs *VisitArgs) any {
 	return v.returnVal
 }
 
-func (v *selVisitor) VisitElementOut(node any) {
-	// No-op
-}
+func (v *selVisitor) VisitElementOut(node any) {}
 
-// Since the visitor framework might not call VisitElement for all types,
-// we need a catch-all that returns our value for any unhandled type
 func (v *selVisitor) Visit(node any) any {
 	return v.returnVal
 }

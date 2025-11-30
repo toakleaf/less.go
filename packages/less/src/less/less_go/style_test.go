@@ -4,7 +4,6 @@ import (
 	"testing"
 )
 
-// MockEvalContext for testing
 type MockStyleEvalContext struct {
 	compressed bool
 }
@@ -178,7 +177,6 @@ func TestStyleWithCatch(t *testing.T) {
 	})
 }
 
-// MockValueGetter for testing GetValue interface
 type MockValueGetter struct {
 	value string
 }

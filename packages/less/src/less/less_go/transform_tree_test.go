@@ -6,7 +6,6 @@ import (
 
 )
 
-// Mock root node for testing
 type mockRoot struct {
 	evalResult any
 	evalError  error
@@ -19,7 +18,6 @@ func (mr *mockRoot) Eval(context any) (any, error) {
 	return mr.evalResult, nil
 }
 
-// Mock visitor for testing transform tree
 type mockTransformVisitor struct {
 	runCalled bool
 	runResult any
@@ -41,7 +39,6 @@ func (mv *mockTransformVisitor) IsPreVisitor() bool {
 	return false
 }
 
-// Mock pre-eval visitor
 type mockPreEvalVisitor struct {
 	mockTransformVisitor
 }
@@ -50,7 +47,6 @@ func (mpev *mockPreEvalVisitor) IsPreEvalVisitor() bool {
 	return true
 }
 
-// Mock pre-visitor
 type mockPreVisitor struct {
 	mockTransformVisitor
 }
@@ -59,7 +55,6 @@ func (mpv *mockPreVisitor) IsPreVisitor() bool {
 	return true
 }
 
-// Mock plugin manager
 type mockPluginManager struct {
 	visitors []any
 }
@@ -68,13 +63,11 @@ func (mpm *mockPluginManager) Visitor() any {
 	return &mockVisitorIterator{visitors: mpm.visitors}
 }
 
-// Mock visitor iterator
 type mockVisitorIterator struct {
 	visitors []any
 	index    int
 }
 
-// Mock visitor that tracks execution order
 type mockOrderTrackingVisitor struct {
 	name  string
 	order *[]string
@@ -84,7 +77,6 @@ func (motv *mockOrderTrackingVisitor) Run(root any) {
 	*motv.order = append(*motv.order, motv.name)
 }
 
-// Mock pre-visitor that tracks execution order
 type mockOrderTrackingPreVisitor struct {
 	mockOrderTrackingVisitor
 	runCalled bool
@@ -105,7 +97,6 @@ func (motpv *mockOrderTrackingPreVisitor) IsPreEvalVisitor() bool {
 	return false
 }
 
-// Mock pre-eval visitor that tracks execution order
 type mockOrderTrackingPreEvalVisitor struct {
 	mockOrderTrackingVisitor
 }
@@ -118,7 +109,6 @@ func (motpev *mockOrderTrackingPreEvalVisitor) IsPreVisitor() bool {
 	return false
 }
 
-// Mock visitor that counts runs
 type mockCountingVisitor struct {
 	runCount *int
 }
@@ -135,7 +125,6 @@ func (mcv *mockCountingVisitor) IsPreVisitor() bool {
 	return false
 }
 
-// Mock pre-eval visitor that counts runs
 type mockCountingPreEvalVisitor struct {
 	runCount *int
 }
@@ -152,7 +141,6 @@ func (mcpev *mockCountingPreEvalVisitor) IsPreVisitor() bool {
 	return false
 }
 
-// Mock visitor that throws errors
 type mockErrorVisitor struct {
 	errorMsg string
 }
@@ -161,7 +149,6 @@ func (mev *mockErrorVisitor) Run(root any) {
 	panic(mev.errorMsg)
 }
 
-// Mock visitor iterator that throws errors
 type mockErrorVisitorIterator struct {
 	errorMsg string
 }
@@ -174,7 +161,6 @@ func (mevi *mockErrorVisitorIterator) Get() any {
 	panic(mevi.errorMsg)
 }
 
-// Mock plugin manager that throws errors
 type mockErrorPluginManager struct {
 	iterator any
 }
@@ -183,7 +169,6 @@ func (mepm *mockErrorPluginManager) Visitor() any {
 	return mepm.iterator
 }
 
-// Mock complex plugin manager for testing all visitor types
 type mockComplexPluginManager struct {
 	iterationCount  *int
 	preEvalVisitor  any
@@ -202,7 +187,7 @@ func (mcpm *mockComplexPluginManager) Visitor() any {
 	}
 }
 
-// Mock complex visitor iterator that simulates JavaScript behavior
+// Simulates JavaScript iteration behavior across visitor phases
 type mockComplexVisitorIterator struct {
 	iterationCount  *int
 	currentIteration int
@@ -220,10 +205,7 @@ func (mcvi *mockComplexVisitorIterator) First() {
 
 func (mcvi *mockComplexVisitorIterator) Get() any {
 	*mcvi.iterationCount = mcvi.currentIteration
-	
-	// Simulate JavaScript behavior:
-	// Iteration 1 & 2: return pre-eval, pre, and regular visitors
-	// Iteration 3 (post-eval): return only post-eval visitor
+
 	if mcvi.currentIteration <= 2 {
 		switch mcvi.index {
 		case 0:
@@ -239,7 +221,6 @@ func (mcvi *mockComplexVisitorIterator) Get() any {
 			return nil
 		}
 	} else {
-		// Post-eval phase: only return post-eval visitor
 		switch mcvi.index {
 		case 0:
 			mcvi.index++
@@ -250,10 +231,8 @@ func (mcvi *mockComplexVisitorIterator) Get() any {
 	}
 }
 
-// Helper function to set up test environment
 func setupTestEnvironment() func() {
-	// No setup needed since we removed the factory pattern
-	return func() { /* No cleanup needed */ }
+	return func() {}
 }
 
 
