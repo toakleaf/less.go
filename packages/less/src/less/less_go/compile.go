@@ -7,64 +7,121 @@ import (
 	"strings"
 )
 
-// CompileResult represents the result of compiling LESS to CSS
+// CompileResult represents the result of compiling LESS to CSS.
+// It contains the generated CSS along with optional source map and import information.
 type CompileResult struct {
-	CSS     string   `json:"css"`
-	Map     string   `json:"map,omitempty"`
+	// CSS contains the compiled CSS output.
+	CSS string `json:"css"`
+
+	// Map contains the source map in JSON format, if source maps were enabled.
+	// Empty string if source maps were not generated.
+	Map string `json:"map,omitempty"`
+
+	// Imports lists all files that were imported during compilation.
+	// This can be used for dependency tracking and watch mode implementations.
 	Imports []string `json:"imports,omitempty"`
 }
 
-// CompileOptions represents options for the Compile function
+// CompileOptions configures the behavior of the LESS compiler.
+// All fields are optional; a nil options pointer or zero-value struct uses sensible defaults.
+//
+// Example:
+//
+//	options := &CompileOptions{
+//	    Filename:    "styles.less",
+//	    Compress:    true,
+//	    Math:        Math.ParensDivision,
+//	    StrictUnits: true,
+//	}
 type CompileOptions struct {
-	// Paths are additional include paths for @import resolution
+	// Paths specifies additional directories to search when resolving @import statements.
+	// These paths are searched in order after the directory of the importing file.
 	Paths []string
 
-	// Filename is the name of the file being compiled (used for error messages and source maps)
+	// Filename is the name of the input file being compiled.
+	// Used for error messages, source maps, and resolving relative @import paths.
+	// When compiling from a string, this provides context for the compilation.
 	Filename string
 
-	// Compress enables CSS minification
+	// Compress enables CSS minification in the output.
+	// When true, whitespace is minimized and comments are removed.
+	// Default: false (output is formatted for readability).
 	Compress bool
 
-	// StrictUnits controls unit checking for math operations
+	// StrictUnits enforces strict unit checking for mathematical operations.
+	// When true, operations like "1px + 1em" will produce an error.
+	// When false, incompatible units are allowed and the first unit is used.
+	// Default: false.
 	StrictUnits bool
 
-	// Math controls how math operations are evaluated
-	// Use Math.Always, Math.ParensDivision, or Math.Parens
+	// Math controls how mathematical expressions are evaluated.
+	// Possible values:
+	//   - Math.Always: Evaluate all math expressions (Less.js v1.x behavior)
+	//   - Math.ParensDivision: Only evaluate division in parentheses (default, Less.js v3.x+)
+	//   - Math.Parens: Only evaluate math expressions in parentheses
+	// Default: Math.ParensDivision (0 value maps to MathAlways, set explicitly for clarity).
 	Math MathType
 
-	// RewriteUrls controls URL rewriting behavior
+	// RewriteUrls controls how URLs in the output are rewritten relative to the entry file.
+	// Possible values:
+	//   - RewriteUrls.Off: No URL rewriting (default)
+	//   - RewriteUrls.Local: Rewrite relative URLs only
+	//   - RewriteUrls.All: Rewrite all URLs
+	// Default: RewriteUrls.Off.
 	RewriteUrls RewriteUrlsType
 
-	// Rootpath is the base path for URL rewriting
+	// Rootpath specifies a path to prepend to all URLs in the output.
+	// Useful when the CSS will be served from a different location than the source files.
 	Rootpath string
 
-	// UrlArgs is a query string to append to URLs
+	// UrlArgs specifies a query string to append to all URLs in the output.
+	// Example: "v=1.0" would transform url("image.png") to url("image.png?v=1.0").
 	UrlArgs string
 
-	// EnableJavaScriptPlugins enables support for JavaScript plugins via Node.js
-	// When true, the compiler will start a Node.js runtime to handle @plugin directives
+	// EnableJavaScriptPlugins enables support for JavaScript plugins via Node.js.
+	// When true, the compiler starts a Node.js runtime to handle @plugin directives
+	// and JavaScript expressions in LESS files. The runtime is lazily initialized
+	// only when needed and automatically cleaned up after compilation.
+	// Default: false.
 	EnableJavaScriptPlugins bool
 
-	// JavascriptEnabled enables inline JavaScript evaluation in LESS files
-	// When true, `expression` syntax can be used for JavaScript expressions
-	// Note: This also requires EnableJavaScriptPlugins to be true for the runtime
+	// JavascriptEnabled enables inline JavaScript evaluation in LESS files.
+	// When true, backtick-delimited expressions like `1 + 1` are evaluated.
+	// Note: This requires EnableJavaScriptPlugins to be true to provide the JS runtime.
+	// Default: false.
 	JavascriptEnabled bool
 
-	// GlobalVars are variables to inject before compilation
+	// GlobalVars specifies variables to inject before compilation.
+	// These variables are available throughout the LESS source and can be
+	// overridden by variables defined in the source files.
+	// Keys should not include the @ prefix.
+	// Example: map[string]any{"baseColor": "#ff0000", "spacing": "10px"}
 	GlobalVars map[string]any
 
-	// ModifyVars are variables to inject after compilation (override existing variables)
+	// ModifyVars specifies variables to inject after compilation.
+	// These variables override any variables defined in the source files,
+	// making them useful for theming and customization.
+	// Keys should not include the @ prefix.
+	// Example: map[string]any{"primaryColor": "#0000ff"}
 	ModifyVars map[string]any
 }
 
 // Compile compiles LESS source code to CSS.
 // This is the main entry point for the less.go compiler.
 //
-// When EnableJavaScriptPlugins is true, the function will:
-// - Create a lazy Node.js runtime that only starts if @plugin directives are encountered
-// - Properly shut down the Node.js process when compilation completes
+// Parameters:
+//   - input: The LESS source code to compile as a string.
+//   - options: Configuration options for the compilation. Pass nil to use defaults.
 //
-// Example usage:
+// Returns:
+//   - *CompileResult: Contains the compiled CSS, optional source map, and list of imported files.
+//   - error: Non-nil if compilation fails due to syntax errors, undefined variables, etc.
+//
+// When options.EnableJavaScriptPlugins is true, the function will:
+//   - Create a lazy Node.js runtime that only starts if @plugin directives are encountered
+//   - Properly shut down the Node.js process when compilation completes
+//
+// Example:
 //
 //	result, err := less_go.Compile(lessSource, &less_go.CompileOptions{
 //	    Filename: "styles.less",
@@ -114,14 +171,28 @@ func Compile(input string, options *CompileOptions) (*CompileResult, error) {
 }
 
 // CompileFile compiles a LESS file to CSS.
-// This reads the file and compiles it with appropriate options set for file-based compilation.
+// This is a convenience function that reads the file and compiles it with
+// the Filename option automatically set for proper @import resolution.
 //
-// Example usage:
+// Parameters:
+//   - filename: Path to the LESS file to compile. Can be absolute or relative.
+//   - options: Configuration options for the compilation. Pass nil to use defaults.
+//     The Filename field will be set to the provided filename if not already set.
+//
+// Returns:
+//   - *CompileResult: Contains the compiled CSS, optional source map, and list of imported files.
+//   - error: Non-nil if the file cannot be read or compilation fails.
+//
+// Example:
 //
 //	result, err := less_go.CompileFile("styles.less", &less_go.CompileOptions{
 //	    Compress: true,
 //	    EnableJavaScriptPlugins: true,
 //	})
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	os.WriteFile("styles.css", []byte(result.CSS), 0644)
 func CompileFile(filename string, options *CompileOptions) (*CompileResult, error) {
 	content, err := os.ReadFile(filename)
 	if err != nil {
