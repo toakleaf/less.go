@@ -13,11 +13,12 @@ import (
 // This avoids the overhead of spawning a Node.js process for compilations
 // that don't use plugins.
 type LazyNodeJSPluginBridge struct {
-	bridge     *NodeJSPluginBridge
-	mu         sync.RWMutex
-	initOnce   sync.Once
-	initErr    error
-	closed     bool
+	bridge        *NodeJSPluginBridge
+	mu            sync.RWMutex
+	initOnce      sync.Once
+	initErr       error
+	closed        bool
+	pendingScopes int // Track scope depth before bridge is initialized
 }
 
 // NewLazyNodeJSPluginBridge creates a new lazy bridge that will initialize
@@ -53,6 +54,19 @@ func (lb *LazyNodeJSPluginBridge) ensureInitialized() error {
 			return
 		}
 		lb.bridge = bridge
+
+		// Apply any pending scopes that were entered before initialization.
+		// This happens when Ruleset.Eval enters scopes before any plugins are loaded.
+		// We need to create those child scopes so that plugins loaded inside
+		// nested rulesets get registered at the correct scope depth.
+		if lb.pendingScopes > 0 {
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Printf("[LazyNodeJSPluginBridge] Applying %d pending scopes\n", lb.pendingScopes)
+			}
+			for i := 0; i < lb.pendingScopes; i++ {
+				bridge.EnterScope()
+			}
+		}
 
 		// SHM protocol is DISABLED by default - benchmarks show it's ~75% slower than JSON
 		// Set LESS_SHM_PROTOCOL=1 to enable if needed for specific use cases
@@ -157,18 +171,37 @@ func (lb *LazyNodeJSPluginBridge) CallFunctionWithContext(name string, evalConte
 }
 
 // EnterScope creates and enters a new child scope.
-// Only effective if the bridge is initialized.
+// If the bridge is not yet initialized, tracks the pending scope depth
+// so that scopes can be created when the bridge is first initialized.
 func (lb *LazyNodeJSPluginBridge) EnterScope() *runtime.PluginScope {
-	if !lb.IsInitialized() {
+	lb.mu.Lock()
+	defer lb.mu.Unlock()
+
+	if lb.bridge == nil {
+		// Bridge not initialized yet - track pending scope
+		lb.pendingScopes++
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Printf("[LazyNodeJSPluginBridge] EnterScope (pending): pendingScopes=%d\n", lb.pendingScopes)
+		}
 		return nil
 	}
 	return lb.bridge.EnterScope()
 }
 
 // ExitScope exits the current scope and returns to the parent.
-// Only effective if the bridge is initialized.
+// If the bridge is not yet initialized, decrements the pending scope depth.
 func (lb *LazyNodeJSPluginBridge) ExitScope() *runtime.PluginScope {
-	if !lb.IsInitialized() {
+	lb.mu.Lock()
+	defer lb.mu.Unlock()
+
+	if lb.bridge == nil {
+		// Bridge not initialized yet - decrement pending scope
+		if lb.pendingScopes > 0 {
+			lb.pendingScopes--
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Printf("[LazyNodeJSPluginBridge] ExitScope (pending): pendingScopes=%d\n", lb.pendingScopes)
+			}
+		}
 		return nil
 	}
 	return lb.bridge.ExitScope()
