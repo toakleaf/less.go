@@ -56,6 +56,7 @@ func NewMixinDefinition(name string, params []any, rules []any, condition any, v
 	if name == "" {
 		name = "anonymous mixin"
 	}
+	name = Intern(name)
 
 	// Create selectors array with single selector containing element
 	element := NewElement(nil, name, false, 0, make(map[string]any), nil)

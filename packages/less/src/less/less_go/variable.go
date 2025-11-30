@@ -23,7 +23,7 @@ type Variable struct {
 func NewVariable(name string, index int, currentFileInfo map[string]any) *Variable {
 	return &Variable{
 		Node:      NewNode(),
-		name:      name,
+		name:      Intern(name),
 		_index:    index,
 		_fileInfo: currentFileInfo,
 	}

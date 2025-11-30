@@ -23,7 +23,12 @@ func NewDeclaration(name any, value any, important any, merge any, index int, fi
 
 	d := GetDeclarationFromPool()
 	d.Node = node
-	d.name = name
+	// Intern property names when they are strings (most common case)
+	if nameStr, ok := name.(string); ok {
+		d.name = Intern(nameStr)
+	} else {
+		d.name = name
+	}
 	d.important = ""
 	d.merge = merge
 	d.inline = inline
@@ -40,7 +45,7 @@ func NewDeclaration(name any, value any, important any, merge any, index int, fi
 			// JavaScript: this.important = important ? ` ${important.trim()}` : '';
 			str = strings.TrimSpace(str)
 			if str != "" {
-				d.important = " " + str
+				d.important = Intern(" " + str)
 			}
 		}
 	}

@@ -570,11 +570,12 @@ type Call struct {
 }
 
 func NewCall(name string, args []any, index int, currentFileInfo map[string]any) *Call {
+	internedName := Intern(name)
 	return &Call{
 		Node:      NewNode(),
-		Name:      name,
+		Name:      internedName,
 		Args:      args,
-		Calc:      name == "calc",
+		Calc:      internedName == "calc",
 		_index:    index,
 		_fileInfo: currentFileInfo,
 	}

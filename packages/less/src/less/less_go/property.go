@@ -15,7 +15,7 @@ type Property struct {
 func NewProperty(name string, index int, fileInfo map[string]any) *Property {
 	p := &Property{
 		Node: NewNode(),
-		name: name,
+		name: Intern(name),
 	}
 	p.Index = index
 	p.SetFileInfo(fileInfo)

@@ -45,11 +45,11 @@ func NewQuoted(str string, content string, escaped bool, index int, currentFileI
 	// Handle empty quote string safely
 	var quote string
 	if char, ok := SafeStringIndex(str, 0); ok {
-		quote = string(char)
+		quote = Intern(string(char))
 	} else {
 		quote = ""
 	}
-	
+
 	return &Quoted{
 		Node:          NewNode(),
 		escaped:       escaped,
