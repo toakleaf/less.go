@@ -12,12 +12,13 @@ type Keyword struct {
 }
 
 func NewKeyword(value string) *Keyword {
+	internedValue := Intern(value)
 	k := &Keyword{
 		Node:  NewNode(),
-		value: value,
+		value: internedValue,
 		type_: "Keyword",
 	}
-	k.Value = value
+	k.Value = internedValue
 	return k
 }
 

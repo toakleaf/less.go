@@ -31,7 +31,7 @@ func NewElement(combinator any, value any, isVariable bool, index int, currentFi
 	var val any
 	switch v := value.(type) {
 	case string:
-		val = strings.TrimSpace(v)
+		val = Intern(strings.TrimSpace(v))
 	case nil:
 		val = ""
 	case byte:
