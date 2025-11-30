@@ -948,23 +948,26 @@ func (pev *ProcessExtendsVisitor) pathToCSS(path []any) string {
 
 func (pev *ProcessExtendsVisitor) findMatch(extend *Extend, haystackSelectorPath []any) []*PotentialMatch {
 	// This matches the JavaScript findMatch method exactly
-	// Optimized to reduce allocations by using sync.Pool and avoiding slice splicing
+	// Optimized to eliminate allocations by using stack-allocated value types
 	var haystackSelectorIndex, hackstackElementIndex int
 	var hackstackSelector, haystackElement any
 	var targetCombinator string
 	needleElements := extend.Selector.(*Selector).Elements
 
-	// Use a fixed-size array on stack for potentialMatches to avoid heap allocation
+	// Use fixed-size arrays on stack to avoid ALL heap allocations
 	// Most extend operations have few potential matches (typically 1-8)
-	var potentialMatchesBacking [16]*PotentialMatch
-	potentialMatches := potentialMatchesBacking[:0]
-	var potentialMatch *PotentialMatch
+	// Using value types (not pointers) eliminates pool overhead entirely
+	var potentialMatchesBacking [32]PotentialMatch
+	potentialMatchCount := 0
 
-	// Lazy allocation for matches - only allocate when we find a match
-	var matches []*PotentialMatch
+	// Track which entries in potentialMatchesBacking are active (not removed)
+	// Use a separate index slice to avoid copying large structs during filtering
+	var activeIndices [32]int
+	activeCount := 0
 
-	// Track which pool objects to return at the end
-	var pooledMatches []*PotentialMatch
+	// Stack-allocated backing for final matches
+	var matchesBacking [16]PotentialMatch
+	matchCount := 0
 
 	// loop through the haystack elements
 	for haystackSelectorIndex = 0; haystackSelectorIndex < len(haystackSelectorPath); haystackSelectorIndex++ {
@@ -990,20 +993,27 @@ func (pev *ProcessExtendsVisitor) findMatch(extend *Extend, haystackSelectorPath
 					}
 				}
 
-				// Get PotentialMatch from pool instead of allocating
-				pm := getPotentialMatch()
-				pm.pathIndex = haystackSelectorIndex
-				pm.index = hackstackElementIndex
-				pm.matched = 0
-				pm.initialCombinator = initialCombinator
-				pooledMatches = append(pooledMatches, pm)
-				potentialMatches = append(potentialMatches, pm)
+				// Add new potential match directly to the backing array (no allocation)
+				if potentialMatchCount < len(potentialMatchesBacking) {
+					potentialMatchesBacking[potentialMatchCount] = PotentialMatch{
+						pathIndex:         haystackSelectorIndex,
+						index:             hackstackElementIndex,
+						matched:           0,
+						initialCombinator: initialCombinator,
+					}
+					if activeCount < len(activeIndices) {
+						activeIndices[activeCount] = potentialMatchCount
+						activeCount++
+					}
+					potentialMatchCount++
+				}
 			}
 
 			// Use write-index approach to avoid slice splicing
 			writeIdx := 0
-			for readIdx := 0; readIdx < len(potentialMatches); readIdx++ {
-				potentialMatch = potentialMatches[readIdx]
+			for readIdx := 0; readIdx < activeCount; readIdx++ {
+				pmIdx := activeIndices[readIdx]
+				pm := &potentialMatchesBacking[pmIdx]
 
 				// selectors add " " onto the first element. When we use & it joins the selectors together, but if we don't
 				// then each selector in haystackSelectorPath has a space before it added in the toCSS phase. so we need to
@@ -1016,7 +1026,7 @@ func (pev *ProcessExtendsVisitor) findMatch(extend *Extend, haystackSelectorPath
 					targetCombinator = " "
 				}
 
-				matched := potentialMatch.matched
+				matched := pm.matched
 				valid := true
 
 				// if we don't match, null our match to indicate failure
@@ -1033,13 +1043,13 @@ func (pev *ProcessExtendsVisitor) findMatch(extend *Extend, haystackSelectorPath
 				}
 
 				if valid {
-					potentialMatch.matched = matched + 1
+					pm.matched = matched + 1
 				}
 
 				// if we are still valid and have finished, test whether we have elements after and whether these are allowed
 				if valid {
-					finished := potentialMatch.matched == len(needleElements)
-					potentialMatch.finished = finished
+					finished := pm.matched == len(needleElements)
+					pm.finished = finished
 
 					if finished && !extend.AllowAfter {
 						if hackstackElementIndex+1 < len(hackstackElements) || haystackSelectorIndex+1 < len(haystackSelectorPath) {
@@ -1050,51 +1060,49 @@ func (pev *ProcessExtendsVisitor) findMatch(extend *Extend, haystackSelectorPath
 
 				// if not valid we skip (equivalent to removing), if valid we keep or record match
 				if valid {
-					if potentialMatch.finished {
-						potentialMatch.length = len(needleElements)
-						potentialMatch.endPathIndex = haystackSelectorIndex
-						potentialMatch.endPathElementIndex = hackstackElementIndex + 1 // index after end of match
+					if pm.finished {
+						pm.length = len(needleElements)
+						pm.endPathIndex = haystackSelectorIndex
+						pm.endPathElementIndex = hackstackElementIndex + 1 // index after end of match
 
-						// Lazy allocation for matches
-						if matches == nil {
-							matches = make([]*PotentialMatch, 0, 4)
+						// Copy to matches backing array (no allocation)
+						if matchCount < len(matchesBacking) {
+							matchesBacking[matchCount] = *pm
+							matchCount++
 						}
-						matches = append(matches, potentialMatch)
 
-						// Clear potentialMatches - we don't allow matches to overlap
+						// Clear active indices - we don't allow matches to overlap
 						writeIdx = 0
-						// Skip remaining iterations in this inner loop
-						for readIdx++; readIdx < len(potentialMatches); readIdx++ {
-							// These entries are dropped
-						}
 						break
 					} else {
 						// Keep this match
-						potentialMatches[writeIdx] = potentialMatch
+						activeIndices[writeIdx] = pmIdx
 						writeIdx++
 					}
 				}
 				// If not valid, we just don't copy to writeIdx (equivalent to removing)
 			}
-			// Truncate potentialMatches to only valid entries
-			potentialMatches = potentialMatches[:writeIdx]
+			// Update active count
+			activeCount = writeIdx
 		}
 	}
 
-	// Return pooled PotentialMatch objects that are not in the final matches
-	// Create a set of matches for quick lookup
-	matchSet := make(map[*PotentialMatch]bool, len(matches))
-	for _, m := range matches {
-		matchSet[m] = true
-	}
-	// Return non-matched pooled objects to the pool
-	for _, pm := range pooledMatches {
-		if !matchSet[pm] {
-			putPotentialMatch(pm)
-		}
+	// Only allocate result slice if we have matches
+	if matchCount == 0 {
+		return nil
 	}
 
-	return matches
+	// Create result slice from stack-backed matches
+	// This is the only allocation in the function
+	result := make([]*PotentialMatch, matchCount)
+	for i := 0; i < matchCount; i++ {
+		// Copy from stack to heap only for the final results
+		pm := getPotentialMatch()
+		*pm = matchesBacking[i]
+		result[i] = pm
+	}
+
+	return result
 }
 
 func (pev *ProcessExtendsVisitor) isElementValuesEqual(elementValue1, elementValue2 any) bool {
