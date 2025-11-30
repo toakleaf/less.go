@@ -344,6 +344,12 @@ let shmFunctionMap = new Map(); // function ID -> function name
 let shmPollingActive = false;
 let shmPollingInterval = null;
 
+// Prefetch buffer cache - avoids re-reading and re-parsing the same binary buffer
+// Cache is invalidated when bufferPath or bufferSize changes
+let lastPrefetchPath = null;
+let lastPrefetchSize = 0;
+let cachedPrefetchVars = null; // Map of variable name -> parsed variable data
+
 // Control block field offsets (will be populated from Go)
 const SHM_CONTROL = {
   requestReady: 0x000,
@@ -2108,13 +2114,40 @@ function createPrefetchEvalContext(contextData) {
 
     if (bufferPath && bufferSize > 0) {
       try {
-        // Read the binary data from the shared memory file
-        const buffer = fs.readFileSync(bufferPath);
+        let prefetchedVars;
 
-        // Parse the binary prefetch format
-        const prefetchedVars = parseBinaryPrefetchBuffer(buffer, bufferSize);
+        // Check if we can reuse cached parse result
+        if (
+          bufferPath === lastPrefetchPath &&
+          bufferSize === lastPrefetchSize &&
+          cachedPrefetchVars !== null
+        ) {
+          // Cache hit - skip file read and parse!
+          prefetchedVars = cachedPrefetchVars;
+          if (process.env.LESS_GO_DEBUG) {
+            console.error(
+              `[plugin-host] Prefetch cache HIT: reusing ${prefetchedVars.size} vars`
+            );
+          }
+        } else {
+          // Cache miss - read and parse
+          const buffer = fs.readFileSync(bufferPath);
+          prefetchedVars = parseBinaryPrefetchBuffer(buffer, bufferSize);
 
-        // Populate cache from binary data
+          // Store in cache
+          lastPrefetchPath = bufferPath;
+          lastPrefetchSize = bufferSize;
+          cachedPrefetchVars = prefetchedVars;
+
+          if (process.env.LESS_GO_DEBUG) {
+            console.error(
+              `[plugin-host] Prefetch cache MISS: parsed ${prefetchedVars.size} vars`
+            );
+          }
+        }
+
+        // Populate variableCache from prefetchedVars (cached or fresh)
+        // Note: augmentValueWithMethods must be called for each entry since methods may depend on runtime state
         for (const [name, varData] of prefetchedVars) {
           let value = varData.value;
           value = augmentValueWithMethods(value);
@@ -2126,21 +2159,29 @@ function createPrefetchEvalContext(contextData) {
         }
 
         if (process.env.LESS_GO_DEBUG) {
-          console.error(`[plugin-host] Creating prefetch eval context (BINARY): ${frameCount} frames, ${prefetchedVars.size} prefetched vars from shared memory`);
+          console.error(
+            `[plugin-host] Creating prefetch eval context (BINARY): ${frameCount} frames, ${prefetchedVars.size} prefetched vars from shared memory`
+          );
           // Debug: show @theme-colors structure
           const themeColors = prefetchedVars.get('@theme-colors');
           if (themeColors) {
-            console.error(`[plugin-host] @theme-colors structure: _type=${themeColors.value?._type}, value.length=${Array.isArray(themeColors.value?.value) ? themeColors.value.value.length : 'not array'}`);
+            console.error(
+              `[plugin-host] @theme-colors structure: _type=${themeColors.value?._type}, value.length=${Array.isArray(themeColors.value?.value) ? themeColors.value.value.length : 'not array'}`
+            );
             if (Array.isArray(themeColors.value?.value)) {
               themeColors.value.value.forEach((item, i) => {
-                console.error(`[plugin-host]   item[${i}]: _type=${item?._type}, value=${JSON.stringify(item?.value?.map?.(v => ({ _type: v?._type, value: v?.value, rgb: v?.rgb })))}`);
+                console.error(
+                  `[plugin-host]   item[${i}]: _type=${item?._type}, value=${JSON.stringify(item?.value?.map?.((v) => ({ _type: v?._type, value: v?.value, rgb: v?.rgb })))}`
+                );
               });
             }
           }
         }
       } catch (e) {
         if (process.env.LESS_GO_DEBUG) {
-          console.error(`[plugin-host] Failed to read shared memory: ${e.message}, falling back to JSON`);
+          console.error(
+            `[plugin-host] Failed to read shared memory: ${e.message}, falling back to JSON`
+          );
         }
         // Fall through to JSON path
       }
