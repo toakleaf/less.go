@@ -61,9 +61,8 @@ LESS_GO_DIFF=1 pnpm -w test:go
 - `LESS_GO_TRACE=1` - Show evaluation trace
 
 **Test Categories:**
-- **Perfect CSS Matches** - Tests producing identical CSS to less.js
-- **Correctly Failed** - Error tests that properly fail as expected
-- **Quarantined** - Plugin features not yet implemented (excluded from counts)
+- **Perfect CSS Matches** - Tests producing identical CSS to less.js (100 tests)
+- **Correctly Failed** - Error tests that properly fail as expected (91 tests)
 
 ## Benchmarking
 
@@ -108,17 +107,11 @@ pnpm bench:profile
 - URL rewriting
 - Math operations (all modes)
 - Inline JavaScript evaluation (via Node.js IPC)
+- Plugin system (custom functions, visitors, processors, file managers)
 - Compression output
 - Source maps
 
-## Quarantined Features
-
-The following require the plugin system (not yet implemented):
-- Plugin tests (`plugin`, `plugin-module`, `plugin-preeval`)
-- Import test that depends on plugins (`import`)
-- Third-party tests requiring JS plugins (`bootstrap4` - uses map-get, breakpoint-next, etc.)
-
-These are marked in `integration_suite_test.go` and excluded from test counts.
+All features are fully implemented - no quarantined tests!
 
 ## Project Structure
 

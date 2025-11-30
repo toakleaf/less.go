@@ -74,6 +74,43 @@ This directory contains task files for issues that have been successfully resolv
 - **Impact**: Maintained and improved mixin functionality
 - **Summary**: All documented mixin regressions fixed.
 
+### import-reference.md
+- **Completed**: 2025-11-28
+- **Issues**: Import reference functionality (`@import (reference)`)
+- **Impact**: Fixed 2 tests (import-reference, import-reference-issues)
+- **Tests**: import-reference, import-reference-issues
+- **Summary**: Files imported with `(reference)` option now correctly handled - they don't output CSS by default, but selectors/mixins are available for extends or mixin calls.
+
+### inline-js/ (folder)
+- **Completed**: 2025-11-30
+- **Issues**: Inline JavaScript expression evaluation
+- **Impact**: Fixed 3+ test suites (javascript, js-type-errors, no-js-errors)
+- **Tests**: javascript, js-type-errors/*, no-js-errors/*
+- **Summary**: Implemented inline JavaScript evaluation via Node.js runtime integration. Supports backtick expressions, variable access via `this.varName.toJS()`, and `@{varName}` interpolation.
+
+### error-handling/ (folder)
+- **Completed**: 2025-11-27
+- **Issues**: Expected error validation tests
+- **Impact**: All 89 error handling tests correctly validate and fail
+- **Tests**: All 62 eval-errors tests, all 27 parse-errors tests
+- **Summary**: Complete error validation including math validation, variable resolution, color function validation, and parser validation.
+
+### js-plugins/ (folder)
+- **Completed**: 2025-11-30
+- **Issues**: JavaScript plugin system implementation
+- **Impact**: Enabled all plugin-dependent tests including bootstrap4
+- **Tests**: plugin, plugin-module, plugin-preeval, plugin-simple, plugin-tree-nodes, bootstrap4
+- **Summary**: Full plugin system implementation using Node.js runtime. Supports custom functions, visitors, pre/post processors, and file managers. All plugin tests now passing!
+
+### performance/ (folder)
+- **Completed**: 2025-11-30
+- **Issues**: Performance optimization
+- **Impact**: Significant performance improvement
+- **Summary**: Multiple optimizations implemented:
+  - sync.Pool for frequently allocated node types (reduces GC pressure)
+  - Regex compilation caching (eliminates repeated compilation)
+  - Plugin scope sync optimization (only when local plugins need it)
+
 ## Archive Policy
 
 Task files are moved here when:
