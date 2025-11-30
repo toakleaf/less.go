@@ -32,8 +32,14 @@ type Selector struct {
 // OPTIMIZATION: Uses sync.Pool to reuse Selector objects and reduce GC pressure.
 // Call Release() when the Selector is no longer needed to return it to the pool.
 func NewSelector(elementsInput any, extendList []any, condition any, index int, currentFileInfo map[string]any, visibilityInfo map[string]any, parseFunc ...any) (*Selector, error) {
-	s := GetSelectorFromPool()
-	s.Node = NewNode()
+	return NewSelectorWithArena(nil, elementsInput, extendList, condition, index, currentFileInfo, visibilityInfo, parseFunc...)
+}
+
+// NewSelectorWithArena creates a new Selector using arena allocation if available.
+// If arena is nil, falls back to sync.Pool allocation.
+func NewSelectorWithArena(arena *NodeArena, elementsInput any, extendList []any, condition any, index int, currentFileInfo map[string]any, visibilityInfo map[string]any, parseFunc ...any) (*Selector, error) {
+	s := GetSelectorFromArena(arena)
+	s.Node = NewNodeWithArena(arena)
 	s.Condition = condition
 	s.EvaldCondition = condition == nil
 
@@ -235,6 +241,12 @@ func (s *Selector) getElements(elsInput any) ([]*Element, error) {
 // CreateDerived creates a new selector derived from the current one.
 // evaldCondition is the evaluated condition node (not a boolean).
 func (s *Selector) CreateDerived(elementsInput any, extendList []any, evaldCondition any) (*Selector, error) {
+	return s.CreateDerivedWithArena(nil, elementsInput, extendList, evaldCondition)
+}
+
+// CreateDerivedWithArena creates a new selector derived from the current one using arena allocation.
+// If arena is nil, falls back to sync.Pool allocation.
+func (s *Selector) CreateDerivedWithArena(arena *NodeArena, elementsInput any, extendList []any, evaldCondition any) (*Selector, error) {
 	// Use s.getElements to process the input elements correctly.
 	parsedElements, err := s.getElements(elementsInput)
 	if err != nil {
@@ -266,7 +278,7 @@ func (s *Selector) CreateDerived(elementsInput any, extendList []any, evaldCondi
 		visibilityInfo = s.VisibilityInfo()
 	}
 
-	newSel, err := NewSelector(parsedElements, finalExtendList, nil, index, fileInfo, visibilityInfo)
+	newSel, err := NewSelectorWithArena(arena, parsedElements, finalExtendList, nil, index, fileInfo, visibilityInfo)
 	if err != nil {
 		return nil, err
 	}

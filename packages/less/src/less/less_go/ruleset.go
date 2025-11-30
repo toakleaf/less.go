@@ -82,10 +82,16 @@ type Ruleset struct {
 // OPTIMIZATION: Uses sync.Pool to reuse Ruleset objects and reduce GC pressure.
 // Call Release() when the Ruleset is no longer needed to return it to the pool.
 func NewRuleset(selectors []any, rules []any, strictImports bool, visibilityInfo map[string]any, parseFuncs ...any) *Ruleset {
-	node := NewNode()
+	return NewRulesetWithArena(nil, selectors, rules, strictImports, visibilityInfo, parseFuncs...)
+}
+
+// NewRulesetWithArena creates a new Ruleset using arena allocation if available.
+// If arena is nil, falls back to sync.Pool allocation.
+func NewRulesetWithArena(arena *NodeArena, selectors []any, rules []any, strictImports bool, visibilityInfo map[string]any, parseFuncs ...any) *Ruleset {
+	node := NewNodeWithArena(arena)
 	node.TypeIndex = GetTypeIndexForNodeType("Ruleset")
 
-	r := GetRulesetFromPool()
+	r := GetRulesetFromArena(arena)
 	r.Node = node
 	r.StrictImports = strictImports
 	r.AllowRoot = true

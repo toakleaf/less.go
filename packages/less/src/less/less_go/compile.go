@@ -80,6 +80,10 @@ func Compile(input string, options *CompileOptions) (*CompileResult, error) {
 
 	optionsMap := convertCompileOptionsToMap(options)
 
+	// Create arena for this compilation to reduce GC pressure
+	arena := GetArena()
+	defer PutArena(arena)
+
 	var lessContext *LessContext
 	var cleanup func() error
 
@@ -98,6 +102,9 @@ func Compile(input string, options *CompileOptions) (*CompileResult, error) {
 	}
 
 	lessContext.Functions = createFunctions(nil).(*DefaultFunctions)
+
+	// Pass arena through options for node allocation
+	optionsMap["arena"] = arena
 
 	result, err := compileWithContext(lessContext, input, optionsMap)
 	if err != nil {

@@ -33,6 +33,12 @@ func NewNode() *Node {
 	return GetNodeFromPool()
 }
 
+// NewNodeWithArena creates a new Node using arena allocation if available.
+// If arena is nil, falls back to sync.Pool allocation.
+func NewNodeWithArena(arena *NodeArena) *Node {
+	return GetNodeFromArena(arena)
+}
+
 // SetParent sets the parent for one or more nodes
 func (n *Node) SetParent(nodes any, parent *Node) {
 	switch v := nodes.(type) {

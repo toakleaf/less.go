@@ -18,10 +18,16 @@ type Declaration struct {
 
 // Uses sync.Pool to reuse Declaration objects.
 func NewDeclaration(name any, value any, important any, merge any, index int, fileInfo map[string]any, inline bool, variable any) (*Declaration, error) {
-	node := NewNode()
+	return NewDeclarationWithArena(nil, name, value, important, merge, index, fileInfo, inline, variable)
+}
+
+// NewDeclarationWithArena creates a new Declaration using arena allocation if available.
+// If arena is nil, falls back to sync.Pool allocation.
+func NewDeclarationWithArena(arena *NodeArena, name any, value any, important any, merge any, index int, fileInfo map[string]any, inline bool, variable any) (*Declaration, error) {
+	node := NewNodeWithArena(arena)
 	node.TypeIndex = GetTypeIndexForNodeType("Declaration")
 
-	d := GetDeclarationFromPool()
+	d := GetDeclarationFromArena(arena)
 	d.Node = node
 	// Intern property names when they are strings (most common case)
 	if nameStr, ok := name.(string); ok {

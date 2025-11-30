@@ -291,3 +291,70 @@ func ReleaseUnit(u *Unit) {
 func (u *Unit) Release() {
 	ReleaseUnit(u)
 }
+
+// Arena-aware allocation functions
+// These functions use the arena if provided, otherwise fall back to sync.Pool
+
+// GetNodeFromArena allocates a Node from the arena or pool
+func GetNodeFromArena(arena *NodeArena) *Node {
+	if arena != nil {
+		return arena.AllocNode()
+	}
+	return GetNodeFromPool()
+}
+
+// GetRulesetFromArena allocates a Ruleset from the arena or pool
+func GetRulesetFromArena(arena *NodeArena) *Ruleset {
+	if arena != nil {
+		r := arena.AllocRuleset()
+		// Ensure slices are allocated (arena.AllocRuleset already does this)
+		return r
+	}
+	return GetRulesetFromPool()
+}
+
+// GetDeclarationFromArena allocates a Declaration from the arena or pool
+func GetDeclarationFromArena(arena *NodeArena) *Declaration {
+	if arena != nil {
+		return arena.AllocDeclaration()
+	}
+	return GetDeclarationFromPool()
+}
+
+// GetSelectorFromArena allocates a Selector from the arena or pool
+func GetSelectorFromArena(arena *NodeArena) *Selector {
+	if arena != nil {
+		s := arena.AllocSelector()
+		// Ensure slices are allocated (arena.AllocSelector already does this)
+		return s
+	}
+	return GetSelectorFromPool()
+}
+
+// GetElementFromArena allocates an Element from the arena or pool
+func GetElementFromArena(arena *NodeArena) *Element {
+	if arena != nil {
+		return arena.AllocElement()
+	}
+	return GetElementFromPool()
+}
+
+// GetExpressionFromArena allocates an Expression from the arena or pool
+func GetExpressionFromArena(arena *NodeArena) *Expression {
+	if arena != nil {
+		e := arena.AllocExpression()
+		// Ensure slices are allocated (arena.AllocExpression already does this)
+		return e
+	}
+	return GetExpressionFromPool()
+}
+
+// GetUnitFromArena allocates a Unit from the arena or pool
+func GetUnitFromArena(arena *NodeArena) *Unit {
+	if arena != nil {
+		u := arena.AllocUnit()
+		// Ensure slices are allocated (arena.AllocUnit already does this)
+		return u
+	}
+	return GetUnitFromPool()
+}
