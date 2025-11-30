@@ -104,12 +104,11 @@ func TestConditionEval(t *testing.T) {
 		expected bool
 		jsNote   string
 	}{
-		// Basic comparisons - temporarily commented out due to Compare function issues
-		// TODO: Fix Compare function to properly handle dimension comparisons
-		// {"equal numbers", "=", createTestDimension(5), createTestDimension(5), false, true, "JavaScript: 5 = 5 -> true"},
-		// {"not equal numbers", "=", createTestDimension(5), createTestDimension(3), false, false, "JavaScript: 5 = 3 -> false"},
-		// {"less than", "<", createTestDimension(3), createTestDimension(5), false, true, "JavaScript: 3 < 5 -> true"},
-		// {"greater than", ">", createTestDimension(5), createTestDimension(3), false, true, "JavaScript: 5 > 3 -> true"},
+		// Basic comparisons
+		{"equal numbers", "=", createTestDimension(5), createTestDimension(5), false, true, "JavaScript: 5 = 5 -> true"},
+		{"not equal numbers", "=", createTestDimension(5), createTestDimension(3), false, false, "JavaScript: 5 = 3 -> false"},
+		{"less than", "<", createTestDimension(3), createTestDimension(5), false, true, "JavaScript: 3 < 5 -> true"},
+		{"greater than", ">", createTestDimension(5), createTestDimension(3), false, true, "JavaScript: 5 > 3 -> true"},
 		
 		// Logical operations using toBool semantics
 		{"and with truthy values", "and", 1, "hello", false, true, "JavaScript: 1 && 'hello' -> true"},
@@ -118,9 +117,9 @@ func TestConditionEval(t *testing.T) {
 		{"or with truthy left", "or", 1, 0, false, true, "JavaScript: 1 || 0 -> true"},
 		{"or with falsy values", "or", 0, "", false, false, "JavaScript: 0 || '' -> false"},
 		
-		// Negation - temporarily commented out due to Compare function issues
-		// {"negated true", "=", createTestDimension(5), createTestDimension(5), true, false, "JavaScript: !(5 = 5) -> false"},
-		// {"negated false", "=", createTestDimension(5), createTestDimension(3), true, true, "JavaScript: !(5 = 3) -> true"},
+		// Negation
+		{"negated true", "=", createTestDimension(5), createTestDimension(5), true, false, "JavaScript: !(5 = 5) -> false"},
+		{"negated false", "=", createTestDimension(5), createTestDimension(3), true, true, "JavaScript: !(5 = 3) -> true"},
 	}
 
 	for _, tt := range tests {
