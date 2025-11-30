@@ -47,7 +47,7 @@ module.exports = {
             }
         },
         {
-            files: ['test/**/*.{js,ts}', 'benchmark/index.js'],
+            files: ['test/**/*.{js,ts}', 'benchmark/index.js', 'src/**/*.test.js'],
             /**
              * @todo - fix later
              */
