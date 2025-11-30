@@ -91,6 +91,24 @@ type NodeJSRuntime struct {
 	shmProtocol   *SharedMemoryProtocol
 	shmProtocolMu sync.Mutex
 	useSHMProtocol bool // Whether to use the binary SHM protocol
+
+	// Prefetch binary data cache - avoids re-serializing variables on every plugin call
+	prefetchCache   *PrefetchCache
+	prefetchCacheMu sync.RWMutex
+}
+
+// PrefetchCache caches the serialized binary prefetch buffer for plugin function calls.
+// This avoids the overhead of collecting and serializing ~39 variables on every call
+// when the evaluation context (frames) hasn't changed.
+type PrefetchCache struct {
+	// binaryData is the serialized binary prefetch buffer
+	binaryData []byte
+	// frameCount is the number of frames when the cache was created
+	frameCount int
+	// frameHash is a hash of frame pointers to detect structural changes
+	frameHash uint64
+	// varCount is the number of variables that were collected
+	varCount int
 }
 
 // RuntimeOption configures a NodeJSRuntime.
@@ -699,6 +717,84 @@ func (rt *NodeJSRuntime) FunctionCacheSize() int {
 	rt.funcResultCacheMu.RLock()
 	defer rt.funcResultCacheMu.RUnlock()
 	return len(rt.funcResultCache)
+}
+
+// ============================================================================
+// Prefetch Binary Data Cache
+// ============================================================================
+// The prefetch cache stores the serialized binary buffer of commonly-used
+// variables. This avoids re-collecting and re-serializing ~39 variables
+// on every plugin function call when the evaluation context hasn't changed.
+// ============================================================================
+
+// GetPrefetchCache returns the cached prefetch binary data if it's still valid
+// for the given frames. Returns nil if the cache is invalid or doesn't exist.
+//
+// The cache is considered valid if:
+// 1. It exists
+// 2. The frame count matches
+// 3. The frame hash matches (detecting structural changes)
+func (rt *NodeJSRuntime) GetPrefetchCache(frameCount int, frameHash uint64) []byte {
+	rt.prefetchCacheMu.RLock()
+	defer rt.prefetchCacheMu.RUnlock()
+
+	if rt.prefetchCache == nil {
+		return nil
+	}
+
+	// Check if cache is valid
+	if rt.prefetchCache.frameCount != frameCount || rt.prefetchCache.frameHash != frameHash {
+		return nil
+	}
+
+	return rt.prefetchCache.binaryData
+}
+
+// SetPrefetchCache stores the serialized prefetch binary data in the cache.
+// The frameCount and frameHash are used for invalidation checks.
+func (rt *NodeJSRuntime) SetPrefetchCache(binaryData []byte, frameCount int, frameHash uint64, varCount int) {
+	rt.prefetchCacheMu.Lock()
+	defer rt.prefetchCacheMu.Unlock()
+
+	// Reuse the cache struct if it exists
+	if rt.prefetchCache == nil {
+		rt.prefetchCache = &PrefetchCache{}
+	}
+
+	// Copy the binary data to avoid holding references to temporary buffers
+	if cap(rt.prefetchCache.binaryData) >= len(binaryData) {
+		// Reuse existing slice capacity
+		rt.prefetchCache.binaryData = rt.prefetchCache.binaryData[:len(binaryData)]
+		copy(rt.prefetchCache.binaryData, binaryData)
+	} else {
+		// Allocate new slice
+		rt.prefetchCache.binaryData = make([]byte, len(binaryData))
+		copy(rt.prefetchCache.binaryData, binaryData)
+	}
+
+	rt.prefetchCache.frameCount = frameCount
+	rt.prefetchCache.frameHash = frameHash
+	rt.prefetchCache.varCount = varCount
+}
+
+// InvalidatePrefetchCache explicitly invalidates the prefetch cache.
+// Call this when you know the evaluation context has changed significantly.
+func (rt *NodeJSRuntime) InvalidatePrefetchCache() {
+	rt.prefetchCacheMu.Lock()
+	defer rt.prefetchCacheMu.Unlock()
+	rt.prefetchCache = nil
+}
+
+// GetPrefetchCacheStats returns statistics about the prefetch cache.
+// Returns (binarySize, varCount, isValid).
+func (rt *NodeJSRuntime) GetPrefetchCacheStats() (int, int, bool) {
+	rt.prefetchCacheMu.RLock()
+	defer rt.prefetchCacheMu.RUnlock()
+
+	if rt.prefetchCache == nil {
+		return 0, 0, false
+	}
+	return len(rt.prefetchCache.binaryData), rt.prefetchCache.varCount, true
 }
 
 // BatchCall represents a single function call in a batch.
