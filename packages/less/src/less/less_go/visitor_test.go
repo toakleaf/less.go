@@ -745,12 +745,24 @@ func TestVisitDeeperFlagControl(t *testing.T) {
 	})
 }
 
-// Test array-like node handling - matches JS tests  
+// ArrayLikeNodeWithoutAccept is a node with length/Elements but no Accept method
+// This tests the reflection fallback path for array-like nodes
+type ArrayLikeNodeWithoutAccept struct {
+	Type      string
+	TypeIndex int
+	length    int
+	Elements  []any
+}
+
+func (n *ArrayLikeNodeWithoutAccept) GetType() string      { return n.Type }
+func (n *ArrayLikeNodeWithoutAccept) GetTypeIndex() int    { return n.TypeIndex }
+
+// Test array-like node handling - matches JS tests
 func TestArrayLikeNodeHandling(t *testing.T) {
 	t.Run("should handle array-like nodes", func(t *testing.T) {
 		impl := &MockImplementation{}
 		visitor := NewVisitor(impl)
-		
+
 		var acceptCount int
 		childNode1 := &VisitorMockNode{
 			Type:      "ChildNode",
@@ -760,32 +772,32 @@ func TestArrayLikeNodeHandling(t *testing.T) {
 			},
 		}
 		childNode2 := &VisitorMockNode{
-			Type:      "ChildNode", 
+			Type:      "ChildNode",
 			TypeIndex: 2,
 			AcceptFn: func(v any) {
 				acceptCount++
 			},
 		}
-		
-		// Create array-like node similar to JS: {length: 2, 0: child1, 1: child2}
-		arrayNode := &VisitorMockNode{
+
+		// Create array-like node WITHOUT Accept method (uses reflection path)
+		arrayNode := &ArrayLikeNodeWithoutAccept{
 			Type:      "ArrayNode",
 			TypeIndex: 3,
 			length:    2,
 			Elements:  []any{childNode1, childNode2},
 		}
-		
+
 		visitor.Visit(arrayNode)
-		
+
 		if acceptCount != 2 {
 			t.Errorf("Expected 2 accept calls for array elements, got %d", acceptCount)
 		}
 	})
-	
+
 	t.Run("should skip array elements without accept method", func(t *testing.T) {
 		impl := &MockImplementation{}
 		visitor := NewVisitor(impl)
-		
+
 		var acceptCount int
 		childWithAccept := &VisitorMockNode{
 			Type:      "ChildNode",
@@ -794,22 +806,23 @@ func TestArrayLikeNodeHandling(t *testing.T) {
 				acceptCount++
 			},
 		}
-		
+
 		// Create element without Accept method (just a regular struct)
 		childWithoutAccept := struct {
 			SomeProperty string
 		}{SomeProperty: "value"}
-		
-		arrayNode := &VisitorMockNode{
-			Type:      "ArrayNode", 
+
+		// Array node WITHOUT Accept method (uses reflection path)
+		arrayNode := &ArrayLikeNodeWithoutAccept{
+			Type:      "ArrayNode",
 			TypeIndex: 3,
 			length:    2,
 			Elements:  []any{childWithoutAccept, childWithAccept},
 		}
-		
+
 		// Should not panic and should call accept on valid element
 		visitor.Visit(arrayNode)
-		
+
 		if acceptCount != 1 {
 			t.Errorf("Expected 1 accept call (skipping invalid element), got %d", acceptCount)
 		}

@@ -211,46 +211,47 @@ func (v *Visitor) Visit(node any) any {
 	}
 
 	if visitArgs.VisitDeeper && node != nil {
-		nodeVal := reflect.ValueOf(node)
-		if nodeVal.Kind() == reflect.Ptr && !nodeVal.IsNil() {
-			nodeVal = nodeVal.Elem()
-		}
+		// Fast path: most nodes implement Accept directly
+		if accepter, ok := node.(interface{ Accept(any) }); ok {
+			accepter.Accept(v)
+		} else {
+			// Slow path: array-like nodes that don't implement Accept
+			// Use reflection to check for length/Elements fields
+			nodeVal := reflect.ValueOf(node)
+			if nodeVal.Kind() == reflect.Ptr && !nodeVal.IsNil() {
+				nodeVal = nodeVal.Elem()
+			}
 
-		if nodeVal.Kind() == reflect.Struct {
-			lengthField := nodeVal.FieldByName("length")
-			elementsField := nodeVal.FieldByName("Elements")
+			if nodeVal.Kind() == reflect.Struct {
+				lengthField := nodeVal.FieldByName("length")
+				elementsField := nodeVal.FieldByName("Elements")
 
-			if lengthField.IsValid() && lengthField.Kind() == reflect.Int && lengthField.Int() > 0 {
-				length := int(lengthField.Int())
+				if lengthField.IsValid() && lengthField.Kind() == reflect.Int && lengthField.Int() > 0 {
+					length := int(lengthField.Int())
 
-				// First try Elements field (Go-style array-like nodes)
-				if elementsField.IsValid() && elementsField.Kind() == reflect.Slice {
-					elementsSlice := elementsField
-					for i := 0; i < length && i < elementsSlice.Len(); i++ {
-						item := elementsSlice.Index(i).Interface()
-						if accepter, ok := item.(interface{ Accept(any) }); ok {
-							accepter.Accept(v)
-						}
-					}
-				} else {
-					// Fallback: try to get element at index i (like node[i] in JS)
-					for i := 0; i < length; i++ {
-						indexField := nodeVal.FieldByName(strconv.Itoa(i))
-						if indexField.IsValid() && indexField.CanInterface() {
-							item := indexField.Interface()
+					// First try Elements field (Go-style array-like nodes)
+					if elementsField.IsValid() && elementsField.Kind() == reflect.Slice {
+						elementsSlice := elementsField
+						for i := 0; i < length && i < elementsSlice.Len(); i++ {
+							item := elementsSlice.Index(i).Interface()
 							if accepter, ok := item.(interface{ Accept(any) }); ok {
 								accepter.Accept(v)
 							}
 						}
+					} else {
+						// Fallback: try to get element at index i (like node[i] in JS)
+						for i := 0; i < length; i++ {
+							indexField := nodeVal.FieldByName(strconv.Itoa(i))
+							if indexField.IsValid() && indexField.CanInterface() {
+								item := indexField.Interface()
+								if accepter, ok := item.(interface{ Accept(any) }); ok {
+									accepter.Accept(v)
+								}
+							}
+						}
 					}
 				}
-			} else {
-				if accepter, ok := node.(interface{ Accept(any) }); ok {
-					accepter.Accept(v)
-				}
 			}
-		} else if accepter, ok := node.(interface{ Accept(any) }); ok {
-			accepter.Accept(v)
 		}
 	}
 
