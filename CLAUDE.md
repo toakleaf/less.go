@@ -23,10 +23,13 @@ This is a fork of less.js being ported to Go. The goal is to maintain 1:1 functi
 
 When working on this project, please be aware of the following:
 
-**⚠️ CRITICAL VALIDATION REQUIREMENT**: Before creating ANY pull request, you MUST run ALL tests:
-- ✅ ALL unit tests: `pnpm -w test:go:unit` (must pass 100%)
-- ✅ ALL integration tests: `pnpm -w test:go`
-- ✅ Zero regressions tolerance - see `.claude/VALIDATION_REQUIREMENTS.md` for details
+**⚠️ CRITICAL VALIDATION REQUIREMENT**: Before running ANY tests or creating ANY pull request:
+1. **FIRST**: Run `pnpm install` to ensure workspace packages are linked (required for `import-module` and other npm resolution tests)
+2. ✅ ALL unit tests: `pnpm -w test:go:unit` (must pass 100%)
+3. ✅ ALL integration tests: `pnpm -w test:go`
+4. ✅ Zero regressions tolerance - see `.claude/VALIDATION_REQUIREMENTS.md` for details
+
+**Note**: If tests show unexpected compilation failures for `import-module`, `plugin-module`, or `bootstrap4`, run `pnpm install` first - these tests require npm workspace packages to be linked.
 
 1. **File Type Detection**: The rules above should be considered based on the file types you're working with:
    - For `.go` files: Apply Go language rules and conventions

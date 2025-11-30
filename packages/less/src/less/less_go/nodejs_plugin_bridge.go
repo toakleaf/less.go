@@ -2,6 +2,7 @@ package less_go
 
 import (
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/toakleaf/less.go/packages/less/src/less/less_go/runtime"
@@ -193,30 +194,62 @@ func (b *NodeJSPluginBridge) CallFunctionWithContext(name string, evalContext ru
 // EnterScope creates and enters a new child scope.
 // This is used when entering a ruleset or mixin that might have local plugins.
 //
-// OPTIMIZATION: Only updates Go scope, skips Node.js IPC entirely.
-// Rationale: Same as AddFunctionToCurrentScope - functions are globally registered
-// in Node.js, context is passed with calls, and we have 95%+ cache hit rate.
+// This MUST sync with Node.js to ensure plugin functions loaded at this scope
+// level are properly scoped and can shadow functions from parent scopes.
 func (b *NodeJSPluginBridge) EnterScope() *runtime.PluginScope {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+
+	// Create child scope in Go
 	b.scope = b.scope.CreateChild()
+
+	// Sync with Node.js - tell it to enter a new scope
+	if b.runtime != nil {
+		// Track scope depth and sequence in runtime for cache key generation
+		b.runtime.IncrementScopeDepth()
+		b.runtime.IncrementScopeSeq() // Ensures sibling scopes don't share cache
+
+		_, err := b.runtime.SendCommand(runtime.Command{
+			Cmd:  "enterScope",
+			Data: map[string]any{},
+		})
+		if err != nil && os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Fprintf(os.Stderr, "[NodeJSPluginBridge] EnterScope IPC error: %v\n", err)
+		}
+	}
+
 	return b.scope
 }
 
 // ExitScope exits the current scope and returns to the parent.
 // Returns the parent scope, or nil if already at root.
 //
-// OPTIMIZATION: Only updates Go scope, skips Node.js IPC entirely.
-// OPTIMIZATION: Releases the child scope to sync.Pool for reuse.
+// This MUST sync with Node.js to ensure scope changes are reflected.
 func (b *NodeJSPluginBridge) ExitScope() *runtime.PluginScope {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+
 	if parent := b.scope.Parent(); parent != nil {
 		oldScope := b.scope
 		b.scope = parent
 		// Release old scope to pool for reuse
 		oldScope.Release()
+
+		// Sync with Node.js - tell it to exit the current scope
+		if b.runtime != nil {
+			// Track scope depth in runtime for cache key generation
+			b.runtime.DecrementScopeDepth()
+
+			_, err := b.runtime.SendCommand(runtime.Command{
+				Cmd:  "exitScope",
+				Data: map[string]any{},
+			})
+			if err != nil && os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Fprintf(os.Stderr, "[NodeJSPluginBridge] ExitScope IPC error: %v\n", err)
+			}
+		}
 	}
+
 	return b.scope
 }
 
@@ -224,27 +257,32 @@ func (b *NodeJSPluginBridge) ExitScope() *runtime.PluginScope {
 // This is used when re-registering plugin functions inherited from ancestor frames
 // (e.g., when a mixin defined inside a namespace with @plugin is called).
 // The function must already exist in the Node.js runtime - this just makes it
-// visible at the current scope level.
+// visible at the current scope level in BOTH Go and Node.js.
 //
-// OPTIMIZATION: Only updates Go scope, skips Node.js IPC entirely.
-// Rationale:
-// 1. Functions are already registered globally in Node.js when plugins load
-// 2. The runtime-level cache has 95%+ hit rate, so most calls don't reach Node.js
-// 3. When a cache miss occurs, context (frames/variables) is passed with the call
-// 4. This eliminates ~500k+ IPC calls during Bootstrap4 compilation
-//
-// OPTIMIZATION 2: Uses GetOrCreateJSFunctionDefinition to reuse cached objects.
-// This eliminates over 1 million object allocations during Bootstrap4 compilation
-// by reusing the same JSFunctionDefinition object for each (runtime, name) pair.
+// This MUST sync with Node.js because function lookups happen at the Node.js side
+// during function calls, and the Node.js scope stack must have the function at
+// the correct depth for shadowing to work properly.
 func (b *NodeJSPluginBridge) AddFunctionToCurrentScope(name string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	// Add to Go scope only - no IPC needed
-	// Node.js already has the function registered globally
-	// Use cached JSFunctionDefinition to avoid redundant allocations
+	// Add to Go scope
 	fn := runtime.GetOrCreateJSFunctionDefinition(name, b.runtime)
 	b.scope.AddFunction(name, fn)
+
+	// Sync with Node.js - re-register function at current scope depth
+	// Use fire-and-forget since we don't need a response
+	if b.runtime != nil {
+		err := b.runtime.SendCommandFireAndForget(runtime.Command{
+			Cmd: "addFunctionToScopeNoReply",
+			Data: map[string]any{
+				"name": name,
+			},
+		})
+		if err != nil && os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Fprintf(os.Stderr, "[NodeJSPluginBridge] AddFunctionToCurrentScope IPC error: %v\n", err)
+		}
+	}
 }
 
 // SetScope sets the current scope directly.
