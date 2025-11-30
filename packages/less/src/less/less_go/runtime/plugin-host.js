@@ -997,12 +997,141 @@ function handleCommand(cmd) {
         handleBatchCallFunctions(id, data);
         break;
 
+      // =====================================================================
+      // Inline JavaScript Evaluation
+      // =====================================================================
+      case 'evalJS':
+        handleEvalJS(id, data);
+        break;
+
       default:
         sendResponse(id, false, null, `Unknown command: ${command}`);
     }
   } catch (err) {
     sendResponse(id, false, null, err.message || String(err));
   }
+}
+
+// =============================================================================
+// Inline JavaScript Evaluation Support
+// =============================================================================
+// These functions handle evaluation of inline JavaScript expressions in LESS
+// using backtick syntax: `1 + 1` or ~`"hello" + " world"`.
+// Variables from LESS are exposed as this.varName with a .toJS() method.
+// =============================================================================
+
+/**
+ * Evaluate an inline JavaScript expression
+ * @param {number} id - Command ID
+ * @param {Object} data - { expression: string, variables: { name: { value: string } } }
+ */
+function handleEvalJS(id, data) {
+  const { expression, variables } = data || {};
+
+  if (expression === undefined) {
+    sendResponse(id, false, null, 'Expression is required');
+    return;
+  }
+
+  try {
+    // Build evaluation context with variables accessible as this.varName
+    const evalContext = buildEvalContext(variables);
+
+    // Create function and execute with context as 'this'
+    // This matches less.js: new Function(`return (${expression})`)
+    const fn = new Function(`return (${expression})`);
+    const result = fn.call(evalContext);
+
+    // Convert result to serializable format
+    const converted = convertJSResult(result);
+
+    sendResponse(id, true, converted);
+  } catch (err) {
+    // Format error for Less error reporting
+    sendResponse(id, false, null, formatJSError(err));
+  }
+}
+
+/**
+ * Build evaluation context from Less variables
+ * Variables are exposed as this.varName with a toJS() method
+ * @param {Object} variables - { name: { value: string } }
+ * @returns {Object} Context object for function.call()
+ */
+function buildEvalContext(variables) {
+  const context = {};
+
+  if (!variables) {
+    return context;
+  }
+
+  for (const [name, info] of Object.entries(variables)) {
+    // Remove @ prefix if present (Go may send "@foo" or "foo")
+    const cleanName = name.startsWith('@') ? name.slice(1) : name;
+
+    // Create variable object with toJS() method
+    // This matches less.js behavior in js-eval-node.js
+    context[cleanName] = {
+      value: info.value,
+      toJS: function() {
+        return this.value;
+      }
+    };
+  }
+
+  return context;
+}
+
+/**
+ * Convert JavaScript result to serializable format
+ * Matches less.js behavior in tree/javascript.js eval()
+ * @param {*} result - The JavaScript result
+ * @returns {Object} Serializable result with type info
+ */
+function convertJSResult(result) {
+  const type = typeof result;
+
+  // Number (not NaN)
+  if (type === 'number' && !isNaN(result)) {
+    return { type: 'number', value: result };
+  }
+
+  // String
+  if (type === 'string') {
+    return { type: 'string', value: result };
+  }
+
+  // Array - join with comma+space (matches less.js)
+  if (Array.isArray(result)) {
+    return { type: 'array', value: result.join(', ') };
+  }
+
+  // Boolean
+  if (type === 'boolean') {
+    return { type: 'boolean', value: result };
+  }
+
+  // Null/undefined/NaN - treat as empty
+  if (result === null || result === undefined || (type === 'number' && isNaN(result))) {
+    return { type: 'empty', value: '' };
+  }
+
+  // Object or other - convert to string
+  return { type: 'other', value: String(result) };
+}
+
+/**
+ * Format JavaScript error for Less error reporting
+ * Matches less.js format: "JavaScript evaluation error: 'TypeError: ...'"
+ * @param {Error} err - The JavaScript error
+ * @returns {string} Formatted error message
+ */
+function formatJSError(err) {
+  // Match less.js format from tree/js-eval-node.js line 46
+  const errName = err.name || 'Error';
+  const errMsg = err.message || String(err);
+  // Replace double quotes with single quotes in message
+  return `JavaScript evaluation error: '${errName}: ${errMsg.replace(/["]/g, "'")}'`;
 }
 
 /**
