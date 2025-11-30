@@ -88,8 +88,14 @@ func (efv *ExtendFinderVisitor) IsReplacing() bool {
 // VisitNode implements direct dispatch without reflection for better performance
 func (efv *ExtendFinderVisitor) VisitNode(node any, visitArgs *VisitArgs) (any, bool) {
 	switch n := node.(type) {
+	case *AtRule:
+		efv.VisitAtRule(n, visitArgs)
+		return n, true
 	case *Declaration:
 		efv.VisitDeclaration(n, visitArgs)
+		return n, true
+	case *Media:
+		efv.VisitMedia(n, visitArgs)
 		return n, true
 	case *MixinDefinition:
 		efv.VisitMixinDefinition(n, visitArgs)
@@ -97,31 +103,27 @@ func (efv *ExtendFinderVisitor) VisitNode(node any, visitArgs *VisitArgs) (any, 
 	case *Ruleset:
 		efv.VisitRuleset(n, visitArgs)
 		return n, true
-	case *Media:
-		efv.VisitMedia(n, visitArgs)
-		return n, true
-	case *AtRule:
-		efv.VisitAtRule(n, visitArgs)
-		return n, true
 	default:
-		return node, false
+		_ = n
+		return node, true // Node type handled (no-op, avoids reflection)
 	}
 }
 
 // VisitNodeOut implements direct dispatch for visitOut methods
 func (efv *ExtendFinderVisitor) VisitNodeOut(node any) bool {
 	switch n := node.(type) {
-	case *Ruleset:
-		efv.VisitRulesetOut(n)
+	case *AtRule:
+		efv.VisitAtRuleOut(n)
 		return true
 	case *Media:
 		efv.VisitMediaOut(n)
 		return true
-	case *AtRule:
-		efv.VisitAtRuleOut(n)
+	case *Ruleset:
+		efv.VisitRulesetOut(n)
 		return true
 	default:
-		return false
+		_ = n
+		return true // Node type handled (no-op, avoids reflection)
 	}
 }
 
@@ -358,40 +360,42 @@ func (pev *ProcessExtendsVisitor) IsReplacing() bool {
 // VisitNode implements direct dispatch without reflection for better performance
 func (pev *ProcessExtendsVisitor) VisitNode(node any, visitArgs *VisitArgs) (any, bool) {
 	switch n := node.(type) {
+	case *AtRule:
+		pev.VisitAtRule(n, visitArgs)
+		return n, true
 	case *Declaration:
 		pev.VisitDeclaration(n, visitArgs)
-		return n, true
-	case *MixinDefinition:
-		pev.VisitMixinDefinition(n, visitArgs)
-		return n, true
-	case *Selector:
-		pev.VisitSelector(n, visitArgs)
-		return n, true
-	case *Ruleset:
-		pev.VisitRuleset(n, visitArgs)
 		return n, true
 	case *Media:
 		pev.VisitMedia(n, visitArgs)
 		return n, true
-	case *AtRule:
-		pev.VisitAtRule(n, visitArgs)
+	case *MixinDefinition:
+		pev.VisitMixinDefinition(n, visitArgs)
+		return n, true
+	case *Ruleset:
+		pev.VisitRuleset(n, visitArgs)
+		return n, true
+	case *Selector:
+		pev.VisitSelector(n, visitArgs)
 		return n, true
 	default:
-		return node, false
+		_ = n
+		return node, true // Node type handled (no-op, avoids reflection)
 	}
 }
 
 // VisitNodeOut implements direct dispatch for visitOut methods
 func (pev *ProcessExtendsVisitor) VisitNodeOut(node any) bool {
 	switch n := node.(type) {
-	case *Media:
-		pev.VisitMediaOut(n)
-		return true
 	case *AtRule:
 		pev.VisitAtRuleOut(n)
 		return true
+	case *Media:
+		pev.VisitMediaOut(n)
+		return true
 	default:
-		return false
+		_ = n
+		return true // Node type handled (no-op, avoids reflection)
 	}
 }
 
