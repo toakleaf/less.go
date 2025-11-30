@@ -159,6 +159,86 @@ func NewRuleset(selectors []any, rules []any, strictImports bool, visibilityInfo
 	return r
 }
 
+// NewRulesetWithArena creates a Ruleset using arena allocation when available.
+// This avoids sync.Pool mutex overhead for single-threaded compilation.
+func NewRulesetWithArena(arena *NodeArena, selectors []any, rules []any, strictImports bool, visibilityInfo map[string]any, parseFuncs ...any) *Ruleset {
+	node := GetNodeFromArena(arena)
+	node.TypeIndex = GetTypeIndexForNodeType("Ruleset")
+
+	r := GetRulesetFromArena(arena)
+	r.Node = node
+	r.StrictImports = strictImports
+	r.AllowRoot = true
+
+	// Handle selectors - keep nil if input is nil (tests expect this)
+	if selectors == nil {
+		r.Selectors = nil
+	} else if len(selectors) == 0 {
+		r.Selectors = r.Selectors[:0]
+	} else {
+		// Copy selectors to pooled slice
+		if cap(r.Selectors) < len(selectors) {
+			r.Selectors = make([]any, len(selectors))
+		} else {
+			r.Selectors = r.Selectors[:len(selectors)]
+		}
+		copy(r.Selectors, selectors)
+	}
+
+	// Handle rules - keep nil if input is nil (tests expect this)
+	if rules == nil {
+		r.Rules = nil
+	} else if len(rules) == 0 {
+		r.Rules = r.Rules[:0]
+	} else {
+		// Copy rules to pooled slice
+		if cap(r.Rules) < len(rules) {
+			r.Rules = make([]any, len(rules))
+		} else {
+			r.Rules = r.Rules[:len(rules)]
+		}
+		copy(r.Rules, rules)
+	}
+
+	r.CopyVisibilityInfo(visibilityInfo)
+	r.SetParent(r.Selectors, r.Node)
+	r.SetParent(r.Rules, r.Node)
+
+	// Handle optional parse functions
+	if len(parseFuncs) > 0 {
+		if selectorsParseFunc, ok := parseFuncs[0].(SelectorsParseFunc); ok {
+			r.SelectorsParseFunc = selectorsParseFunc
+		}
+	}
+	if len(parseFuncs) > 1 {
+		if valueParseFunc, ok := parseFuncs[1].(ValueParseFunc); ok {
+			r.ValueParseFunc = valueParseFunc
+		}
+	}
+	if len(parseFuncs) > 2 {
+		if parseContext, ok := parseFuncs[2].(map[string]any); ok {
+			r.ParseContext = parseContext
+			// Also set in Parse object for JavaScript compatibility
+			if r.Parse == nil {
+				r.Parse = make(map[string]any)
+			}
+			r.Parse["context"] = parseContext
+		}
+	}
+	if len(parseFuncs) > 3 {
+		if parseImports, ok := parseFuncs[3].(map[string]any); ok {
+			r.ParseImports = parseImports
+			// Also set in Parse object for JavaScript compatibility
+			if r.Parse == nil {
+				r.Parse = make(map[string]any)
+			}
+			r.Parse["importManager"] = parseImports
+		}
+	}
+
+	return r
+}
+
 func (r *Ruleset) Type() string {
 	return "Ruleset"
 }

@@ -71,6 +71,8 @@ type Eval struct {
 
 	PluginBridge     *NodeJSPluginBridge
 	LazyPluginBridge *LazyNodeJSPluginBridge // Lazy bridge for deferred initialization
+
+	Arena *NodeArena // Arena for zero-allocation node reuse (single-threaded, no mutex)
 }
 
 func buildParserFramesCache(frames []any) []ParserFrame {
@@ -101,6 +103,12 @@ func NewEval(options map[string]any, frames []any) *Eval {
 	} else if paths, ok := options["paths"].([]string); ok {
 		e.Paths = paths
 	}
+	// Extract arena from options if available
+	if options != nil {
+		if arena, ok := options["arena"].(*NodeArena); ok {
+			e.Arena = arena
+		}
+	}
 	return e
 }
 
@@ -130,6 +138,7 @@ func NewEvalFromEval(parent *Eval, frames []any) *Eval {
 		MediaPath:         parent.MediaPath,
 		PluginBridge:      parent.PluginBridge,
 		LazyPluginBridge:  parent.LazyPluginBridge,
+		Arena:             parent.Arena, // Propagate arena
 	}
 }
 
@@ -644,6 +653,7 @@ func (e *Eval) NewMixinEvalContext(frames []any) *Eval {
 		// where mixin body evaluation gets a fresh media context
 		PluginBridge:     e.PluginBridge,
 		LazyPluginBridge: e.LazyPluginBridge,
+		Arena:            e.Arena, // Propagate arena
 	}
 }
 
@@ -675,6 +685,7 @@ func (e *Eval) CopyWithFrames(frames []any) *Eval {
 		MediaPath:         e.MediaPath,
 		PluginBridge:      e.PluginBridge,
 		LazyPluginBridge:  e.LazyPluginBridge,
+		Arena:             e.Arena, // Propagate arena
 	}
 }
 

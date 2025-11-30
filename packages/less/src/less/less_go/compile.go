@@ -80,6 +80,11 @@ func Compile(input string, options *CompileOptions) (*CompileResult, error) {
 
 	optionsMap := convertCompileOptionsToMap(options)
 
+	// Create arena for zero-allocation node reuse during this compilation
+	// Single-threaded compilation means no mutex overhead
+	arena := NewNodeArena()
+	optionsMap["arena"] = arena
+
 	var lessContext *LessContext
 	var cleanup func() error
 
@@ -193,6 +198,13 @@ func compileWithContext(lessContext *LessContext, input string, options map[stri
 				return NewParser(parserContext, parserImports, parserFileInfo, currentIndex)
 			},
 			"pluginManager": pluginManager,
+		}
+
+		// Pass arena to context if available in options
+		if lessContext.Options != nil {
+			if arena, ok := lessContext.Options["arena"].(*NodeArena); ok {
+				contextMap["arena"] = arena
+			}
 		}
 
 		if context != nil && context.Paths != nil && len(context.Paths) > 0 {

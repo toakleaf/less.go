@@ -15,6 +15,7 @@ type Parser struct {
 	currentIndex int
 	context      map[string]any
 	parsers      *Parsers
+	arena        *NodeArena // Arena for zero-allocation node reuse (single-threaded, no mutex)
 }
 
 // CreateSelectorParseFunc creates a SelectorParseFunc that can be used by selector nodes
@@ -180,8 +181,48 @@ func NewParser(context map[string]any, imports map[string]any, fileInfo map[stri
 		context:      context,
 	}
 
+	// Extract arena from context if available (for zero-allocation node reuse)
+	if context != nil {
+		if arena, ok := context["arena"].(*NodeArena); ok {
+			p.arena = arena
+		}
+	}
+
 	p.parsers = NewParsers(p)
 	return p
+}
+
+// Arena-aware factory methods for node allocation
+// These use the arena when available for zero-allocation reuse
+
+// getRulesetFromArena returns a Ruleset from arena if available, otherwise from pool.
+func (p *Parser) getRulesetFromArena() *Ruleset {
+	return GetRulesetFromArena(p.arena)
+}
+
+// getSelectorFromArena returns a Selector from arena if available, otherwise from pool.
+func (p *Parser) getSelectorFromArena() *Selector {
+	return GetSelectorFromArena(p.arena)
+}
+
+// getElementFromArena returns an Element from arena if available, otherwise from pool.
+func (p *Parser) getElementFromArena() *Element {
+	return GetElementFromArena(p.arena)
+}
+
+// getDeclarationFromArena returns a Declaration from arena if available, otherwise from pool.
+func (p *Parser) getDeclarationFromArena() *Declaration {
+	return GetDeclarationFromArena(p.arena)
+}
+
+// getExpressionFromArena returns an Expression from arena if available, otherwise from pool.
+func (p *Parser) getExpressionFromArena() *Expression {
+	return GetExpressionFromArena(p.arena)
+}
+
+// getNodeFromArena returns a Node from arena if available, otherwise from pool.
+func (p *Parser) getNodeFromArena() *Node {
+	return GetNodeFromArena(p.arena)
 }
 
 // error throws a LessError
@@ -525,8 +566,8 @@ func (p *Parser) parseInternal(str string, callback func(*LessError, *Ruleset), 
 	// Set up node prototypes (equivalent to JS tree.Node.prototype.parse = this)
 	// This would be handled differently in Go, probably through interfaces
 
-	// Create root ruleset
-	root = NewRuleset(nil, p.parsers.Primary(), false, nil, p.CreateSelectorsParseFunc(), p.CreateValueParseFunc(), p.context, p.imports)
+	// Create root ruleset using arena when available for zero-allocation reuse
+	root = NewRulesetWithArena(p.arena, nil, p.parsers.Primary(), false, nil, p.CreateSelectorsParseFunc(), p.CreateValueParseFunc(), p.context, p.imports)
 	root.Root = true
 	root.FirstRoot = true
 	
@@ -1221,7 +1262,7 @@ func (p *Parsers) DetachedRuleset() any {
 func (p *Parsers) BlockRuleset() any {
 	block := p.Block()
 	if block != nil {
-		return NewRuleset(nil, block.([]any), false, nil, p.parser.CreateSelectorsParseFunc(), p.parser.CreateValueParseFunc(), p.parser.context, p.parser.imports)
+		return NewRulesetWithArena(p.parser.arena, nil, block.([]any), false, nil, p.parser.CreateSelectorsParseFunc(), p.parser.CreateValueParseFunc(), p.parser.context, p.parser.imports)
 	}
 	return nil
 }
@@ -1302,7 +1343,7 @@ func (p *Parsers) PermissiveValue(untilTokens *regexp.Regexp, allowComments bool
 	done := testCurrentChar()
 
 	if len(value) > 0 {
-		expr, err := NewExpression(value, false)
+		expr, err := NewExpressionWithArena(p.parser.arena, value, false)
 		if err != nil {
 			return nil
 		}
@@ -1348,7 +1389,7 @@ func (p *Parsers) PermissiveValue(untilTokens *regexp.Regexp, allowComments bool
 			}
 
 			p.parser.parserInput.Forget()
-			expr, err := NewExpression(result, true)
+			expr, err := NewExpressionWithArena(p.parser.arena, result, true)
 			if err != nil {
 				return nil
 			}
@@ -1765,7 +1806,7 @@ func (p *Parsers) Ruleset() any {
 				if val, ok := p.parser.context["strictImports"].(bool); ok {
 					strictImports = val
 				}
-				ruleset := NewRuleset(selectors, rules, strictImports, nil, p.parser.CreateSelectorsParseFunc(), p.parser.CreateValueParseFunc(), p.parser.context, p.parser.imports)
+				ruleset := NewRulesetWithArena(p.parser.arena, selectors, rules, strictImports, nil, p.parser.CreateSelectorsParseFunc(), p.parser.CreateValueParseFunc(), p.parser.context, p.parser.imports)
 				if debugInfo != nil {
 					ruleset.DebugInfo = debugInfo
 				}
@@ -2107,7 +2148,7 @@ func (p *Parsers) Selector(isLess bool) any {
 	}
 
 	if len(elements) > 0 {
-		selector, err := NewSelector(elements, allExtends, condition, index+p.parser.currentIndex, p.parser.fileInfo, nil, p.parser.CreateSelectorParseFunc(), p.parser.context, p.parser.imports)
+		selector, err := NewSelectorWithArena(p.parser.arena, elements, allExtends, condition, index+p.parser.currentIndex, p.parser.fileInfo, nil, p.parser.CreateSelectorParseFunc(), p.parser.context, p.parser.imports)
 		if err != nil {
 			p.parser.error(fmt.Sprintf("Failed to create selector: %v", err), "Parse")
 			return nil
@@ -2190,7 +2231,7 @@ func (p *Parsers) Extend() []any {
 			}
 		}
 
-		selector, err := NewSelector(elementSlice, nil, nil, index+p.parser.currentIndex, p.parser.fileInfo, nil, p.parser.CreateSelectorParseFunc(), p.parser.context, p.parser.imports)
+		selector, err := NewSelectorWithArena(p.parser.arena, elementSlice, nil, nil, index+p.parser.currentIndex, p.parser.fileInfo, nil, p.parser.CreateSelectorParseFunc(), p.parser.context, p.parser.imports)
 		if err != nil {
 			p.parser.error(fmt.Sprintf("Failed to create selector for extend: %v", err), "Parse")
 			return nil
@@ -2305,7 +2346,7 @@ func (p *Parsers) MediaFeature(syntaxOptions map[string]any) any {
 
 	p.parser.parserInput.Forget()
 	if len(nodes) > 0 {
-		expr, err := NewExpression(nodes, false)
+		expr, err := NewExpressionWithArena(p.parser.arena, nodes, false)
 		if err != nil {
 			return nil
 		}
@@ -2424,7 +2465,7 @@ func (p *Parsers) Sub() any {
 				p.parser.parserInput.Forget()
 				// Create Expression with Parens=true (like JavaScript)
 				// This allows math operations to collapse during evaluation
-				expr, err := NewExpression([]any{a}, false)
+				expr, err := NewExpressionWithArena(p.parser.arena, []any{a}, false)
 				if err == nil {
 					expr.Parens = true
 					e = expr
@@ -2469,7 +2510,7 @@ func (p *Parsers) Sub() any {
 
 			if len(entities) > 0 && p.parser.parserInput.Char(')') != nil {
 				p.parser.parserInput.Forget()
-				expr, err := NewExpression(entities, false)
+				expr, err := NewExpressionWithArena(p.parser.arena, entities, false)
 				if err == nil {
 					// Only wrap in Paren if it contains a colon (media query feature)
 					// Otherwise use Expression with Parens=true (for math)
@@ -3013,7 +3054,7 @@ func (m *MixinParsers) Elements() []*Element {
 		if c != 0 {
 			combinator = NewCombinator(string(c))
 		}
-		elem = NewElement(combinator, e, false, elemIndex+m.parsers.parser.currentIndex, m.parsers.parser.fileInfo, nil)
+		elem = NewElementWithArena(m.parsers.parser.arena, combinator, e, false, elemIndex+m.parsers.parser.currentIndex, m.parsers.parser.fileInfo, nil)
 
 		if elements != nil {
 			elements = append(elements, elem)
@@ -3069,7 +3110,7 @@ func (p *Parsers) Expression() any {
 	}
 
 	if len(entities) > 0 {
-		expr, err := NewExpression(entities, false)
+		expr, err := NewExpressionWithArena(p.parser.arena, entities, false)
 		if err == nil {
 			return expr
 		}
@@ -3252,7 +3293,7 @@ func (p *Parsers) Element() any {
 		if os.Getenv("LESS_GO_DEBUG") == "1" && isVariable {
 			fmt.Printf("[DEBUG Parser Element] Created element with isVariable=true, value type=%T\n", e)
 		}
-		return NewElement(combinator, e, isVariable, index+p.parser.currentIndex, p.parser.fileInfo, nil)
+		return NewElementWithArena(p.parser.arena, combinator, e, isVariable, index+p.parser.currentIndex, p.parser.fileInfo, nil)
 	}
 	return nil
 }

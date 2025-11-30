@@ -108,6 +108,83 @@ func NewSelector(elementsInput any, extendList []any, condition any, index int, 
 	return s, nil
 }
 
+// NewSelectorWithArena creates a Selector using arena allocation when available.
+// This avoids sync.Pool mutex overhead for single-threaded compilation.
+func NewSelectorWithArena(arena *NodeArena, elementsInput any, extendList []any, condition any, index int, currentFileInfo map[string]any, visibilityInfo map[string]any, parseFunc ...any) (*Selector, error) {
+	s := GetSelectorFromArena(arena)
+	s.Node = GetNodeFromArena(arena)
+	s.Condition = condition
+	s.EvaldCondition = condition == nil
+
+	// Handle extendList - keep nil if input is nil (tests expect this)
+	if extendList == nil {
+		s.ExtendList = nil
+	} else if len(extendList) == 0 {
+		s.ExtendList = s.ExtendList[:0]
+	} else {
+		// Copy extendList to pooled slice
+		if cap(s.ExtendList) < len(extendList) {
+			s.ExtendList = make([]any, len(extendList))
+		} else {
+			s.ExtendList = s.ExtendList[:len(extendList)]
+		}
+		copy(s.ExtendList, extendList)
+	}
+
+	s.Index = index
+	if currentFileInfo != nil {
+		s.SetFileInfo(currentFileInfo)
+	} else {
+		s.SetFileInfo(make(map[string]any))
+	}
+	s.CopyVisibilityInfo(visibilityInfo)
+
+	// Handle optional parse parameters BEFORE calling getElements
+	if len(parseFunc) > 0 {
+		if pf, ok := parseFunc[0].(SelectorParseFunc); ok {
+			s.ParseFunc = pf
+		}
+	}
+	if len(parseFunc) > 1 {
+		if ctx, ok := parseFunc[1].(map[string]any); ok {
+			s.ParseContext = ctx
+		}
+	}
+	if len(parseFunc) > 2 {
+		if imp, ok := parseFunc[2].(map[string]any); ok {
+			s.ParseImports = imp
+		}
+	}
+
+	// GetElements needs s.Index, s.FileInfo, and s.ParseFunc to be set first.
+	parsedElements, err := s.getElements(elementsInput)
+	if err != nil {
+		// Add context to the error if it's not already a LessError
+		if _, ok := err.(*LessError); !ok {
+			err = fmt.Errorf("selector parsing failed at index %d in %s: %w",
+				index, currentFileInfo["filename"], err)
+		}
+		return nil, err
+	}
+
+	// Copy elements to pooled slice
+	if cap(s.Elements) < len(parsedElements) {
+		s.Elements = make([]*Element, len(parsedElements))
+	} else {
+		s.Elements = s.Elements[:len(parsedElements)]
+	}
+	copy(s.Elements, parsedElements)
+
+	// Set parent for elements
+	for _, el := range s.Elements {
+		if el != nil && el.Node != nil {
+			el.Node.Parent = s.Node
+		}
+	}
+
+	return s, nil
+}
+
 // Type returns the node type.
 func (s *Selector) Type() string {
 	return "Selector"

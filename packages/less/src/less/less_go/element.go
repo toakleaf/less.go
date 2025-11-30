@@ -93,6 +93,83 @@ func NewElement(combinator any, value any, isVariable bool, index int, currentFi
 	return e
 }
 
+// NewElementWithArena creates an Element using arena allocation when available.
+// This avoids sync.Pool mutex overhead for single-threaded compilation.
+func NewElementWithArena(arena *NodeArena, combinator any, value any, isVariable bool, index int, currentFileInfo map[string]any, visibilityInfo map[string]any) *Element {
+	var comb *Combinator
+	switch c := combinator.(type) {
+	case *Combinator:
+		if c == nil {
+			comb = NewCombinator("")
+		} else {
+			comb = c
+		}
+	case string:
+		comb = NewCombinator(c)
+	default:
+		comb = NewCombinator("")
+	}
+
+	var val any
+	switch v := value.(type) {
+	case string:
+		val = Intern(strings.TrimSpace(v))
+	case nil:
+		val = ""
+	case byte:
+		val = string(v)
+	case bool:
+		if !v {
+			val = ""
+		} else {
+			val = v
+		}
+	case int:
+		if v == 0 {
+			val = ""
+		} else {
+			val = v
+		}
+	case int64:
+		if v == 0 {
+			val = ""
+		} else {
+			val = v
+		}
+	case float32:
+		if v == 0 {
+			val = ""
+		} else {
+			val = v
+		}
+	case float64:
+		if v == 0 {
+			val = ""
+		} else {
+			val = v
+		}
+	default:
+		val = v
+	}
+
+	e := GetElementFromArena(arena)
+	e.Node = GetNodeFromArena(arena)
+	e.Combinator = comb
+	e.Value = val
+	e.IsVariable = isVariable
+
+	e.Index = index
+	if currentFileInfo != nil {
+		e.SetFileInfo(currentFileInfo)
+	} else {
+		e.SetFileInfo(make(map[string]any))
+	}
+	e.CopyVisibilityInfo(visibilityInfo)
+	e.SetParent(comb, e.Node)
+
+	return e
+}
+
 func (e *Element) Type() string {
 	return "Element"
 }

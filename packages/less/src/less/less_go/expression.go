@@ -34,6 +34,28 @@ func NewExpression(value []any, noSpacing bool) (*Expression, error) {
 	return e, nil
 }
 
+// NewExpressionWithArena creates an Expression using arena allocation when available.
+// This avoids sync.Pool mutex overhead for single-threaded compilation.
+func NewExpressionWithArena(arena *NodeArena, value []any, noSpacing bool) (*Expression, error) {
+	if value == nil {
+		return nil, fmt.Errorf("Expression requires an array parameter")
+	}
+
+	e := GetExpressionFromArena(arena)
+	e.Node = GetNodeFromArena(arena)
+	e.NoSpacing = noSpacing
+
+	// Copy value to pooled slice
+	if cap(e.Value) < len(value) {
+		e.Value = make([]any, len(value))
+	} else {
+		e.Value = e.Value[:len(value)]
+	}
+	copy(e.Value, value)
+
+	return e, nil
+}
+
 func (e *Expression) Accept(visitor any) {
 	if visitor == nil {
 		return
