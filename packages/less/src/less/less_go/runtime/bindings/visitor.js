@@ -9,7 +9,7 @@
  * buffer, but can return new node objects for replacements.
  */
 
-const { NodeFacade, createRootFacade, TypeNames } = require('./node-facade');
+const { createRootFacade } = require('./node-facade');
 
 /**
  * Visitor base class for AST traversal.
@@ -34,117 +34,117 @@ const { NodeFacade, createRootFacade, TypeNames } = require('./node-facade');
  *   }
  */
 class Visitor {
-  constructor() {
+    constructor() {
     /**
      * Set to true for pre-evaluation visitors (run before evaluation)
      * @type {boolean}
      */
-    this.isPreEvalVisitor = false;
+        this.isPreEvalVisitor = false;
 
-    /**
+        /**
      * Set to true if this visitor can replace nodes
      * @type {boolean}
      */
-    this.isReplacing = false;
+        this.isReplacing = false;
 
-    /**
+        /**
      * Cache of visit function names to avoid repeated lookups
      * @private
      */
-    this._visitFnCache = {};
+        this._visitFnCache = {};
 
-    /**
+        /**
      * Track visitor state during traversal
      * @private
      */
-    this._visitStack = [];
-  }
+        this._visitStack = [];
+    }
 
-  /**
+    /**
    * Run the visitor on an AST root node.
    * This is the main entry point called by the plugin system.
    *
    * @param {NodeFacade|Object} root - The AST root to visit
    * @returns {NodeFacade|Object} - The (possibly transformed) root
    */
-  run(root) {
-    if (!root) {
-      return root;
+    run(root) {
+        if (!root) {
+            return root;
+        }
+        return this.visit(root);
     }
-    return this.visit(root);
-  }
 
-  /**
+    /**
    * Visit a single node, calling the appropriate visit* method.
    *
    * @param {NodeFacade|Object} node - The node to visit
    * @returns {NodeFacade|Object} - The (possibly transformed) node
    */
-  visit(node) {
-    if (!node) {
-      return node;
+    visit(node) {
+        if (!node) {
+            return node;
+        }
+
+        // Get the node type - support both NodeFacade and plain objects
+        const type = node.type || node._type;
+        if (!type) {
+            return node;
+        }
+
+        // Check for a visit method for this type
+        const funcName = 'visit' + type;
+        const visitFn = this[funcName];
+
+        if (typeof visitFn === 'function') {
+            // Call the visit method
+            const result = visitFn.call(this, node);
+
+            // If the visitor returned a different node, use it
+            if (result !== undefined && result !== node) {
+                return result;
+            }
+        }
+
+        // Visit children if the node supports it
+        if (typeof node.children !== 'undefined') {
+            this.visitChildren(node);
+        }
+
+        // Call visitOut if it exists
+        const visitOutFn = this[funcName + 'Out'];
+        if (typeof visitOutFn === 'function') {
+            visitOutFn.call(this, node);
+        }
+
+        return node;
     }
 
-    // Get the node type - support both NodeFacade and plain objects
-    const type = node.type || node._type;
-    if (!type) {
-      return node;
-    }
-
-    // Check for a visit method for this type
-    const funcName = 'visit' + type;
-    const visitFn = this[funcName];
-
-    if (typeof visitFn === 'function') {
-      // Call the visit method
-      const result = visitFn.call(this, node);
-
-      // If the visitor returned a different node, use it
-      if (result !== undefined && result !== node) {
-        return result;
-      }
-    }
-
-    // Visit children if the node supports it
-    if (typeof node.children !== 'undefined') {
-      this.visitChildren(node);
-    }
-
-    // Call visitOut if it exists
-    const visitOutFn = this[funcName + 'Out'];
-    if (typeof visitOutFn === 'function') {
-      visitOutFn.call(this, node);
-    }
-
-    return node;
-  }
-
-  /**
+    /**
    * Visit all children of a node.
    *
    * @param {NodeFacade|Object} node - The parent node
    */
-  visitChildren(node) {
-    const children = node.children;
-    if (!children || !Array.isArray(children)) {
-      return;
-    }
-
-    for (let i = 0; i < children.length; i++) {
-      const child = children[i];
-      if (child) {
-        const result = this.visit(child);
-        // If this is a replacing visitor and result differs, update would be tracked
-        // For now, we track replacements separately since facades are read-only
-        if (this.isReplacing && result !== child) {
-          // Store replacement for later application
-          this._storeReplacement(node, i, result);
+    visitChildren(node) {
+        const children = node.children;
+        if (!children || !Array.isArray(children)) {
+            return;
         }
-      }
-    }
-  }
 
-  /**
+        for (let i = 0; i < children.length; i++) {
+            const child = children[i];
+            if (child) {
+                const result = this.visit(child);
+                // If this is a replacing visitor and result differs, update would be tracked
+                // For now, we track replacements separately since facades are read-only
+                if (this.isReplacing && result !== child) {
+                    // Store replacement for later application
+                    this._storeReplacement(node, i, result);
+                }
+            }
+        }
+    }
+
+    /**
    * Store a node replacement for later application.
    * Since NodeFacade is read-only, replacements are tracked and applied later.
    *
@@ -153,57 +153,57 @@ class Visitor {
    * @param {number} childIndex - Index in children array
    * @param {Object} replacement - The replacement node
    */
-  _storeReplacement(parent, childIndex, replacement) {
-    if (!this._replacements) {
-      this._replacements = [];
+    _storeReplacement(parent, childIndex, replacement) {
+        if (!this._replacements) {
+            this._replacements = [];
+        }
+        this._replacements.push({
+            parentIndex: parent.index !== undefined ? parent.index : -1,
+            childIndex: childIndex,
+            replacement: replacement,
+        });
     }
-    this._replacements.push({
-      parentIndex: parent.index !== undefined ? parent.index : -1,
-      childIndex: childIndex,
-      replacement: replacement,
-    });
-  }
 
-  /**
+    /**
    * Get all replacements made during traversal.
    *
    * @returns {Array} - Array of replacement records
    */
-  getReplacements() {
-    return this._replacements || [];
-  }
+    getReplacements() {
+        return this._replacements || [];
+    }
 
-  /**
+    /**
    * Clear stored replacements.
    */
-  clearReplacements() {
-    this._replacements = [];
-  }
+    clearReplacements() {
+        this._replacements = [];
+    }
 
-  /**
+    /**
    * Visit an array of nodes.
    *
    * @param {Array} nodes - Array of nodes to visit
    * @returns {Array} - Array of (possibly transformed) nodes
    */
-  visitArray(nodes) {
-    if (!Array.isArray(nodes)) {
-      return nodes;
-    }
-
-    const result = [];
-    for (const node of nodes) {
-      const visited = this.visit(node);
-      if (visited !== null && visited !== undefined) {
-        if (Array.isArray(visited)) {
-          result.push(...visited);
-        } else {
-          result.push(visited);
+    visitArray(nodes) {
+        if (!Array.isArray(nodes)) {
+            return nodes;
         }
-      }
+
+        const result = [];
+        for (const node of nodes) {
+            const visited = this.visit(node);
+            if (visited !== null && visited !== undefined) {
+                if (Array.isArray(visited)) {
+                    result.push(...visited);
+                } else {
+                    result.push(visited);
+                }
+            }
+        }
+        return result;
     }
-    return result;
-  }
 }
 
 /**
@@ -213,121 +213,121 @@ class Visitor {
  * on the shared memory AST buffer.
  */
 class VisitorContext {
-  /**
+    /**
    * Create a new VisitorContext.
    *
    * @param {Object} ast - Parsed FlatAST from parseFlatAST()
    */
-  constructor(ast) {
-    this._ast = ast;
-    this._visitors = [];
-    this._preEvalVisitors = [];
-    this._postEvalVisitors = [];
-  }
+    constructor(ast) {
+        this._ast = ast;
+        this._visitors = [];
+        this._preEvalVisitors = [];
+        this._postEvalVisitors = [];
+    }
 
-  /**
+    /**
    * Register a visitor.
    *
    * @param {Visitor} visitor - The visitor to register
    */
-  addVisitor(visitor) {
-    this._visitors.push(visitor);
+    addVisitor(visitor) {
+        this._visitors.push(visitor);
 
-    if (visitor.isPreEvalVisitor) {
-      this._preEvalVisitors.push(visitor);
-    } else {
-      this._postEvalVisitors.push(visitor);
+        if (visitor.isPreEvalVisitor) {
+            this._preEvalVisitors.push(visitor);
+        } else {
+            this._postEvalVisitors.push(visitor);
+        }
     }
-  }
 
-  /**
+    /**
    * Run all pre-evaluation visitors on the AST.
    *
    * @returns {Object} - Results including any replacements
    */
-  runPreEvalVisitors() {
-    return this._runVisitors(this._preEvalVisitors);
-  }
+    runPreEvalVisitors() {
+        return this._runVisitors(this._preEvalVisitors);
+    }
 
-  /**
+    /**
    * Run all post-evaluation visitors on the AST.
    *
    * @returns {Object} - Results including any replacements
    */
-  runPostEvalVisitors() {
-    return this._runVisitors(this._postEvalVisitors);
-  }
+    runPostEvalVisitors() {
+        return this._runVisitors(this._postEvalVisitors);
+    }
 
-  /**
+    /**
    * Run a list of visitors on the AST.
    *
    * @private
    * @param {Visitor[]} visitors - Visitors to run
    * @returns {Object} - Results
    */
-  _runVisitors(visitors) {
-    const root = createRootFacade(this._ast);
-    const allReplacements = [];
+    _runVisitors(visitors) {
+        const root = createRootFacade(this._ast);
+        const allReplacements = [];
 
-    for (const visitor of visitors) {
-      visitor.clearReplacements();
-      visitor.run(root);
+        for (const visitor of visitors) {
+            visitor.clearReplacements();
+            visitor.run(root);
 
-      const replacements = visitor.getReplacements();
-      if (replacements.length > 0) {
-        allReplacements.push({
-          visitorIndex: this._visitors.indexOf(visitor),
-          replacements: replacements,
-        });
-      }
+            const replacements = visitor.getReplacements();
+            if (replacements.length > 0) {
+                allReplacements.push({
+                    visitorIndex: this._visitors.indexOf(visitor),
+                    replacements: replacements,
+                });
+            }
+        }
+
+        return {
+            success: true,
+            replacements: allReplacements,
+            visitorCount: visitors.length,
+        };
     }
 
-    return {
-      success: true,
-      replacements: allReplacements,
-      visitorCount: visitors.length,
-    };
-  }
-
-  /**
+    /**
    * Run a specific visitor by index.
    *
    * @param {number} visitorIndex - Index of visitor in the visitors array
    * @returns {Object} - Results
    */
-  runVisitor(visitorIndex) {
-    if (visitorIndex < 0 || visitorIndex >= this._visitors.length) {
-      return {
-        success: false,
-        error: `Invalid visitor index: ${visitorIndex}`,
-      };
+    runVisitor(visitorIndex) {
+        if (visitorIndex < 0 || visitorIndex >= this._visitors.length) {
+            return {
+                success: false,
+                error: `Invalid visitor index: ${visitorIndex}`,
+            };
+        }
+
+        const visitor = this._visitors[visitorIndex];
+        const root = createRootFacade(this._ast);
+
+        visitor.clearReplacements();
+        const result = visitor.run(root);
+
+        return {
+            success: true,
+            replacements: visitor.getReplacements(),
+            resultIndex: result ? result.index : null,
+        };
     }
 
-    const visitor = this._visitors[visitorIndex];
-    const root = createRootFacade(this._ast);
-
-    visitor.clearReplacements();
-    const result = visitor.run(root);
-
-    return {
-      success: true,
-      replacements: visitor.getReplacements(),
-      resultIndex: result ? result.index : null,
-    };
-  }
-
-  /**
+    /**
    * Get visitor info for all registered visitors.
    *
    * @returns {Array} - Array of visitor metadata
    */
-  getVisitorInfo() {
-    return this._visitors.map((v, i) => ({
-      index: i,
-      isPreEvalVisitor: v.isPreEvalVisitor || false,
-      isReplacing: v.isReplacing || false,
-    }));
-  }
+    getVisitorInfo() {
+        return this._visitors.map((v, i) => ({
+            index: i,
+            isPreEvalVisitor: v.isPreEvalVisitor || false,
+            isReplacing: v.isReplacing || false,
+        }));
+    }
 }
 
 /**
@@ -343,28 +343,28 @@ class VisitorContext {
  * @returns {Visitor} - A Visitor instance with the implementation
  */
 function createVisitor(impl) {
-  const visitor = new Visitor();
+    const visitor = new Visitor();
 
-  // Copy flags
-  if (impl.isPreEvalVisitor !== undefined) {
-    visitor.isPreEvalVisitor = impl.isPreEvalVisitor;
-  }
-  if (impl.isReplacing !== undefined) {
-    visitor.isReplacing = impl.isReplacing;
-  }
-
-  // Copy all visit* methods and other functions
-  for (const key of Object.keys(impl)) {
-    if (typeof impl[key] === 'function') {
-      visitor[key] = impl[key].bind(visitor);
+    // Copy flags
+    if (impl.isPreEvalVisitor !== undefined) {
+        visitor.isPreEvalVisitor = impl.isPreEvalVisitor;
     }
-  }
+    if (impl.isReplacing !== undefined) {
+        visitor.isReplacing = impl.isReplacing;
+    }
 
-  return visitor;
+    // Copy all visit* methods and other functions
+    for (const key of Object.keys(impl)) {
+        if (typeof impl[key] === 'function') {
+            visitor[key] = impl[key].bind(visitor);
+        }
+    }
+
+    return visitor;
 }
 
 module.exports = {
-  Visitor,
-  VisitorContext,
-  createVisitor,
+    Visitor,
+    VisitorContext,
+    createVisitor,
 };
