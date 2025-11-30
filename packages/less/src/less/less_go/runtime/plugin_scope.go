@@ -60,6 +60,9 @@ func NewRootPluginScope() *PluginScope {
 // This allows plugins to optimize for their specific use case:
 // - JSON: Better for plugins with many small function calls (lower per-call overhead)
 // - SHM: Better for plugins with large data transfers (less serialization)
+//
+// Context-free functions: Plugins can declare functions as context-free (pure).
+// These functions don't need access to LESS variables and skip context serialization.
 func (ps *PluginScope) AddPlugin(plugin *Plugin, runtime *NodeJSRuntime) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
@@ -68,9 +71,17 @@ func (ps *PluginScope) AddPlugin(plugin *Plugin, runtime *NodeJSRuntime) {
 
 	// Register plugin's functions in this scope
 	// Use cached JSFunctionDefinition to avoid redundant allocations
-	// Pass the plugin's preferred IPC mode
+	// Pass the plugin's preferred IPC mode and context-free flag
 	for _, name := range plugin.Functions {
-		ps.functions[name] = GetOrCreateJSFunctionDefinition(name, runtime, WithIPCMode(plugin.IPCMode))
+		var opts []JSFunctionOption
+		opts = append(opts, WithIPCMode(plugin.IPCMode))
+
+		// Check if this function is marked as context-free
+		if plugin.IsContextFree(name) {
+			opts = append(opts, WithContextFree())
+		}
+
+		ps.functions[name] = GetOrCreateJSFunctionDefinition(name, runtime, opts...)
 	}
 
 	// Note: Visitors are typically registered through the PluginManager

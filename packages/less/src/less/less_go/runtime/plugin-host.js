@@ -327,6 +327,7 @@ try {
 // Plugin state
 const loadedPlugins = new Map();
 const registeredFunctions = new Map(); // Legacy global registry (kept for compatibility)
+const contextFreeFunctions = new Set(); // Functions marked as context-free (pure)
 const registeredVisitors = [];
 const registeredPreProcessors = [];
 const registeredPostProcessors = [];
@@ -422,15 +423,43 @@ function getCurrentScope() {
 
 /**
  * Add a function to the current scope
+ * @param {string} name - Function name
+ * @param {Function} fn - The function implementation
+ * @param {Object} options - Optional configuration
+ * @param {boolean} options.contextFree - If true, function is pure and doesn't need context
  */
-function addFunctionToScope(name, fn) {
+function addFunctionToScope(name, fn, options = {}) {
   const depth = functionScopeStack.length - 1;
   getCurrentScope().set(name, fn);
   // Also add to legacy global registry for backwards compatibility
   registeredFunctions.set(name, fn);
-  if (process.env.LESS_GO_DEBUG) {
+
+  // Track context-free functions for performance optimization
+  if (options.contextFree) {
+    contextFreeFunctions.add(name);
+    if (process.env.LESS_GO_DEBUG) {
+      console.error(`[plugin-host] addFunctionToScope: ${name} at depth=${depth} (CONTEXT-FREE)`);
+    }
+  } else if (process.env.LESS_GO_DEBUG) {
     console.error(`[plugin-host] addFunctionToScope: ${name} at depth=${depth}`);
   }
+}
+
+/**
+ * Check if a function is marked as context-free
+ * @param {string} name - Function name
+ * @returns {boolean} True if the function is context-free
+ */
+function isContextFreeFunction(name) {
+  return contextFreeFunctions.has(name);
+}
+
+/**
+ * Get all context-free function names
+ * @returns {Array<string>} Array of context-free function names
+ */
+function getContextFreeFunctions() {
+  return Array.from(contextFreeFunctions);
 }
 
 /**
@@ -677,10 +706,33 @@ tree.Variable.prototype.find = function (frames, callback) {
 };
 
 // Function registry - now uses scoped function management
+// Supports context-free function declaration for performance optimization
 const functionRegistry = {
+  /**
+   * Add a function to the registry
+   * @param {string} name - Function name
+   * @param {Function|Object} fn - Function or {fn, contextFree} object
+   *
+   * Usage:
+   *   // Regular function (needs context)
+   *   functions.add('my-func', function(arg) { return arg; });
+   *
+   *   // Context-free function (pure, no context needed)
+   *   functions.add('my-pure-func', { fn: function(arg) { return arg; }, contextFree: true });
+   */
   add(name, fn) {
-    addFunctionToScope(name, fn);
+    if (fn && typeof fn === 'object' && fn.fn) {
+      // Object format: { fn: Function, contextFree: boolean }
+      addFunctionToScope(name, fn.fn, { contextFree: !!fn.contextFree });
+    } else {
+      // Direct function (default: needs context)
+      addFunctionToScope(name, fn);
+    }
   },
+  /**
+   * Add multiple functions at once
+   * @param {Object} functions - Map of name -> fn or name -> {fn, contextFree}
+   */
   addMultiple(functions) {
     for (const [name, fn] of Object.entries(functions)) {
       this.add(name, fn);
@@ -699,6 +751,21 @@ const functionRegistry = {
       }
     }
     return Array.from(allNames);
+  },
+  /**
+   * Get all context-free function names
+   * @returns {Array<string>} Array of context-free function names
+   */
+  getContextFree() {
+    return getContextFreeFunctions();
+  },
+  /**
+   * Check if a function is context-free
+   * @param {string} name - Function name
+   * @returns {boolean} True if context-free
+   */
+  isContextFree(name) {
+    return isContextFreeFunction(name);
   },
 };
 
@@ -780,8 +847,18 @@ function handleCommand(cmd) {
         handleCallFunction(id, data);
         break;
 
+      case 'callFunctionContextFree':
+        // Fast path for context-free (pure) functions - no context setup needed
+        handleCallFunctionContextFree(id, data);
+        break;
+
       case 'getRegisteredFunctions':
         sendResponse(id, true, functionRegistry.getAll());
+        break;
+
+      case 'getContextFreeFunctions':
+        // Return list of functions marked as context-free
+        sendResponse(id, true, functionRegistry.getContextFree());
         break;
 
       case 'enterScope':
@@ -1077,6 +1154,7 @@ function handleLoadPlugin(id, data) {
         cached: true,
         path: resolvedPath,
         functions: functionRegistry.getAll(),
+        contextFreeFunctions: functionRegistry.getContextFree(),
         visitors: registeredVisitors.length,
         preProcessors: registeredPreProcessors.length,
         postProcessors: registeredPostProcessors.length,
@@ -1224,6 +1302,7 @@ function handleLoadPlugin(id, data) {
       cached: false,
       path: resolvedPath,
       functions: functionRegistry.getAll(),
+      contextFreeFunctions: functionRegistry.getContextFree(),
       visitors: registeredVisitors.length,
       preProcessors: registeredPreProcessors.length,
       postProcessors: registeredPostProcessors.length,
@@ -2702,6 +2781,56 @@ function handleCallFunction(id, data) {
     if (name === 'test-detached-ruleset' && process.env.LESS_GO_DEBUG) {
       console.error('[DEBUG plugin-host] test-detached-ruleset converted result:', JSON.stringify(goResult, null, 2));
     }
+
+    sendResponse(id, true, goResult);
+  } catch (err) {
+    sendResponse(id, false, null, `Function error: ${err.message}\n${err.stack || ''}`);
+  }
+}
+
+/**
+ * Handle context-free function calls - optimized path for pure functions.
+ * These functions don't need access to LESS variables or evaluation context,
+ * so we skip all context setup and just call the function directly.
+ *
+ * This is significantly faster than handleCallFunction because:
+ * - No context object creation
+ * - No frame/variable serialization
+ * - No callback registration for variable lookup
+ * - Simpler IPC payload
+ *
+ * @param {number} id - Command ID
+ * @param {Object} data - { name: string, args: any[] }
+ */
+function handleCallFunctionContextFree(id, data) {
+  const { name, args } = data || {};
+
+  if (!name) {
+    sendResponse(id, false, null, 'Function name is required');
+    return;
+  }
+
+  // Use scoped lookup for proper function resolution
+  const fn = lookupFunction(name);
+  if (!fn) {
+    sendResponse(id, false, null, `Function not found: ${name}`);
+    return;
+  }
+
+  try {
+    // Convert Go node arguments to JavaScript format
+    const convertedArgs = (args || []).map(convertGoNodeToJS);
+
+    if (process.env.LESS_GO_DEBUG) {
+      console.error(`[plugin-host] callFunctionContextFree: ${name} with ${convertedArgs.length} args`);
+    }
+
+    // Call the function directly WITHOUT context binding
+    // This is the key optimization - pure functions don't need 'this.context'
+    const result = fn.apply(null, convertedArgs);
+
+    // Convert the result back to Go-compatible format
+    const goResult = convertJSResultToGo(result);
 
     sendResponse(id, true, goResult);
   } catch (err) {
