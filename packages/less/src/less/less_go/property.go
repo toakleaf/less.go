@@ -40,7 +40,6 @@ func (p *Property) GetName() string {
 // Eval evaluates the property in the given context
 func (p *Property) Eval(context any) (any, error) {
 	if p.evaluating {
-		// Match JavaScript error format
 		return nil, fmt.Errorf("Name: recursive property reference for %s (index: %d, filename: %s)",
 			p.name, p.GetIndex(), p.FileInfo()["filename"])
 	}
@@ -48,7 +47,6 @@ func (p *Property) Eval(context any) (any, error) {
 	p.evaluating = true
 	defer func() { p.evaluating = false }()
 
-	// Try to get frames from context - handle both EvalContext and map[string]any
 	var frames []ParserFrame
 	if evalCtx, ok := context.(interface{ GetFrames() []ParserFrame }); ok {
 		frames = evalCtx.GetFrames()
@@ -62,7 +60,6 @@ func (p *Property) Eval(context any) (any, error) {
 					} else if frameMap, ok := f.(map[string]any); ok {
 						// Handle test frames that are map[string]any with property function
 						if propFunc, ok := frameMap["property"].(func(string) []any); ok {
-							// Create adapter frame
 							frames = append(frames, &mapFrame{
 								propertyFunc: propFunc,
 							})
@@ -73,20 +70,16 @@ func (p *Property) Eval(context any) (any, error) {
 		}
 	}
 
-	// Find property in frames using the find method
 	property := p.find(frames, func(frame ParserFrame) any {
 		vArr := frame.Property(p.name)
 		if vArr == nil || len(vArr) == 0 {
 			return nil
 		}
 
-		// Process declarations - create new Declaration objects from existing ones
 		for i, v := range vArr {
 			if decl, ok := v.(*Declaration); ok {
-				// Already a Declaration, keep it
 				vArr[i] = decl
 			} else if declMap, ok := v.(map[string]any); ok {
-				// Convert from map to Declaration
 				merge, _ := declMap["merge"].(bool)
 				index, _ := declMap["index"].(int)
 				currentFileInfo, _ := declMap["currentFileInfo"].(map[string]any)
@@ -106,15 +99,11 @@ func (p *Property) Eval(context any) (any, error) {
 			}
 		}
 
-		// Implement mergeRules functionality
 		if len(vArr) > 1 {
 			vArr = p.mergeRules(vArr)
 		}
 
-		// Get last declaration and extract value
 		lastItem := vArr[len(vArr)-1]
-
-		// Handle different types of declarations
 		var value any
 		var important string
 
@@ -123,14 +112,11 @@ func (p *Property) Eval(context any) (any, error) {
 			value = decl.Value
 			important = decl.important
 		case interface{ Value() any }:
-			// Handle mock declarations in tests
 			value = decl.Value()
 		default:
-			// Use the item directly
 			value = lastItem
 		}
 
-		// Handle important scope if available
 		if important != "" {
 			if ctx, ok := context.(map[string]any); ok {
 				if importantScope, ok := ctx["importantScope"].([]any); ok && len(importantScope) > 0 {
@@ -141,13 +127,10 @@ func (p *Property) Eval(context any) (any, error) {
 			}
 		}
 
-		// Evaluate and return the value
-		// Try single-return Eval first
 		if valueNode, ok := value.(Node); ok {
 			result := valueNode.Eval(context)
 			return result
 		}
-		// Try double-return Eval
 		if evalable, ok := value.(interface{ Eval(any) (any, error) }); ok {
 			result, err := evalable.Eval(context)
 			if err != nil {
@@ -163,8 +146,6 @@ func (p *Property) Eval(context any) (any, error) {
 		p.evaluating = false
 		return property, nil
 	}
-
-	// Property not found - match JavaScript error format
 	return nil, fmt.Errorf("Name: property '%s' is undefined (index: %d, filename: %s)",
 		p.name, p.GetIndex(), p.FileInfo()["filename"])
 }
@@ -206,23 +187,17 @@ func (m *mapFrame) Property(name string) []any {
 	return nil
 }
 
-// mergeRules merges property declarations with the same name and merge flag
-// This returns a new slice with merged declarations
 func (p *Property) mergeRules(rules []any) []any {
 	if rules == nil || len(rules) == 0 {
 		return rules
 	}
 
-	// Groups of rules by name - use pointers to avoid slice aliasing issues
 	groups := make(map[string]*[]int)
 	groupsArr := []*[]int{}
-
-	// First pass: identify groups
 	for i := 0; i < len(rules); i++ {
 		if decl, ok := rules[i].(*Declaration); ok && decl.GetMerge() != nil && decl.GetMerge() != false {
 			key := decl.GetName()
 			if _, exists := groups[key]; !exists {
-				// Create new group
 				group := []int{}
 				groups[key] = &group
 				groupsArr = append(groupsArr, &group)
@@ -231,21 +206,14 @@ func (p *Property) mergeRules(rules []any) []any {
 			*groups[key] = append(*groups[key], i)
 		}
 	}
-	
-	// Second pass: process groups and remove merged declarations
-	// Work backwards to avoid index issues when removing
 	for _, indicesPtr := range groupsArr {
 		indices := *indicesPtr
 		if len(indices) > 1 {
-			// Get the first declaration (result)
 			result := rules[indices[0]].(*Declaration)
 			space := []any{}
 			comma := []any{}
-			
-			// Build the merged value
 			for _, idx := range indices {
 				decl := rules[idx].(*Declaration)
-				// If merge is '+' and we have content, start a new expression for comma separation
 				if decl.MergeType() == "+" && len(space) > 0 {
 					if expr, err := NewExpression(space, false); err == nil {
 						comma = append(comma, expr)
@@ -253,36 +221,25 @@ func (p *Property) mergeRules(rules []any) []any {
 					space = []any{}
 				}
 				space = append(space, decl.Value)
-				// Merge important flags
 				if decl.GetImportant() {
 					result.important = decl.important
 				}
 			}
-			
-			// Add the last expression
 			if len(space) > 0 {
 				if expr, err := NewExpression(space, false); err == nil {
 					comma = append(comma, expr)
 				}
 			}
-			
-			// Update the result value with merged values
 			if mergedValue, err := NewValue(comma); err == nil {
 				result.Value = mergedValue
 			}
-			
 		}
 	}
-	
-	// Build new rules array without duplicates
 	if len(groupsArr) > 0 {
-		// Create a map to track which indices to keep
 		keep := make(map[int]bool)
 		for i := range rules {
 			keep[i] = true
 		}
-		
-		// Mark indices to remove
 		for _, indicesPtr := range groupsArr {
 			indices := *indicesPtr
 			if len(indices) > 1 {
@@ -291,8 +248,6 @@ func (p *Property) mergeRules(rules []any) []any {
 				}
 			}
 		}
-		
-		// Build new slice
 		newRules := make([]any, 0, len(rules))
 		for i, rule := range rules {
 			if keep[i] {

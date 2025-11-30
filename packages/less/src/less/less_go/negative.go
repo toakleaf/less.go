@@ -32,69 +32,46 @@ func (n *Negative) GenCSS(context any, output *CSSOutput) {
 	}
 }
 
-// Eval evaluates the negative node - matching JavaScript implementation closely
 func (n *Negative) Eval(context any) any {
-	// Match JavaScript: if (context.isMathOn())
-	// Check if math is on
 	mathOn := false
 	if evalCtx, ok := context.(*Eval); ok {
-		// Check if context is *Eval and use the method directly
 		mathOn = evalCtx.IsMathOn()
 	} else if ctx, ok := context.(map[string]any); ok {
-		// Fallback for map-based context
 		if mathOnFunc, ok := ctx["isMathOn"].(func() bool); ok {
-			// Fallback for map-based context - check parameterless version first (matches JavaScript)
 			mathOn = mathOnFunc()
 		} else if mathOnFunc, ok := ctx["isMathOn"].(func(string) bool); ok {
-			mathOn = mathOnFunc("*") // For multiplication which is what negative uses
+			mathOn = mathOnFunc("*")
 		}
 	}
 
 	if mathOn {
-		// Match JavaScript: return (new Operation('*', [new Dimension(-1), this.value])).eval(context);
 		dim, _ := NewDimension(-1, nil)
-
-		// Pass the unevaluated value and let Operation.Eval handle the evaluation
-		// This matches JavaScript behavior exactly
 		op := NewOperation("*", []any{dim, n.Value}, false)
-
-		// Operation.Eval returns (any, error) but JavaScript just returns the result
 		result, err := op.Eval(context)
 		if err != nil {
-			// If Operation.Eval fails (e.g., invalid operand), fall through to evalValue
-			// This matches JavaScript behavior where errors bubble up naturally
 			return n.evalValue(context)
 		}
 		return result
 	}
-
-	// Match JavaScript: return new Negative(this.value.eval(context));
 	return n.evalValue(context)
 }
 
-// evalValue handles the value evaluation
 func (n *Negative) evalValue(context any) any {
 	if n.Value == nil {
-		// JavaScript would throw "Cannot read properties of null (reading 'eval')"
-		// But our tests expect a safe default, so we return a negative with zero dimension
 		if zeroDim, err := NewDimension(0, nil); err == nil {
 			return NewNegative(zeroDim)
 		}
 		return NewNegative(nil)
 	}
-	
-	// Try the single-return Eval first (used by Operation)
 	if eval, ok := n.Value.(interface{ Eval(any) any }); ok {
 		evaluated := eval.Eval(context)
 		return NewNegative(evaluated)
 	} else if eval, ok := n.Value.(interface{ Eval(any) (any, error) }); ok {
 		evaluated, err := eval.Eval(context)
 		if err != nil {
-			return NewNegative(n.Value) // Return original on error
+			return NewNegative(n.Value)
 		}
 		return NewNegative(evaluated)
 	}
-	
-	// If value doesn't have Eval method, return new Negative with same value
 	return NewNegative(n.Value)
 } 
