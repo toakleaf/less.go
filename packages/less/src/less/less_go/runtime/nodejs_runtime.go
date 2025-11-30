@@ -47,6 +47,10 @@ type NodeJSRuntime struct {
 	stdout  io.ReadCloser
 	stderr  io.ReadCloser
 
+	// Buffered writer for stdin - reduces syscall overhead
+	stdinWriter   *bufio.Writer
+	stdinWriterMu sync.Mutex
+
 	// Response handling
 	responses   map[int64]chan Response
 	responsesMu sync.RWMutex
@@ -225,6 +229,10 @@ func (rt *NodeJSRuntime) Start() error {
 		return fmt.Errorf("failed to start Node.js process: %w", err)
 	}
 
+	// Initialize buffered writer for stdin - reduces syscall overhead
+	// Use 8KB buffer size for good balance between memory and syscall reduction
+	rt.stdinWriter = bufio.NewWriterSize(rt.stdin, 8192)
+
 	rt.started.Store(true)
 	rt.alive.Store(true)
 
@@ -275,11 +283,15 @@ func (rt *NodeJSRuntime) Stop() error {
 		rt.shmManager = nil
 	}
 
-	// Send shutdown command (best effort)
-	if rt.stdin != nil {
+	// Send shutdown command (best effort) using buffered writer
+	if rt.stdinWriter != nil {
 		cmd := Command{ID: rt.cmdID.Add(1), Cmd: "shutdown"}
 		data, _ := json.Marshal(cmd)
-		rt.stdin.Write(append(data, '\n'))
+		rt.stdinWriterMu.Lock()
+		rt.stdinWriter.Write(data)
+		rt.stdinWriter.WriteByte('\n')
+		rt.stdinWriter.Flush()
+		rt.stdinWriterMu.Unlock()
 	}
 
 	// Close stdin to signal EOF
@@ -356,9 +368,20 @@ func (rt *NodeJSRuntime) SendCommandWithContext(ctx context, cmd Command) (Respo
 		return Response{}, fmt.Errorf("failed to marshal command: %w", err)
 	}
 
-	// Write command with newline delimiter
-	if _, err := rt.stdin.Write(append(data, '\n')); err != nil {
-		return Response{}, fmt.Errorf("failed to send command: %w", err)
+	// Write command with newline delimiter using buffered writer
+	// Lock to ensure atomic write+flush for concurrent callers
+	rt.stdinWriterMu.Lock()
+	_, writeErr := rt.stdinWriter.Write(data)
+	if writeErr == nil {
+		writeErr = rt.stdinWriter.WriteByte('\n')
+	}
+	if writeErr == nil {
+		writeErr = rt.stdinWriter.Flush()
+	}
+	rt.stdinWriterMu.Unlock()
+
+	if writeErr != nil {
+		return Response{}, fmt.Errorf("failed to send command: %w", writeErr)
 	}
 
 	// Wait for response
@@ -397,12 +420,34 @@ func (rt *NodeJSRuntime) SendCommandFireAndForget(cmd Command) error {
 		return fmt.Errorf("failed to marshal command: %w", err)
 	}
 
-	// Write command with newline delimiter
-	if _, err := rt.stdin.Write(append(data, '\n')); err != nil {
-		return fmt.Errorf("failed to send command: %w", err)
+	// Write command with newline delimiter using buffered writer
+	// Lock to ensure atomic write+flush for concurrent callers
+	rt.stdinWriterMu.Lock()
+	_, writeErr := rt.stdinWriter.Write(data)
+	if writeErr == nil {
+		writeErr = rt.stdinWriter.WriteByte('\n')
+	}
+	if writeErr == nil {
+		writeErr = rt.stdinWriter.Flush()
+	}
+	rt.stdinWriterMu.Unlock()
+
+	if writeErr != nil {
+		return fmt.Errorf("failed to send command: %w", writeErr)
 	}
 
 	return nil
+}
+
+// UnifiedMessage is used for single-pass JSON parsing of IPC messages.
+// It can represent either a Response or a CallbackRequest.
+type UnifiedMessage struct {
+	ID       int64  `json:"id"`
+	Success  bool   `json:"success"`
+	Result   any    `json:"result,omitempty"`
+	Error    string `json:"error,omitempty"`
+	Callback string `json:"callback,omitempty"` // Only set for callback requests
+	Data     any    `json:"data,omitempty"`     // Only set for callback requests
 }
 
 // readResponses reads responses from stdout and dispatches them.
@@ -422,29 +467,30 @@ func (rt *NodeJSRuntime) readResponses() {
 			continue
 		}
 
-		// First, try to parse as a generic message to check the type
-		var msg map[string]any
+		// Parse message once into unified struct - avoids double parsing
+		var msg UnifiedMessage
 		if err := json.Unmarshal(line, &msg); err != nil {
 			rt.setError(fmt.Errorf("failed to parse message: %w", err))
 			continue
 		}
 
 		// Check if this is a callback request (has "callback" field)
-		if _, hasCallback := msg["callback"]; hasCallback {
-			var cbReq CallbackRequest
-			if err := json.Unmarshal(line, &cbReq); err != nil {
-				rt.setError(fmt.Errorf("failed to parse callback request: %w", err))
-				continue
+		if msg.Callback != "" {
+			cbReq := CallbackRequest{
+				ID:       msg.ID,
+				Callback: msg.Callback,
+				Data:     msg.Data,
 			}
 			rt.handleCallback(cbReq)
 			continue
 		}
 
 		// Otherwise, it's a regular response
-		var resp Response
-		if err := json.Unmarshal(line, &resp); err != nil {
-			rt.setError(fmt.Errorf("failed to parse response: %w", err))
-			continue
+		resp := Response{
+			ID:      msg.ID,
+			Success: msg.Success,
+			Result:  msg.Result,
+			Error:   msg.Error,
 		}
 
 		// Dispatch response to waiting goroutine
@@ -501,8 +547,19 @@ func (rt *NodeJSRuntime) sendCallbackResponse(id int64, success bool, result any
 		return
 	}
 
-	if _, err := rt.stdin.Write(append(data, '\n')); err != nil {
-		rt.setError(fmt.Errorf("failed to send callback response: %w", err))
+	// Write callback response using buffered writer
+	rt.stdinWriterMu.Lock()
+	_, writeErr := rt.stdinWriter.Write(data)
+	if writeErr == nil {
+		writeErr = rt.stdinWriter.WriteByte('\n')
+	}
+	if writeErr == nil {
+		writeErr = rt.stdinWriter.Flush()
+	}
+	rt.stdinWriterMu.Unlock()
+
+	if writeErr != nil {
+		rt.setError(fmt.Errorf("failed to send callback response: %w", writeErr))
 	}
 }
 
