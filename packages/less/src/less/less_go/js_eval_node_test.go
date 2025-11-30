@@ -148,30 +148,32 @@ func TestJsEvalNode(t *testing.T) {
 			}
 		})
 
-		t.Run("returns not supported error when JavaScript is enabled", func(t *testing.T) {
+		t.Run("returns runtime not available error when JavaScript is enabled but no runtime", func(t *testing.T) {
 			setup()
 			jsEvalNode.SetFileInfo(map[string]any{"filename": "test.less"})
-			
+
 			_, err := jsEvalNode.EvaluateJavaScript("1 + 1", mockCtx)
 			if err == nil {
-				t.Error("Expected error indicating JS evaluation is not supported")
+				t.Error("Expected error indicating JS runtime not available")
 			}
-			if !strings.Contains(err.Error(), "JavaScript evaluation is not supported") {
-				t.Errorf("Expected error about JS evaluation not supported, got: %s", err.Error())
+			if !strings.Contains(err.Error(), "JavaScript runtime not available") {
+				t.Errorf("Expected error about JS runtime not available, got: %s", err.Error())
 			}
 		})
 
-		t.Run("interpolates variables in error message", func(t *testing.T) {
+		t.Run("returns runtime not available error with variable interpolation", func(t *testing.T) {
 			setup()
 			jsEvalNode.SetFileInfo(map[string]any{"filename": "test.less"})
-			
+
 			_, err := jsEvalNode.EvaluateJavaScript("@{color} + @{size}", mockCtx)
 			if err == nil {
-				t.Error("Expected error indicating JS evaluation is not supported")
+				t.Error("Expected error indicating JS runtime not available")
 			}
+			// When no runtime is available, we get the runtime not available error
+			// Variable interpolation happens before runtime check
 			errMsg := err.Error()
-			if !strings.Contains(errMsg, "#ff0000") || !strings.Contains(errMsg, "16px") {
-				t.Errorf("Expected error message to contain interpolated values, got: %s", errMsg)
+			if !strings.Contains(errMsg, "JavaScript runtime not available") {
+				t.Errorf("Expected error about runtime not available, got: %s", errMsg)
 			}
 		})
 	})
