@@ -444,7 +444,7 @@ func (p *Parser) parseInternal(str string, callback func(*LessError, *Ruleset), 
 	// Optionally disable @plugin parsing
 	if data.DisablePluginRule {
 		p.parsers.plugin = func() any {
-			dir := p.parserInput.Re(rePluginDirective)
+			dir := p.parserInput.FastMatch(matchPluginDirective)
 			if dir != nil {
 				p.error("@plugin statements are not allowed when disablePluginRule is set to true", "")
 			}
@@ -983,7 +983,7 @@ func (e *EntityParsers) Variable() any {
 
 	e.parsers.parser.parserInput.Save()
 	if e.parsers.parser.parserInput.CurrentChar() == '@' {
-		nameMatch := e.parsers.parser.parserInput.Re(reVariableAt)
+		nameMatch := e.parsers.parser.parserInput.FastMatchSlice(matchVariableAt)
 		if nameMatch != nil {
 			// Handle both string and []string cases
 			if matches, ok := nameMatch.([]string); ok {
@@ -1003,7 +1003,7 @@ func (e *EntityParsers) Variable() any {
 				e.parsers.parser.parserInput.Restore("")
 				e.parsers.parser.parserInput.Save()
 				// Re-parse the variable name
-				nameMatch = e.parsers.parser.parserInput.Re(reVariableAt)
+				nameMatch = e.parsers.parser.parserInput.FastMatchSlice(matchVariableAt)
 				if nameMatch != nil {
 					// Handle both string and []string cases
 					if matches, ok := nameMatch.([]string); ok {
@@ -1142,7 +1142,7 @@ func (p *Parsers) DetachedRuleset() any {
 
 	// Check for anonymous mixin syntax: .(@args) or #(@args)
 	// DR args currently only implemented for each() function
-	mixinMatch := p.parser.parserInput.Re(reMixinCall)
+	mixinMatch := p.parser.parserInput.FastMatch(matchMixinCall)
 	if tracer.IsEnabled() {
 		tracer.TraceRegex("DetachedRuleset", "^[.#]\\(", mixinMatch != nil, mixinMatch)
 	}
@@ -1560,7 +1560,7 @@ func (e *EntityParsers) VariableCurly() any {
 	index := e.parsers.parser.parserInput.GetIndex()
 
 	if e.parsers.parser.parserInput.CurrentChar() == '@' {
-		curly := e.parsers.parser.parserInput.Re(reVariableAtCurly)
+		curly := e.parsers.parser.parserInput.FastMatchSlice(matchVariableAtCurly)
 		if curly != nil {
 			matches := curly.([]string)
 			if len(matches) > 1 {
@@ -1576,7 +1576,7 @@ func (e *EntityParsers) Property() any {
 	index := e.parsers.parser.parserInput.GetIndex()
 
 	if e.parsers.parser.parserInput.CurrentChar() == '$' {
-		name := e.parsers.parser.parserInput.Re(reVariableDollar)
+		name := e.parsers.parser.parserInput.FastMatchSlice(matchVariableDollar)
 		if name != nil {
 			var nameStr string
 			if matches, ok := name.([]string); ok {
@@ -1595,7 +1595,7 @@ func (e *EntityParsers) PropertyCurly() any {
 	index := e.parsers.parser.parserInput.GetIndex()
 
 	if e.parsers.parser.parserInput.CurrentChar() == '$' {
-		curly := e.parsers.parser.parserInput.Re(reVariableDollarCurly)
+		curly := e.parsers.parser.parserInput.FastMatchSlice(matchVariableDollarCurly)
 		if curly != nil {
 			matches := curly.([]string)
 			if len(matches) > 1 {
@@ -1643,7 +1643,7 @@ func (e *EntityParsers) Color() any {
 func (e *EntityParsers) ColorKeyword() any {
 	e.parsers.parser.parserInput.Save()
 	// Note: autoCommentAbsorb access would need to be implemented in ParserInput
-	k := e.parsers.parser.parserInput.Re(reIdentifier)
+	k := e.parsers.parser.parserInput.FastMatch(matchIdentifier)
 
 	if k == nil {
 		e.parsers.parser.parserInput.Forget()
@@ -1651,12 +1651,7 @@ func (e *EntityParsers) ColorKeyword() any {
 	}
 	e.parsers.parser.parserInput.Restore("")
 
-	var kStr string
-	if matches, ok := k.([]string); ok {
-		kStr = matches[0]
-	} else if match, ok := k.(string); ok {
-		kStr = match
-	}
+	kStr := k.(string)
 
 	color := FromKeyword(kStr)
 	if color != nil {
@@ -1902,7 +1897,7 @@ func (p *Parsers) AtRule() any {
 
 	p.parser.parserInput.Save()
 
-	nameMatch := p.parser.parserInput.Re(reVariableAtNameSimple)
+	nameMatch := p.parser.parserInput.FastMatchSlice(matchVariableAtNameSimple)
 	if nameMatch == nil {
 		return nil
 	}
@@ -1982,11 +1977,9 @@ func (p *Parsers) AtRule() any {
 // Important parses !important
 func (p *Parsers) Important() any {
 	if p.parser.parserInput.CurrentChar() == '!' {
-		result := p.parser.parserInput.Re(reImportant)
+		result := p.parser.parserInput.FastMatch(matchImportant)
 		if result != nil {
-			if matches, ok := result.([]string); ok {
-				return matches[0]
-			} else if match, ok := result.(string); ok {
+			if match, ok := result.(string); ok {
 				return match
 			}
 		}
@@ -2143,11 +2136,11 @@ func (p *Parsers) Extend() []any {
 		for {
 			// Check for option (all or !all) followed by whitespace and closing paren or comma
 			p.parser.parserInput.Save()
-			optionMatch := p.parser.parserInput.Re(reMediaAll)
+			optionMatch := p.parser.parserInput.FastMatchSlice(matchMediaAll)
 			if optionMatch != nil {
 				if matches, ok := optionMatch.([]string); ok && len(matches) > 1 {
 					// Check if followed by whitespace and ) or ,
-					p.parser.parserInput.Re(reWhitespace) // Skip whitespace
+					p.parser.parserInput.FastMatch(matchWhitespaceStr) // Skip whitespace
 					nextChar := p.parser.parserInput.CurrentChar()
 					if nextChar == ')' || nextChar == ',' {
 						option = matches[1]
@@ -2356,7 +2349,7 @@ func (p *Parsers) Plugin() any {
 	var options map[string]any
 	index := p.parser.parserInput.GetIndex()
 
-	dir := p.parser.parserInput.Re(rePluginDirectiveStrict)
+	dir := p.parser.parserInput.FastMatch(matchPluginDirectiveStrict)
 	if dir == nil {
 		return nil
 	}
@@ -2584,9 +2577,9 @@ func (p *Parsers) Addition() any {
 		// The regex requires at least one space AFTER the operator
 		// If there was space before (isSpaced), we need space after too
 		// If no space before, we can match bare operator
-		opMatch := p.parser.parserInput.Re(reOperatorSpaced)
+		opMatch := p.parser.parserInput.FastMatchSlice(matchOperatorSpaced)
 		if opMatch != nil {
-			// Handle both string and []string return types from parserInput.Re()
+			// Handle both string and []string return types from parserInput.FastMatchSlice()
 			if matches, ok := opMatch.([]string); ok && len(matches) > 0 {
 				op = strings.TrimSpace(matches[0])
 			} else if matchStr, ok := opMatch.(string); ok {
@@ -3097,7 +3090,7 @@ func (p *Parsers) Import() any {
 	var features any
 	index := p.parser.parserInput.GetIndex()
 
-	dir := p.parser.parserInput.Re(reImportDirective)
+	dir := p.parser.parserInput.FastMatch(matchImportDirective)
 	if dir == nil {
 		return nil
 	}
@@ -3167,7 +3160,7 @@ func (p *Parsers) Element() any {
 	c = p.Combinator()
 
 	// Parse element value using patterns from JavaScript parser
-	e = p.parser.parserInput.Re(rePercentage)
+	e = p.parser.parserInput.FastMatch(matchPercentage)
 	if e == nil {
 		// Match the JavaScript regex pattern, including @{} for variable interpolation
 		// IMPORTANT: [^\x00-\x9f] should NOT match & (0x26), but add @{} pattern to capture variable interpolation
@@ -3197,7 +3190,7 @@ func (p *Parsers) Element() any {
 		if p.parser.parserInput.CurrentChar() == '.' || p.parser.parserInput.CurrentChar() == '#' || p.parser.parserInput.CurrentChar() == ':' {
 			nextChar := p.parser.parserInput.PeekChar(1)
 			if nextChar == '@' {
-				e = p.parser.parserInput.Re(reSelectorPrefixes)
+				e = p.parser.parserInput.FastMatch(matchSelectorPrefixes)
 			}
 		}
 	}
@@ -3575,7 +3568,7 @@ func (p *Parsers) ImportOptions() map[string]any {
 	options := make(map[string]any)
 
 	for {
-		opt := p.parser.parserInput.Re(reImportOptions)
+		opt := p.parser.parserInput.FastMatchSlice(matchImportOptions)
 		if opt != nil {
 			optionName := ""
 			value := true
@@ -3652,11 +3645,11 @@ func (p *Parsers) Combinator() *Combinator {
 
 	if c == '/' {
 		p.parser.parserInput.Save()
-		slashedCombinator := p.parser.parserInput.Re(reCombinatorSlashed)
+		slashedCombinator := p.parser.parserInput.FastMatch(matchCombinatorSlashed)
 		if slashedCombinator != nil {
 			p.parser.parserInput.Forget()
-			if matches, ok := slashedCombinator.([]string); ok {
-				return NewCombinator(matches[0])
+			if match, ok := slashedCombinator.(string); ok {
+				return NewCombinator(match)
 			}
 		}
 		p.parser.parserInput.Restore("")
@@ -3712,29 +3705,25 @@ func (p *Parsers) Attribute() any {
 		}
 	}
 
-	opMatch := p.parser.parserInput.Re(reOperatorAttr)
+	opMatch := p.parser.parserInput.FastMatch(matchOperatorAttr)
 	if opMatch != nil {
-		if matches, ok := opMatch.([]string); ok && len(matches) > 0 {
-			op = matches[0]
-		} else if match, ok := opMatch.(string); ok {
+		if match, ok := opMatch.(string); ok {
 			op = match
 		}
 		val = entities.Quoted(false)
 		if val == nil {
-			val = p.parser.parserInput.Re(rePercentSimple)
+			val = p.parser.parserInput.FastMatch(matchPercentSimple)
 		}
 		if val == nil {
-			val = p.parser.parserInput.Re(reWordIdent)
+			val = p.parser.parserInput.FastMatch(matchWordIdent)
 		}
 		if val == nil {
 			val = entities.VariableCurly()
 		}
 		if val != nil {
-			cifMatch := p.parser.parserInput.Re(reCaseFlag)
+			cifMatch := p.parser.parserInput.FastMatch(matchCaseFlag)
 			if cifMatch != nil {
-				if matches, ok := cifMatch.([]string); ok && len(matches) > 0 {
-					cif = matches[0]
-				} else if match, ok := cifMatch.(string); ok {
+				if match, ok := cifMatch.(string); ok {
 					cif = match
 				}
 			}
@@ -4100,14 +4089,14 @@ func (e *EntityParsers) Assignment() any {
 	e.parsers.parser.parserInput.Save()
 
 	// Instead of using positive lookahead (?=\s?=), parse the word and check for = separately
-	key := e.parsers.parser.parserInput.Re(reKeyword)
+	key := e.parsers.parser.parserInput.FastMatch(matchKeyword)
 	if key == nil {
 		e.parsers.parser.parserInput.Restore("")
 		return nil
 	}
 
 	// Skip optional whitespace and check for equals sign
-	e.parsers.parser.parserInput.Re(reWhitespace) // Skip whitespace
+	e.parsers.parser.parserInput.FastMatch(matchWhitespaceStr) // Skip whitespace
 	if e.parsers.parser.parserInput.Char('=') == nil {
 		e.parsers.parser.parserInput.Restore("")
 		return nil
@@ -4116,9 +4105,7 @@ func (e *EntityParsers) Assignment() any {
 	value := e.parsers.Entity()
 	if value != nil {
 		e.parsers.parser.parserInput.Forget()
-		if matches, ok := key.([]string); ok && len(matches) > 0 {
-			return NewAssignment(matches[0], value)
-		} else if keyStr, ok := key.(string); ok {
+		if keyStr, ok := key.(string); ok {
 			return NewAssignment(keyStr, value)
 		}
 	} else {
@@ -4129,19 +4116,17 @@ func (e *EntityParsers) Assignment() any {
 
 // IeAlpha parses IE alpha function
 func (p *Parsers) IeAlpha() []any {
-	if p.parser.parserInput.Re(reAlphaOpacity) == nil {
+	if p.parser.parserInput.FastMatch(matchAlphaOpacity) == nil {
 		return nil
 	}
-	
+
 	// First try to parse a number
-	value := p.parser.parserInput.Re(reNumber)
+	value := p.parser.parserInput.FastMatch(matchNumber)
 	var valueStr string
-	
+
 	if value != nil {
 		// We have a numeric value
-		if matches, ok := value.([]string); ok && len(matches) > 0 {
-			valueStr = matches[0]
-		} else if str, ok := value.(string); ok {
+		if str, ok := value.(string); ok {
 			valueStr = str
 		}
 	} else {

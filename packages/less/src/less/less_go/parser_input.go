@@ -560,4 +560,57 @@ func (p *ParserInput) GetAutoCommentAbsorb() bool {
 // SetAutoCommentAbsorb sets the autoCommentAbsorb setting
 func (p *ParserInput) SetAutoCommentAbsorb(value bool) {
 	p.autoCommentAbsorb = value
+}
+
+// FastMatch executes a fast string-based match function and advances the parser
+// matchFunc should return the matched string (or "" for no match)
+func (p *ParserInput) FastMatch(matchFunc func(string) string) any {
+	if p.i >= len(p.input) {
+		return nil
+	}
+	p.current = p.input[p.i:]
+	p.currentPos = p.i
+
+	match := matchFunc(p.current)
+	if match == "" {
+		return nil
+	}
+
+	p.i += len(match)
+	p.skipWhitespace(0)
+	p.syncCurrent()
+	return match
+}
+
+// FastMatchSlice executes a fast match function that returns []string and advances the parser
+// matchFunc should return []string{fullMatch, ...groups} or nil for no match
+func (p *ParserInput) FastMatchSlice(matchFunc func(string) []string) any {
+	if p.i >= len(p.input) {
+		return nil
+	}
+	p.current = p.input[p.i:]
+	p.currentPos = p.i
+
+	match := matchFunc(p.current)
+	if match == nil {
+		return nil
+	}
+
+	p.i += len(match[0])
+	p.skipWhitespace(0)
+	p.syncCurrent()
+	if len(match) == 1 {
+		return match[0]
+	}
+	return match
+}
+
+// FastPeek checks if the fast match function would match without advancing
+func (p *ParserInput) FastPeek(matchFunc func(string) bool) bool {
+	if p.i >= len(p.input) {
+		return false
+	}
+	p.current = p.input[p.i:]
+	p.currentPos = p.i
+	return matchFunc(p.current)
 } 
