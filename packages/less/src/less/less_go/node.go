@@ -8,17 +8,18 @@ import (
 
 // Node represents a base node in the Less AST
 type Node struct {
-	Parent          *Node
+	Parent           *Node
 	VisibilityBlocks *int
-	NodeVisible     *bool
-	RootNode        *Node
-	Parsed          any
-	Value           any
-	Index           int
-	fileInfo        map[string]any
-	Parens          bool
-	ParensInOp      bool
-	TypeIndex       int // Index for visitor pattern lookup
+	NodeVisible      *bool
+	RootNode         *Node
+	Parsed           any
+	Value            any
+	Index            int
+	typedFileInfo    *NodeFileInfo  // Primary storage (typed)
+	fileInfo         map[string]any // Legacy storage for backward compatibility
+	Parens           bool
+	ParensInOp       bool
+	TypeIndex        int // Index for visitor pattern lookup
 }
 
 // GenCSSSourceMap implements SourceMapNode interface for Node
@@ -121,10 +122,16 @@ func (n *Node) CurrentFileInfo() map[string]any {
 	return n.FileInfo()
 }
 
-// FileInfo returns the node's file information
+// FileInfo returns the node's file information as a map for backward compatibility.
+// Returns the original map if available, otherwise converts from typed storage.
 func (n *Node) FileInfo() map[string]any {
+	// Return the original map if available (preserves all fields)
 	if len(n.fileInfo) > 0 {
 		return n.fileInfo
+	}
+	// Fall back to typed storage
+	if n.typedFileInfo != nil {
+		return n.typedFileInfo.ToMap()
 	}
 	if n.Parent != nil {
 		return n.Parent.FileInfo()
@@ -132,9 +139,74 @@ func (n *Node) FileInfo() map[string]any {
 	return make(map[string]any)
 }
 
-// SetFileInfo sets the node's file information
+// TypedFileInfo returns the node's file information as a typed struct.
+// Returns nil if no file info is set.
+func (n *Node) TypedFileInfo() *NodeFileInfo {
+	if n.typedFileInfo != nil {
+		return n.typedFileInfo
+	}
+	// Convert from legacy storage if needed
+	if len(n.fileInfo) > 0 {
+		n.typedFileInfo = NewNodeFileInfoFromMap(n.fileInfo)
+		return n.typedFileInfo
+	}
+	if n.Parent != nil {
+		return n.Parent.TypedFileInfo()
+	}
+	return nil
+}
+
+// SetFileInfo sets the node's file information.
+// Accepts either map[string]any (legacy) or *NodeFileInfo (typed).
 func (n *Node) SetFileInfo(info map[string]any) {
+	if info == nil {
+		n.fileInfo = nil
+		n.typedFileInfo = nil
+		return
+	}
+	// Store in legacy format for backward compatibility
 	n.fileInfo = info
+	// Also convert to typed for efficient access
+	n.typedFileInfo = NewNodeFileInfoFromMap(info)
+}
+
+// SetTypedFileInfo sets the node's file information using the typed struct.
+func (n *Node) SetTypedFileInfo(info *NodeFileInfo) {
+	n.typedFileInfo = info
+	// Clear legacy storage when typed is set directly
+	n.fileInfo = nil
+}
+
+// GetFilenameFromFileInfo returns the filename from the node's file info efficiently.
+func (n *Node) GetFilenameFromFileInfo() string {
+	if n.typedFileInfo != nil {
+		return n.typedFileInfo.Filename
+	}
+	if n.fileInfo != nil {
+		if fn, ok := n.fileInfo["filename"].(string); ok {
+			return fn
+		}
+	}
+	if n.Parent != nil {
+		return n.Parent.GetFilenameFromFileInfo()
+	}
+	return ""
+}
+
+// GetRootpathFromFileInfo returns the rootpath from the node's file info efficiently.
+func (n *Node) GetRootpathFromFileInfo() string {
+	if n.typedFileInfo != nil {
+		return n.typedFileInfo.Rootpath
+	}
+	if n.fileInfo != nil {
+		if rp, ok := n.fileInfo["rootpath"].(string); ok {
+			return rp
+		}
+	}
+	if n.Parent != nil {
+		return n.Parent.GetRootpathFromFileInfo()
+	}
+	return ""
 }
 
 // IsRulesetLike returns false for base Node
@@ -421,23 +493,45 @@ func (n *Node) ClearVisibilityBlocks() {
 	n.VisibilityBlocks = &zero
 }
 
-// VisibilityInfo returns the node's visibility information
+// VisibilityInfo returns the node's visibility information as a map for backward compatibility.
 func (n *Node) VisibilityInfo() map[string]any {
 	return map[string]any{
 		"visibilityBlocks": n.VisibilityBlocks,
-		"nodeVisible":     n.NodeVisible,
+		"nodeVisible":      n.NodeVisible,
 	}
 }
 
-// CopyVisibilityInfo copies visibility information from another node
+// TypedVisibilityInfo returns the node's visibility information as a typed struct.
+func (n *Node) TypedVisibilityInfo() *NodeVisibilityInfo {
+	return &NodeVisibilityInfo{
+		VisibilityBlocks: n.VisibilityBlocks,
+		NodeVisible:      n.NodeVisible,
+	}
+}
+
+// CopyVisibilityInfo copies visibility information from another node.
+// Accepts either map[string]any (legacy) or *NodeVisibilityInfo (typed).
 func (n *Node) CopyVisibilityInfo(info map[string]any) {
 	if info == nil {
 		return
 	}
 	if blocks, ok := info["visibilityBlocks"].(*int); ok {
 		n.VisibilityBlocks = blocks
+	} else if blocks, ok := info["visibilityBlocks"].(int); ok {
+		n.VisibilityBlocks = &blocks
 	}
 	if visible, ok := info["nodeVisible"].(*bool); ok {
 		n.NodeVisible = visible
+	} else if visible, ok := info["nodeVisible"].(bool); ok {
+		n.NodeVisible = &visible
 	}
+}
+
+// CopyTypedVisibilityInfo copies visibility information from a typed struct.
+func (n *Node) CopyTypedVisibilityInfo(info *NodeVisibilityInfo) {
+	if info == nil {
+		return
+	}
+	n.VisibilityBlocks = info.VisibilityBlocks
+	n.NodeVisible = info.NodeVisible
 } 

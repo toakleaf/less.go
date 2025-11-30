@@ -14,19 +14,25 @@ type ParserFrame interface {
 // Variable represents a variable node in the Less AST
 type Variable struct {
 	*Node
-	name      string
-	_index    int
-	_fileInfo map[string]any
-	evaluating bool
+	name            string
+	_index          int
+	_fileInfo       map[string]any  // Legacy storage for backward compatibility
+	_typedFileInfo  *NodeFileInfo   // Typed storage for efficient access
+	evaluating      bool
 }
 
 func NewVariable(name string, index int, currentFileInfo map[string]any) *Variable {
-	return &Variable{
+	v := &Variable{
 		Node:      NewNode(),
 		name:      name,
 		_index:    index,
 		_fileInfo: currentFileInfo,
 	}
+	// Also convert to typed for efficient access
+	if currentFileInfo != nil {
+		v._typedFileInfo = NewNodeFileInfoFromMap(currentFileInfo)
+	}
+	return v
 }
 
 func (v *Variable) Type() string {
@@ -43,6 +49,21 @@ func (v *Variable) GetIndex() int {
 
 func (v *Variable) FileInfo() map[string]any {
 	return v._fileInfo
+}
+
+// getFilename returns the filename from file info efficiently.
+func (v *Variable) getFilename() string {
+	// Use typed storage for efficient access
+	if v._typedFileInfo != nil {
+		return v._typedFileInfo.Filename
+	}
+	// Fall back to legacy map
+	if v._fileInfo != nil {
+		if fn, ok := v._fileInfo["filename"].(string); ok {
+			return fn
+		}
+	}
+	return ""
 }
 
 func (v *Variable) GetName() string {
@@ -120,12 +141,7 @@ func (v *Variable) Eval(context any) (any, error) {
 	}
 
 	if v.evaluating {
-		filename := ""
-		if v._fileInfo != nil {
-			if fn, ok := v._fileInfo["filename"].(string); ok {
-				filename = fn
-			}
-		}
+		filename := v.getFilename()
 		// Match JavaScript behavior: throw error for circular dependency
 		// Use panic to ensure error propagates and isn't silently caught
 		panic(&LessError{
@@ -307,16 +323,10 @@ func (v *Variable) Eval(context any) (any, error) {
 		return nil, fmt.Errorf("context is neither map[string]any nor interface context")
 	}
 
-	filename := ""
-	if v._fileInfo != nil {
-		if fn, ok := v._fileInfo["filename"].(string); ok {
-			filename = fn
-		}
-	}
 	return nil, &LessError{
 		Type:     "Name",
 		Message:  fmt.Sprintf("variable %s is undefined", name),
-		Filename: filename,
+		Filename: v.getFilename(),
 		Index:    v.GetIndex(),
 	}
 }

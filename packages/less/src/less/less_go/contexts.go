@@ -37,18 +37,19 @@ func NewParse(options map[string]any) *Parse {
 }
 
 type Eval struct {
-	Paths           []string
-	Compress        bool
-	Math            MathType
-	StrictUnits     bool
-	SourceMap       bool
-	ImportMultiple  bool
-	UrlArgs         string
+	Paths             []string
+	Compress          bool
+	Math              MathType
+	StrictUnits       bool
+	SourceMap         bool
+	ImportMultiple    bool
+	UrlArgs           string
 	JavascriptEnabled bool
-	PluginManager   any
-	ImportantScope  []map[string]any
-	RewriteUrls     RewriteUrlsType
-	NumPrecision    int
+	PluginManager     any
+	ImportantScope    []map[string]any       // Legacy format for backward compatibility
+	typedImportant    []*ImportantScopeEntry // Typed format for efficient access
+	RewriteUrls       RewriteUrlsType
+	NumPrecision      int
 
 	Frames           []any
 	parserFrames     []ParserFrame // Cached typed frames to avoid allocation in GetFrames()
@@ -286,6 +287,70 @@ func (e *Eval) GetImportantScope() []map[string]bool {
 		result[i] = scopeBool
 	}
 	return result
+}
+
+// GetTypedImportantScope returns the important scope as typed entries.
+func (e *Eval) GetTypedImportantScope() []*ImportantScopeEntry {
+	if e.typedImportant != nil {
+		return e.typedImportant
+	}
+	// Convert from legacy format
+	result := make([]*ImportantScopeEntry, len(e.ImportantScope))
+	for i, scope := range e.ImportantScope {
+		entry := &ImportantScopeEntry{}
+		if v, ok := scope["important"].(string); ok {
+			entry.Important = v
+		}
+		result[i] = entry
+	}
+	return result
+}
+
+// PushImportantScope adds a new important scope entry.
+func (e *Eval) PushImportantScope() {
+	e.ImportantScope = append(e.ImportantScope, map[string]any{})
+	e.typedImportant = append(e.typedImportant, &ImportantScopeEntry{})
+}
+
+// PopImportantScope removes the last important scope entry and returns its important value.
+func (e *Eval) PopImportantScope() string {
+	if len(e.typedImportant) > 0 {
+		last := e.typedImportant[len(e.typedImportant)-1]
+		e.typedImportant = e.typedImportant[:len(e.typedImportant)-1]
+		e.ImportantScope = e.ImportantScope[:len(e.ImportantScope)-1]
+		return last.Important
+	}
+	if len(e.ImportantScope) > 0 {
+		last := e.ImportantScope[len(e.ImportantScope)-1]
+		e.ImportantScope = e.ImportantScope[:len(e.ImportantScope)-1]
+		if v, ok := last["important"].(string); ok {
+			return v
+		}
+	}
+	return ""
+}
+
+// SetLastImportant sets the important value in the last scope entry.
+func (e *Eval) SetLastImportant(important string) {
+	if len(e.typedImportant) > 0 {
+		e.typedImportant[len(e.typedImportant)-1].Important = important
+	}
+	if len(e.ImportantScope) > 0 {
+		e.ImportantScope[len(e.ImportantScope)-1]["important"] = important
+	}
+}
+
+// GetLastImportant gets the important value from the last scope entry.
+func (e *Eval) GetLastImportant() string {
+	if len(e.typedImportant) > 0 {
+		return e.typedImportant[len(e.typedImportant)-1].Important
+	}
+	if len(e.ImportantScope) > 0 {
+		if v, ok := e.ImportantScope[len(e.ImportantScope)-1]["important"].(string); ok {
+			return v
+		}
+	}
+	return ""
 }
 
 func (e *Eval) GetDefaultFunc() *DefaultFunc {
