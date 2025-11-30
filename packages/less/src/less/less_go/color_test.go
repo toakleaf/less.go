@@ -419,13 +419,6 @@ func expectInt(t *testing.T, got, want int) {
 	}
 }
 
-func expectNil(t *testing.T, got any) {
-	t.Helper()
-	if got != nil {
-		t.Errorf("Expected nil, got %v", got)
-	}
-}
-
 func expectNotNil(t *testing.T, got any) {
 	t.Helper()
 	if got == nil {

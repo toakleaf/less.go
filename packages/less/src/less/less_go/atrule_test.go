@@ -868,16 +868,4 @@ func (m *mockGenCSS) GenCSS(context any, output *CSSOutput) {
 	output.Add("mock-rule", nil, nil)
 }
 
-// Helper functions
-
-func compareCalls(actual, expected []atRuleMockCall) bool {
-	if len(actual) != len(expected) {
-		return false
-	}
-	for i, call := range actual {
-		if call.chunk != expected[i].chunk {
-			return false
-		}
-	}
-	return true
-} 
+ 
