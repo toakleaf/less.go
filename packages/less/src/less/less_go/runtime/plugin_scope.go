@@ -4,6 +4,21 @@ import (
 	"sync"
 )
 
+// pluginScopePool is a pool for reusing PluginScope objects to reduce allocations.
+// Memory profiling shows 103,770 PluginScope allocations during Bootstrap4 compilation.
+var pluginScopePool = sync.Pool{
+	New: func() interface{} {
+		return &PluginScope{
+			plugins:        make([]*Plugin, 0, 4),
+			functions:      make(map[string]*JSFunctionDefinition, 8),
+			visitors:       make([]*JSVisitor, 0, 4),
+			preProcessors:  make([]ProcessorWithPriority, 0, 2),
+			postProcessors: make([]ProcessorWithPriority, 0, 2),
+			fileManagers:   make([]any, 0, 2),
+		}
+	},
+}
+
 // PluginScope represents a scope in the plugin hierarchy.
 // It manages functions, visitors, and other plugin components that are
 // scoped to a particular level in the LESS AST (e.g., file-level, ruleset-level, mixin-level).
@@ -32,16 +47,26 @@ type ProcessorWithPriority struct {
 
 // NewPluginScope creates a new plugin scope with an optional parent.
 // If parent is nil, this is a root (global) scope.
+//
+// OPTIMIZATION: Uses sync.Pool to reuse PluginScope objects.
+// Call Release() when the scope is no longer needed to return it to the pool.
 func NewPluginScope(parent *PluginScope) *PluginScope {
-	return &PluginScope{
-		parent:         parent,
-		plugins:        make([]*Plugin, 0),
-		functions:      make(map[string]*JSFunctionDefinition),
-		visitors:       make([]*JSVisitor, 0),
-		preProcessors:  make([]ProcessorWithPriority, 0),
-		postProcessors: make([]ProcessorWithPriority, 0),
-		fileManagers:   make([]any, 0),
+	scope := pluginScopePool.Get().(*PluginScope)
+	scope.parent = parent
+
+	// Clear maps (reuse underlying memory)
+	for k := range scope.functions {
+		delete(scope.functions, k)
 	}
+
+	// Clear slices (reuse underlying arrays)
+	scope.plugins = scope.plugins[:0]
+	scope.visitors = scope.visitors[:0]
+	scope.preProcessors = scope.preProcessors[:0]
+	scope.postProcessors = scope.postProcessors[:0]
+	scope.fileManagers = scope.fileManagers[:0]
+
+	return scope
 }
 
 // NewRootPluginScope creates a root (global) plugin scope.
@@ -344,6 +369,56 @@ func (ps *PluginScope) IsRoot() bool {
 // This is used when entering a new scoping boundary (e.g., a ruleset with @plugin).
 func (ps *PluginScope) CreateChild() *PluginScope {
 	return NewPluginScope(ps)
+}
+
+// Release returns the scope to the pool for reuse.
+// The scope should not be used after calling Release().
+// This clears references to prevent memory leaks and returns the scope to the pool.
+//
+// IMPORTANT: Only call Release() on child scopes that are no longer needed.
+// Do not release scopes that may still be referenced elsewhere.
+func (ps *PluginScope) Release() {
+	if ps == nil {
+		return
+	}
+
+	// Clear parent reference to allow GC of parent if needed
+	ps.parent = nil
+
+	// Clear map entries but keep the map to reuse capacity
+	for k := range ps.functions {
+		delete(ps.functions, k)
+	}
+
+	// Clear slices but keep underlying arrays for reuse
+	// Also nil out elements to allow GC of referenced objects
+	for i := range ps.plugins {
+		ps.plugins[i] = nil
+	}
+	ps.plugins = ps.plugins[:0]
+
+	for i := range ps.visitors {
+		ps.visitors[i] = nil
+	}
+	ps.visitors = ps.visitors[:0]
+
+	for i := range ps.preProcessors {
+		ps.preProcessors[i] = ProcessorWithPriority{}
+	}
+	ps.preProcessors = ps.preProcessors[:0]
+
+	for i := range ps.postProcessors {
+		ps.postProcessors[i] = ProcessorWithPriority{}
+	}
+	ps.postProcessors = ps.postProcessors[:0]
+
+	for i := range ps.fileManagers {
+		ps.fileManagers[i] = nil
+	}
+	ps.fileManagers = ps.fileManagers[:0]
+
+	// Return to pool
+	pluginScopePool.Put(ps)
 }
 
 // sortProcessorsByPriority sorts processors by priority (lower first).

@@ -363,3 +363,119 @@ func TestScopedPluginManager(t *testing.T) {
 		}
 	})
 }
+
+func TestPluginScope_Release(t *testing.T) {
+	t.Run("should release scope to pool", func(t *testing.T) {
+		root := NewRootPluginScope()
+		child := root.CreateChild()
+
+		// Add some data to the child
+		child.AddFunction("test-func", &JSFunctionDefinition{name: "test"})
+		child.AddVisitor(&JSVisitor{Index: 1})
+		child.AddPreProcessor("proc", 100)
+
+		// Release the child
+		child.Release()
+
+		// The released scope should have been reset (parent nil)
+		// Note: We can't test this directly as the scope is back in the pool
+		// But we can get a new scope and verify it's properly reset
+		newScope := NewPluginScope(nil)
+
+		// New scope should be empty
+		if len(newScope.GetPlugins()) != 0 {
+			t.Error("new scope should have no plugins")
+		}
+		if _, ok := newScope.LookupFunction("test-func"); ok {
+			t.Error("new scope should not have test-func")
+		}
+		if len(newScope.GetVisitors()) != 0 {
+			t.Error("new scope should have no visitors")
+		}
+		if len(newScope.GetPreProcessors()) != 0 {
+			t.Error("new scope should have no pre-processors")
+		}
+	})
+
+	t.Run("should handle nil Release gracefully", func(t *testing.T) {
+		var scope *PluginScope = nil
+		// Should not panic
+		scope.Release()
+	})
+}
+
+// BenchmarkPluginScope_CreateAndRelease measures the performance improvement
+// from using sync.Pool for PluginScope objects.
+func BenchmarkPluginScope_CreateAndRelease(b *testing.B) {
+	b.Run("with_pool", func(b *testing.B) {
+		root := NewRootPluginScope()
+		b.ResetTimer()
+
+		for i := 0; i < b.N; i++ {
+			// Simulate entering and exiting 10 nested scopes
+			scopes := make([]*PluginScope, 10)
+			parent := root
+			for j := 0; j < 10; j++ {
+				scopes[j] = NewPluginScope(parent)
+				parent = scopes[j]
+			}
+			// Exit scopes and release them
+			for j := 9; j >= 0; j-- {
+				scopes[j].Release()
+			}
+		}
+	})
+}
+
+// BenchmarkPluginScope_EnterExitPattern simulates the typical usage pattern
+// of entering and exiting scopes during LESS compilation.
+func BenchmarkPluginScope_EnterExitPattern(b *testing.B) {
+	root := NewRootPluginScope()
+	fn := &JSFunctionDefinition{name: "test-func"}
+	root.AddFunction("test-func", fn)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		// Enter child scope
+		child := root.CreateChild()
+
+		// Add some local data (typical operation)
+		child.AddFunction("local-func", fn)
+
+		// Lookup functions (typical operation)
+		child.LookupFunction("test-func")
+		child.LookupFunction("local-func")
+
+		// Exit and release
+		child.Release()
+	}
+}
+
+// BenchmarkPluginScope_DeepNesting simulates deep scope nesting
+// which occurs during complex mixin calls.
+func BenchmarkPluginScope_DeepNesting(b *testing.B) {
+	root := NewRootPluginScope()
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		// Create a 50-level deep scope hierarchy
+		scopes := make([]*PluginScope, 50)
+		parent := root
+		for j := 0; j < 50; j++ {
+			scopes[j] = NewPluginScope(parent)
+			parent = scopes[j]
+		}
+
+		// Do some work at the deepest level
+		scopes[49].LookupFunction("nonexistent")
+
+		// Exit all scopes
+		for j := 49; j >= 0; j-- {
+			scopes[j].Release()
+		}
+	}
+}
