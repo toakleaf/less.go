@@ -948,3 +948,193 @@ func (m *mockFunctionDef) CallCtx(ctx any, args ...any) (any, error) {
 func (m *mockFunctionDef) NeedsEvalArgs() bool {
 	return true
 }
+
+// ============================================
+// Context-Free Function Tests
+// ============================================
+//
+// These tests verify the context-free function optimization works correctly.
+// Context-free functions are pure functions that don't need access to LESS
+// variables or evaluation context, enabling a faster IPC path.
+//
+// ============================================
+
+func TestJSFunctionDefinition_DefaultContextFree(t *testing.T) {
+	// By default, functions should NOT be context-free
+	jsFn := NewJSFunctionDefinition("test", nil)
+	if jsFn.IsContextFree() {
+		t.Error("expected default function to NOT be context-free")
+	}
+}
+
+func TestJSFunctionDefinition_WithContextFreeOption(t *testing.T) {
+	// WithContextFree() should mark the function as context-free
+	jsFn := NewJSFunctionDefinition("test", nil, WithContextFree())
+	if !jsFn.IsContextFree() {
+		t.Error("expected function to be context-free with WithContextFree() option")
+	}
+}
+
+func TestJSFunctionDefinition_WithContextOption(t *testing.T) {
+	// WithContext() should mark the function as requiring context
+	jsFn := NewJSFunctionDefinition("test", nil, WithContextFree(), WithContext())
+	if jsFn.IsContextFree() {
+		t.Error("expected function to NOT be context-free after WithContext() option")
+	}
+}
+
+func TestJSFunctionDefinition_SetContextFree(t *testing.T) {
+	jsFn := NewJSFunctionDefinition("test", nil)
+
+	// Initially not context-free
+	if jsFn.IsContextFree() {
+		t.Error("expected new function to NOT be context-free")
+	}
+
+	// Set to context-free
+	jsFn.SetContextFree(true)
+	if !jsFn.IsContextFree() {
+		t.Error("expected function to be context-free after SetContextFree(true)")
+	}
+
+	// Set back to requiring context
+	jsFn.SetContextFree(false)
+	if jsFn.IsContextFree() {
+		t.Error("expected function to NOT be context-free after SetContextFree(false)")
+	}
+}
+
+func TestJSFunctionDefinition_ContextFreeWithIPCMode(t *testing.T) {
+	// Context-free can be combined with IPC mode options
+	jsFn := NewJSFunctionDefinition("test", nil, WithJSONMode(), WithContextFree())
+
+	if jsFn.IPCMode() != JSIPCModeJSON {
+		t.Errorf("expected IPC mode to be json, got %s", jsFn.IPCMode())
+	}
+	if !jsFn.IsContextFree() {
+		t.Error("expected function to be context-free")
+	}
+}
+
+func TestPlugin_ContextFreeFunctions(t *testing.T) {
+	plugin := &Plugin{
+		Path:      "/test/plugin.js",
+		Filename:  "plugin.js",
+		Functions: []string{"pure-math", "color-op", "variable-lookup"},
+		ContextFreeFunctions: map[string]bool{
+			"pure-math": true,
+			"color-op":  true,
+			// "variable-lookup" is NOT context-free
+		},
+	}
+
+	// Test IsContextFree method
+	if !plugin.IsContextFree("pure-math") {
+		t.Error("expected 'pure-math' to be context-free")
+	}
+	if !plugin.IsContextFree("color-op") {
+		t.Error("expected 'color-op' to be context-free")
+	}
+	if plugin.IsContextFree("variable-lookup") {
+		t.Error("expected 'variable-lookup' to NOT be context-free")
+	}
+	if plugin.IsContextFree("non-existent") {
+		t.Error("expected 'non-existent' to NOT be context-free")
+	}
+}
+
+func TestPlugin_ContextFreeFunctionsNil(t *testing.T) {
+	// Plugin with nil ContextFreeFunctions map should work
+	plugin := &Plugin{
+		Path:                 "/test/plugin.js",
+		Filename:             "plugin.js",
+		Functions:            []string{"func1"},
+		ContextFreeFunctions: nil, // nil map
+	}
+
+	// Should return false, not panic
+	if plugin.IsContextFree("func1") {
+		t.Error("expected 'func1' to NOT be context-free when map is nil")
+	}
+}
+
+func TestPluginScope_AddPluginWithContextFreeFunctions(t *testing.T) {
+	hostPath := getPluginHostPath(t)
+	rt, err := NewNodeJSRuntime(WithPluginHostPath(hostPath))
+	if err != nil {
+		t.Fatalf("NewNodeJSRuntime failed: %v", err)
+	}
+
+	if err := rt.Start(); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+	defer rt.Stop()
+
+	scope := NewRootPluginScope()
+
+	plugin := &Plugin{
+		Path:      "/test/plugin.js",
+		Filename:  "plugin.js",
+		Functions: []string{"pure-func", "context-func"},
+		ContextFreeFunctions: map[string]bool{
+			"pure-func": true,
+			// "context-func" requires context
+		},
+		IPCMode: JSIPCModeJSON,
+	}
+
+	// Add plugin to scope
+	scope.AddPlugin(plugin, rt)
+
+	// Check that pure-func is context-free
+	pureFn, found := scope.LookupFunction("pure-func")
+	if !found {
+		t.Fatal("expected 'pure-func' to be found in scope")
+	}
+	if !pureFn.IsContextFree() {
+		t.Error("expected 'pure-func' to be context-free")
+	}
+
+	// Check that context-func requires context
+	contextFn, found := scope.LookupFunction("context-func")
+	if !found {
+		t.Fatal("expected 'context-func' to be found in scope")
+	}
+	if contextFn.IsContextFree() {
+		t.Error("expected 'context-func' to NOT be context-free")
+	}
+}
+
+func TestGetOrCreateJSFunctionDefinition_ContextFree(t *testing.T) {
+	// Clear the cache before testing
+	ClearJSFunctionDefinitionCache()
+	defer ClearJSFunctionDefinitionCache()
+
+	hostPath := getPluginHostPath(t)
+	rt, err := NewNodeJSRuntime(WithPluginHostPath(hostPath))
+	if err != nil {
+		t.Fatalf("NewNodeJSRuntime failed: %v", err)
+	}
+
+	if err := rt.Start(); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+	defer rt.Stop()
+
+	// First call creates a new function with context-free option
+	fn1 := GetOrCreateJSFunctionDefinition("test-pure", rt, WithContextFree())
+	if !fn1.IsContextFree() {
+		t.Error("expected first function to be context-free")
+	}
+
+	// Second call should return the cached function
+	fn2 := GetOrCreateJSFunctionDefinition("test-pure", rt)
+	if fn1 != fn2 {
+		t.Error("expected second call to return cached function")
+	}
+
+	// The cached function should still be context-free
+	if !fn2.IsContextFree() {
+		t.Error("expected cached function to be context-free")
+	}
+}

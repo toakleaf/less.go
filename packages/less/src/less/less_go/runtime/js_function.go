@@ -113,10 +113,18 @@ func ParseIPCMode(mode string) JSIPCMode {
 // GetOrCreateJSFunctionDefinition. Result caching happens at the runtime level
 // via GetCachedResult/SetCachedResult, which provides a 95%+ cache hit rate
 // for Bootstrap-style compilations.
+//
+// CONTEXT-FREE FUNCTIONS: Functions marked as contextFree=true are pure functions
+// that don't need access to LESS variables or evaluation context. These functions:
+//   - Skip context serialization entirely (no frame/variable data sent)
+//   - Use a simpler, faster IPC path
+//   - Can be more aggressively cached
+//   - Examples: math operations, color transformations, string utilities
 type JSFunctionDefinition struct {
-	name    string
-	runtime *NodeJSRuntime
-	ipcMode JSIPCMode
+	name        string
+	runtime     *NodeJSRuntime
+	ipcMode     JSIPCMode
+	contextFree bool // If true, function is pure and doesn't need evaluation context
 }
 
 // JSFunctionOption configures a JSFunctionDefinition.
@@ -158,6 +166,43 @@ func WithSharedMemoryMode() JSFunctionOption {
 func WithIPCMode(mode JSIPCMode) JSFunctionOption {
 	return func(jf *JSFunctionDefinition) {
 		jf.ipcMode = mode
+	}
+}
+
+// WithContextFree marks the function as context-free (pure).
+// Context-free functions don't need access to LESS variables or evaluation context.
+// This enables significant performance optimizations:
+//   - Skip context serialization (no frame/variable data sent to JS)
+//   - Use a simpler, faster IPC path
+//   - More aggressive caching (pure functions are deterministic)
+//
+// Use this for functions that:
+//   - Only operate on their input arguments
+//   - Don't access LESS variables (via this.context)
+//   - Don't have side effects
+//   - Always return the same output for the same input
+//
+// Examples of context-free functions:
+//   - Math operations (add, multiply, sqrt, etc.)
+//   - Color transformations (lighten, darken, saturate)
+//   - String utilities (replace, split, join)
+//   - Type checking (isnumber, iscolor, isstring)
+//
+// Examples of functions that NEED context:
+//   - Functions that access variables (map-get with variable maps)
+//   - Functions that use `this.context` for variable lookup
+//   - Functions with side effects or state
+func WithContextFree() JSFunctionOption {
+	return func(jf *JSFunctionDefinition) {
+		jf.contextFree = true
+	}
+}
+
+// WithContext marks the function as requiring context (not pure).
+// This is the default, but can be used to explicitly override a cached function's setting.
+func WithContext() JSFunctionOption {
+	return func(jf *JSFunctionDefinition) {
+		jf.contextFree = false
 	}
 }
 
@@ -228,6 +273,18 @@ func NewJSFunctionDefinition(name string, runtime *NodeJSRuntime, opts ...JSFunc
 // IPCMode returns the current IPC mode for this function.
 func (jf *JSFunctionDefinition) IPCMode() JSIPCMode {
 	return jf.ipcMode
+}
+
+// IsContextFree returns true if this function is marked as context-free (pure).
+// Context-free functions don't need access to LESS variables or evaluation context.
+func (jf *JSFunctionDefinition) IsContextFree() bool {
+	return jf.contextFree
+}
+
+// SetContextFree sets whether this function is context-free.
+// This is useful for dynamically updating a function's context requirements.
+func (jf *JSFunctionDefinition) SetContextFree(contextFree bool) {
+	jf.contextFree = contextFree
 }
 
 // Name returns the function name.
@@ -635,9 +692,10 @@ type EvalContextProvider interface {
 // This is used by plugin functions that need to access Less variables.
 //
 // OPTIMIZATION: Uses multiple strategies for optimal performance:
-// 1. Check result cache first (same args = same result)
-// 2. If SHM protocol is available, use binary protocol (fastest)
-// 3. Otherwise, use pre-fetch + on-demand lookup
+// 1. For context-free functions, skip context serialization entirely (fastest path)
+// 2. Check result cache first (same args = same result)
+// 3. If SHM protocol is available, use binary protocol
+// 4. Otherwise, use pre-fetch + on-demand lookup
 func (jf *JSFunctionDefinition) CallWithContext(evalContext EvalContextProvider, args ...any) (any, error) {
 	if jf.runtime == nil {
 		return nil, fmt.Errorf("Node.js runtime not initialized")
@@ -655,6 +713,21 @@ func (jf *JSFunctionDefinition) CallWithContext(evalContext EvalContextProvider,
 
 	var result any
 	var err error
+
+	// FAST PATH: Context-free functions don't need context serialization
+	// This is the fastest path - skip all context handling and use simple Call()
+	if jf.contextFree {
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Printf("[CallWithContext] Using context-free path for %s\n", jf.name)
+		}
+		result, err = jf.callContextFree(args...)
+		if err != nil {
+			return nil, err
+		}
+		// Store result in shared runtime cache
+		jf.runtime.SetCachedResult(cacheKey, result)
+		return result, nil
+	}
 
 	// Try to use the high-performance SHM protocol if available
 	if jf.runtime.UseSHMProtocol() {
@@ -680,6 +753,48 @@ func (jf *JSFunctionDefinition) CallWithContext(evalContext EvalContextProvider,
 	jf.runtime.SetCachedResult(cacheKey, result)
 	if os.Getenv("LESS_GO_DEBUG") == "1" {
 		fmt.Printf("[CallWithContext] Cache STORE for %s: %s\n", jf.name, cacheKey[:min(80, len(cacheKey))])
+	}
+
+	return result, nil
+}
+
+// callContextFree calls a context-free (pure) function without any context serialization.
+// This is the fastest call path, suitable for functions that:
+//   - Don't access LESS variables
+//   - Don't need evaluation context
+//   - Are deterministic (same args = same result)
+//
+// The call goes directly to the JavaScript function with just the arguments,
+// skipping all context preparation, frame serialization, and callback registration.
+func (jf *JSFunctionDefinition) callContextFree(args ...any) (any, error) {
+	// Serialize arguments for transfer
+	serializedArgs, err := jf.serializeArgs(args)
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize arguments: %w", err)
+	}
+
+	// Call the function via Node.js runtime with no context
+	// This uses a specialized command that tells JS to skip context setup
+	resp, err := jf.runtime.SendCommand(Command{
+		Cmd: "callFunctionContextFree",
+		Data: map[string]any{
+			"name": jf.name,
+			"args": serializedArgs,
+		},
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("function call failed: %w", err)
+	}
+
+	if !resp.Success {
+		return nil, fmt.Errorf("JavaScript function error: %s", resp.Error)
+	}
+
+	// Deserialize the result
+	result, err := jf.deserializeResult(resp.Result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to deserialize result: %w", err)
 	}
 
 	return result, nil

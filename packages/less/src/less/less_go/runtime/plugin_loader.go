@@ -9,28 +9,38 @@ import (
 
 // Plugin represents a loaded JavaScript plugin with its registered components.
 type Plugin struct {
-	Path           string    // Resolved path to the plugin
-	Filename       string    // Original filename/identifier
-	Functions      []string  // Names of registered functions
-	Visitors       int       // Number of registered visitors
-	PreProcessors  int       // Number of registered pre-processors
-	PostProcessors int       // Number of registered post-processors
-	FileManagers   int       // Number of registered file managers
-	Cached         bool      // Whether this was loaded from cache
-	IPCMode        JSIPCMode // Preferred IPC mode for this plugin's functions (json or shared-memory)
+	Path                 string            // Resolved path to the plugin
+	Filename             string            // Original filename/identifier
+	Functions            []string          // Names of registered functions
+	ContextFreeFunctions map[string]bool   // Map of function names that are context-free (pure)
+	Visitors             int               // Number of registered visitors
+	PreProcessors        int               // Number of registered pre-processors
+	PostProcessors       int               // Number of registered post-processors
+	FileManagers         int               // Number of registered file managers
+	Cached               bool              // Whether this was loaded from cache
+	IPCMode              JSIPCMode         // Preferred IPC mode for this plugin's functions (json or shared-memory)
+}
+
+// IsContextFree returns true if the specified function is marked as context-free.
+func (p *Plugin) IsContextFree(funcName string) bool {
+	if p.ContextFreeFunctions == nil {
+		return false
+	}
+	return p.ContextFreeFunctions[funcName]
 }
 
 // PluginLoadResult contains the result of loading a plugin via Node.js.
 type PluginLoadResult struct {
-	Success        bool     `json:"success"`
-	Error          string   `json:"error,omitempty"`
-	Cached         bool     `json:"cached"`
-	Functions      []string `json:"functions,omitempty"`
-	Visitors       int      `json:"visitors,omitempty"`
-	PreProcessors  int      `json:"preProcessors,omitempty"`
-	PostProcessors int      `json:"postProcessors,omitempty"`
-	FileManagers   int      `json:"fileManagers,omitempty"`
-	IPCMode        string   `json:"ipcMode,omitempty"` // "json" or "shm" - preferred IPC mode
+	Success              bool     `json:"success"`
+	Error                string   `json:"error,omitempty"`
+	Cached               bool     `json:"cached"`
+	Functions            []string `json:"functions,omitempty"`
+	ContextFreeFunctions []string `json:"contextFreeFunctions,omitempty"` // Functions that don't need context
+	Visitors             int      `json:"visitors,omitempty"`
+	PreProcessors        int      `json:"preProcessors,omitempty"`
+	PostProcessors       int      `json:"postProcessors,omitempty"`
+	FileManagers         int      `json:"fileManagers,omitempty"`
+	IPCMode              string   `json:"ipcMode,omitempty"` // "json" or "shm" - preferred IPC mode
 }
 
 // JSPluginLoader loads JavaScript plugins via the Node.js runtime.
@@ -145,6 +155,17 @@ func (pl *JSPluginLoader) LoadPluginSync(path, currentDirectory string, context 
 			for _, f := range functions {
 				if name, ok := f.(string); ok {
 					plugin.Functions = append(plugin.Functions, name)
+				}
+			}
+		}
+
+		// Parse context-free functions from result
+		// These are pure functions that don't need access to LESS variables
+		if contextFreeFuncs, ok := result["contextFreeFunctions"].([]any); ok {
+			plugin.ContextFreeFunctions = make(map[string]bool)
+			for _, f := range contextFreeFuncs {
+				if name, ok := f.(string); ok {
+					plugin.ContextFreeFunctions[name] = true
 				}
 			}
 		}
