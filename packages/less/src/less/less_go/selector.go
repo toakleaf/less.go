@@ -128,10 +128,6 @@ func (s *Selector) Accept(visitor any) {
 				visited := v.Visit(el)
 				if elem, ok := visited.(*Element); ok {
 					newElements[i] = elem
-					// Release old element if visitor returned a different one
-					if elem != el {
-						el.Release()
-					}
 				} else {
 					// If visitor.Visit returns something else, keep original
 					newElements[i] = el
@@ -159,10 +155,6 @@ func (s *Selector) Accept(visitor any) {
 				visited := v.Visit(el)
 				if elem, ok := visited.(*Element); ok {
 					newElements[i] = elem
-					// Release old element if visitor returned a different one
-					if elem != el {
-						el.Release()
-					}
 				} else {
 					newElements[i] = el
 				}
@@ -457,10 +449,6 @@ func (s *Selector) Eval(context any) (any, error) {
 			}
 			if element, ok := evaledE.(*Element); ok {
 				evaluatedElements[i] = element
-				// Release old element if evaluation returned a new one
-				if element != e {
-					e.Release()
-				}
 			} else {
 				evaluatedElements[i] = e // fallback to original
 			}
