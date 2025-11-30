@@ -68,16 +68,17 @@ func TestJavaScript(t *testing.T) {
 			}
 		})
 
-		// Helper function to assert the "not supported" error
-		assertNotSupportedError := func(t *testing.T, expr string, err error) {
+		// Helper function to assert the "runtime not available" error
+		// When JavaScript is enabled but no Node.js runtime is set up, we get this error
+		assertRuntimeNotAvailableError := func(t *testing.T, expr string, err error) {
 			t.Helper()
 			if err == nil {
-				t.Errorf("Expected 'JavaScript evaluation is not supported' error for expression '%s', but got nil", expr)
+				t.Errorf("Expected 'JavaScript runtime not available' error for expression '%s', but got nil", expr)
 				return
 			}
-			expectedPrefix := "JavaScript evaluation is not supported in the Go port. Expression: "
-			if !strings.HasPrefix(err.Error(), expectedPrefix) {
-				t.Errorf("Expected error prefix '%s' for expression '%s', got '%v'", expectedPrefix, expr, err)
+			expectedSubstring := "JavaScript runtime not available"
+			if !strings.Contains(err.Error(), expectedSubstring) {
+				t.Errorf("Expected error containing '%s' for expression '%s', got '%v'", expectedSubstring, expr, err)
 			}
 		}
 
@@ -85,63 +86,63 @@ func TestJavaScript(t *testing.T) {
 			expr := "1 + 1"
 			js := NewJavaScript(expr, false, 0, nil)
 			_, err := js.Eval(mockContext)
-			assertNotSupportedError(t, expr, err)
+			assertRuntimeNotAvailableError(t, expr, err)
 		})
 
 		t.Run("should return error for NaN values", func(t *testing.T) {
 			expr := "parseInt('not a number')"
 			js := NewJavaScript(expr, false, 0, nil)
 			_, err := js.Eval(mockContext)
-			assertNotSupportedError(t, expr, err)
+			assertRuntimeNotAvailableError(t, expr, err)
 		})
 
 		t.Run("should return error for string expressions", func(t *testing.T) {
 			expr := `"hello" + " world"` // Use raw string literal for clarity
 			js := NewJavaScript(expr, false, 0, nil)
 			_, err := js.Eval(mockContext)
-			assertNotSupportedError(t, expr, err)
+			assertRuntimeNotAvailableError(t, expr, err)
 		})
 
 		t.Run("should return error for array expressions", func(t *testing.T) {
 			expr := "[1, 2, 3]"
 			js := NewJavaScript(expr, false, 0, nil)
 			_, err := js.Eval(mockContext)
-			assertNotSupportedError(t, expr, err)
+			assertRuntimeNotAvailableError(t, expr, err)
 		})
 
 		t.Run("should return error for boolean expressions", func(t *testing.T) {
 			expr := "true"
 			js := NewJavaScript(expr, false, 0, nil)
 			_, err := js.Eval(mockContext)
-			assertNotSupportedError(t, expr, err)
+			assertRuntimeNotAvailableError(t, expr, err)
 		})
 
 		t.Run("should return error for null", func(t *testing.T) {
 			expr := "null"
 			js := NewJavaScript(expr, false, 0, nil)
 			_, err := js.Eval(mockContext)
-			assertNotSupportedError(t, expr, err)
+			assertRuntimeNotAvailableError(t, expr, err)
 		})
 
 		t.Run("should return error for undefined", func(t *testing.T) {
 			expr := "undefined"
 			js := NewJavaScript(expr, false, 0, nil)
 			_, err := js.Eval(mockContext)
-			assertNotSupportedError(t, expr, err)
+			assertRuntimeNotAvailableError(t, expr, err)
 		})
 
-		t.Run("should handle JavaScript errors gracefully (by returning not supported)", func(t *testing.T) {
+		t.Run("should handle JavaScript errors gracefully (runtime not available)", func(t *testing.T) {
 			expr := "undefinedVariable"
 			js := NewJavaScript(expr, false, 0, nil)
 			_, err := js.Eval(mockContext)
-			assertNotSupportedError(t, expr, err)
+			assertRuntimeNotAvailableError(t, expr, err)
 		})
 
-		t.Run("should handle syntax errors gracefully (by returning not supported)", func(t *testing.T) {
+		t.Run("should handle syntax errors gracefully (runtime not available)", func(t *testing.T) {
 			expr := "{ invalid syntax }"
 			js := NewJavaScript(expr, false, 0, nil)
 			_, err := js.Eval(mockContext)
-			assertNotSupportedError(t, expr, err)
+			assertRuntimeNotAvailableError(t, expr, err)
 		})
 
 		t.Run("should return error for variable interpolation", func(t *testing.T) {
@@ -160,18 +161,15 @@ func TestJavaScript(t *testing.T) {
 			expr := `"@{color}"`
 			js := NewJavaScript(expr, false, 0, nil)
 			_, err := js.Eval(context)
-			// The error here will be slightly different because variable replacement happens first
-			expectedPrefix := "JavaScript evaluation is not supported in the Go port. Expression: \"red\""
-			if err == nil || !strings.HasPrefix(err.Error(), expectedPrefix) {
-				t.Errorf("Expected error prefix '%s', got '%v'", expectedPrefix, err)
-			}
+			// When no runtime is available, we get the runtime not available error
+			assertRuntimeNotAvailableError(t, expr, err)
 		})
 
 		t.Run("should return error for empty string expressions", func(t *testing.T) {
 			expr := ""
 			js := NewJavaScript(expr, false, 0, nil)
 			_, err := js.Eval(mockContext)
-			assertNotSupportedError(t, expr, err)
+			assertRuntimeNotAvailableError(t, expr, err)
 		})
 
 		t.Run("should return error for special number cases", func(t *testing.T) {
@@ -185,7 +183,7 @@ func TestJavaScript(t *testing.T) {
 			for _, expr := range tests {
 				js := NewJavaScript(expr, false, 0, nil)
 				_, err := js.Eval(mockContext)
-				assertNotSupportedError(t, expr, err)
+				assertRuntimeNotAvailableError(t, expr, err)
 			}
 		})
 
@@ -200,7 +198,7 @@ func TestJavaScript(t *testing.T) {
 			for _, expr := range tests {
 				js := NewJavaScript(expr, false, 0, nil)
 				_, err := js.Eval(mockContext)
-				assertNotSupportedError(t, expr, err)
+				assertRuntimeNotAvailableError(t, expr, err)
 			}
 		})
 
@@ -208,7 +206,7 @@ func TestJavaScript(t *testing.T) {
 			expr := "({a: 1, b: 2})"
 			js := NewJavaScript(expr, false, 0, nil)
 			_, err := js.Eval(mockContext)
-			assertNotSupportedError(t, expr, err)
+			assertRuntimeNotAvailableError(t, expr, err)
 		})
 
 		t.Run("should handle escaped vs non-escaped strings differently", func(t *testing.T) {
@@ -218,9 +216,9 @@ func TestJavaScript(t *testing.T) {
 			_, err1 := escaped.Eval(mockContext)
 			_, err2 := nonEscaped.Eval(mockContext)
 
-			// Both should return not supported errors, but we can verify the escaped flag is preserved
-			assertNotSupportedError(t, `"hello"`, err1)
-			assertNotSupportedError(t, `"hello"`, err2)
+			// Both should return runtime not available errors when no runtime is set up
+			assertRuntimeNotAvailableError(t, `"hello"`, err1)
+			assertRuntimeNotAvailableError(t, `"hello"`, err2)
 		})
 
 		t.Run("should handle multiple context frames with variable precedence", func(t *testing.T) {
@@ -246,12 +244,9 @@ func TestJavaScript(t *testing.T) {
 
 			js := NewJavaScript(`"@{color}"`, false, 0, nil)
 			_, err := js.Eval(context)
-			
-			// The error should contain the value from the first frame (red)
-			expectedPrefix := "JavaScript evaluation is not supported in the Go port. Expression: \"red\""
-			if err == nil || !strings.HasPrefix(err.Error(), expectedPrefix) {
-				t.Errorf("Expected error prefix '%s', got '%v'", expectedPrefix, err)
-			}
+
+			// When no runtime is available, we get the runtime not available error
+			assertRuntimeNotAvailableError(t, `"@{color}"`, err)
 		})
 
 		// Note: The escaped vs non-escaped test is implicitly covered by checking the error, 

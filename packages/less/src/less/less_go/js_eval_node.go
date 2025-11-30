@@ -5,6 +5,8 @@ import (
 	"math"
 	"strconv"
 	"strings"
+
+	"github.com/toakleaf/less.go/packages/less/src/less/less_go/runtime"
 )
 
 // JsEvalNode represents a JavaScript evaluation node in the Less AST
@@ -111,6 +113,8 @@ func (j *JsEvalNode) EvaluateJavaScript(expression string, context any) (any, er
 		}
 	} else if jsCtx, ok := context.(interface{ IsJavaScriptEnabled() bool }); ok {
 		javascriptEnabled = jsCtx.IsJavaScriptEnabled()
+	} else if evalCtx, ok := context.(*Eval); ok {
+		javascriptEnabled = evalCtx.JavascriptEnabled
 	}
 
 	// Helper function to get filename safely
@@ -182,9 +186,82 @@ func (j *JsEvalNode) EvaluateJavaScript(expression string, context any) (any, er
 		}
 	}
 
-	// JavaScript evaluation is not supported in the Go port
-	return nil, fmt.Errorf("JavaScript evaluation is not supported in the Go port. Expression: %s (filename: %s, index: %d)",
-		expressionForError, getFilename(), j.GetIndex())
+	// Get Node.js runtime from context
+	var rt *runtime.NodeJSRuntime
+
+	// Try *Eval context first (most common)
+	if evalCtx, ok := context.(*Eval); ok {
+		if evalCtx.PluginBridge != nil {
+			rt = evalCtx.PluginBridge.GetRuntime()
+		} else if evalCtx.LazyPluginBridge != nil {
+			rt = evalCtx.LazyPluginBridge.GetRuntime()
+		}
+	}
+
+	// Try map context (used in some evaluation paths)
+	if rt == nil {
+		if mapCtx, ok := context.(map[string]any); ok {
+			if bridge, ok := mapCtx["pluginBridge"].(*NodeJSPluginBridge); ok {
+				rt = bridge.GetRuntime()
+			} else if lazyBridge, ok := mapCtx["pluginBridge"].(*LazyNodeJSPluginBridge); ok {
+				rt = lazyBridge.GetRuntime()
+			}
+		}
+	}
+
+	// Check wrapped context
+	if rt == nil {
+		if evalCtx, ok := wrappedContext.ctx.(*Eval); ok {
+			if evalCtx.PluginBridge != nil {
+				rt = evalCtx.PluginBridge.GetRuntime()
+			} else if evalCtx.LazyPluginBridge != nil {
+				rt = evalCtx.LazyPluginBridge.GetRuntime()
+			}
+		}
+	}
+
+	if rt == nil {
+		return nil, &LessError{
+			Type:     "JavaScript",
+			Message:  "JavaScript runtime not available. Ensure plugins are enabled.",
+			Filename: getFilename(),
+			Index:    j.GetIndex(),
+		}
+	}
+
+	// Build variable context for this.varName.toJS() access
+	varContext := j.buildVariableContext(context)
+
+	// Send evalJS command to Node.js
+	resp, err := rt.SendCommand(runtime.Command{
+		Cmd: "evalJS",
+		Data: map[string]any{
+			"expression": expressionForError,
+			"variables":  varContext,
+		},
+	})
+
+	if err != nil {
+		return nil, &LessError{
+			Type:     "JavaScript",
+			Message:  fmt.Sprintf("JavaScript evaluation failed: %v", err),
+			Filename: getFilename(),
+			Index:    j.GetIndex(),
+		}
+	}
+
+	if !resp.Success {
+		// Error from Node.js (syntax error, runtime error, etc.)
+		return nil, &LessError{
+			Type:     "JavaScript",
+			Message:  resp.Error,
+			Filename: getFilename(),
+			Index:    j.GetIndex(),
+		}
+	}
+
+	// Process the successful result
+	return j.processJSResult(resp.Result)
 }
 
 // jsify converts Less values to a simple string representation suitable for error messages.
@@ -263,5 +340,146 @@ func (j *JsEvalNode) jsify(obj any) string {
 		}
 		// Last resort: Use default Go formatting
 		return fmt.Sprintf("%v", obj)
+	}
+}
+
+// buildVariableContext extracts variables from the evaluation context
+// for access via this.varName.toJS() in JavaScript
+func (j *JsEvalNode) buildVariableContext(context any) map[string]map[string]any {
+	variables := make(map[string]map[string]any)
+
+	// Get frames from context
+	var frames []ParserFrame
+
+	if evalCtx, ok := context.(*Eval); ok {
+		frames = evalCtx.GetFrames()
+	} else if wrapper, ok := context.(*contextWrapper); ok {
+		frames = wrapper.GetFrames()
+	} else if mapCtx, ok := context.(map[string]any); ok {
+		if f, ok := mapCtx["frames"].([]ParserFrame); ok {
+			frames = f
+		}
+	}
+
+	if len(frames) == 0 {
+		return variables
+	}
+
+	// Wrap context for variable evaluation
+	wrappedContext := &contextWrapper{ctx: context}
+
+	// Collect variables from all frames (inner scopes first)
+	// We only keep the first definition of each variable (closest scope wins)
+	for _, frame := range frames {
+		// ParserFrame doesn't have Variables() method, but Ruleset and other frames do
+		variablesProvider, ok := frame.(interface{ Variables() map[string]any })
+		if !ok {
+			continue
+		}
+		varsMap := variablesProvider.Variables()
+
+		if varsMap == nil {
+			continue
+		}
+
+		for name, decl := range varsMap {
+			// Skip if we already have this variable from an inner scope
+			cleanName := name
+			if strings.HasPrefix(name, "@") {
+				cleanName = name[1:]
+			}
+
+			if _, exists := variables[cleanName]; exists {
+				continue
+			}
+
+			// Try to get the CSS value of the variable
+			var cssValue string
+
+			// Check if it's a declaration with a value
+			if declNode, ok := decl.(interface{ Value() any }); ok {
+				value := declNode.Value()
+				cssValue = j.jsify(value)
+			} else if evalable, ok := decl.(interface{ Eval(any) (any, error) }); ok {
+				// Try to evaluate it
+				result, err := evalable.Eval(wrappedContext)
+				if err == nil {
+					cssValue = j.jsify(result)
+				}
+			} else {
+				// Last resort: use jsify directly
+				cssValue = j.jsify(decl)
+			}
+
+			variables[cleanName] = map[string]any{
+				"value": cssValue,
+			}
+		}
+	}
+
+	return variables
+}
+
+// processJSResult converts the JavaScript result to the appropriate Go type
+// The JavaScript side sends: { type: 'number'|'string'|'array'|'boolean'|'empty', value: ... }
+func (j *JsEvalNode) processJSResult(result any) (any, error) {
+	// Handle nil result
+	if result == nil {
+		return nil, nil
+	}
+
+	// Parse the result map
+	resultMap, ok := result.(map[string]any)
+	if !ok {
+		// If it's not a map, return as-is (shouldn't happen with proper JS side)
+		return result, nil
+	}
+
+	resultType, _ := resultMap["type"].(string)
+	value := resultMap["value"]
+
+	switch resultType {
+	case "number":
+		// JavaScript numbers come as float64
+		if numVal, ok := value.(float64); ok {
+			return numVal, nil
+		}
+		// Handle int (shouldn't happen but just in case)
+		if intVal, ok := value.(int); ok {
+			return float64(intVal), nil
+		}
+		return value, nil
+
+	case "string":
+		if strVal, ok := value.(string); ok {
+			return strVal, nil
+		}
+		return fmt.Sprintf("%v", value), nil
+
+	case "array":
+		// Arrays are pre-joined by JavaScript side
+		if strVal, ok := value.(string); ok {
+			return strVal, nil
+		}
+		return fmt.Sprintf("%v", value), nil
+
+	case "boolean":
+		if boolVal, ok := value.(bool); ok {
+			return boolVal, nil
+		}
+		return value, nil
+
+	case "empty":
+		return "", nil
+
+	case "other":
+		if strVal, ok := value.(string); ok {
+			return strVal, nil
+		}
+		return fmt.Sprintf("%v", value), nil
+
+	default:
+		// Unknown type, return as-is
+		return value, nil
 	}
 } 
