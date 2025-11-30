@@ -10,29 +10,24 @@ import (
 	"github.com/toakleaf/less.go/packages/less/src/less/less_go/runtime"
 )
 
-// JsEvalNode represents a JavaScript evaluation node in the Less AST
 type JsEvalNode struct {
 	*Node
 }
 
-// NewJsEvalNode creates a new JsEvalNode instance
 func NewJsEvalNode() *JsEvalNode {
 	return &JsEvalNode{
 		Node: NewNode(),
 	}
 }
 
-// Type returns the node type
 func (j *JsEvalNode) Type() string {
 	return "JsEvalNode"
 }
 
-// GetType returns the node type
 func (j *JsEvalNode) GetType() string {
 	return "JsEvalNode"
 }
 
-// contextWrapper wraps an arbitrary context to implement the EvalContext interface
 type contextWrapper struct {
 	ctx any
 }
@@ -73,15 +68,14 @@ func (w *contextWrapper) GetFrames() []ParserFrame {
 	if framesCtx, ok := w.ctx.(interface{ GetFrames() []ParserFrame }); ok {
 		return framesCtx.GetFrames()
 	}
-	
-	// Try to get frames from map context
+
 	if mapCtx, ok := w.ctx.(map[string]any); ok {
 		if frames, ok := mapCtx["frames"].([]ParserFrame); ok {
 			return frames
 		}
 	}
-	
-	return nil // Return nil if no frames are found
+
+	return nil
 }
 
 func (w *contextWrapper) GetImportantScope() []map[string]bool {
@@ -98,16 +92,10 @@ func (w *contextWrapper) GetDefaultFunc() *DefaultFunc {
 	return nil
 }
 
-// EvaluateJavaScript evaluates JavaScript expressions.
-// Since JavaScript evaluation is not supported in the Go port,
-// this will always return an error if JavaScript is enabled,
-// or a "not enabled" error if JavaScript is disabled.
 func (j *JsEvalNode) EvaluateJavaScript(expression string, context any) (any, error) {
-	// Check if JavaScript is enabled
 	javascriptEnabled := false
 	debugMode := os.Getenv("LESS_GO_DEBUG") == "1"
 
-	// Unwrap contextWrapper recursively if needed (can be nested)
 	actualContext := context
 	for {
 		if wrapper, ok := actualContext.(*contextWrapper); ok {
@@ -138,7 +126,6 @@ func (j *JsEvalNode) EvaluateJavaScript(expression string, context any) (any, er
 		fmt.Printf("[DEBUG JsEvalNode] Unknown context type: %T\n", actualContext)
 	}
 
-	// Helper function to get filename safely
 	getFilename := func() string {
 		info := j.FileInfo()
 		if info != nil {
@@ -159,27 +146,20 @@ func (j *JsEvalNode) EvaluateJavaScript(expression string, context any) (any, er
 		}
 	}
 
-	// Replace Less variables with their values for better error messages
-	// Track the first error from variable evaluation
 	var varEvalError error
 	expressionForError := reVariableAtBrace.ReplaceAllStringFunc(expression, func(match string) string {
-		// If we already have an error, just return the match
 		if varEvalError != nil {
 			return match
 		}
-		// Extract variable name without @ and {}
 		varName := match[2 : len(match)-1]
-		// Create a Variable node
 		variable := NewVariable("@"+varName, j.GetIndex(), j.FileInfo())
-		// Evaluate variable using the unwrapped actual context
 		result, err := variable.Eval(actualContext)
 		if err != nil {
-			// Capture the error - this is likely an undefined variable
 			if debugMode {
 				fmt.Printf("[DEBUG JsEvalNode] Variable @%s evaluation failed: %v\n", varName, err)
 			}
 			varEvalError = err
-			return match // Keep original on error
+			return match
 		}
 		jsResult := j.jsify(result)
 		if debugMode {
@@ -188,14 +168,9 @@ func (j *JsEvalNode) EvaluateJavaScript(expression string, context any) (any, er
 		return jsResult
 	})
 
-	// If there was a variable evaluation error (e.g., undefined variable), wrap it
-	// as a JavaScript error so it propagates through SafeEval
-	// This matches JavaScript behavior where undefined variables in JS expressions
-	// throw a NameError
+	// Wrap variable evaluation errors as JavaScript errors so SafeEval propagates them
 	if varEvalError != nil {
-		// Wrap the error as a JavaScript-type error so SafeEval propagates it
 		if lessErr, ok := varEvalError.(*LessError); ok {
-			// Convert to JavaScript type while preserving the original message and info
 			return nil, &LessError{
 				Type:     "JavaScript",
 				Message:  lessErr.Message,
@@ -205,7 +180,6 @@ func (j *JsEvalNode) EvaluateJavaScript(expression string, context any) (any, er
 				Column:   lessErr.Column,
 			}
 		}
-		// For non-LessError, wrap it as a JavaScript error
 		return nil, &LessError{
 			Type:     "JavaScript",
 			Message:  varEvalError.Error(),
@@ -214,12 +188,9 @@ func (j *JsEvalNode) EvaluateJavaScript(expression string, context any) (any, er
 		}
 	}
 
-	// Get Node.js runtime from context (use actualContext which is unwrapped)
 	var rt *runtime.NodeJSRuntime
 
-	// Helper function to get runtime from a lazy bridge (initializes if needed)
 	getRuntimeFromLazyBridge := func(lazyBridge *LazyNodeJSPluginBridge) *runtime.NodeJSRuntime {
-		// GetBridge() initializes the bridge if not already done
 		bridge, err := lazyBridge.GetBridge()
 		if err != nil {
 			return nil
@@ -227,7 +198,6 @@ func (j *JsEvalNode) EvaluateJavaScript(expression string, context any) (any, er
 		return bridge.GetRuntime()
 	}
 
-	// Try *Eval context first (most common) - use actualContext which is unwrapped
 	if evalCtx, ok := actualContext.(*Eval); ok {
 		if evalCtx.PluginBridge != nil {
 			rt = evalCtx.PluginBridge.GetRuntime()
@@ -236,7 +206,6 @@ func (j *JsEvalNode) EvaluateJavaScript(expression string, context any) (any, er
 		}
 	}
 
-	// Try map context (used in some evaluation paths)
 	if rt == nil {
 		if mapCtx, ok := actualContext.(map[string]any); ok {
 			if bridge, ok := mapCtx["pluginBridge"].(*NodeJSPluginBridge); ok {
@@ -256,14 +225,12 @@ func (j *JsEvalNode) EvaluateJavaScript(expression string, context any) (any, er
 		}
 	}
 
-	// Build variable context for this.varName.toJS() access
 	varContext := j.buildVariableContext(context)
 
 	if debugMode {
 		fmt.Printf("[DEBUG JsEvalNode] Sending expression to Node.js: %s\n", expressionForError)
 	}
 
-	// Send evalJS command to Node.js
 	resp, err := rt.SendCommand(runtime.Command{
 		Cmd: "evalJS",
 		Data: map[string]any{
@@ -282,7 +249,6 @@ func (j *JsEvalNode) EvaluateJavaScript(expression string, context any) (any, er
 	}
 
 	if !resp.Success {
-		// Error from Node.js (syntax error, runtime error, etc.)
 		return nil, &LessError{
 			Type:     "JavaScript",
 			Message:  resp.Error,
@@ -291,20 +257,16 @@ func (j *JsEvalNode) EvaluateJavaScript(expression string, context any) (any, er
 		}
 	}
 
-	// Process the successful result
 	return j.processJSResult(resp.Result)
 }
 
-// jsify converts Less values to JavaScript-compatible string representation.
-// This matches the less.js jsify function behavior:
-//   - If obj.value is an array with length > 1: wrap in [] and call toCSS() on each element
-//   - Otherwise: call toCSS() on the whole object
+// jsify converts Less values to JavaScript-compatible string representation,
+// matching the less.js jsify function behavior.
 func (j *JsEvalNode) jsify(obj any) string {
 	if obj == nil {
 		return "null"
 	}
 
-	// Helper function to call toCSS on an item
 	toCSS := func(item any) string {
 		if cssableAny, ok := item.(interface{ ToCSS(any) string }); ok {
 			return cssableAny.ToCSS(nil)
@@ -312,7 +274,6 @@ func (j *JsEvalNode) jsify(obj any) string {
 		if cssableSimple, ok := item.(interface{ ToCSS() string }); ok {
 			return cssableSimple.ToCSS()
 		}
-		// Fallback for primitive types
 		switch v := item.(type) {
 		case string:
 			return v
@@ -332,15 +293,12 @@ func (j *JsEvalNode) jsify(obj any) string {
 		}
 	}
 
-	// If obj is a map containing a "value" key, extract it (for compatibility)
 	if mapVal, ok := obj.(map[string]any); ok {
 		if val, exists := mapVal["value"]; exists {
 			obj = val
 		}
 	}
 
-	// Match less.js: check if obj has a value array with length > 1
-	// For Value and Expression types, wrap in [] and call toCSS on each element
 	switch v := obj.(type) {
 	case *Value:
 		if len(v.Value) > 1 {
@@ -377,13 +335,11 @@ func (j *JsEvalNode) jsify(obj any) string {
 }
 
 // buildVariableContext extracts variables from the evaluation context
-// for access via this.varName.toJS() in JavaScript
+// for access via this.varName.toJS() in JavaScript.
 func (j *JsEvalNode) buildVariableContext(context any) map[string]map[string]any {
 	variables := make(map[string]map[string]any)
 	debugMode := os.Getenv("LESS_GO_DEBUG") == "1"
 
-	// Get frames from context - less.js uses context.frames[0].variables()
-	// frames[0] should be the current/innermost ruleset
 	var frames []ParserFrame
 
 	if evalCtx, ok := context.(*Eval); ok {
@@ -408,10 +364,7 @@ func (j *JsEvalNode) buildVariableContext(context any) map[string]map[string]any
 		return variables
 	}
 
-	// Collect variables from all frames (inner scopes first)
-	// We keep the first definition of each variable (closest scope wins)
 	for _, frame := range frames {
-		// First try the Variables() method (for cached variables)
 		variablesProvider, ok := frame.(interface{ Variables() map[string]any })
 		if ok {
 			varsMap := variablesProvider.Variables()
@@ -430,7 +383,6 @@ func (j *JsEvalNode) buildVariableContext(context any) map[string]map[string]any
 			}
 		}
 
-		// Also directly scan Rules for variable declarations (in case Variables() cache isn't populated)
 		if ruleset, ok := frame.(*Ruleset); ok {
 			for _, rule := range ruleset.Rules {
 				if decl, ok := rule.(*Declaration); ok && decl.variable {
@@ -457,14 +409,11 @@ func (j *JsEvalNode) buildVariableContext(context any) map[string]map[string]any
 	return variables
 }
 
-// extractVariableValue extracts the CSS value from a declaration, avoiding JavaScript values
 func (j *JsEvalNode) extractVariableValue(decl any, debugMode bool, cleanName string) string {
 	var cssValue string
 
-	// Check if it's a Declaration with a Value field
 	if declStruct, ok := decl.(*Declaration); ok {
 		if declStruct.Value != nil {
-			// Check for JavaScript values in the Declaration's Value
 			hasJS := false
 			for _, valItem := range declStruct.Value.Value {
 				if _, isJS := valItem.(*JavaScript); isJS {
@@ -473,22 +422,19 @@ func (j *JsEvalNode) extractVariableValue(decl any, debugMode bool, cleanName st
 				}
 			}
 			if hasJS {
-				return "" // Skip JavaScript values to prevent infinite recursion
+				return ""
 			}
 			cssValue = j.jsify(declStruct.Value)
 		} else {
 			return ""
 		}
 	} else if declNode, ok := decl.(interface{ Value() any }); ok {
-		// Fallback: Check if it's an interface with Value() method
 		value := declNode.Value()
-		// Skip JavaScript values to prevent infinite recursion
 		if _, isJS := value.(*JavaScript); isJS {
 			return ""
 		}
 		cssValue = j.jsify(value)
 	} else {
-		// Don't try to evaluate - just use jsify directly to avoid recursion
 		cssValue = j.jsify(decl)
 	}
 
@@ -498,27 +444,19 @@ func (j *JsEvalNode) extractVariableValue(decl any, debugMode bool, cleanName st
 	return cssValue
 }
 
-// JSArrayResult wraps a pre-joined array result from JavaScript
-// This allows JavaScript.Eval to distinguish between string and array results
 type JSArrayResult struct {
 	Value string
 }
 
-// JSEmptyResult represents an empty JavaScript result (e.g., undefined, NaN)
 type JSEmptyResult struct{}
 
-// processJSResult converts the JavaScript result to the appropriate Go type
-// The JavaScript side sends: { type: 'number'|'string'|'array'|'boolean'|'empty', value: ... }
 func (j *JsEvalNode) processJSResult(result any) (any, error) {
-	// Handle nil result
 	if result == nil {
 		return nil, nil
 	}
 
-	// Parse the result map
 	resultMap, ok := result.(map[string]any)
 	if !ok {
-		// If it's not a map, return as-is (shouldn't happen with proper JS side)
 		return result, nil
 	}
 
@@ -527,11 +465,9 @@ func (j *JsEvalNode) processJSResult(result any) (any, error) {
 
 	switch resultType {
 	case "number":
-		// JavaScript numbers come as float64
 		if numVal, ok := value.(float64); ok {
 			return numVal, nil
 		}
-		// Handle int (shouldn't happen but just in case)
 		if intVal, ok := value.(int); ok {
 			return float64(intVal), nil
 		}

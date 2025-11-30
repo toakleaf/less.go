@@ -5,8 +5,6 @@ import (
 	"strings"
 )
 
-// ErrorDetails holds the raw information from which a LessError is constructed.
-// This mirrors the 'e' object passed to the JS constructor.
 type ErrorDetails struct {
 	Message  string
 	Stack    string
@@ -16,24 +14,20 @@ type ErrorDetails struct {
 	Type     string
 }
 
-// LessError represents a Less-specific error, containing contextual information.
 type LessError struct {
 	Type        string
 	Message     string
-	Stack       string // Original stack trace if provided
+	Stack       string
 	Filename    string
-	Index       any    // Original index, might be nil
-	Line        *int   // Use pointer to represent potential null/undefined
-	Column      int    // 0-based column index
-	CallLine    *int   // Line number from where the error originated (e.g., mixin call)
-	CallExtract string // Source line from the call site
-	Extract     []string // Lines of source code around the error: [line-1, line, line+1]
-	fileContentMap map[string]string // Keep reference for formatting if needed later
+	Index       any
+	Line        *int
+	Column      int
+	CallLine    *int
+	CallExtract string
+	Extract     []string
+	fileContentMap map[string]string
 }
 
-// NewLessError creates a new LessError instance.
-// fileContentMap maps filenames to their content.
-// currentFilename is used if e.Filename is not provided.
 func NewLessError(e ErrorDetails, fileContentMap map[string]string, currentFilename string) *LessError {
 	filename := e.Filename
 	if filename == "" {
@@ -52,26 +46,23 @@ func NewLessError(e ErrorDetails, fileContentMap map[string]string, currentFilen
 	}
 
 	if le.Type == "" {
-		le.Type = "Syntax" // Default type
+		le.Type = "Syntax"
 	}
 
-	// If we don't have input content, return early
 	input, hasInput := fileContentMap[filename]
 	if !hasInput {
 		return le
 	}
 
-	// Process index to get line and column
 	if indexInt, ok := e.Index.(int); ok && indexInt >= 0 {
 		loc := GetLocation(indexInt, input)
 		if loc.Line != nil {
 			lineNum := *loc.Line + 1 // Convert 0-based from GetLocation to 1-based
 			le.Line = &lineNum
 		}
-		le.Column = loc.Column // GetLocation provides 0-based column
+		le.Column = loc.Column
 	}
 
-	// Process call location if available
 	if callInt, ok := e.Call.(int); ok && callInt >= 0 {
 		callLoc := GetLocation(callInt, input)
 		if callLoc.Line != nil {
@@ -80,29 +71,21 @@ func NewLessError(e ErrorDetails, fileContentMap map[string]string, currentFilen
 		}
 	}
 
-	// Split input into lines for extract and call extract
 	lines := strings.Split(input, "\n")
 
-	// Set call extract if we have a valid call line
 	if le.CallLine != nil && *le.CallLine > 0 && *le.CallLine <= len(lines) {
 		le.CallExtract = lines[*le.CallLine-1]
 	}
 
-	// Populate extract array if we have a valid line number
 	if le.Line != nil {
-		lineIdx := *le.Line - 1 // Convert to 0-based index for lines slice
-		
-		// Previous line
+		lineIdx := *le.Line - 1
+
 		if lineIdx > 0 {
 			le.Extract[0] = lines[lineIdx-1]
 		}
-		
-		// Current line
 		if lineIdx >= 0 && lineIdx < len(lines) {
 			le.Extract[1] = lines[lineIdx]
 		}
-		
-		// Next line
 		if lineIdx+1 < len(lines) {
 			le.Extract[2] = lines[lineIdx+1]
 		}
@@ -111,28 +94,21 @@ func NewLessError(e ErrorDetails, fileContentMap map[string]string, currentFilen
 	return le
 }
 
-// Error implements the standard Go error interface.
 func (le *LessError) Error() string {
-	// Return a simple message, consistent with Go error conventions.
-	// The full formatted message is available via ToString().
 	if le.Filename != "" {
 		return fmt.Sprintf("%s: %s in %s", le.Type, le.Message, le.Filename)
 	}
 	return fmt.Sprintf("%s: %s", le.Type, le.Message)
 }
 
-// GetErrorType returns the error type.
 func (le *LessError) GetErrorType() string {
 	return le.Type
 }
 
-// ErrorType returns the error type (e.g., "Argument", "Syntax", "Runtime")
-// Deprecated: Use GetErrorType() instead. Kept for backward compatibility.
 func (le *LessError) ErrorType() string {
 	return le.Type
 }
 
-// LineNumber returns the line number where the error occurred (1-based).
 func (le *LessError) LineNumber() int {
 	if le.Line != nil {
 		return *le.Line
@@ -140,30 +116,23 @@ func (le *LessError) LineNumber() int {
 	return 0
 }
 
-// ColumnNumber returns the column number where the error occurred (0-based).
 func (le *LessError) ColumnNumber() int {
 	return le.Column
 }
 
-// HasLineColumn returns true if the error has line and column information.
 func (le *LessError) HasLineColumn() bool {
 	return le.Line != nil
 }
 
-// StylizeFunc defines the signature for a function that can apply styles (e.g., colors).
 type StylizeFunc func(str string, style string) string
 
-// DefaultStylize provides no styling.
 func DefaultStylize(str string, style string) string {
 	return str
 }
 
-// ToStringOptions provides options for formatting the error message.
 type ToStringOptions struct {
 	Stylize StylizeFunc
 }
-
-// ToString creates a detailed, formatted error message similar to the JS version.
 func (le *LessError) ToString(options *ToStringOptions) string {
 	stylize := DefaultStylize
 	if options != nil && options.Stylize != nil {
