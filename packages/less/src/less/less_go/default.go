@@ -5,13 +5,11 @@ import (
 	"os"
 )
 
-// DefaultFunc represents the default function with value and error state
 type DefaultFunc struct {
 	value_ any
 	error_ any
 }
 
-// NewDefaultFunc creates a new DefaultFunc instance
 func NewDefaultFunc() *DefaultFunc {
 	return &DefaultFunc{
 		value_: nil,
@@ -19,7 +17,6 @@ func NewDefaultFunc() *DefaultFunc {
 	}
 }
 
-// Eval evaluates the default function, returning Keyword.True/False or throwing an error
 func (d *DefaultFunc) Eval() any {
 	v := d.value_
 	e := d.error_
@@ -54,23 +51,19 @@ func (d *DefaultFunc) Eval() any {
 	return nil
 }
 
-// Value sets the value_ field
 func (d *DefaultFunc) Value(v any) {
 	d.value_ = v
 }
 
-// Error sets the error_ field  
 func (d *DefaultFunc) Error(e any) {
 	d.error_ = e
 }
 
-// Reset sets both value_ and error_ to nil
 func (d *DefaultFunc) Reset() {
 	d.value_ = nil
 	d.error_ = nil
 }
 
-// isTruthy checks if a value is truthy according to JavaScript rules
 func isTruthy(v any) bool {
 	if v == nil {
 		return false
@@ -106,12 +99,9 @@ func isTruthy(v any) bool {
 	case string:
 		return val != ""
 	case *Keyword:
-		// Special handling for Keyword types - check their value
-		// Keywords "false", "null", "undefined" are falsy
 		if val == nil {
 			return false
 		}
-		// Keyword.Value is stored in the embedded Node.Value field as a string
 		if strVal, ok := val.Value.(string); ok {
 			result := strVal != "false" && strVal != "null" && strVal != "undefined"
 			// Debug output
@@ -121,15 +111,12 @@ func isTruthy(v any) bool {
 			}
 			return result
 		}
-		// Fallback: treat as truthy if we can't extract the value
 		return true
 	default:
-		// For all other types (objects, arrays, functions, etc.), they are truthy
 		return true
 	}
 }
 
-// isNaN checks if a float64 is NaN
 func isNaN(f float64) bool {
 	return f != f
 } 

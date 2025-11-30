@@ -1,20 +1,17 @@
 package less_go
 
-// NoSpaceCombinators defines which combinators should not have spaces
 var NoSpaceCombinators = map[string]bool{
 	"":  true,
 	" ": true,
 	"|": true,
 }
 
-// Combinator represents a CSS combinator node
 type Combinator struct {
 	*Node
 	Value            string
 	EmptyOrWhitespace bool
 }
 
-// NewCombinator creates a new Combinator instance
 func NewCombinator(value string) *Combinator {
 	c := &Combinator{
 		Node: NewNode(),
@@ -24,7 +21,6 @@ func NewCombinator(value string) *Combinator {
 		c.Value = " "
 		c.EmptyOrWhitespace = true
 	} else if value != "" {
-		// Use custom trim to match JavaScript's specific whitespace handling
 		c.Value = trimWhitespace(value)
 		c.EmptyOrWhitespace = c.Value == ""
 	} else {
@@ -35,7 +31,6 @@ func NewCombinator(value string) *Combinator {
 	return c
 }
 
-// trimWhitespace trims whitespace characters matching JavaScript's trim() behavior
 func trimWhitespace(s string) string {
 	if s == "" {
 		return s
@@ -44,13 +39,11 @@ func trimWhitespace(s string) string {
 	runes := []rune(s)
 	start := 0
 	end := len(runes) - 1
-	
-	// Trim from start
+
 	for start <= end && isJSWhitespace(runes[start]) {
 		start++
 	}
-	
-	// Trim from end
+
 	for end >= start && isJSWhitespace(runes[end]) {
 		end--
 	}
@@ -62,9 +55,7 @@ func trimWhitespace(s string) string {
 	return string(runes[start : end+1])
 }
 
-// isJSWhitespace matches JavaScript's definition of whitespace for trim()
 func isJSWhitespace(r rune) bool {
-	// JavaScript trim() removes these specific characters
 	switch r {
 	case '\t', '\n', '\v', '\f', '\r', ' ', // ASCII whitespace
 		0x00A0, // NO-BREAK SPACE
@@ -83,17 +74,14 @@ func isJSWhitespace(r rune) bool {
 	}
 }
 
-// Type returns the node type
 func (c *Combinator) Type() string {
 	return "Combinator"
 }
 
-// GetType returns the node type
 func (c *Combinator) GetType() string {
 	return "Combinator"
 }
 
-// GenCSS generates CSS representation of the combinator
 func (c *Combinator) GenCSS(context any, output *CSSOutput) {
 	var spaceOrEmpty string
 	if ctx, ok := context.(map[string]any); ok {

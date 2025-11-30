@@ -9,16 +9,12 @@ import (
 	"github.com/toakleaf/less.go/packages/less/src/less/less_go/runtime"
 )
 
-// mathEvalContextPool pools *Eval contexts for createMathEnabledContext.
-// These are short-lived contexts used during function argument evaluation.
 var mathEvalContextPool = sync.Pool{
 	New: func() any {
 		return &Eval{}
 	},
 }
 
-// getMathEnabledEvalContext gets a pooled Eval context and copies fields from source.
-// The returned context has MathOn set to true.
 func getMathEnabledEvalContext(source *Eval) *Eval {
 	ctx := mathEvalContextPool.Get().(*Eval)
 	// Copy all fields from source (shallow copy)
@@ -28,8 +24,6 @@ func getMathEnabledEvalContext(source *Eval) *Eval {
 	return ctx
 }
 
-// putMathEnabledEvalContext returns a context to the pool after resetting.
-// This must be called when done using a context from getMathEnabledEvalContext.
 func putMathEnabledEvalContext(ctx *Eval) {
 	if ctx == nil {
 		return
@@ -62,7 +56,6 @@ func putMathEnabledEvalContext(ctx *Eval) {
 	mathEvalContextPool.Put(ctx)
 }
 
-// EvalContext represents the interface needed for evaluation context
 type EvalContext interface {
 	IsMathOn() bool
 	SetMathOn(bool)
@@ -74,19 +67,14 @@ type EvalContext interface {
 	GetDefaultFunc() *DefaultFunc
 }
 
-// evalContextAdapter adapts EvalContext to runtime.EvalContextProvider
 type evalContextAdapter struct {
 	evalContext EvalContext
 }
 
-// GetFramesAny returns frames as []any for JavaScript serialization
 func (a *evalContextAdapter) GetFramesAny() []any {
-	// Fast path: if the underlying context is *Eval, use its GetFramesAny() directly
-	// to avoid double allocation (GetFrames() + conversion to []any)
 	if eval, ok := a.evalContext.(*Eval); ok {
 		return eval.GetFramesAny()
 	}
-	// Fallback for other EvalContext implementations
 	frames := a.evalContext.GetFrames()
 	result := make([]any, len(frames))
 	for i, frame := range frames {
@@ -95,7 +83,6 @@ func (a *evalContextAdapter) GetFramesAny() []any {
 	return result
 }
 
-// GetImportantScopeAny returns important scope as []map[string]any for JavaScript serialization
 func (a *evalContextAdapter) GetImportantScopeAny() []map[string]any {
 	scope := a.evalContext.GetImportantScope()
 	result := make([]map[string]any, len(scope))
@@ -108,38 +95,31 @@ func (a *evalContextAdapter) GetImportantScopeAny() []map[string]any {
 	return result
 }
 
-// PluginFunctionProvider is an interface for looking up plugin functions.
-// This allows the function caller to access JavaScript plugin functions.
 type PluginFunctionProvider interface {
 	LookupPluginFunction(name string) (any, bool)
 	HasPluginFunction(name string) bool
 	CallPluginFunction(name string, args ...any) (any, error)
 }
 
-// ParserFunctionCaller represents the interface needed to call functions
 type ParserFunctionCaller interface {
 	IsValid() bool
 	Call(args []any) (any, error)
 }
 
-// FunctionCallerFactory creates function callers
 type FunctionCallerFactory interface {
 	NewFunctionCaller(name string, context EvalContext, index int, fileInfo map[string]any) (ParserFunctionCaller, error)
 }
 
-// DefaultFunctionCallerFactory implements FunctionCallerFactory using a registry
 type DefaultFunctionCallerFactory struct {
 	adapter *RegistryFunctionAdapter
 }
 
-// NewDefaultFunctionCallerFactory creates a new DefaultFunctionCallerFactory
 func NewDefaultFunctionCallerFactory(registry *Registry) *DefaultFunctionCallerFactory {
 	return &DefaultFunctionCallerFactory{
 		adapter: NewRegistryFunctionAdapter(registry),
 	}
 }
 
-// NewFunctionCaller creates a ParserFunctionCaller
 func (f *DefaultFunctionCallerFactory) NewFunctionCaller(name string, context EvalContext, index int, fileInfo map[string]any) (ParserFunctionCaller, error) {
 	// Get function definition from registry via adapter
 	lowerName := strings.ToLower(name)
@@ -185,7 +165,6 @@ func (f *DefaultFunctionCallerFactory) NewFunctionCaller(name string, context Ev
 	}, nil
 }
 
-// PluginFunctionCaller calls JavaScript plugin functions
 type PluginFunctionCaller struct {
 	name     string
 	provider PluginFunctionProvider
@@ -194,12 +173,10 @@ type PluginFunctionCaller struct {
 	fileInfo map[string]any
 }
 
-// IsValid returns true because plugin functions are always valid if we get here
 func (c *PluginFunctionCaller) IsValid() bool {
 	return true
 }
 
-// Call calls the JavaScript plugin function with the given arguments
 func (c *PluginFunctionCaller) Call(args []any) (any, error) {
 	// Evaluate arguments first (match JavaScript behavior)
 	evaluatedArgs := make([]any, 0, len(args))
@@ -228,7 +205,6 @@ func (c *PluginFunctionCaller) Call(args []any) (any, error) {
 	return converted, nil
 }
 
-// DefaultParserFunctionCaller implements ParserFunctionCaller
 type DefaultParserFunctionCaller struct {
 	name     string
 	valid    bool
@@ -238,7 +214,6 @@ type DefaultParserFunctionCaller struct {
 	fileInfo map[string]any
 }
 
-// IsValid returns whether this caller has a valid function
 func (c *DefaultParserFunctionCaller) IsValid() bool {
 	return c.valid
 }
@@ -361,7 +336,6 @@ func (c *DefaultParserFunctionCaller) createMathEnabledContext() (any, bool) {
 	return c.context, false
 }
 
-// Call executes the function with the given arguments
 func (c *DefaultParserFunctionCaller) Call(args []any) (any, error) {
 	if !c.valid || c.funcDef == nil {
 		return nil, fmt.Errorf("function %s is not valid", c.name)
@@ -439,8 +413,6 @@ func (c *DefaultParserFunctionCaller) Call(args []any) (any, error) {
 	return c.funcDef.Call(filteredArgs...)
 }
 
-// filterCommentsFromArgs removes comments from evaluated arguments
-// This is specifically for handling inline comments in variable values
 func (c *DefaultParserFunctionCaller) filterCommentsFromArgs(args []any) []any {
 	isComment := func(node any) bool {
 		if comment, ok := node.(*Comment); ok {
@@ -508,12 +480,10 @@ func (c *DefaultParserFunctionCaller) filterCommentsFromArgs(args []any) []any {
 	return filtered
 }
 
-// MapEvalContext implements EvalContext for map[string]any contexts
 type MapEvalContext struct {
 	ctx map[string]any
 }
 
-// IsMathOn returns whether math operations are enabled
 func (m *MapEvalContext) IsMathOn() bool {
 	if mathOn, exists := m.ctx["mathOn"]; exists {
 		if enabled, ok := mathOn.(bool); ok {
@@ -523,12 +493,10 @@ func (m *MapEvalContext) IsMathOn() bool {
 	return false
 }
 
-// SetMathOn sets whether math operations are enabled
 func (m *MapEvalContext) SetMathOn(enabled bool) {
 	m.ctx["mathOn"] = enabled
 }
 
-// IsInCalc returns whether we're inside a calc() function
 func (m *MapEvalContext) IsInCalc() bool {
 	if inCalc, exists := m.ctx["inCalc"]; exists {
 		if enabled, ok := inCalc.(bool); ok {
@@ -538,17 +506,14 @@ func (m *MapEvalContext) IsInCalc() bool {
 	return false
 }
 
-// EnterCalc marks that we're entering a calc() function
 func (m *MapEvalContext) EnterCalc() {
 	m.ctx["inCalc"] = true
 }
 
-// ExitCalc marks that we're exiting a calc() function
 func (m *MapEvalContext) ExitCalc() {
 	m.ctx["inCalc"] = false
 }
 
-// GetFrames returns the current frames stack
 func (m *MapEvalContext) GetFrames() []ParserFrame {
 	if framesAny, exists := m.ctx["frames"]; exists {
 		if frameSlice, ok := framesAny.([]any); ok {
@@ -564,7 +529,6 @@ func (m *MapEvalContext) GetFrames() []ParserFrame {
 	return []ParserFrame{}
 }
 
-// GetImportantScope returns the current important scope stack
 func (m *MapEvalContext) GetImportantScope() []map[string]bool {
 	if importantScope, exists := m.ctx["importantScope"]; exists {
 		if scope, ok := importantScope.([]map[string]bool); ok {
@@ -574,7 +538,6 @@ func (m *MapEvalContext) GetImportantScope() []map[string]bool {
 	return []map[string]bool{}
 }
 
-// GetDefaultFunc returns the default function instance
 func (m *MapEvalContext) GetDefaultFunc() *DefaultFunc {
 	if defaultFunc, exists := m.ctx["defaultFunc"]; exists {
 		if df, ok := defaultFunc.(*DefaultFunc); ok {
@@ -584,13 +547,11 @@ func (m *MapEvalContext) GetDefaultFunc() *DefaultFunc {
 	return nil
 }
 
-// RegistryAdapter adapts a single FunctionDefinition to the FunctionRegistry interface
 type RegistryAdapter struct {
 	registry FunctionDefinition
 	name     string
 }
 
-// Get implements FunctionRegistry interface
 func (r *RegistryAdapter) Get(name string) FunctionDefinition {
 	if strings.EqualFold(name, r.name) {
 		return r.registry
@@ -598,7 +559,6 @@ func (r *RegistryAdapter) Get(name string) FunctionDefinition {
 	return nil
 }
 
-// Call represents a function call node in the Less AST.
 type Call struct {
 	*Node
 	Name          string
@@ -609,7 +569,6 @@ type Call struct {
 	CallerFactory FunctionCallerFactory // Factory for creating FunctionCaller instances
 }
 
-// NewCall creates a new Call instance.
 func NewCall(name string, args []any, index int, currentFileInfo map[string]any) *Call {
 	return &Call{
 		Node:      NewNode(),
@@ -621,34 +580,28 @@ func NewCall(name string, args []any, index int, currentFileInfo map[string]any)
 	}
 }
 
-// GetType returns the node type.
 func (c *Call) GetType() string {
 	return "Call"
 }
 
-// GetName returns the function name.
 func (c *Call) GetName() string {
 	return c.Name
 }
 
-// Accept processes the node's children with a visitor.
 func (c *Call) Accept(visitor any) {
 	if v, ok := visitor.(interface{ VisitArray([]any) []any }); ok && c.Args != nil {
 		c.Args = v.VisitArray(c.Args)
 	}
 }
 
-// GetIndex returns the node's index.
 func (c *Call) GetIndex() int {
 	return c._index
 }
 
-// FileInfo returns the node's file information.
 func (c *Call) FileInfo() map[string]any {
 	return c._fileInfo
 }
 
-// Eval evaluates the function call.
 func (c *Call) Eval(context any) (any, error) {
 	// Convert context to EvalContext if it's a map
 	var evalContext EvalContext
@@ -901,8 +854,6 @@ func (c *Call) Eval(context any) (any, error) {
 	return NewCall(c.Name, evaledArgs, c.GetIndex(), c.FileInfo()), nil
 }
 
-// tryJSPluginFunction attempts to call a JavaScript plugin function.
-// Returns (nil, nil) if no plugin function was found.
 func (c *Call) tryJSPluginFunction(context any, evalContext EvalContext) (any, error) {
 	// Try to get pluginBridge from context
 	var pluginBridge *NodeJSPluginBridge
@@ -1088,7 +1039,6 @@ func (c *Call) tryJSPluginFunction(context any, evalContext EvalContext) (any, e
 	return converted, nil
 }
 
-// GenCSS generates CSS representation of the function call.
 func (c *Call) GenCSS(context any, output *CSSOutput) {
 	// Special case: _SELF should output its argument directly, not as a function call
 	if c.Name == "_SELF" && len(c.Args) > 0 {
@@ -1124,8 +1074,6 @@ func (c *Call) GenCSS(context any, output *CSSOutput) {
 	output.Add(")", nil, nil)
 }
 
-// preprocessArgs processes arguments to match JavaScript behavior
-// JavaScript does: args.filter(commentFilter).map(item => ...)
 func (c *Call) preprocessArgs(args []any) []any {
 	if args == nil {
 		return []any{}
@@ -1184,7 +1132,6 @@ func (c *Call) preprocessArgs(args []any) []any {
 	return processed
 }
 
-// isComment checks if a node is a comment
 func (c *Call) isComment(node any) bool {
 	if comment, ok := node.(*Comment); ok {
 		return comment != nil
@@ -1196,10 +1143,6 @@ func (c *Call) isComment(node any) bool {
 	return false
 }
 
-// convertJSResultToAST converts a JSResultNode or raw map to proper Go AST nodes.
-// This is needed because JS functions return generic JSResultNode objects
-// that need to be converted to actual AST node types for proper evaluation.
-// Also handles raw map[string]interface{} from the cache.
 func convertJSResultToAST(result any, context any) any {
 	var nodeType string
 	var properties map[string]any
@@ -1378,7 +1321,6 @@ func convertJSResultToAST(result any, context any) any {
 	}
 }
 
-// convertRulesetData converts a ruleset map to a *Ruleset
 func convertRulesetData(data map[string]any, context any) *Ruleset {
 	var selectors []any
 	var rules []any
@@ -1410,7 +1352,6 @@ func convertRulesetData(data map[string]any, context any) *Ruleset {
 	return NewRuleset(selectors, rules, false, nil)
 }
 
-// convertSelectorData converts a selector map to a *Selector
 func convertSelectorData(data map[string]any) *Selector {
 	var elements []*Element
 
@@ -1429,7 +1370,6 @@ func convertSelectorData(data map[string]any) *Selector {
 	return selector
 }
 
-// convertElementData converts an element map to an *Element
 func convertElementData(data map[string]any) *Element {
 	combinator := " "
 	value := ""
@@ -1449,7 +1389,6 @@ func convertElementData(data map[string]any) *Element {
 	return NewElement(combinator, value, false, 0, nil, nil)
 }
 
-// convertRuleData converts a rule map to an AST node
 func convertRuleData(data map[string]any, context any) any {
 	nodeType, ok := data["_type"].(string)
 	if !ok {

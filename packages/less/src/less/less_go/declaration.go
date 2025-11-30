@@ -6,7 +6,6 @@ import (
 	"strings"
 )
 
-// Declaration represents a declaration node in the Less AST
 type Declaration struct {
 	*Node
 	name      any
@@ -17,9 +16,7 @@ type Declaration struct {
 	variable  bool
 }
 
-// NewDeclaration creates a new Declaration instance.
-// OPTIMIZATION: Uses sync.Pool to reuse Declaration objects and reduce GC pressure.
-// Call Release() when the Declaration is no longer needed to return it to the pool.
+// Uses sync.Pool to reuse Declaration objects.
 func NewDeclaration(name any, value any, important any, merge any, index int, fileInfo map[string]any, inline bool, variable any) (*Declaration, error) {
 	node := NewNode()
 	node.TypeIndex = GetTypeIndexForNodeType("Declaration")
@@ -106,12 +103,10 @@ func NewDeclaration(name any, value any, important any, merge any, index int, fi
 	return d, nil
 }
 
-// GetType returns the type of the node
 func (d *Declaration) GetType() string {
 	return "Declaration"
 }
 
-// GetTypeIndex returns the type index for visitor pattern
 func (d *Declaration) GetTypeIndex() int {
 	// Return from Node field if set, otherwise get from registry
 	if d.Node != nil && d.Node.TypeIndex != 0 {
@@ -120,12 +115,10 @@ func (d *Declaration) GetTypeIndex() int {
 	return GetTypeIndexForNodeType("Declaration")
 }
 
-// GetVariable returns whether this is a variable declaration
 func (d *Declaration) GetVariable() bool {
 	return d.variable
 }
 
-// GetName returns the declaration name
 func (d *Declaration) GetName() string {
 	if nameStr, ok := d.name.(string); ok {
 		return nameStr
@@ -133,12 +126,10 @@ func (d *Declaration) GetName() string {
 	return fmt.Sprintf("%v", d.name)
 }
 
-// GetMerge returns the merge flag
 func (d *Declaration) GetMerge() any {
 	return d.merge
 }
 
-// MergeType returns the type of merge (true for space, "+" for comma)
 func (d *Declaration) MergeType() string {
 	switch m := d.merge.(type) {
 	case string:
@@ -151,24 +142,20 @@ func (d *Declaration) MergeType() string {
 	return ""
 }
 
-// GetImportant returns whether this declaration is important
 func (d *Declaration) GetImportant() bool {
 	return d.important != ""
 }
 
-// GetValue returns the value of the declaration
 func (d *Declaration) GetValue() any {
 	return d.Value
 }
 
-// SetValue sets the value of the declaration
 func (d *Declaration) SetValue(value any) {
 	if v, ok := value.(*Value); ok {
 		d.Value = v
 	}
 }
 
-// SetImportant sets the important flag
 func (d *Declaration) SetImportant(important bool) {
 	if important {
 		// Match JavaScript: always prepend a space
@@ -178,7 +165,6 @@ func (d *Declaration) SetImportant(important bool) {
 	}
 }
 
-// evalName evaluates the name of the declaration
 func evalName(context any, name []any) (string, error) {
 	value := ""
 	output := &CSSOutput{
@@ -230,8 +216,6 @@ func evalName(context any, name []any) (string, error) {
 	return value, nil
 }
 
-// Accept visits the declaration value with a visitor
-// This matches JavaScript Node's accept method: this.value = visitor.visit(this.value)
 func (d *Declaration) Accept(visitor any) {
 	if v, ok := visitor.(interface{ Visit(any) any }); ok && d.Value != nil {
 		result := v.Visit(d.Value)
@@ -241,7 +225,6 @@ func (d *Declaration) Accept(visitor any) {
 	}
 }
 
-// Eval evaluates the declaration
 func (d *Declaration) Eval(context any) (any, error) {
 	if context == nil {
 		return nil, fmt.Errorf("context is required for Declaration.Eval")
@@ -407,7 +390,6 @@ func (d *Declaration) Eval(context any) (any, error) {
 	return newDecl, nil
 }
 
-// GenCSS generates CSS representation
 func (d *Declaration) GenCSS(context any, output *CSSOutput) {
 	// Check visibility - skip if node blocks visibility and is not explicitly visible
 	// Also skip if this is a variable declaration (variables are not output as CSS)
@@ -517,7 +499,6 @@ func (d *Declaration) GenCSS(context any, output *CSSOutput) {
 }
 
 
-// isLastRule checks if this is the last rule in the context
 func isLastRule(context any) bool {
 	if ctx, ok := context.(map[string]any); ok {
 		if lastRule, ok := ctx["lastRule"].(bool); ok {
@@ -527,16 +508,10 @@ func isLastRule(context any) bool {
 	return false
 }
 
-// IsVisible returns whether this declaration should be visible in CSS output
-// Following JavaScript implementation: declarations are visible by default
 func (d *Declaration) IsVisible() bool {
-	// In JavaScript, nodeVisible is undefined for declarations, meaning they inherit
-	// parent visibility. For practical purposes, declarations are visible unless
-	// explicitly hidden, so we return true by default.
 	return true
 }
 
-// MakeImportant creates a new Declaration with important flag
 func (d *Declaration) MakeImportant() any {
 	// If already important, preserve the existing important value
 	importantValue := "!important"
@@ -547,7 +522,6 @@ func (d *Declaration) MakeImportant() any {
 	return newDecl
 }
 
-// ToCSS generates CSS string representation
 func (d *Declaration) ToCSS(context any) string {
 	var strs []string
 	output := &CSSOutput{

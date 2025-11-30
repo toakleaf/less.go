@@ -1,6 +1,5 @@
 package less_go
 
-// Colors maps CSS color names to their hex values
 var Colors = map[string]string{
 	"aliceblue":            "#f0f8ff",
 	"antiquewhite":         "#faebd7",

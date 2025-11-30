@@ -5,14 +5,12 @@ import (
 	"os"
 )
 
-// DetachedRuleset represents a detached ruleset in the Less AST
 type DetachedRuleset struct {
 	*Node
 	ruleset any // Can be *Node or *Ruleset
 	frames  []any
 }
 
-// NewDetachedRuleset creates a new DetachedRuleset instance
 func NewDetachedRuleset(ruleset any, frames []any) *DetachedRuleset {
 	dr := &DetachedRuleset{
 		Node:    NewNode(),
@@ -25,17 +23,14 @@ func NewDetachedRuleset(ruleset any, frames []any) *DetachedRuleset {
 	return dr
 }
 
-// GetType returns the type of the node
 func (dr *DetachedRuleset) GetType() string {
 	return "DetachedRuleset"
 }
 
-// GetTypeIndex returns the type index for visitor pattern
 func (dr *DetachedRuleset) GetTypeIndex() int {
 	return GetTypeIndexForNodeType("DetachedRuleset")
 }
 
-// Accept implements the visitor pattern
 func (dr *DetachedRuleset) Accept(visitor any) {
 	// Match JavaScript: this.ruleset = visitor.visit(this.ruleset);
 	if v, ok := visitor.(interface{ Visit(any) any }); ok {
@@ -45,7 +40,6 @@ func (dr *DetachedRuleset) Accept(visitor any) {
 	}
 }
 
-// Eval evaluates the detached ruleset
 func (dr *DetachedRuleset) Eval(context any) any {
 	// Match JavaScript: const frames = this.frames || utils.copyArray(context.frames);
 	frames := dr.frames
@@ -78,7 +72,6 @@ func (dr *DetachedRuleset) Eval(context any) any {
 	return NewDetachedRuleset(dr.ruleset, frames)
 }
 
-// CallEval calls eval on the ruleset with the appropriate context
 func (dr *DetachedRuleset) CallEval(context any) any {
 	// Match JavaScript: return this.ruleset.eval(this.frames ? new contexts.Eval(context, this.frames.concat(context.frames)) : context);
 
@@ -379,7 +372,6 @@ func (dr *DetachedRuleset) CallEval(context any) any {
 	return nil
 }
 
-// evalContextToMap converts an evaluation context to map[string]any for Ruleset.Eval
 func evalContextToMap(context any) map[string]any {
 	switch ctx := context.(type) {
 	case map[string]any:
@@ -418,24 +410,18 @@ func evalContextToMap(context any) map[string]any {
 	}
 }
 
-// Type returns the type of the node
 func (dr *DetachedRuleset) Type() string {
 	return "DetachedRuleset"
 }
 
-// EvalFirst indicates whether this node should be evaluated first
 func (dr *DetachedRuleset) EvalFirst() bool {
 	return true
 }
 
-// HasRuleset indicates whether this detached ruleset has an inner ruleset
-// This is used by NamespaceValue to determine if it should unwrap the ruleset
 func (dr *DetachedRuleset) HasRuleset() bool {
 	return dr.ruleset != nil
 }
 
-// GetRuleset returns the inner ruleset for evaluation
-// This is used by NamespaceValue to unwrap detached rulesets and access their variables/properties
 func (dr *DetachedRuleset) GetRuleset() any {
 	return dr.ruleset
 } 

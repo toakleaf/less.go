@@ -5,16 +5,13 @@ import (
 	"os"
 )
 
-// Container represents a CSS container at-rule node
 type Container struct {
 	*AtRule
 	Features *Value
 	Rules    []any
 }
 
-// NewContainer creates a new Container instance
 func NewContainer(value any, features any, index int, currentFileInfo map[string]any, visibilityInfo map[string]any) (*Container, error) {
-	// Create empty selectors via Selector
 	selector, err := NewSelector([]any{}, nil, nil, index, currentFileInfo, nil)
 	if err != nil {
 		return nil, err
@@ -25,13 +22,11 @@ func NewContainer(value any, features any, index int, currentFileInfo map[string
 		return nil, err
 	}
 
-	// Convert emptySelectors to []any for Ruleset
 	selectors := make([]any, len(emptySelectors))
 	for i, sel := range emptySelectors {
 		selectors[i] = sel
 	}
 
-	// Create features as Value instance - handle nil case
 	var containerFeatures *Value
 	if features == nil {
 		containerFeatures, err = NewValue([]any{})
@@ -45,7 +40,6 @@ func NewContainer(value any, features any, index int, currentFileInfo map[string
 		}
 	}
 
-	// Create rules with Ruleset - convert value to slice if needed
 	var rulesetRules []any
 	if value != nil {
 		if valueSlice, ok := value.([]any); ok {
@@ -57,19 +51,15 @@ func NewContainer(value any, features any, index int, currentFileInfo map[string
 	ruleset := NewRuleset(selectors, rulesetRules, false, visibilityInfo)
 	ruleset.AllowImports = true
 
-	// Create the base AtRule - pass nil for rules like Media does
-	// This prevents NewAtRule from setting Root=true on the inner ruleset
 	atRule := NewAtRule("@container", nil, nil, index, currentFileInfo, nil, false, visibilityInfo)
 	atRule.AllowRoot = true
 
-	// Create Container instance
 	container := &Container{
 		AtRule:   atRule,
 		Features: containerFeatures,
-		Rules:    []any{ruleset},  // Set rules directly, not through NewAtRule
+		Rules:    []any{ruleset},
 	}
 
-	// Set parent relationships
 	container.SetParent(selectors, container.Node)
 	container.SetParent(containerFeatures.Node, container.Node)
 	container.SetParent(container.Rules, container.Node)
@@ -77,31 +67,23 @@ func NewContainer(value any, features any, index int, currentFileInfo map[string
 	return container, nil
 }
 
-// Type returns the node type
 func (c *Container) Type() string {
 	return "Container"
 }
 
-// GetType returns the node type
 func (c *Container) GetType() string {
 	return "Container"
 }
 
-// GetTypeIndex returns the type index for visitor pattern
 func (c *Container) GetTypeIndex() int {
 	return GetTypeIndexForNodeType("Container")
 }
 
-// GetRules returns the rules for this container query
 func (c *Container) GetRules() []any {
 	return c.Rules
 }
 
-// Accept visits the node with a visitor
-// This method MUST be overridden because Container has its own Rules field
-// that shadows the embedded AtRule.Rules field. Without this override,
-// AtRule.Accept would visit the wrong Rules field, causing nested rulesets
-// to not be visited by JoinSelectorVisitor, resulting in unflattened selectors.
+// Accept must be overridden because Container.Rules shadows AtRule.Rules
 func (c *Container) Accept(visitor any) {
 	if c.Features != nil {
 		if v, ok := visitor.(interface{ Visit(any) any }); ok {
@@ -113,7 +95,6 @@ func (c *Container) Accept(visitor any) {
 		}
 	}
 	if c.Rules != nil {
-		// Try variadic bool version first (like Ruleset.Accept)
 		if v, ok := visitor.(interface{ VisitArray([]any, ...bool) []any }); ok {
 			c.Rules = v.VisitArray(c.Rules)
 		} else if v, ok := visitor.(interface{ VisitArray([]any, bool) []any }); ok {
@@ -124,21 +105,14 @@ func (c *Container) Accept(visitor any) {
 	}
 }
 
-// GenCSS generates CSS representation
 func (c *Container) GenCSS(context any, output *CSSOutput) {
-	// Skip container queries with empty rulesets (happens when nested container queries are merged)
-	// When evalNested merges nested container queries, it returns an empty Ruleset as a placeholder
-	// but the Container node itself should not be output if it has no content
 	if len(c.Rules) == 0 {
-		// No rules at all, skip
 		return
 	}
 
 	if ruleset, ok := c.Rules[0].(*Ruleset); ok {
-		// Check if the ruleset has only empty content (regardless of selectors)
-		// A ruleset with selectors but no actual declarations/rules should not be output
 		if hasOnlyEmptyContent(ruleset.Rules) {
-			return // Skip empty container blocks
+			return
 		}
 	}
 
@@ -147,7 +121,6 @@ func (c *Container) GenCSS(context any, output *CSSOutput) {
 	c.OutputRuleset(context, output, c.Rules)
 }
 
-// Eval evaluates the container at-rule
 func (c *Container) Eval(context any) (any, error) {
 	if context == nil {
 		return nil, fmt.Errorf("context is required for Container.Eval")
@@ -157,25 +130,20 @@ func (c *Container) Eval(context any) (any, error) {
 		fmt.Fprintf(os.Stderr, "[CONTAINER.Eval] Starting eval\n")
 	}
 
-	// Convert to *Eval context if needed
 	var evalCtx *Eval
 	if ec, ok := context.(*Eval); ok {
 		evalCtx = ec
 	} else if mapCtx, ok := context.(map[string]any); ok {
-		// For backward compatibility with map-based contexts
-		// This path is used by EvalTop and EvalNested
 		return c.evalWithMapContext(mapCtx)
 	} else {
 		return nil, fmt.Errorf("context must be *Eval or map[string]any, got %T", context)
 	}
 
-	// Match JavaScript: if (!context.mediaBlocks) { context.mediaBlocks = []; context.mediaPath = []; }
 	if evalCtx.MediaBlocks == nil {
 		evalCtx.MediaBlocks = []any{}
 		evalCtx.MediaPath = []any{}
 	}
 
-	// Match JavaScript: const media = new Container(null, [], this._index, this._fileInfo, this.visibilityInfo())
 	media, err := NewContainer(nil, []any{}, c.GetIndex(), c.FileInfo(), c.VisibilityInfo())
 	if err != nil {
 		return nil, fmt.Errorf("error creating container: %w", err)
@@ -209,47 +177,38 @@ func (c *Container) Eval(context any) (any, error) {
 		}
 	}
 
-	// Match JavaScript: context.mediaPath.push(media); context.mediaBlocks.push(media);
 	evalCtx.MediaPath = append(evalCtx.MediaPath, media)
 	evalCtx.MediaBlocks = append(evalCtx.MediaBlocks, media)
 
-	// Match JavaScript: this.rules[0].functionRegistry = context.frames[0].functionRegistry.inherit();
 	if len(c.Rules) > 0 {
 		if ruleset, ok := c.Rules[0].(*Ruleset); ok {
-			// Handle function registry inheritance if frames exist
 			if len(evalCtx.Frames) > 0 {
 				if frameRuleset, ok := evalCtx.Frames[0].(*Ruleset); ok && frameRuleset.FunctionRegistry != nil {
-					// Stub: ruleset.FunctionRegistry = frameRuleset.FunctionRegistry.Inherit()
 					ruleset.FunctionRegistry = frameRuleset.FunctionRegistry
 				}
 			}
 
-			// Match JavaScript: context.frames.unshift(this.rules[0]);
 			newFrames := make([]any, len(evalCtx.Frames)+1)
 			newFrames[0] = ruleset
 			copy(newFrames[1:], evalCtx.Frames)
 			evalCtx.Frames = newFrames
 
-			// Match JavaScript: media.rules = [this.rules[0].eval(context)];
 			evaluated, err := ruleset.Eval(context)
 			if err != nil {
 				return nil, err
 			}
 			media.Rules = []any{evaluated}
 
-			// Match JavaScript: context.frames.shift();
 			if len(evalCtx.Frames) > 0 {
 				evalCtx.Frames = evalCtx.Frames[1:]
 			}
 		}
 	}
 
-	// Match JavaScript: context.mediaPath.pop();
 	if len(evalCtx.MediaPath) > 0 {
 		evalCtx.MediaPath = evalCtx.MediaPath[:len(evalCtx.MediaPath)-1]
 	}
 
-	// Match JavaScript: return context.mediaPath.length === 0 ? media.evalTop(context) : media.evalNested(context);
 	if len(evalCtx.MediaPath) == 0 {
 		if os.Getenv("LESS_GO_TRACE") != "" {
 			fmt.Fprintf(os.Stderr, "[CONTAINER.Eval] Calling evalTop, mediaBlocks count: %d\n", len(evalCtx.MediaBlocks))
@@ -263,15 +222,12 @@ func (c *Container) Eval(context any) (any, error) {
 	}
 }
 
-// evalWithMapContext handles evaluation with map-based context (for backward compatibility)
 func (c *Container) evalWithMapContext(ctx map[string]any) (any, error) {
-	// Match JavaScript: if (!context.mediaBlocks) { context.mediaBlocks = []; context.mediaPath = []; }
 	if ctx["mediaBlocks"] == nil {
 		ctx["mediaBlocks"] = []any{}
 		ctx["mediaPath"] = []any{}
 	}
 
-	// Match JavaScript: const media = new Container(null, [], this._index, this._fileInfo, this.visibilityInfo())
 	media, err := NewContainer(nil, []any{}, c.GetIndex(), c.FileInfo(), c.VisibilityInfo())
 	if err != nil {
 		return nil, fmt.Errorf("error creating container: %w", err)
@@ -305,7 +261,6 @@ func (c *Container) evalWithMapContext(ctx map[string]any) (any, error) {
 		}
 	}
 
-	// Match JavaScript: context.mediaPath.push(media); context.mediaBlocks.push(media);
 	if mediaPath, ok := ctx["mediaPath"].([]any); ok {
 		ctx["mediaPath"] = append(mediaPath, media)
 	}
@@ -313,7 +268,6 @@ func (c *Container) evalWithMapContext(ctx map[string]any) (any, error) {
 		ctx["mediaBlocks"] = append(mediaBlocks, media)
 	}
 
-	// Match JavaScript: this.rules[0].functionRegistry = context.frames[0].functionRegistry.inherit();
 	if len(c.Rules) > 0 {
 		if ruleset, ok := c.Rules[0].(*Ruleset); ok {
 			var frames []any
@@ -323,39 +277,33 @@ func (c *Container) evalWithMapContext(ctx map[string]any) (any, error) {
 				return nil, fmt.Errorf("frames is required for container evaluation")
 			}
 
-			// Handle function registry inheritance if frames exist
 			if len(frames) > 0 {
 				if frameRuleset, ok := frames[0].(*Ruleset); ok && frameRuleset.FunctionRegistry != nil {
 					ruleset.FunctionRegistry = frameRuleset.FunctionRegistry
 				}
 			}
 
-			// Match JavaScript: context.frames.unshift(this.rules[0]);
 			newFrames := make([]any, len(frames)+1)
 			newFrames[0] = ruleset
 			copy(newFrames[1:], frames)
 			ctx["frames"] = newFrames
 
-			// Match JavaScript: media.rules = [this.rules[0].eval(context)];
 			evaluated, err := ruleset.Eval(ctx)
 			if err != nil {
 				return nil, err
 			}
 			media.Rules = []any{evaluated}
 
-			// Match JavaScript: context.frames.shift();
 			if currentFrames, ok := ctx["frames"].([]any); ok && len(currentFrames) > 0 {
 				ctx["frames"] = currentFrames[1:]
 			}
 		}
 	}
 
-	// Match JavaScript: context.mediaPath.pop();
 	if mediaPath, ok := ctx["mediaPath"].([]any); ok && len(mediaPath) > 0 {
 		ctx["mediaPath"] = mediaPath[:len(mediaPath)-1]
 	}
 
-	// Match JavaScript: return context.mediaPath.length === 0 ? media.evalTop(context) : media.evalNested(context);
 	if mediaPath, ok := ctx["mediaPath"].([]any); ok {
 		if len(mediaPath) == 0 {
 			result := media.EvalTop(ctx)
@@ -368,7 +316,6 @@ func (c *Container) evalWithMapContext(ctx map[string]any) (any, error) {
 	return media.EvalTop(ctx), nil
 }
 
-// EvalTop evaluates the container at the top level (implementing NestableAtRulePrototype)
 func (c *Container) EvalTop(context any) any {
 	if os.Getenv("LESS_GO_TRACE") != "" {
 		fmt.Fprintf(os.Stderr, "[CONTAINER.EvalTop] Starting\n")
@@ -376,7 +323,6 @@ func (c *Container) EvalTop(context any) any {
 
 	var result any = c
 
-	// Handle both *Eval and map[string]any contexts
 	var mediaBlocks []any
 	var hasMediaBlocks bool
 
@@ -388,9 +334,7 @@ func (c *Container) EvalTop(context any) any {
 			fmt.Fprintf(os.Stderr, "[CONTAINER.EvalTop] mediaBlocks count: %d\n", len(mediaBlocks))
 		}
 
-		// Render all dependent Container blocks
 		if hasMediaBlocks && len(mediaBlocks) > 1 {
-			// Create empty selectors
 			selector, err := NewSelector(nil, nil, nil, c.GetIndex(), c.FileInfo(), nil)
 			if err != nil {
 				return result
@@ -412,7 +356,6 @@ func (c *Container) EvalTop(context any) any {
 			result = ruleset
 		}
 
-		// Delete mediaBlocks and mediaPath from context
 		evalCtx.MediaBlocks = nil
 		evalCtx.MediaPath = nil
 
@@ -425,9 +368,7 @@ func (c *Container) EvalTop(context any) any {
 			}
 		}
 
-		// Render all dependent Container blocks
 		if hasMediaBlocks && len(mediaBlocks) > 1 {
-			// Create empty selectors
 			selector, err := NewSelector(nil, nil, nil, c.GetIndex(), c.FileInfo(), nil)
 			if err != nil {
 				return result
@@ -437,18 +378,16 @@ func (c *Container) EvalTop(context any) any {
 				return result
 			}
 
-			// Create new Ruleset - convert selectors to []any
 			selectors := make([]any, len(emptySelectors))
 			for i, sel := range emptySelectors {
 				selectors[i] = sel
 			}
 			ruleset := NewRuleset(selectors, mediaBlocks, false, c.VisibilityInfo())
-			ruleset.MultiMedia = true // Set MultiMedia to true for multiple container blocks
+			ruleset.MultiMedia = true
 			c.SetParent(ruleset.Node, c.Node)
 			result = ruleset
 		}
 
-		// Delete mediaBlocks and mediaPath from context
 		delete(ctx, "mediaBlocks")
 		delete(ctx, "mediaPath")
 	}
@@ -456,9 +395,7 @@ func (c *Container) EvalTop(context any) any {
 	return result
 }
 
-// EvalNested evaluates the container in a nested context (implementing NestableAtRulePrototype)
 func (c *Container) EvalNested(context any) any {
-	// Handle both *Eval and map[string]any contexts
 	var mediaPath []any
 	var hasMediaPath bool
 
@@ -475,10 +412,8 @@ func (c *Container) EvalNested(context any) any {
 		mediaPath = []any{}
 	}
 
-	// Create path with current node
 	path := append(mediaPath, c)
 
-	// Extract the container-query conditions separated with `,` (OR)
 	for i := 0; i < len(path); i++ {
 		var pathType string
 		switch p := path[i].(type) {
@@ -507,18 +442,15 @@ func (c *Container) EvalNested(context any) any {
 		var value any
 		var features any
 
-		// Get features from the path item
 		if container, ok := path[i].(*Container); ok {
 			features = container.Features
 		}
-
 		if valueNode, ok := features.(*Value); ok {
 			value = valueNode.Value
 		} else {
 			value = features
 		}
 
-		// Convert to array if needed
 		if arr, ok := value.([]any); ok {
 			path[i] = arr
 		} else {
@@ -526,7 +458,6 @@ func (c *Container) EvalNested(context any) any {
 		}
 	}
 
-	// Trace all permutations to generate the resulting container-query
 	permuteResult := c.Permute(path)
 	if permuteResult == nil {
 		return c
@@ -537,14 +468,12 @@ func (c *Container) EvalNested(context any) any {
 		return c
 	}
 
-	// Ensure every path is an array before mapping
 	for _, p := range permuteArray {
 		if _, ok := p.([]any); !ok {
 			return c
 		}
 	}
 
-	// Map paths to expressions
 	expressions := make([]any, len(permuteArray))
 	for idx, pathItem := range permuteArray {
 		pathArray, ok := pathItem.([]any)
@@ -552,7 +481,6 @@ func (c *Container) EvalNested(context any) any {
 			continue
 		}
 
-		// Convert fragments
 		mappedPath := make([]any, len(pathArray))
 		for i, fragment := range pathArray {
 			if _, ok := fragment.(interface{ ToCSS(any) string }); ok {
@@ -562,7 +490,6 @@ func (c *Container) EvalNested(context any) any {
 			}
 		}
 
-		// Insert 'and' between fragments
 		for i := len(mappedPath) - 1; i > 0; i-- {
 			andAnon := NewAnonymous("and", 0, nil, false, false, nil)
 			mappedPath = append(mappedPath[:i], append([]any{andAnon}, mappedPath[i:]...)...)
@@ -575,18 +502,15 @@ func (c *Container) EvalNested(context any) any {
 		expressions[idx] = expr
 	}
 
-	// Create new Value with expressions
 	newValue, err := NewValue(expressions)
 	if err == nil {
 		c.Features = newValue
 		c.SetParent(c.Features, c.Node)
 	}
 
-	// Return fake tree-node that doesn't output anything
 	return NewRuleset([]any{}, []any{}, false, nil)
 }
 
-// Permute creates permutations of the given array (implementing NestableAtRulePrototype)
 func (c *Container) Permute(arr []any) any {
 	if len(arr) == 0 {
 		return []any{}
@@ -621,7 +545,6 @@ func (c *Container) Permute(arr []any) any {
 	}
 }
 
-// BubbleSelectors bubbles selectors up the tree (implementing NestableAtRulePrototype)
 func (c *Container) BubbleSelectors(selectors any) {
 	if os.Getenv("LESS_GO_TRACE") != "" {
 		fmt.Fprintf(os.Stderr, "[CONTAINER.BubbleSelectors] Called with selectors: %v\n", selectors)

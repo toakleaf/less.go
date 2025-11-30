@@ -7,7 +7,6 @@ import (
 	"strings"
 )
 
-// Condition represents a condition node in the Less AST
 type Condition struct {
 	*Node
 	Op     string
@@ -17,7 +16,6 @@ type Condition struct {
 	Negate bool
 }
 
-// NewCondition creates a new Condition
 func NewCondition(op string, l, r any, i int, negate bool) *Condition {
 	return &Condition{
 		Node:   NewNode(),
@@ -29,12 +27,10 @@ func NewCondition(op string, l, r any, i int, negate bool) *Condition {
 	}
 }
 
-// GetType returns the node type
 func (c *Condition) GetType() string {
 	return "Condition"
 }
 
-// Accept implements the Node Accept method
 func (c *Condition) Accept(visitor any) {
 	if v, ok := visitor.(interface{ Visit(any) any }); ok {
 		c.Lvalue = v.Visit(c.Lvalue)
@@ -42,23 +38,16 @@ func (c *Condition) Accept(visitor any) {
 	}
 }
 
-// Eval evaluates the condition and returns it following the interface{ Eval(any) any } pattern
 func (c *Condition) Eval(context any) any {
-	// The selector expects Eval to return any, but internally we evaluate to bool
 	return c.EvalBool(context)
 }
 
-// EvalBool evaluates the condition and returns a boolean result
 func (c *Condition) EvalBool(context any) bool {
-	// JavaScript implementation:
-	// Evaluates lvalue and rvalue, then uses Node.compare for comparison operators
-
 	debug := os.Getenv("LESS_DEBUG_GUARDS") == "1"
 	if debug {
 		fmt.Printf("DEBUG:   Condition.EvalBool: op=%s, lvalue=%T, rvalue=%T\n", c.Op, c.Lvalue, c.Rvalue)
 	}
 
-	// Helper to evaluate a node
 	eval := func(node any) any {
 		if evaluator, ok := node.(interface{ Eval(any) (any, error) }); ok {
 			result, _ := evaluator.Eval(context)
@@ -75,7 +64,6 @@ func (c *Condition) EvalBool(context any) bool {
 	case "and":
 		a := eval(c.Lvalue)
 		b := eval(c.Rvalue)
-		// Convert to bool - JavaScript truthy/falsy conversion
 		abool := toBool(a)
 		bbool := toBool(b)
 		result = abool && bbool
@@ -86,7 +74,6 @@ func (c *Condition) EvalBool(context any) bool {
 	case "or":
 		a := eval(c.Lvalue)
 		b := eval(c.Rvalue)
-		// Convert to bool - JavaScript truthy/falsy conversion
 		abool := toBool(a)
 		bbool := toBool(b)
 		result = abool || bbool
@@ -95,18 +82,13 @@ func (c *Condition) EvalBool(context any) bool {
 		}
 
 	default:
-		// For comparison operators, use Node.compare
 		a := eval(c.Lvalue)
 		b := eval(c.Rvalue)
 
-		// For types that have their own Compare method, call it directly
-		// IMPORTANT: Check Quoted and Anonymous first for "symmetric results"
-		// This matches JavaScript: if either value is Quoted or Anonymous, use their toCSS-based comparison
 		var compareResult int
 
-		// Check if either operand is Quoted or Anonymous (for symmetric results)
+		// Check Quoted and Anonymous first for symmetric comparison results
 		if quoted, ok := a.(*Quoted); ok {
-			// Handle Quoted comparison (has priority for symmetric results)
 			cmpResult := quoted.Compare(b)
 			if cmpResult == nil {
 				compareResult = 999 // undefined
@@ -114,15 +96,13 @@ func (c *Condition) EvalBool(context any) bool {
 				compareResult = *cmpResult
 			}
 		} else if quoted, ok := b.(*Quoted); ok {
-			// b is Quoted, so use -b.compare(a) for symmetry
 			cmpResult := quoted.Compare(a)
 			if cmpResult == nil {
 				compareResult = 999 // undefined
 			} else {
-				compareResult = -*cmpResult // negate for reversed operands
+				compareResult = -*cmpResult
 			}
 		} else if anon, ok := a.(*Anonymous); ok {
-			// Handle Anonymous comparison (has priority for symmetric results)
 			cmpResult := anon.Compare(b)
 			if cmpResult == nil {
 				compareResult = 999 // undefined
@@ -132,17 +112,15 @@ func (c *Condition) EvalBool(context any) bool {
 				compareResult = 999
 			}
 		} else if anon, ok := b.(*Anonymous); ok {
-			// b is Anonymous, so use -b.compare(a) for symmetry
 			cmpResult := anon.Compare(a)
 			if cmpResult == nil {
 				compareResult = 999 // undefined
 			} else if cmpInt, ok := cmpResult.(int); ok {
-				compareResult = -cmpInt // negate for reversed operands
+				compareResult = -cmpInt
 			} else {
 				compareResult = 999
 			}
 		} else if dim, ok := a.(*Dimension); ok {
-			// Handle Dimension comparison
 			if otherDim, ok := b.(*Dimension); ok {
 				if cmpPtr := dim.Compare(otherDim); cmpPtr != nil {
 					compareResult = *cmpPtr
@@ -153,23 +131,18 @@ func (c *Condition) EvalBool(context any) bool {
 				compareResult = 999
 			}
 		} else if col, ok := a.(*Color); ok {
-			// Handle Color comparison
 			if otherCol, ok := b.(*Color); ok {
 				compareResult = col.Compare(otherCol)
 			} else {
 				compareResult = 999
 			}
 		} else if expr, ok := a.(*Expression); ok {
-			// Handle Expression (space-separated list) comparison
 			if otherExpr, ok := b.(*Expression); ok {
-				// Compare expressions by comparing their value arrays
 				if len(expr.Value) != len(otherExpr.Value) {
-					compareResult = 999 // different lengths = not equal
+					compareResult = 999
 				} else {
-					// Compare each element - recursively handle nested expressions
 					allEqual := true
 					for i := range expr.Value {
-						// Evaluate elements before comparing
 						aElem := eval(expr.Value[i])
 						bElem := eval(otherExpr.Value[i])
 
@@ -177,7 +150,6 @@ func (c *Condition) EvalBool(context any) bool {
 							fmt.Printf("DEBUG:   Expression element %d: aElem=%T(%v), bElem=%T(%v)\n", i, aElem, aElem, bElem, bElem)
 						}
 
-						// Recursively compare using a new condition
 						elemCond := NewCondition("=", aElem, bElem, 0, false)
 						if !elemCond.EvalBool(context) {
 							allEqual = false
@@ -197,16 +169,12 @@ func (c *Condition) EvalBool(context any) bool {
 				compareResult = 999
 			}
 		} else if val, ok := a.(*Value); ok {
-			// Handle Value (comma-separated list) comparison
 			if otherVal, ok := b.(*Value); ok {
-				// Compare values by comparing their value arrays
 				if len(val.Value) != len(otherVal.Value) {
-					compareResult = 999 // different lengths = not equal
+					compareResult = 999
 				} else {
-					// Compare each element
 					allEqual := true
 					for i := range val.Value {
-						// Evaluate elements before comparing
 						aElem := eval(val.Value[i])
 						bElem := eval(otherVal.Value[i])
 
@@ -214,7 +182,6 @@ func (c *Condition) EvalBool(context any) bool {
 							fmt.Printf("DEBUG:   Value element %d: aElem=%T(%v), bElem=%T(%v)\n", i, aElem, aElem, bElem, bElem)
 						}
 
-						// Recursively compare using a new condition
 						elemCond := NewCondition("=", aElem, bElem, 0, false)
 						if !elemCond.EvalBool(context) {
 							allEqual = false
@@ -234,24 +201,18 @@ func (c *Condition) EvalBool(context any) bool {
 				compareResult = 999
 			}
 		} else if kw, ok := a.(*Keyword); ok {
-			// Handle Keyword comparison
-			// Keywords only support equality checks, not ordering (< or >)
-			// Match JavaScript: a === b ? 0 : undefined
 			if otherKw, ok := b.(*Keyword); ok {
 				if kw.ToCSS(nil) == otherKw.ToCSS(nil) {
 					compareResult = 0
 				} else {
-					compareResult = 999 // undefined - keywords don't have ordering
+					compareResult = 999
 				}
 			} else {
 				compareResult = 999
 			}
 		} else {
-			// Fall back to Node.Compare for other types
-			// Convert to nodes if necessary for comparison
 			var aNode, bNode *Node
 
-			// Check if a has a way to get its embedded Node
 			if nodeProvider, ok := a.(interface{ GetNode() *Node }); ok {
 				aNode = nodeProvider.GetNode()
 			} else if n, ok := a.(*Node); ok {
@@ -263,11 +224,9 @@ func (c *Condition) EvalBool(context any) bool {
 			} else if kw, ok := a.(*Keyword); ok {
 				aNode = kw.Node
 			} else {
-				// Wrap non-node values in a Node for comparison
 				aNode = &Node{Value: a}
 			}
 
-			// Same for b
 			if nodeProvider, ok := b.(interface{ GetNode() *Node }); ok {
 				bNode = nodeProvider.GetNode()
 			} else if n, ok := b.(*Node); ok {
@@ -293,7 +252,6 @@ func (c *Condition) EvalBool(context any) bool {
 		case 1:
 			result = c.Op == ">" || c.Op == ">="
 		default:
-			// JavaScript returns false for undefined comparison results
 			result = false
 		}
 	}
@@ -304,7 +262,6 @@ func (c *Condition) EvalBool(context any) bool {
 	return result
 }
 
-// toBool converts a value to boolean following JavaScript truthy/falsy rules
 func toBool(v any) bool {
 	if v == nil {
 		return false
@@ -344,19 +301,15 @@ func toBool(v any) bool {
 	case map[string]any:
 		return len(val) > 0
 	default:
-		// Check if it's a dimension with zero value
 		if dim, ok := v.(*Dimension); ok {
 			return dim.Value != 0.0
 		}
-		// Check if it's another type with GetValue method
 		if dim, ok := v.(interface{ GetValue() float64 }); ok {
 			return dim.GetValue() != 0.0
 		}
-		// Check if it's a Node-like object that could be evaluated
 		if hasVal, ok := v.(interface{ Value() any }); ok {
 			return toBool(hasVal.Value())
 		}
-		// For other types (like Node objects), they are truthy unless explicitly falsy
 		return true
 	}
 } 

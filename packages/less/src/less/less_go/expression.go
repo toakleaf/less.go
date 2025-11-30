@@ -6,7 +6,6 @@ import (
 	"strings"
 )
 
-// Expression represents a list of values with optional spacing in the Less AST
 type Expression struct {
 	*Node
 	Value      []any
@@ -15,9 +14,6 @@ type Expression struct {
 	ParensInOp bool
 }
 
-// NewExpression creates a new Expression instance.
-// OPTIMIZATION: Uses sync.Pool to reuse Expression objects and reduce GC pressure.
-// Call Release() when the Expression is no longer needed to return it to the pool.
 func NewExpression(value []any, noSpacing bool) (*Expression, error) {
 	if value == nil {
 		return nil, fmt.Errorf("Expression requires an array parameter")
@@ -38,7 +34,6 @@ func NewExpression(value []any, noSpacing bool) (*Expression, error) {
 	return e, nil
 }
 
-// Accept visits the array of values with a visitor
 func (e *Expression) Accept(visitor any) {
 	if visitor == nil {
 		return
@@ -57,7 +52,6 @@ func (e *Expression) Accept(visitor any) {
 	}
 }
 
-// Eval evaluates the expression
 func (e *Expression) Eval(context any) (any, error) {
 	if SafeNilCheck(context) {
 		return e, nil
@@ -237,7 +231,6 @@ func (e *Expression) Eval(context any) (any, error) {
 	return returnValue, nil
 }
 
-// GenCSS generates CSS representation
 func (e *Expression) GenCSS(context any, output *CSSOutput) {
 	for i, value := range e.Value {
 		if value == nil {
@@ -283,7 +276,6 @@ func (e *Expression) GenCSS(context any, output *CSSOutput) {
 	}
 }
 
-// ToCSS generates CSS string representation
 func (e *Expression) ToCSS(context any) string {
 	var strs []string
 	output := &CSSOutput{
@@ -304,7 +296,6 @@ func (e *Expression) ToCSS(context any) string {
 	return builder.String()
 }
 
-// ThrowAwayComments removes Comment nodes from the value array
 func (e *Expression) ThrowAwayComments() {
 	var filtered []any
 	for _, v := range e.Value {
@@ -318,22 +309,18 @@ func (e *Expression) ThrowAwayComments() {
 	e.Value = filtered
 }
 
-// GetParens returns the Parens flag
 func (e *Expression) GetParens() bool {
 	return e.Parens
 }
 
-// GetParensInOp returns the ParensInOp flag
 func (e *Expression) GetParensInOp() bool {
 	return e.ParensInOp
 }
 
-// GetType returns the type of the node for visitor pattern consistency
 func (e *Expression) GetType() string {
 	return "Expression"
 }
 
-// GetValue returns the value array for serialization
 func (e *Expression) GetValue() []any {
 	return e.Value
 }

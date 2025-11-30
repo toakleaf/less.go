@@ -1,8 +1,5 @@
 package less_go
 
-// Chunker splits the input into chunks.
-// It takes an input string and a fail function that will be called with an error message and position if an error occurs.
-// Returns a slice of strings containing the chunks, or nil if an error occurred.
 func Chunker(input string, fail func(msg string, pos int)) []string {
 	inputLen := len(input)
 	level := 0
