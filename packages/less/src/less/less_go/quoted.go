@@ -2,21 +2,153 @@ package less_go
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 )
 
-// Compile regex patterns once at package level
-var (
-	// Match @{variable} syntax only - this is the correct behavior for regular quoted strings
-	// In LESS, only @{variable} syntax triggers interpolation in normal strings, not bare @variable
-	variableRegex = regexp.MustCompile(`@\{([\w-]+)\}`)
-	// Match bare @variable syntax - used for escaped/permissive content (e.g., custom CSS properties)
-	// Permissive-parsed content uses Quoted with escaped=true and needs bare @variable replacement
-	escapedVariableRegex = regexp.MustCompile(`@([\w-]+)`)
-	// Match ${property} syntax only for quoted strings
-	propRegex = regexp.MustCompile(`\$\{([\w-]+)\}`)
-)
+// isVarNameChar checks if a character is valid in a variable/property name: [a-zA-Z0-9_-]
+func isVarNameChar(c byte) bool {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+		(c >= '0' && c <= '9') || c == '_' || c == '-'
+}
+
+// containsBracedVar checks if a string contains @{varname} pattern (for ContainsVariables)
+func containsBracedVar(s string) bool {
+	for i := 0; i < len(s)-2; i++ {
+		if s[i] == '@' && s[i+1] == '{' {
+			// Look for closing } with valid var name between
+			for j := i + 2; j < len(s); j++ {
+				if s[j] == '}' {
+					if j > i+2 { // Must have at least one char in name
+						return true
+					}
+					break
+				}
+				if !isVarNameChar(s[j]) {
+					break
+				}
+			}
+		}
+	}
+	return false
+}
+
+// interpolateBracedVars replaces @{varname} patterns with their values
+// Returns the new string and true if any replacements were made
+func interpolateBracedVars(s string, evalVar func(name string) (string, error)) (string, bool, error) {
+	var result strings.Builder
+	result.Grow(len(s))
+
+	changed := false
+	i := 0
+	for i < len(s) {
+		// Look for @{ pattern
+		if i+2 < len(s) && s[i] == '@' && s[i+1] == '{' {
+			// Find end of variable name
+			end := -1
+			for j := i + 2; j < len(s); j++ {
+				if s[j] == '}' {
+					end = j
+					break
+				}
+				if !isVarNameChar(s[j]) {
+					break
+				}
+			}
+
+			if end != -1 && end > i+2 { // Valid variable pattern found
+				varName := s[i+2 : end]
+				replacement, err := evalVar(varName)
+				if err != nil {
+					return s, false, err
+				}
+				result.WriteString(replacement)
+				i = end + 1
+				changed = true
+				continue
+			}
+		}
+		result.WriteByte(s[i])
+		i++
+	}
+
+	return result.String(), changed, nil
+}
+
+// interpolateBareVars replaces @varname patterns with their values (for escaped content)
+// Returns the new string and true if any replacements were made
+func interpolateBareVars(s string, evalVar func(name string) (string, error)) (string, bool, error) {
+	var result strings.Builder
+	result.Grow(len(s))
+
+	changed := false
+	i := 0
+	for i < len(s) {
+		// Look for @ followed by a valid var name char (but not @{ which is handled separately)
+		if i+1 < len(s) && s[i] == '@' && s[i+1] != '{' && isVarNameChar(s[i+1]) {
+			// Find end of variable name
+			end := i + 1
+			for end < len(s) && isVarNameChar(s[end]) {
+				end++
+			}
+
+			varName := s[i+1 : end]
+			replacement, err := evalVar(varName)
+			if err != nil {
+				return s, false, err
+			}
+			result.WriteString(replacement)
+			i = end
+			changed = true
+			continue
+		}
+		result.WriteByte(s[i])
+		i++
+	}
+
+	return result.String(), changed, nil
+}
+
+// interpolateBracedProps replaces ${propname} patterns with their values
+// Returns the new string and true if any replacements were made
+func interpolateBracedProps(s string, evalProp func(name string) (string, error)) (string, bool, error) {
+	var result strings.Builder
+	result.Grow(len(s))
+
+	changed := false
+	i := 0
+	for i < len(s) {
+		// Look for ${ pattern
+		if i+2 < len(s) && s[i] == '$' && s[i+1] == '{' {
+			// Find end of property name
+			end := -1
+			for j := i + 2; j < len(s); j++ {
+				if s[j] == '}' {
+					end = j
+					break
+				}
+				if !isVarNameChar(s[j]) {
+					break
+				}
+			}
+
+			if end != -1 && end > i+2 { // Valid property pattern found
+				propName := s[i+2 : end]
+				replacement, err := evalProp(propName)
+				if err != nil {
+					return s, false, err
+				}
+				result.WriteString(replacement)
+				i = end + 1
+				changed = true
+				continue
+			}
+		}
+		result.WriteByte(s[i])
+		i++
+	}
+
+	return result.String(), changed, nil
+}
 
 // Quoted represents a quoted string in the Less AST
 type Quoted struct {
@@ -45,11 +177,11 @@ func NewQuoted(str string, content string, escaped bool, index int, currentFileI
 	// Handle empty quote string safely
 	var quote string
 	if char, ok := SafeStringIndex(str, 0); ok {
-		quote = string(char)
+		quote = Intern(string(char))
 	} else {
 		quote = ""
 	}
-	
+
 	return &Quoted{
 		Node:          NewNode(),
 		escaped:       escaped,
@@ -132,10 +264,10 @@ func (q *Quoted) ToCSS(context any) string {
 
 // ContainsVariables checks if the quoted string contains variable interpolations
 func (q *Quoted) ContainsVariables() bool {
-	return variableRegex.MatchString(q.value)
+	return containsBracedVar(q.value)
 }
 
-// Eval evaluates the quoted string, replacing variables and properties  
+// Eval evaluates the quoted string, replacing variables and properties
 func (q *Quoted) Eval(context any) (any, error) {
 	value := q.value
 
@@ -160,40 +292,8 @@ func (q *Quoted) Eval(context any) (any, error) {
 		frames = make([]ParserFrame, 0) // Provide empty frames if none available
 	}
 
-	// Define iterativeReplace to match JavaScript implementation
-	iterativeReplace := func(value string, regex *regexp.Regexp, replacementFn func(string, string) (string, error)) (string, error) {
-		var evaluatedValue string
-		var err error
-		for {
-			evaluatedValue = regex.ReplaceAllStringFunc(value, func(match string) string {
-				matches := regex.FindStringSubmatch(match)
-				if len(matches) < 2 {
-					return match
-				}
-				// Handle @{name} syntax - only one capture group
-				name := matches[1]
-				replacement, e := replacementFn(matches[0], name)
-				if e != nil {
-					err = e
-					return match
-				}
-				return replacement
-			})
-
-			if err != nil {
-				return value, err
-			}
-
-			if value == evaluatedValue {
-				break
-			}
-			value = evaluatedValue
-		}
-		return evaluatedValue, nil
-	}
-
-	// variableReplacement handles @{name} syntax
-	variableReplacement := func(match string, name string) (string, error) {
+	// variableReplacement handles @{name} or @name syntax
+	variableReplacement := func(name string) (string, error) {
 		// First try direct frame access for the test case
 		for _, frame := range frames {
 			if varResult := frame.Variable("@" + name); varResult != nil {
@@ -249,7 +349,7 @@ func (q *Quoted) Eval(context any) (any, error) {
 				}
 			}
 		}
-		
+
 		// Fall back to Variable eval if frames don't have it
 		v := NewVariable("@"+name, q.GetIndex(), q.FileInfo())
 		result, err := v.Eval(context)
@@ -264,12 +364,12 @@ func (q *Quoted) Eval(context any) (any, error) {
 		if cssable, ok := result.(interface{ ToCSS(any) string }); ok {
 			return cssable.ToCSS(make(map[string]any)), nil
 		}
-		
+
 		return fmt.Sprintf("%v", result), nil
 	}
 
 	// propertyReplacement handles ${name} syntax
-	propertyReplacement := func(_ string, name string) (string, error) {
+	propertyReplacement := func(name string) (string, error) {
 		// Use Property eval to get the evaluated value
 		p := NewProperty("$"+name, q.GetIndex(), q.FileInfo())
 		result, err := p.Eval(context)
@@ -289,34 +389,48 @@ func (q *Quoted) Eval(context any) (any, error) {
 		return fmt.Sprintf("%v", result), nil
 	}
 
-	// Process variable and property replacements
+	// Process variable and property replacements using hand-written parsers
 	// Variable interpolation strategy:
 	// 1. Always try @{variable} syntax first (standard LESS syntax for all quoted strings)
 	// 2. For escaped content (permissive-parsed like custom CSS properties),
 	//    also try bare @variable syntax after @{variable} processing
 	var err error
+	var changed bool
 
-	// First pass: always try @{variable} syntax
-	value, err = iterativeReplace(value, variableRegex, variableReplacement)
-	if err != nil {
-		return nil, err
+	// First pass: always try @{variable} syntax (iteratively for nested interpolation)
+	for {
+		value, changed, err = interpolateBracedVars(value, variableReplacement)
+		if err != nil {
+			return nil, err
+		}
+		if !changed {
+			break
+		}
 	}
 
 	// Second pass: for escaped content, also try bare @variable syntax
 	// This handles permissive-parsed content like `--custom: @var`
 	if q.escaped {
-		value, err = iterativeReplace(value, escapedVariableRegex, variableReplacement)
-		if err != nil {
-			return nil, err
+		for {
+			value, changed, err = interpolateBareVars(value, variableReplacement)
+			if err != nil {
+				return nil, err
+			}
+			if !changed {
+				break
+			}
 		}
 	}
 
-	// WORKAROUND NO LONGER NEEDED: Parser now correctly handles parenthesized
-	// expressions like (min-width: @val) as proper AST nodes instead of Quoted strings
-
-	value, err = iterativeReplace(value, propRegex, propertyReplacement)
-	if err != nil {
-		return nil, err
+	// Third pass: property interpolation ${name}
+	for {
+		value, changed, err = interpolateBracedProps(value, propertyReplacement)
+		if err != nil {
+			return nil, err
+		}
+		if !changed {
+			break
+		}
 	}
 
 	// Match JavaScript behavior: first parameter should be quote + value + quote

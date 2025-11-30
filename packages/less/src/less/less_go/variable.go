@@ -23,7 +23,7 @@ type Variable struct {
 func NewVariable(name string, index int, currentFileInfo map[string]any) *Variable {
 	return &Variable{
 		Node:      NewNode(),
-		name:      name,
+		name:      Intern(name),
 		_index:    index,
 		_fileInfo: currentFileInfo,
 	}
@@ -147,15 +147,12 @@ func (v *Variable) Eval(context any) (any, error) {
 		for _, frame := range frames {
 			if varResult := frame.Variable(name); varResult != nil {
 				if importantVal, exists := varResult["important"]; exists && importantVal != nil {
-					// For interface context (*Eval), access ImportantScope directly
+					// For interface context (*Eval), use typed SetImportantInCurrentScope
 					if evalCtx, ok := context.(*Eval); ok {
-						if len(evalCtx.ImportantScope) > 0 {
-							lastScope := evalCtx.ImportantScope[len(evalCtx.ImportantScope)-1]
-							if boolVal, ok := importantVal.(bool); ok && boolVal {
-								lastScope["important"] = "!important"
-							} else if strVal, ok := importantVal.(string); ok {
-								lastScope["important"] = strVal
-							}
+						if boolVal, ok := importantVal.(bool); ok && boolVal {
+							evalCtx.SetImportantInCurrentScope("!important")
+						} else if strVal, ok := importantVal.(string); ok {
+							evalCtx.SetImportantInCurrentScope(strVal)
 						}
 					} else if ctx, ok := context.(map[string]any); ok {
 						// For map context, access importantScope from map

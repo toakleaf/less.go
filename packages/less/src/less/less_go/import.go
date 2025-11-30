@@ -9,18 +9,11 @@ import (
 	"github.com/toakleaf/less.go/packages/less/src/less/less_go/runtime"
 )
 
-// CSS pattern regex for detecting CSS files
 var cssPatternRegex = regexp.MustCompile(`[#.&?]css([?;].*)?$`)
 
-// Import represents a CSS @import node
-// The general strategy here is that we don't want to wait
-// for the parsing to be completed, before we start importing
-// the file. That's because in the context of a browser,
-// most of the time will be spent waiting for the server to respond.
-//
-// On creation, we push the import path to our import queue, though
-// `import,push`, we also pass it a callback, which it'll call once
-// the file has been fetched, and parsed.
+// Import represents a CSS @import node.
+// Files are pushed to an import queue on creation with a callback
+// that fires when the file has been fetched and parsed.
 type Import struct {
 	*Node
 	path             any
@@ -36,7 +29,6 @@ type Import struct {
 	error            error
 }
 
-// NewImport creates a new Import instance
 func NewImport(path any, features any, options map[string]any, index int, currentFileInfo map[string]any, visibilityInfo map[string]any) *Import {
 	node := NewNode()
 	node.TypeIndex = GetTypeIndexForNodeType("Import")
@@ -57,15 +49,12 @@ func NewImport(path any, features any, options map[string]any, index int, curren
 		} else {
 			pathValue := imp.GetPath()
 			if pathValue != nil {
-				// Try to extract string value for CSS detection
 				var pathStr string
 				if str, ok := pathValue.(string); ok {
 					pathStr = str
 				} else if quoted, ok := pathValue.(*Quoted); ok {
-					// Handle Quoted objects that weren't unwrapped by GetPath
 					pathStr = quoted.GetValue()
 				} else if anon, ok := pathValue.(*Anonymous); ok {
-					// Handle Anonymous nodes
 					if str, ok := anon.Value.(string); ok {
 						pathStr = str
 					}
@@ -78,15 +67,12 @@ func NewImport(path any, features any, options map[string]any, index int, curren
 	} else {
 		pathValue := imp.GetPath()
 		if pathValue != nil {
-			// Try to extract string value for CSS detection
 			var pathStr string
 			if str, ok := pathValue.(string); ok {
 				pathStr = str
 			} else if quoted, ok := pathValue.(*Quoted); ok {
-				// Handle Quoted objects that weren't unwrapped by GetPath
 				pathStr = quoted.GetValue()
 			} else if anon, ok := pathValue.(*Anonymous); ok {
-				// Handle Anonymous nodes
 				if str, ok := anon.Value.(string); ok {
 					pathStr = str
 				}
@@ -104,7 +90,6 @@ func NewImport(path any, features any, options map[string]any, index int, curren
 	return imp
 }
 
-// getBoolOption safely gets a boolean option value
 func (i *Import) getBoolOption(key string) bool {
 	if i.options == nil {
 		return false
@@ -117,22 +102,18 @@ func (i *Import) getBoolOption(key string) bool {
 	return false
 }
 
-// GetType returns the type of the node
 func (i *Import) GetType() string {
 	return "Import"
 }
 
-// GetIndex returns the node's index
 func (i *Import) GetIndex() int {
 	return i._index
 }
 
-// FileInfo returns the node's file information
 func (i *Import) FileInfo() map[string]any {
 	return i._fileInfo
 }
 
-// Accept visits the import with a visitor
 func (i *Import) Accept(visitor any) {
 	if v, ok := visitor.(interface{ Visit(any) any }); ok {
 		if i.features != nil {
@@ -145,21 +126,11 @@ func (i *Import) Accept(visitor any) {
 	}
 }
 
-// GenCSS generates CSS representation
 func (i *Import) GenCSS(context any, output *CSSOutput) {
-	// Match JavaScript: this.css && this.path._fileInfo.reference === undefined
-	// Note: JavaScript checks if reference is undefined (not present), not if it's falsy
-	// So we should skip output only if reference is explicitly true
 	if i.css {
-		// Check path._fileInfo.reference like JavaScript
-		// In JS, reference is checked with === undefined, meaning only skip if reference is NOT undefined.
-		// However, reference: false should still allow output (only reference: true should skip).
-		// The JS behavior is: skip output if reference is explicitly set (truthy).
 		var shouldOutput bool = true
 		if pathWithFileInfo, ok := i.path.(interface{ FileInfo() map[string]any }); ok {
 			fileInfo := pathWithFileInfo.FileInfo()
-			// Only skip output if reference is truthy (e.g., true for @import (reference) "file.css")
-			// reference: false or missing reference should still allow output
 			if fileInfo != nil {
 				if ref, ok := fileInfo["reference"].(bool); ok && ref {
 					shouldOutput = false
@@ -183,14 +154,10 @@ func (i *Import) GenCSS(context any, output *CSSOutput) {
 	}
 }
 
-// IsVisible returns true if this CSS import should be output (not a reference import)
-// This is needed for proper newline handling in Ruleset.GenCSS
 func (i *Import) IsVisible() bool {
-	// CSS imports are visible unless they're reference imports
 	if !i.css {
 		return false
 	}
-	// Check if this is a reference import (should not output)
 	if pathWithFileInfo, ok := i.path.(interface{ FileInfo() map[string]any }); ok {
 		fileInfo := pathWithFileInfo.FileInfo()
 		if fileInfo != nil {
@@ -202,7 +169,6 @@ func (i *Import) IsVisible() bool {
 	return true
 }
 
-// pathFileInfoReference gets the reference from path's file info
 func (i *Import) pathFileInfoReference() any {
 	if pathWithFileInfo, ok := i.path.(interface{ FileInfo() map[string]any }); ok {
 		fileInfo := pathWithFileInfo.FileInfo()
@@ -210,7 +176,6 @@ func (i *Import) pathFileInfoReference() any {
 			return fileInfo["reference"]
 		}
 	}
-	// Handle the case where path has _fileInfo field directly
 	if pathMap, ok := i.path.(map[string]any); ok {
 		if fileInfo, ok := pathMap["_fileInfo"].(map[string]any); ok {
 			return fileInfo["reference"]
@@ -219,31 +184,23 @@ func (i *Import) pathFileInfoReference() any {
 	return nil
 }
 
-// GetPath returns the path value
 func (i *Import) GetPath() any {
 	if urlPath, ok := i.path.(*URL); ok {
-		// Match JavaScript: this.path.value.value
-		// When path is a URL, we need to extract the value from URL.Value
 		if urlValue, ok := urlPath.Value.(map[string]any); ok {
 			return urlValue["value"]
 		}
-		// Handle case where URL.Value is a Quoted object
 		if quoted, ok := urlPath.Value.(*Quoted); ok {
 			return quoted.GetValue()
 		}
-		// Handle case where URL.Value is an Anonymous object
 		if anon, ok := urlPath.Value.(*Anonymous); ok {
-			// Anonymous.Value can be a string or other types
 			if str, ok := anon.Value.(string); ok {
 				return str
 			}
-			// If Value is a Quoted object
 			if quoted, ok := anon.Value.(*Quoted); ok {
 				return quoted.GetValue()
 			}
 			return anon.Value
 		}
-		// Handle other objects with GetValue() method
 		if pathWithValue, ok := urlPath.Value.(interface{ GetValue() any }); ok {
 			return pathWithValue.GetValue()
 		}
@@ -258,7 +215,6 @@ func (i *Import) GetPath() any {
 	return i.path
 }
 
-// IsVariableImport checks if the import path contains variables
 func (i *Import) IsVariableImport() bool {
 	path := i.path
 	if urlPath, ok := path.(*URL); ok {
@@ -270,7 +226,6 @@ func (i *Import) IsVariableImport() bool {
 	return true
 }
 
-// EvalForImport evaluates the import for import processing
 func (i *Import) EvalForImport(context any) *Import {
 	path := i.path
 	if urlPath, ok := path.(*URL); ok {
@@ -279,12 +234,9 @@ func (i *Import) EvalForImport(context any) *Import {
 
 	var evaluatedPath any
 	if pathEval, ok := path.(interface{ Eval(any) (any, error) }); ok {
-		// Convert context to map with frames for Eval
-		// This ensures that Quoted.Eval can access the frames for variable interpolation
 		contextMap := make(map[string]any)
 		if evalCtx, ok := context.(*Eval); ok {
 			contextMap["frames"] = evalCtx.Frames
-			// Copy other properties that might be needed during evaluation
 			contextMap["compress"] = evalCtx.Compress
 			contextMap["math"] = evalCtx.Math
 			contextMap["strictUnits"] = evalCtx.StrictUnits
@@ -294,7 +246,6 @@ func (i *Import) EvalForImport(context any) *Import {
 
 		result, err := pathEval.Eval(contextMap)
 		if err != nil {
-			// In JS version, eval doesn't return error, so we use the original path
 			evaluatedPath = path
 		} else {
 			evaluatedPath = result
@@ -304,7 +255,6 @@ func (i *Import) EvalForImport(context any) *Import {
 	}
 
 	newImport := NewImport(evaluatedPath, i.features, i.options, i._index, i._fileInfo, i.VisibilityInfo())
-	// Copy fields that are set by ImportVisitor - these need to be preserved
 	newImport.root = i.root
 	newImport.importedFilename = i.importedFilename
 	newImport.skip = i.skip
@@ -312,7 +262,6 @@ func (i *Import) EvalForImport(context any) *Import {
 	return newImport
 }
 
-// EvalPath evaluates the import path
 func (i *Import) EvalPath(context any) any {
 	if os.Getenv("LESS_GO_DEBUG") == "1" {
 		fmt.Printf("[DEBUG Import.EvalPath] Starting, i.css=%v, i.path type=%T\n", i.css, i.path)
@@ -336,13 +285,11 @@ func (i *Import) EvalPath(context any) any {
 		fmt.Printf("[DEBUG Import.EvalPath] After Eval, path type=%T\n", path)
 	}
 
-	// Check if path is not a URL
 	if _, ok := path.(*URL); !ok {
 		var pathValue any
 		if pathMap, ok := path.(map[string]any); ok {
 			pathValue = pathMap["value"]
 		} else if quoted, ok := path.(*Quoted); ok {
-			// *Quoted.GetValue() returns string, not any
 			pathValue = quoted.GetValue()
 		} else if pathWithValue, ok := path.(interface{ GetValue() any }); ok {
 			pathValue = pathWithValue.GetValue()
@@ -362,7 +309,6 @@ func (i *Import) EvalPath(context any) any {
 			var newValue string
 			needsUpdate := false
 
-			// Handle *Eval context (like url.go does)
 			if evalCtx, ok := context.(*Eval); ok {
 				requiresRewrite := evalCtx.PathRequiresRewrite(pathValueStr)
 				if os.Getenv("LESS_GO_DEBUG") == "1" {
@@ -370,13 +316,9 @@ func (i *Import) EvalPath(context any) any {
 				}
 				if requiresRewrite {
 					if rootpath, ok := fileInfo["rootpath"].(string); ok {
-						// When rewriteUrls is ALL (truthy), don't add "./" prefix for @imports
-						// When rewriteUrls is OFF, preserve "./" for explicit local relative paths
 						if evalCtx.RewriteUrls == RewriteUrlsAll {
-							// Use NormalizePath with rootpath, don't add "./"
 							newValue = evalCtx.NormalizePath(rootpath + pathValueStr)
 						} else {
-							// Use RewritePath which adds "./" when original path was local relative
 							newValue = evalCtx.RewritePath(pathValueStr, rootpath)
 						}
 						needsUpdate = true
@@ -392,8 +334,6 @@ func (i *Import) EvalPath(context any) any {
 					}
 				}
 			} else if ctx, ok := context.(map[string]any); ok {
-				// Handle map-based context (for backward compatibility)
-				// Check if path requires rewrite
 				if pathRequiresRewrite, ok := ctx["pathRequiresRewrite"].(func(string) bool); ok && pathRequiresRewrite(pathValueStr) {
 					if rewritePath, ok := ctx["rewritePath"].(func(string, string) string); ok {
 						if rootpath, ok := fileInfo["rootpath"].(string); ok {
@@ -407,19 +347,15 @@ func (i *Import) EvalPath(context any) any {
 				}
 			}
 
-			// Apply the update if needed
 			if needsUpdate {
 				if pathMap, ok := path.(map[string]any); ok {
-					// Update map-based path
 					pathMap["value"] = newValue
 				} else if quoted, ok := path.(*Quoted); ok {
-					// Create a new Quoted with the updated value
-					// Preserve the quote character and escaped flag
 					var str string
 					if quoted.GetQuote() == "" {
-						str = ""  // Unquoted
+						str = ""
 					} else {
-						str = quoted.GetQuote() + newValue + quoted.GetQuote()  // Quoted
+						str = quoted.GetQuote() + newValue + quoted.GetQuote()
 					}
 					path = NewQuoted(str, newValue, quoted.GetEscaped(), quoted.GetIndex(), quoted.FileInfo())
 				}
@@ -430,24 +366,14 @@ func (i *Import) EvalPath(context any) any {
 	return path
 }
 
-// Eval evaluates the import
 func (i *Import) Eval(context any) (any, error) {
 	result, err := i.DoEval(context)
 	if err != nil {
 		return nil, err
 	}
 
-	// For reference imports, add visibility blocks to ALL nodes recursively.
-	// This matches JavaScript's behavior where ToCSSVisitor.VisitRuleset calls ensureVisibility()
-	// on rulesets that don't block visibility. Without recursive blocking, nested content
-	// from reference imports would become visible when VisitRuleset processes them.
-	//
-	// Note: JavaScript only calls addVisibilityBlock() on top-level nodes, but JavaScript's
-	// VisitRuleset behavior differs from Go's - it filters based on selector visibility
-	// rather than calling ensureVisibility() unconditionally.
-	//
-	// When mixins are called with content from reference imports, ensureMixinContentVisibility()
-	// clears the visibility blocks recursively, making the mixin content visible.
+	// For reference imports, add visibility blocks recursively so nested content
+	// stays invisible until explicitly referenced via mixins.
 	if i.getBoolOption("reference") || i.BlocksVisibility() {
 		if resultSlice, ok := result.([]any); ok {
 			for _, node := range resultSlice {
@@ -461,21 +387,15 @@ func (i *Import) Eval(context any) (any, error) {
 	return result, nil
 }
 
-// addVisibilityBlockRecursive adds visibility blocks to a node and all descendants
-// This ensures that all nodes from a reference import are marked as invisible by default
 func addVisibilityBlockRecursive(node any) {
 	if node == nil {
 		return
 	}
 
-	// Add visibility block to this node
 	if nodeWithVisibility, ok := node.(interface{ AddVisibilityBlock() }); ok {
 		nodeWithVisibility.AddVisibilityBlock()
 	}
 
-	// Recursively add to all nested nodes
-	// This is necessary because Media/AtRule nodes contain wrapper Rulesets
-	// which in turn contain the actual content nodes
 	if nodeWithRules, ok := node.(interface{ GetRules() []any }); ok {
 		rules := nodeWithRules.GetRules()
 		for _, rule := range rules {
@@ -483,8 +403,6 @@ func addVisibilityBlockRecursive(node any) {
 		}
 	}
 
-	// Also recurse into Selectors for Ruleset nodes
-	// Selectors contain ExtendList which needs visibility blocks
 	if nodeWithSelectors, ok := node.(interface{ GetSelectors() []any }); ok {
 		selectors := nodeWithSelectors.GetSelectors()
 		for _, selector := range selectors {
@@ -492,8 +410,6 @@ func addVisibilityBlockRecursive(node any) {
 		}
 	}
 
-	// Also recurse into ExtendList for Selector nodes
-	// Extend nodes need visibility blocks too when inside reference imports
 	if nodeWithExtends, ok := node.(interface{ GetExtendList() []*Extend }); ok {
 		extendList := nodeWithExtends.GetExtendList()
 		for _, extend := range extendList {
@@ -503,7 +419,6 @@ func addVisibilityBlockRecursive(node any) {
 }
 
 
-// DoEval performs the actual evaluation logic
 func (i *Import) DoEval(context any) (any, error) {
 	var features any
 	if i.features != nil {
@@ -518,12 +433,8 @@ func (i *Import) DoEval(context any) (any, error) {
 		}
 	}
 
-	// Check if this is a variable import that should be treated as CSS
-	// When an import path contains variables (e.g., @import "@{var}";), the css flag
-	// may not be set at parse time. After variable interpolation, we need to re-check
-	// if the evaluated path is a CSS file.
+	// Re-check for CSS imports after variable interpolation
 	if !i.css && i.root == nil {
-		// Evaluate the path to get the actual path value after variable interpolation
 		var pathStr string
 		if pathEval, ok := i.path.(interface{ Eval(any) (any, error) }); ok {
 			if result, err := pathEval.Eval(context); err == nil {
@@ -532,36 +443,28 @@ func (i *Import) DoEval(context any) (any, error) {
 				}
 			}
 		}
-		// Check if the evaluated path is a CSS file
 		if pathStr != "" && cssPatternRegex.MatchString(pathStr) {
-			// This is a CSS import - create a new Import with the evaluated path and return it
 			newImport := NewImport(i.EvalPath(context), features, i.options, i._index, i._fileInfo, nil)
 			newImport.css = true
 			return newImport, nil
 		}
 	}
 
-	// Handle plugin imports
 	if i.getBoolOption("isPlugin") {
 		debug := os.Getenv("LESS_GO_DEBUG") == "1"
 		if debug {
 			fmt.Fprintf(os.Stderr, "[Import.DoEval] isPlugin=true, root type=%T\n", i.root)
 		}
 
-		// DEFERRED PLUGIN LOADING:
-		// If root is a DeferredPluginInfo, the plugin was deferred during import phase
-		// and needs to be loaded now during evaluation. This ensures the plugin's functions
-		// are registered at the current scope depth (not globally at depth 0).
+		// Load deferred plugins at current scope depth
 		if deferredInfo, ok := i.root.(*DeferredPluginInfo); ok {
 			if debug {
 				fmt.Fprintf(os.Stderr, "[Import.DoEval] DeferredPluginInfo: path=%s, dir=%s\n", deferredInfo.Path, deferredInfo.CurrentDirectory)
 			}
 
-			// Get the plugin bridge from context to load the plugin
 			var pluginBridge *NodeJSPluginBridge
 			if evalCtx, ok := context.(*Eval); ok {
 				pluginBridge = evalCtx.PluginBridge
-				// Also check LazyPluginBridge
 				if pluginBridge == nil && evalCtx.LazyPluginBridge != nil {
 					var err error
 					pluginBridge, err = evalCtx.LazyPluginBridge.GetBridge()
@@ -587,8 +490,6 @@ func (i *Import) DoEval(context any) (any, error) {
 					fmt.Fprintf(os.Stderr, "[Import.DoEval] Found pluginBridge, loading plugin at current scope\n")
 				}
 
-				// Load the plugin at the current scope depth
-				// The scope depth is already managed by Ruleset.Eval() calling EnterPluginScope()
 				loadContext := map[string]any{
 					"syncImport": true,
 				}
@@ -618,13 +519,10 @@ func (i *Import) DoEval(context any) (any, error) {
 					fmt.Fprintf(os.Stderr, "[Import.DoEval] Plugin loaded successfully: %T\n", result)
 				}
 
-				// Store the loaded plugin as root for potential future reference
 				i.root = result
 
-				// Store loaded function names on the containing Ruleset.
-				// This enables mixin calls to inherit plugin functions from ancestor frames.
+				// Store function names on the containing Ruleset for mixin inheritance
 				if plugin, ok := result.(*runtime.Plugin); ok && len(plugin.Functions) > 0 {
-					// Find the first Ruleset in the context frames
 					var frames []any
 					if evalCtx, ok := context.(*Eval); ok {
 						frames = evalCtx.Frames
@@ -645,29 +543,23 @@ func (i *Import) DoEval(context any) (any, error) {
 									fmt.Fprintf(os.Stderr, "[Import.DoEval] Stored function '%s' on Ruleset=%p\n", funcName, rs)
 								}
 							}
-							break // Only store on the first (innermost) Ruleset
+							break
 						}
 					}
 				}
 			} else {
-				// No plugin bridge available - plugin loading not supported
 				if os.Getenv("LESS_GO_DEBUG") == "1" {
 					fmt.Fprintf(os.Stderr, "[Import.DoEval] No plugin bridge available for deferred plugin: %s\n", deferredInfo.Path)
 				}
 			}
 		} else if i.root != nil {
-			// Handle already-loaded plugins (from previous evaluation or pre-loaded)
 			if rootEval, ok := i.root.(interface{ Eval(any) (any, error) }); ok {
 				_, err := rootEval.Eval(context)
 				if err != nil {
-					// Match JavaScript error creation
-					// e.message = 'Plugin error during evaluation';
-					// throw new LessError(e, this.root.imports, this.root.filename);
 					var filename string
 					if rootWithFilename, ok := i.root.(interface{ GetFilename() string }); ok {
 						filename = rootWithFilename.GetFilename()
 					}
-					// Wrap the original error with our message
 					lessErr := &LessError{
 						Type:     "Plugin",
 						Message:  "Plugin error during evaluation",
@@ -679,13 +571,9 @@ func (i *Import) DoEval(context any) (any, error) {
 			}
 		}
 
-		// Handle function registry - register plugin functions
-		// Note: For deferred plugins loaded via NodeJS bridge, functions are already
-		// registered in the Node.js scope stack. This registry is for Go-native plugins.
 		if ctx, ok := context.(map[string]any); ok {
 			if frames, ok := ctx["frames"].([]any); ok && len(frames) > 0 {
 				if frameRuleset, ok := frames[0].(*Ruleset); ok && frameRuleset.FunctionRegistry != nil {
-					// If plugin loaded successfully, use its functions
 					if i.root != nil {
 						if rootWithFunctions, ok := i.root.(interface{ GetFunctions() map[string]any }); ok {
 							functions := rootWithFunctions.GetFunctions()
@@ -696,8 +584,6 @@ func (i *Import) DoEval(context any) (any, error) {
 							}
 						}
 					} else {
-						// Plugin failed to load, but register test functions to support integration tests
-						// This simulates the JavaScript plugin behavior where functions are added to registry
 						registerTestPluginFunctions(frameRuleset.FunctionRegistry)
 					}
 				}
@@ -707,7 +593,6 @@ func (i *Import) DoEval(context any) (any, error) {
 		return []any{}, nil
 	}
 
-	// Handle skip logic
 	if i.skip != nil {
 		var shouldSkip bool
 		if skipFunc, ok := i.skip.(func() bool); ok {
@@ -720,7 +605,6 @@ func (i *Import) DoEval(context any) (any, error) {
 		}
 	}
 
-	// Handle inline imports
 	if i.getBoolOption("inline") {
 		if os.Getenv("LESS_GO_DEBUG") == "1" {
 			rootType := fmt.Sprintf("%T", i.root)
@@ -739,11 +623,7 @@ func (i *Import) DoEval(context any) (any, error) {
 			"reference": i.pathFileInfoReference(),
 		}, true, true, nil)
 
-		// Match JavaScript: return this.features ? new Media([contents], this.features.value) : [contents];
-		// JavaScript uses this.features (not evaluated), and extracts .value property
 		if i.features != nil {
-			// Extract the value from i.features
-			// i.features is *Value with Value field containing the array of nodes
 			var featuresValue any
 			if val, ok := i.features.(*Value); ok {
 				featuresValue = val.Value
@@ -751,17 +631,12 @@ func (i *Import) DoEval(context any) (any, error) {
 				featuresValue = i.features
 			}
 
-			// Pass Import's visibility info to preserve reference import blocking
 			return NewMedia([]any{contents}, featuresValue, i._index, i._fileInfo, i.VisibilityInfo()), nil
 		}
 		return []any{contents}, nil
 	}
 
-	// Handle CSS imports
 	if i.css {
-		// Note: Pass nil for fileInfo to prevent double path rewriting when the new Import is evaluated again.
-		// JavaScript does the same: new Import(this.evalPath(context), features, this.options, this._index)
-		// The _index parameter is the 4th arg, and fileInfo is omitted (undefined in JS).
 		newImport := NewImport(i.EvalPath(context), features, i.options, i._index, nil, nil)
 		if !newImport.css && i.error != nil {
 			return nil, i.error
@@ -769,7 +644,6 @@ func (i *Import) DoEval(context any) (any, error) {
 		return newImport, nil
 	}
 
-	// Handle regular imports with root
 	if i.root != nil {
 		var rules []any
 		if rootWithRules, ok := i.root.(interface{ GetRules() []any }); ok {
@@ -783,11 +657,7 @@ func (i *Import) DoEval(context any) (any, error) {
 			return nil, err
 		}
 
-		// Match JavaScript: return this.features ? new Media(ruleset.rules, this.features.value) : ruleset.rules;
-		// JavaScript uses this.features (not evaluated), and extracts .value property
 		if i.features != nil {
-			// Extract the value from i.features
-			// i.features is *Value with Value field containing the array of nodes
 			var featuresValue any
 			if val, ok := i.features.(*Value); ok {
 				featuresValue = val.Value
@@ -795,7 +665,6 @@ func (i *Import) DoEval(context any) (any, error) {
 				featuresValue = i.features
 			}
 
-			// Pass Import's visibility info to preserve reference import blocking
 			return NewMedia(ruleset.Rules, featuresValue, i._index, i._fileInfo, i.VisibilityInfo()), nil
 		}
 		return ruleset.Rules, nil

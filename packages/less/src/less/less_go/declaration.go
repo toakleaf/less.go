@@ -23,7 +23,12 @@ func NewDeclaration(name any, value any, important any, merge any, index int, fi
 
 	d := GetDeclarationFromPool()
 	d.Node = node
-	d.name = name
+	// Intern property names when they are strings (most common case)
+	if nameStr, ok := name.(string); ok {
+		d.name = Intern(nameStr)
+	} else {
+		d.name = name
+	}
 	d.important = ""
 	d.merge = merge
 	d.inline = inline
@@ -40,7 +45,7 @@ func NewDeclaration(name any, value any, important any, merge any, index int, fi
 			// JavaScript: this.important = important ? ` ${important.trim()}` : '';
 			str = strings.TrimSpace(str)
 			if str != "" {
-				d.important = " " + str
+				d.important = Intern(" " + str)
 			}
 		}
 	}
@@ -290,8 +295,8 @@ func (d *Declaration) Eval(context any) (any, error) {
 
 	// Create important scope
 	if evalCtx, ok := context.(*Eval); ok {
-		// For *Eval context, append to ImportantScope directly
-		evalCtx.ImportantScope = append(evalCtx.ImportantScope, map[string]any{})
+		// For *Eval context, use typed PushImportantScope
+		evalCtx.PushImportantScope()
 	} else if ctx, ok := context.(map[string]any); ok {
 		// For map context, manage importantScope in the map
 		if importantScope, ok := ctx["importantScope"].([]any); ok {
@@ -342,17 +347,11 @@ func (d *Declaration) Eval(context any) (any, error) {
 	// Handle important flag
 	important := d.important
 	if evalCtx, ok := context.(*Eval); ok {
-		// For *Eval context, pop from ImportantScope directly
-		if len(evalCtx.ImportantScope) > 0 {
-			lastScope := evalCtx.ImportantScope[len(evalCtx.ImportantScope)-1]
-			evalCtx.ImportantScope = evalCtx.ImportantScope[:len(evalCtx.ImportantScope)-1]
-
-			// Check if we should use the important flag from the scope
-			if important == "" && lastScope != nil {
-				if imp, ok := lastScope["important"].(string); ok && imp != "" {
-					important = imp
-				}
-			}
+		// For *Eval context, use typed PopImportantScope
+		lastScope := evalCtx.PopImportantScope()
+		// Check if we should use the important flag from the scope
+		if important == "" && lastScope.Important != "" {
+			important = lastScope.Important
 		}
 	} else if ctx, ok := context.(map[string]any); ok {
 		// For map context, pop from importantScope in the map

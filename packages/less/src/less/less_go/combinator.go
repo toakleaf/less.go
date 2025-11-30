@@ -21,7 +21,7 @@ func NewCombinator(value string) *Combinator {
 		c.Value = " "
 		c.EmptyOrWhitespace = true
 	} else if value != "" {
-		c.Value = trimWhitespace(value)
+		c.Value = Intern(trimWhitespace(value))
 		c.EmptyOrWhitespace = c.Value == ""
 	} else {
 		c.Value = ""

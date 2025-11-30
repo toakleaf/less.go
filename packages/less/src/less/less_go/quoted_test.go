@@ -582,4 +582,87 @@ func TestQuoted_ContainsVariablesEdgeCases(t *testing.T) {
 			t.Errorf("Expected ContainsVariables to return true")
 		}
 	})
+}
+
+// Benchmarks for interpolation functions
+func BenchmarkContainsVariables(b *testing.B) {
+	testCases := []struct {
+		name  string
+		value string
+	}{
+		{"no_vars", "Hello World"},
+		{"single_var", "Hello @{name} World"},
+		{"multiple_vars", "Hello @{first} @{second} @{third} World"},
+		{"long_string", "This is a very long string with @{variable} interpolation in the middle and more text after that keeps going"},
+		{"no_match", "This string has @ and { but not @{ together properly"},
+	}
+
+	for _, tc := range testCases {
+		b.Run(tc.name, func(b *testing.B) {
+			quoted := NewQuoted("\"", tc.value, false, 0, nil)
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_ = quoted.ContainsVariables()
+			}
+		})
+	}
+}
+
+func BenchmarkInterpolateBracedVars(b *testing.B) {
+	testCases := []struct {
+		name  string
+		value string
+	}{
+		{"no_vars", "Hello World"},
+		{"single_var", "Hello @{name} World"},
+		{"multiple_vars", "Hello @{first} @{second} @{third} World"},
+		{"long_string", "This is a very long string with @{variable} interpolation in the middle and more text after that keeps going"},
+	}
+
+	evalFunc := func(name string) (string, error) {
+		return "replaced", nil
+	}
+
+	for _, tc := range testCases {
+		b.Run(tc.name, func(b *testing.B) {
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_, _, _ = interpolateBracedVars(tc.value, evalFunc)
+			}
+		})
+	}
+}
+
+func BenchmarkQuotedEval(b *testing.B) {
+	context := &MockEvalContext{
+		frames: []ParserFrame{
+			&MockFrame{
+				variableFunc: func(name string) map[string]any {
+					return map[string]any{
+						"value": NewQuoted("\"", "replaced", true, 0, nil),
+					}
+				},
+			},
+		},
+	}
+
+	testCases := []struct {
+		name  string
+		value string
+	}{
+		{"no_vars", "Hello World"},
+		{"single_var", "Hello @{name} World"},
+		{"multiple_vars", "Hello @{first} @{second} @{third} World"},
+		{"long_string", "This is a very long string with @{variable} interpolation in the middle and more text after that keeps going"},
+	}
+
+	for _, tc := range testCases {
+		b.Run(tc.name, func(b *testing.B) {
+			quoted := NewQuoted("\"", tc.value, false, 0, nil)
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_, _ = quoted.Eval(context)
+			}
+		})
+	}
 } 
