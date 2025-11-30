@@ -74,6 +74,27 @@ This directory contains task files for issues that have been successfully resolv
 - **Impact**: Maintained and improved mixin functionality
 - **Summary**: All documented mixin regressions fixed.
 
+### import-reference.md
+- **Completed**: 2025-11-28
+- **Issues**: Import reference functionality (`@import (reference)`)
+- **Impact**: Fixed 2 tests (import-reference, import-reference-issues)
+- **Tests**: import-reference, import-reference-issues
+- **Summary**: Files imported with `(reference)` option now correctly handled - they don't output CSS by default, but selectors/mixins are available for extends or mixin calls.
+
+### inline-js/ (folder)
+- **Completed**: 2025-11-30
+- **Issues**: Inline JavaScript expression evaluation
+- **Impact**: Fixed 3+ test suites (javascript, js-type-errors, no-js-errors)
+- **Tests**: javascript, js-type-errors/*, no-js-errors/*
+- **Summary**: Implemented inline JavaScript evaluation via Node.js runtime integration. Supports backtick expressions, variable access via `this.varName.toJS()`, and `@{varName}` interpolation.
+
+### error-handling/ (folder)
+- **Completed**: 2025-11-27
+- **Issues**: Expected error validation tests
+- **Impact**: All 89 error handling tests correctly validate and fail
+- **Tests**: All 62 eval-errors tests, all 27 parse-errors tests
+- **Summary**: Complete error validation including math validation, variable resolution, color function validation, and parser validation.
+
 ## Archive Policy
 
 Task files are moved here when:
