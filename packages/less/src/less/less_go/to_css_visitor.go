@@ -518,13 +518,6 @@ func (v *ToCSSVisitor) VisitNodeOut(node any) bool {
 	return false
 }
 
-// isRulesetAtRoot checks if a ruleset is at the root level (has no parent selectors)
-func (v *ToCSSVisitor) isRulesetAtRoot(rulesetNode any) bool {
-	// For now, we'll check if it's the first level ruleset
-	// This is a simplified check - in a full implementation we'd track the context
-	return true
-}
-
 // containsOnlyProperties checks if rules contain only properties (no nested rulesets)
 func (v *ToCSSVisitor) containsOnlyProperties(rules []any) bool {
 	if len(rules) == 0 {

@@ -7,23 +7,6 @@ import (
 	"strings"
 )
 
-// formatNumber formats a number to remove unnecessary decimal places
-func formatNumber(n float64) string {
-	// Round to 8 decimal places to avoid floating point precision issues
-	rounded := math.Round(n*100000000) / 100000000
-
-	// If the number is effectively an integer, return it without decimals
-	if rounded == math.Floor(rounded) {
-		return fmt.Sprintf("%.0f", rounded)
-	}
-
-	// Otherwise, format with up to 8 decimal places, trimming trailing zeros
-	s := fmt.Sprintf("%.8f", rounded)
-	s = strings.TrimRight(s, "0")
-	s = strings.TrimRight(s, ".")
-	return s
-}
-
 // formatNumberForCSS formats a number for CSS output
 // This is used after Fround has already applied precision formatting
 // Match JavaScript behavior: just convert to string, removing trailing zeros

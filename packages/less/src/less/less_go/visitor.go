@@ -5,7 +5,6 @@ import (
 	"strconv"
 )
 
-var _visitArgs = map[string]bool{"visitDeeper": true}
 var _hasIndexed = false
 
 // VisitArgs represents the visit arguments passed to visitor functions

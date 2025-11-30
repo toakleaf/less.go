@@ -1559,15 +1559,6 @@ func (r *Ruleset) HasProperties() bool {
 	return true // Rulesets always support properties
 }
 
-// Variable returns a variable by name, matching JavaScript behavior
-func (r *Ruleset) variable(name string) any {
-	decl := r.Variables()[name]
-	if decl != nil {
-		return r.ParseValue(decl)
-	}
-	return nil
-}
-
 // LastDeclaration returns the last declaration in the ruleset
 func (r *Ruleset) LastDeclaration() any {
 	if r.Rules == nil {

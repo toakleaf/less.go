@@ -5,13 +5,12 @@ import "strings"
 // QueryInParens represents a query in parentheses node in the Less AST
 type QueryInParens struct {
 	*Node
-	op        string
-	lvalue    any
-	mvalue    any
-	op2       string
-	rvalue    any
-	mvalues   []any
-	mvalueCopy any
+	op      string
+	lvalue  any
+	mvalue  any
+	op2     string
+	rvalue  any
+	mvalues []any
 }
 
 // NewQueryInParens creates a new QueryInParens instance
@@ -152,110 +151,5 @@ func (q *QueryInParens) GenCSS(context any, output *CSSOutput) {
 		} else {
 			output.Add(q.rvalue, nil, nil)
 		}
-	}
-}
-
-// deepCopy creates a deep copy of a value
-func deepCopy(value any) any {
-	switch v := value.(type) {
-	case *QueryInParens:
-		copy := *v
-		return &copy
-	case *Node:
-		copy := *v
-		return &copy
-	case *Declaration:
-		copy := *v
-		return &copy
-	case *Anonymous:
-		copy := *v
-		return &copy
-	case *Value:
-		vcopy := *v
-		return &vcopy
-	case *Dimension:
-		copy := *v
-		return &copy
-	case *Color:
-		ccopy := *v
-		// Deep copy RGB slice
-		ccopy.RGB = make([]float64, len(v.RGB))
-		for i := range v.RGB {
-			ccopy.RGB[i] = v.RGB[i]
-		}
-		return &ccopy
-	case *Operation:
-		copy := *v
-		// Deep copy operands
-		copy.Operands = deepCopy(v.Operands).([]any)
-		return &copy
-	case *Selector:
-		copy := *v
-		// Deep copy elements
-		if v.Elements != nil {
-			copy.Elements = make([]*Element, len(v.Elements))
-			for i, el := range v.Elements {
-				if el != nil {
-					elCopy := deepCopy(el).(*Element)
-					copy.Elements[i] = elCopy
-				}
-			}
-		}
-		// Deep copy ExtendList
-		if v.ExtendList != nil {
-			copy.ExtendList = deepCopy(v.ExtendList).([]any)
-		}
-		return &copy
-	case *Element:
-		copy := *v
-		// Deep copy Value
-		copy.Value = deepCopy(v.Value)
-		// Deep copy Combinator
-		if v.Combinator != nil {
-			combCopy := deepCopy(v.Combinator).(*Combinator)
-			copy.Combinator = combCopy
-		}
-		return &copy
-	case *Combinator:
-		copy := *v
-		return &copy
-	case *Keyword:
-		copy := *v
-		return &copy
-	case *Unit:
-		ucopy := *v
-		// Deep copy numerator and denominator
-		if v.Numerator != nil {
-			ucopy.Numerator = make([]string, len(v.Numerator))
-			for i := range v.Numerator {
-				ucopy.Numerator[i] = v.Numerator[i]
-			}
-		}
-		if v.Denominator != nil {
-			ucopy.Denominator = make([]string, len(v.Denominator))
-			for i := range v.Denominator {
-				ucopy.Denominator[i] = v.Denominator[i]
-			}
-		}
-		return &ucopy
-	case []any:
-		copy := make([]any, len(v))
-		for i, item := range v {
-			copy[i] = deepCopy(item)
-		}
-		return copy
-	case map[string]any:
-		copy := make(map[string]any)
-		for k, val := range v {
-			copy[k] = deepCopy(val)
-		}
-		return copy
-	case string, int, int64, float64, bool, nil:
-		// Primitive types are already immutable
-		return v
-	default:
-		// For unknown types, return as-is
-		// This is safer than panicking and matches JavaScript behavior
-		return v
 	}
 } 
