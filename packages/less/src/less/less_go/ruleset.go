@@ -45,10 +45,11 @@ type Ruleset struct {
 	StrictImports bool
 	AllowRoot     bool
 	// Private fields for caching
-	lookups    map[string][]any
-	variables  map[string]any
-	properties map[string][]any
-	rulesets   []any
+	lookups       map[string][]any
+	variables     map[string]any
+	properties    map[string][]any
+	rulesets      []any                     // Cache for Rulesets() results
+	variableCache map[string]map[string]any // Cache for Variable() results (transformed declarations)
 	// Original ruleset reference for eval
 	OriginalRuleset *Ruleset
 	Root            bool
@@ -1338,6 +1339,7 @@ func (r *Ruleset) ResetCache() {
 	r.rulesets = nil
 	r.variables = nil
 	r.properties = nil
+	r.variableCache = nil
 	// Use nil instead of make() - lookups is lazily initialized in Find() when needed
 	// This avoids allocating a map that may never be used
 	r.lookups = nil
@@ -1461,12 +1463,20 @@ func (r *Ruleset) Properties() map[string][]any {
 }
 
 func (r *Ruleset) Variable(name string) map[string]any {
+	// Check cache first
+	if r.variableCache != nil {
+		if cached, ok := r.variableCache[name]; ok {
+			return cached
+		}
+	}
+
 	vars := r.Variables()
 	if decl, exists := vars[name]; exists {
+		var result map[string]any
 		if d, ok := decl.(*Declaration); ok {
 			// Transform the declaration to parse Anonymous values into proper nodes
 			transformed := r.transformDeclaration(d)
-			
+
 			// Return the expected format with value and important fields
 			var value any
 			if transformedDecl, ok := transformed.(*Declaration); ok {
@@ -1474,34 +1484,45 @@ func (r *Ruleset) Variable(name string) map[string]any {
 			} else {
 				value = d.Value
 			}
-			
-			result := map[string]any{
+
+			result = map[string]any{
 				"value": value,
 			}
-			
+
 			// Check if the declaration has important flag
 			if d.GetImportant() {
 				// Store the actual important string value, not just a boolean
 				result["important"] = d.important
 			}
-			
-			return result
 		} else {
 			// Handle other types (like mock declarations in tests)
-			result := map[string]any{
+			result = map[string]any{
 				"value": r.ParseValue(decl),
 			}
-			
+
 			// Check if the declaration has important flag
 			if declMap, ok := decl.(map[string]any); ok {
 				if important, hasImportant := declMap["important"]; hasImportant {
 					result["important"] = important
 				}
 			}
-			
-			return result
 		}
+
+		// Cache the result
+		if r.variableCache == nil {
+			r.variableCache = make(map[string]map[string]any)
+		}
+		r.variableCache[name] = result
+
+		return result
 	}
+
+	// Cache nil result to avoid repeated lookups for missing variables
+	if r.variableCache == nil {
+		r.variableCache = make(map[string]map[string]any)
+	}
+	r.variableCache[name] = nil
+
 	return nil
 }
 
@@ -1653,8 +1674,14 @@ func (r *Ruleset) transformDeclaration(decl any) any {
 }
 
 func (r *Ruleset) Rulesets() []any {
+	// Check cache first
+	if r.rulesets != nil {
+		return r.rulesets
+	}
+
 	if r.Rules == nil {
-		return []any{}
+		r.rulesets = []any{}
+		return r.rulesets
 	}
 
 	// Pre-allocate with estimated capacity - typically a fraction of rules are rulesets
@@ -1665,6 +1692,8 @@ func (r *Ruleset) Rulesets() []any {
 		}
 	}
 
+	// Cache the result
+	r.rulesets = filtered
 	return filtered
 }
 
