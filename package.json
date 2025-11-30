@@ -10,6 +10,7 @@
     "test": "cd packages/less && npm test",
     "test:go": "go run scripts/test.go integration",
     "test:go:unit": "go run scripts/test.go unit",
+    "test:go:all": "bash scripts/test-all.sh",
     "test:go:full": "go run scripts/test.go integration",
     "test:go:summary": "go run scripts/test_enhanced.go summary",
     "test:go:debug": "go run scripts/test_enhanced.go integration --debug",
