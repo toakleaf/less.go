@@ -146,12 +146,17 @@ func (e *Expression) Eval(context any) (any, error) {
 				newValues[i] = nil
 				continue
 			}
-			
-			
+
+
 			newValues[i] = SafeEval(val, context)
 		}
-		
-		expr, _ := NewExpression(newValues, e.NoSpacing)
+
+		// Extract arena from context for zero-allocation node reuse
+		var arena *NodeArena
+		if evalCtx, ok := context.(*Eval); ok {
+			arena = evalCtx.Arena
+		}
+		expr, _ := NewExpressionWithArena(arena, newValues, e.NoSpacing)
 		returnValue = expr
 	} else if len(e.Value) == 1 {
 		if val0, ok := SafeSliceIndex(e.Value, 0); ok && !SafeNilCheck(val0) {

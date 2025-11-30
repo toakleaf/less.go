@@ -299,7 +299,14 @@ func (e *Element) Eval(context any) (any, error) {
 	// This allows the ruleset evaluation to detect interpolated selectors and re-parse them
 	isVariable := e.IsVariable || wasInterpolated
 
-	newElement := NewElement(
+	// Extract arena from context for zero-allocation node reuse
+	var arena *NodeArena
+	if evalCtx, ok := context.(*Eval); ok {
+		arena = evalCtx.Arena
+	}
+
+	newElement := NewElementWithArena(
+		arena,
 		e.Combinator,
 		evaluatedValue,
 		isVariable,
