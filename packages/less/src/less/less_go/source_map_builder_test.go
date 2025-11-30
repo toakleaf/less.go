@@ -16,7 +16,6 @@ func (m *MockBuilderEnvironment) EncodeBase64(str string) string {
 	return base64.StdEncoding.EncodeToString([]byte(str))
 }
 
-// MockBuilderNode that implements Node interface for testing
 type MockBuilderNode struct {
 	Node
 	GenCSSFunc func(context map[string]any, output *SourceMapOutput)

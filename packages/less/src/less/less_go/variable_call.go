@@ -14,7 +14,6 @@ type VariableCall struct {
 	allowRoot bool
 }
 
-// NewVariableCall creates a new VariableCall instance
 func NewVariableCall(variable string, index int, currentFileInfo map[string]any) *VariableCall {
 	return &VariableCall{
 		Node:      NewNode(),
@@ -25,22 +24,18 @@ func NewVariableCall(variable string, index int, currentFileInfo map[string]any)
 	}
 }
 
-// Type returns the node type
 func (vc *VariableCall) Type() string {
 	return "VariableCall"
 }
 
-// GetType returns the node type
 func (vc *VariableCall) GetType() string {
 	return "VariableCall"
 }
 
-// GetIndex returns the node's index
 func (vc *VariableCall) GetIndex() int {
 	return vc._index
 }
 
-// FileInfo returns the node's file information
 func (vc *VariableCall) FileInfo() map[string]any {
 	return vc._fileInfo
 }
@@ -79,7 +74,6 @@ func (vc *VariableCall) Eval(context any) (result any, err error) {
 	// In JavaScript, if eval throws, execution stops. In Go, we need to check the error.
 	detachedRuleset, varErr := variable.Eval(context)
 	if varErr != nil {
-		// Variable not found or couldn't be evaluated
 		return nil, varErr
 	}
 
@@ -96,7 +90,6 @@ func (vc *VariableCall) Eval(context any) (result any, err error) {
 	// Handle MixinCall - when a variable contains a mixin call, we need to evaluate it
 	// This handles cases like: @alias: .mixin(); @alias();
 	if mixinCall, ok := detachedRuleset.(*MixinCall); ok {
-		// Evaluate the mixin call to get its rules
 		rules, err := mixinCall.Eval(context)
 		if err != nil {
 			return nil, err
@@ -117,7 +110,6 @@ func (vc *VariableCall) Eval(context any) (result any, err error) {
 	if !hasRuleset {
 		var rules any
 
-		// Debug logging
 		if os.Getenv("LESS_GO_DEBUG") == "1" {
 			fmt.Fprintf(os.Stderr, "[DEBUG VariableCall] No ruleset, checking for rules in type %T\n", detachedRuleset)
 		}

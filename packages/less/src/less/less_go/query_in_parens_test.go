@@ -6,7 +6,6 @@ import (
 	"testing"
 )
 
-// TestCSSOutput is a test implementation of CSSOutput
 type TestCSSOutput struct {
 	*CSSOutput
 	str string
@@ -14,9 +13,8 @@ type TestCSSOutput struct {
 
 func NewTestCSSOutput() *TestCSSOutput {
 	tco := &TestCSSOutput{
-		str: "", // Explicitly initialize str
+		str: "",
 	}
-	// Define the Add function referencing the specific tco instance
 	addFunc := func(chunk any, fileInfo any, index any) {
 		if chunk != nil {
 			tco.str += fmt.Sprintf("%v", chunk)
@@ -194,19 +192,17 @@ func TestQueryInParens(t *testing.T) {
 				t.Fatalf("Eval failed: %v", err)
 			}
 
-			// Eval should return a NEW instance, not the same one (important for mixin expansion)
+			// Eval should return a NEW instance (important for mixin expansion)
 			if result == query {
 				t.Error("Expected result to be a different instance (new node)")
 			}
 			resultQuery := result.(*QueryInParens)
-			// The new instance should have the same operators
 			if resultQuery.op != query.op {
 				t.Error("Expected op to be preserved")
 			}
 			if resultQuery.op2 != query.op2 {
 				t.Error("Expected op2 to be preserved")
 			}
-			// After evaluation, the values should be evaluated (Anonymous nodes return new instances)
 			if resultQuery.lvalue == nil {
 				t.Error("Expected lvalue to be set")
 			}
@@ -246,12 +242,10 @@ func TestQueryInParens(t *testing.T) {
 				t.Fatalf("Eval failed: %v", err)
 			}
 
-			// Eval should return a NEW instance, not the same one (important for mixin expansion)
 			if result == query {
 				t.Error("Expected result to be a different instance (new node)")
 			}
 			resultQuery := result.(*QueryInParens)
-			// The new instance should have evaluated values
 			if resultQuery.lvalue == nil {
 				t.Error("Expected lvalue to be set")
 			}
@@ -291,11 +285,10 @@ func TestQueryInParens(t *testing.T) {
 				t.Fatalf("Second eval failed: %v", err)
 			}
 
-			// Each evaluation should return a new instance (critical for mixin expansion)
+			// Each evaluation must return a new instance (critical for mixin expansion)
 			if result == result2 {
 				t.Error("Expected each eval to return a different instance")
 			}
-			// Both results should be different from the original
 			if result == query {
 				t.Error("Expected result to be different from original")
 			}
@@ -373,7 +366,6 @@ func TestQueryInParens(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Eval failed: %v", err)
 			}
-			// Should return a new instance
 			if result == query {
 				t.Error("Expected result to be a different instance")
 			}
@@ -448,7 +440,6 @@ func TestQueryInParens(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Eval failed: %v", err)
 			}
-			// Should return a new instance
 			if result == query {
 				t.Error("Expected result to be a different instance")
 			}
@@ -597,8 +588,7 @@ func TestQueryInParens(t *testing.T) {
 
 			// Should output a placeholder comment instead of panicking
 			query.GenCSS(context, output.CSSOutput)
-			
-			// Should contain a missing value comment
+
 			if !strings.Contains(output.str, "missing value") {
 				t.Errorf("Expected missing value comment in output, got: %s", output.str)
 			}
@@ -640,7 +630,7 @@ func TestQueryInParens(t *testing.T) {
 	})
 
 	t.Run("accept", func(t *testing.T) {
-		t.Run("should visit lvalue, mvalue, and rvalue", func(t *testing.T) {
+		t.Run("should visit all values", func(t *testing.T) {
 			setup()
 			l := NewAnonymous("left", 0, nil, false, false, nil)
 			m := NewAnonymous("middle", 0, nil, false, false, nil)
@@ -710,7 +700,6 @@ func TestQueryInParens(t *testing.T) {
 			}
 
 			query.Accept(visitor)
-			// No error expected
 		})
 
 		t.Run("should handle visitor returning different node type", func(t *testing.T) {
@@ -728,7 +717,6 @@ func TestQueryInParens(t *testing.T) {
 			}
 
 			query.Accept(visitor)
-			// No error expected
 		})
 
 		t.Run("should handle visitor throwing error", func(t *testing.T) {
@@ -764,7 +752,6 @@ func TestQueryInParens(t *testing.T) {
 			}
 
 			query.Accept(visitor)
-			// No error expected
 		})
 
 		t.Run("should handle visitor modifying node in place", func(t *testing.T) {
@@ -805,12 +792,11 @@ func TestQueryInParens(t *testing.T) {
 			}
 
 			query.Accept(visitor)
-			// No error expected
 		})
 	})
 }
 
-// TestVisitor is a test implementation of the Visitor interface
+type TestVisitor struct {
 type TestVisitor struct {
 	visit func(any) any
 }

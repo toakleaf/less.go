@@ -7,7 +7,6 @@ import (
 	"time"
 )
 
-// Mock visitor for testing
 type RulesetMockVisitor struct {
 	VisitedItems []any
 }
@@ -17,7 +16,6 @@ func (m *RulesetMockVisitor) VisitArray(arr []any, flag ...bool) []any {
 	return arr
 }
 
-// Mock output for testing
 type MockOutput struct {
 	Chunks []string
 }
@@ -32,7 +30,6 @@ func (m *MockOutput) IsEmpty() bool {
 	return len(m.Chunks) == 0
 }
 
-// Mock Declaration for comprehensive testing
 type RulesetMockDeclaration struct {
 	name     any
 	value    any
@@ -59,7 +56,6 @@ func (m *RulesetMockDeclaration) IsVisible() bool {
 	return true
 }
 
-// Mock Selector for testing
 type RulesetMockSelector struct {
 	elements       []*Element
 	evaldCondition bool
@@ -111,7 +107,6 @@ func (m *RulesetMockSelector) GenCSS(context any, output *CSSOutput) {
 	output.Add(".mock-selector", nil, nil)
 }
 
-// Mock Comment for testing
 type MockComment struct {
 	Value string
 }
@@ -132,8 +127,7 @@ func (m *MockComment) IsRulesetLike() bool {
 	return false
 }
 
-// Mock Import for testing
-type MockImport struct {
+type MockImport struct{
 	root interface {
 		Variables() map[string]any
 		Variable(string) any
@@ -169,7 +163,6 @@ func (m *MockImport) IsRulesetLike() bool {
 	return false
 }
 
-// Mock MixinCall for testing
 type MockMixinCall struct {
 	results []any
 }
@@ -182,7 +175,6 @@ func (m *MockMixinCall) Eval(context any) ([]any, error) {
 	return m.results, nil
 }
 
-// Mock VariableCall for testing
 type MockVariableCall struct {
 	rules []any
 }
@@ -197,7 +189,6 @@ func (m *MockVariableCall) Eval(context any) (any, error) {
 	}, nil
 }
 
-// Mock Condition for testing
 type MockCondition struct {
 	result bool
 }
@@ -206,7 +197,6 @@ func (m *MockCondition) Eval(context any) (any, error) {
 	return m.result, nil
 }
 
-// Mock Root for import testing
 type MockRoot struct {
 	vars map[string]any
 }
@@ -222,7 +212,6 @@ func (m *MockRoot) Variable(name string) any {
 	return nil
 }
 
-// Mock MediaBlock for testing
 type MockMediaBlock struct {
 	BubbleSelectorsCallCount int
 }
@@ -252,7 +241,6 @@ func TestNewRuleset(t *testing.T) {
 		if !ruleset.AllowRoot {
 			t.Errorf("Expected AllowRoot to be true")
 		}
-		// lookups is lazily initialized, so it starts as nil
 		if ruleset.lookups != nil {
 			t.Errorf("Expected lookups to be nil (lazily initialized)")
 		}
@@ -266,7 +254,6 @@ func TestNewRuleset(t *testing.T) {
 		if ruleset.Rules != nil {
 			t.Errorf("Expected rules to be nil")
 		}
-		// lookups is lazily initialized, so it starts as nil
 		if ruleset.lookups != nil {
 			t.Errorf("Expected lookups to be nil (lazily initialized)")
 		}
@@ -318,7 +305,7 @@ func TestAccept(t *testing.T) {
 		}
 	})
 
-	t.Run("should visit selectors when paths do not exist", func(t *testing.T) {
+	t.Run("should visit selectors when no paths", func(t *testing.T) {
 		visitor := &RulesetMockVisitor{}
 		selectors := []any{&RulesetMockSelector{}}
 		ruleset := NewRuleset(selectors, nil, false, nil)
@@ -330,7 +317,7 @@ func TestAccept(t *testing.T) {
 		}
 	})
 
-	t.Run("should visit rules when they exist and have length", func(t *testing.T) {
+	t.Run("should visit rules when they exist", func(t *testing.T) {
 		visitor := &RulesetMockVisitor{}
 		rules := []any{&RulesetMockDeclaration{name: "color", value: "red"}}
 		ruleset := NewRuleset(nil, rules, false, nil)
@@ -348,7 +335,6 @@ func TestAccept(t *testing.T) {
 
 		ruleset.Accept(visitor)
 
-		// Should not visit empty rules
 		found := false
 		for _, item := range visitor.VisitedItems {
 			if arr, ok := item.([]any); ok && len(arr) == 0 {
@@ -382,7 +368,7 @@ func TestEval(t *testing.T) {
 	t.Run("should evaluate with empty context", func(t *testing.T) {
 		ruleset := NewRuleset(nil, nil, false, nil)
 		context := make(map[string]any)
-		
+
 		evaluated, err := ruleset.Eval(context)
 		if err != nil {
 			t.Errorf("Unexpected error: %v", err)
@@ -587,7 +573,6 @@ func TestEval(t *testing.T) {
 		if err != nil {
 			t.Errorf("Unexpected error: %v", err)
 		}
-		// Should fold the parent selector and include the nested rules
 		resultRuleset := result.(*Ruleset)
 		if len(resultRuleset.Rules) != 1 {
 			t.Errorf("Expected rules to be folded")
@@ -621,7 +606,6 @@ func TestEvalImports(t *testing.T) {
 		if err != nil {
 			t.Errorf("Unexpected error: %v", err)
 		}
-		// Should have replaced import with its evaluated result
 		if len(ruleset.Rules) != 1 {
 			t.Errorf("Expected import to be evaluated")
 		}
@@ -746,7 +730,6 @@ func TestResetCache(t *testing.T) {
 		ruleset.rulesets = []any{"cached"}
 		ruleset.variables = map[string]any{"cached": true}
 		ruleset.properties = map[string][]any{"cached": {"true"}}
-		// Initialize lookups map before use (it's lazily initialized)
 		ruleset.lookups = make(map[string][]any)
 		ruleset.lookups["cached"] = []any{"true"}
 
@@ -943,8 +926,6 @@ func TestLastDeclaration(t *testing.T) {
 
 		result := ruleset.LastDeclaration()
 
-		// The result should be a transformed declaration from ParseValue
-		// Check that it's a declaration with the same name
 		if resultDecl, ok := result.(*Declaration); ok {
 			if resultDecl.GetName() != "prop2" {
 				t.Errorf("Expected declaration with name 'prop2', got '%s'", resultDecl.GetName())
@@ -1116,9 +1097,6 @@ func TestJoinSelectors(t *testing.T) {
 		selectors := []any{"sel1", "sel2"}
 
 		ruleset.JoinSelectors(&paths, context, selectors)
-
-		// Basic implementation should work without errors
-		// More complex behavior would need full implementation
 	})
 }
 
@@ -1130,9 +1108,6 @@ func TestJoinSelector(t *testing.T) {
 		selector := "selector"
 
 		ruleset.JoinSelector(&paths, context, selector)
-
-		// Basic implementation should work without errors
-		// More complex behavior would need full implementation
 	})
 
 	t.Run("should handle parent selector joining", func(t *testing.T) {
@@ -1150,7 +1125,6 @@ func TestJoinSelector(t *testing.T) {
 
 		ruleset.JoinSelector(&paths, context, childSelector)
 
-		// Should have joined the selectors
 		if len(paths) == 0 {
 			t.Errorf("Expected paths to be generated")
 		}
@@ -1166,14 +1140,12 @@ func TestJoinSelector(t *testing.T) {
 		parentElement := NewElement("", ".parent", false, 0, map[string]any{}, nil)
 		parentSelector, _ := NewSelector([]*Element{parentElement}, nil, nil, 0, map[string]any{}, nil)
 		context := [][]any{{grandParentSelector, parentSelector}}
-		
-		// Create a child selector with parent reference
+
 		childElement := NewElement("", "&", false, 0, map[string]any{}, nil)
 		childSelector, _ := NewSelector([]*Element{childElement}, nil, nil, 0, map[string]any{}, nil)
 
 		ruleset.JoinSelector(&paths, context, childSelector)
 
-		// Should have joined the selectors properly
 		if len(paths) == 0 {
 			t.Errorf("Expected paths to be generated")
 		}
@@ -1182,21 +1154,18 @@ func TestJoinSelector(t *testing.T) {
 	t.Run("should handle multiple contexts", func(t *testing.T) {
 		ruleset := NewRuleset(nil, nil, false, nil)
 		var paths [][]any
-		
-		// Create multiple parent contexts
+
 		parent1Element := NewElement("", ".parent1", false, 0, map[string]any{}, nil)
 		parent1Selector, _ := NewSelector([]*Element{parent1Element}, nil, nil, 0, map[string]any{}, nil)
 		parent2Element := NewElement("", ".parent2", false, 0, map[string]any{}, nil)
 		parent2Selector, _ := NewSelector([]*Element{parent2Element}, nil, nil, 0, map[string]any{}, nil)
 		context := [][]any{{parent1Selector}, {parent2Selector}}
-		
-		// Create a child selector with parent reference
+
 		childElement := NewElement("", "&", false, 0, map[string]any{}, nil)
 		childSelector, _ := NewSelector([]*Element{childElement}, nil, nil, 0, map[string]any{}, nil)
 
 		ruleset.JoinSelector(&paths, context, childSelector)
 
-		// Should have generated paths for each parent context
 		if len(paths) != 2 {
 			t.Errorf("Expected 2 paths for 2 contexts, got %d", len(paths))
 		}
@@ -1205,19 +1174,16 @@ func TestJoinSelector(t *testing.T) {
 	t.Run("should handle selectors without parent references", func(t *testing.T) {
 		ruleset := NewRuleset(nil, nil, false, nil)
 		var paths [][]any
-		
-		// Create parent context
+
 		parentElement := NewElement("", ".parent", false, 0, map[string]any{}, nil)
 		parentSelector, _ := NewSelector([]*Element{parentElement}, nil, nil, 0, map[string]any{}, nil)
 		context := [][]any{{parentSelector}}
-		
-		// Create a regular child selector without parent reference
+
 		childElement := NewElement("", ".child", false, 0, map[string]any{}, nil)
 		childSelector, _ := NewSelector([]*Element{childElement}, nil, nil, 0, map[string]any{}, nil)
 
 		ruleset.JoinSelector(&paths, context, childSelector)
 
-		// Should have appended the child to the parent context
 		if len(paths) == 0 {
 			t.Errorf("Expected paths to be generated")
 		}
@@ -1229,18 +1195,13 @@ func TestJoinSelector(t *testing.T) {
 	t.Run("should handle empty context with parent reference", func(t *testing.T) {
 		ruleset := NewRuleset(nil, nil, false, nil)
 		var paths [][]any
-		context := [][]any{} // Empty context
-		
-		// Create a child selector with parent reference
+		context := [][]any{}
+
 		childElement := NewElement("", "&", false, 0, map[string]any{}, nil)
 		childSelector, _ := NewSelector([]*Element{childElement}, nil, nil, 0, map[string]any{}, nil)
 
 		ruleset.JoinSelector(&paths, context, childSelector)
 
-		// When context is empty with parent selector (&), the implementation
-		// handles this case by creating a path with modified selector
-		// This test verifies the method doesn't panic and handles the edge case gracefully
-		// The exact behavior may vary, but it should not cause errors
 		if len(paths) > 1 {
 			t.Errorf("Expected at most 1 path for empty context, got %d", len(paths))
 		}
@@ -1249,13 +1210,11 @@ func TestJoinSelector(t *testing.T) {
 	t.Run("should handle complex selector combinations", func(t *testing.T) {
 		ruleset := NewRuleset(nil, nil, false, nil)
 		var paths [][]any
-		
-		// Create parent context
+
 		parentElement := NewElement("", ".parent", false, 0, map[string]any{}, nil)
 		parentSelector, _ := NewSelector([]*Element{parentElement}, nil, nil, 0, map[string]any{}, nil)
 		context := [][]any{{parentSelector}}
-		
-		// Create a complex child selector with multiple elements including parent reference
+
 		childElement1 := NewElement("", "&", false, 0, map[string]any{}, nil)
 		childElement2 := NewElement("", ".child", false, 0, map[string]any{}, nil)
 		childElement3 := NewElement(" ", ".grandchild", false, 0, map[string]any{}, nil)
@@ -1263,7 +1222,6 @@ func TestJoinSelector(t *testing.T) {
 
 		ruleset.JoinSelector(&paths, context, childSelector)
 
-		// Should have generated properly joined paths
 		if len(paths) == 0 {
 			t.Errorf("Expected paths to be generated")
 		}
@@ -1275,7 +1233,6 @@ func TestFind(t *testing.T) {
 		selector := &RulesetMockSelector{}
 		cached := []any{map[string]any{"rule": "cached", "path": []any{}}}
 		ruleset := NewRuleset(nil, nil, false, nil)
-		// Initialize lookups map before use (it's lazily initialized)
 		ruleset.lookups = make(map[string][]any)
 		ruleset.lookups[".mock-selector"] = cached
 
@@ -1303,7 +1260,7 @@ func TestFind(t *testing.T) {
 func TestRulesetErrorConditions(t *testing.T) {
 	t.Run("should handle malformed MixinCall evaluation", func(t *testing.T) {
 		mixinCall := &MockMixinCall{
-			results: nil, // This might cause issues
+			results: nil,
 		}
 		rules := []any{mixinCall}
 		ruleset := NewRuleset(nil, rules, false, nil)
@@ -1322,23 +1279,18 @@ func TestRulesetErrorConditions(t *testing.T) {
 		ruleset := NewRuleset(nil, nil, false, nil)
 		var paths [][]any
 		context := [][]any{}
-		
-		// Pass an invalid selector type
+
 		invalidSelector := "not-a-selector-object"
 
-		// Should not panic
 		ruleset.JoinSelector(&paths, context, invalidSelector)
-		
-		// Should not have generated any paths for invalid selector
+
 		if len(paths) != 0 {
 			t.Errorf("Expected no paths for invalid selector, got %d", len(paths))
 		}
 	})
 
 	t.Run("should handle variable pollution prevention in MixinCall", func(t *testing.T) {
-		// Create a variable declaration that already exists in the ruleset
 		existingVar, _ := NewDeclaration("@existing", "original", false, false, 0, map[string]any{}, false, true)
-		// Create a conflicting variable using proper Declaration type
 		conflictingVar, _ := NewDeclaration("@existing", "conflict", false, false, 0, map[string]any{}, false, true)
 		
 		mixinCall := &MockMixinCall{
@@ -1353,13 +1305,11 @@ func TestRulesetErrorConditions(t *testing.T) {
 		if err != nil {
 			t.Errorf("Unexpected error: %v", err)
 		}
-		
-		// The conflicting variable should be filtered out to prevent scope pollution
+
 		resultRuleset := result.(*Ruleset)
 		variables := resultRuleset.Variables()
 		if existingDecl, exists := variables["@existing"]; exists {
 			if _, ok := existingDecl.(*Declaration); ok {
-				// Check that there's only one rule with this variable (no pollution)
 				variableRuleCount := 0
 				for _, rule := range resultRuleset.Rules {
 					if r, ok := rule.(*Declaration); ok && r.variable {
@@ -1380,7 +1330,6 @@ func TestRulesetErrorConditions(t *testing.T) {
 	})
 
 	t.Run("should handle media blocks correctly", func(t *testing.T) {
-		// Test that existing media blocks are not processed (only new ones during evaluation)
 		existingMediaBlock := &MockMediaBlock{}
 		context := map[string]any{
 			"mediaBlocks": []any{existingMediaBlock},
@@ -1395,34 +1344,30 @@ func TestRulesetErrorConditions(t *testing.T) {
 		if result == nil {
 			t.Errorf("Expected result to not be nil")
 		}
-		
-		// Existing media blocks should NOT be processed (mediaBlockCount logic)
+
 		if existingMediaBlock.BubbleSelectorsCallCount != 0 {
 			t.Errorf("Expected existing media block to NOT be processed, but it was called %d times", existingMediaBlock.BubbleSelectorsCallCount)
 		}
 	})
-	
+
 	t.Run("should handle newly added media blocks", func(t *testing.T) {
-		// Test that media blocks added during evaluation are processed
 		context := map[string]any{
-			"mediaBlocks": []any{}, // Start with empty media blocks
+			"mediaBlocks": []any{},
 		}
-		
-		// Simulate a rule that adds a media block during evaluation
+
 		mockRule := &struct {
 			GetType func() string
 			Eval    func(any) (any, error)
 		}{
 			GetType: func() string { return "TestRule" },
 			Eval: func(ctx any) (any, error) {
-				// Add a media block during evaluation
 				if c, ok := ctx.(map[string]any); ok {
 					newMediaBlock := &MockMediaBlock{}
 					if mediaBlocks, exists := c["mediaBlocks"].([]any); exists {
 						c["mediaBlocks"] = append(mediaBlocks, newMediaBlock)
 					}
 				}
-				return struct{}{}, nil // Return something that's not a Declaration
+				return struct{}{}, nil
 			},
 		}
 		
@@ -1435,8 +1380,7 @@ func TestRulesetErrorConditions(t *testing.T) {
 		if result == nil {
 			t.Errorf("Expected result to not be nil")
 		}
-		
-		// The newly added media block should be processed
+
 		if mediaBlocks, ok := context["mediaBlocks"].([]any); ok && len(mediaBlocks) > 0 {
 			if newMediaBlock, ok := mediaBlocks[0].(*MockMediaBlock); ok {
 				if newMediaBlock.BubbleSelectorsCallCount == 0 {
@@ -1453,13 +1397,11 @@ func TestRulesetPerformance(t *testing.T) {
 	t.Run("should cache lookups efficiently", func(t *testing.T) {
 		selector := &RulesetMockSelector{}
 		ruleset := NewRuleset(nil, nil, false, nil)
-		
-		// First call
+
 		start := time.Now()
 		result1 := ruleset.Find(selector, nil, nil)
 		firstCallDuration := time.Since(start)
-		
-		// Second call should be faster due to caching
+
 		start = time.Now()
 		result2 := ruleset.Find(selector, nil, nil)
 		secondCallDuration := time.Since(start)
@@ -1467,8 +1409,7 @@ func TestRulesetPerformance(t *testing.T) {
 		if !reflect.DeepEqual(result1, result2) {
 			t.Errorf("Cached results should be identical")
 		}
-		
-		// Second call should be significantly faster (allowing for some variance)
+
 		if secondCallDuration > firstCallDuration/2 {
 			t.Logf("Warning: Second call (%v) was not significantly faster than first (%v)", 
 				secondCallDuration, firstCallDuration)
@@ -1476,7 +1417,6 @@ func TestRulesetPerformance(t *testing.T) {
 	})
 
 	t.Run("should handle large rule sets efficiently", func(t *testing.T) {
-		// Create a large number of rules
 		const numRules = 1000
 		rules := make([]any, numRules)
 		for i := 0; i < numRules; i++ {
@@ -1505,8 +1445,7 @@ func TestRulesetPerformance(t *testing.T) {
 		if len(resultRuleset.Rules) != numRules {
 			t.Errorf("Expected %d rules, got %d", numRules, len(resultRuleset.Rules))
 		}
-		
-		// Should complete in reasonable time (adjust threshold as needed)
+
 		if duration > time.Second {
 			t.Errorf("Large ruleset evaluation took too long: %v", duration)
 		}

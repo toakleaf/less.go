@@ -6,14 +6,12 @@ import (
 	"testing"
 )
 
-// testFileInfo creates a test file info for testing
 func testFileInfo() map[string]any {
 	return map[string]any{
 		"filename": "test.less",
 	}
 }
 
-// Mock Frame for testing
 type mockVariableCallFrame struct {
 	vars map[string]map[string]any
 }
@@ -23,11 +21,9 @@ func (m *mockVariableCallFrame) Variable(name string) map[string]any {
 }
 
 func (m *mockVariableCallFrame) Property(name string) []any {
-	// Return empty array for now - tests don't use properties
 	return nil
 }
 
-// Mock EvalContext for testing
 type mockVariableCallContext struct {
 	frames         []ParserFrame
 	importantScope []map[string]bool
@@ -67,7 +63,6 @@ func (m *mockVariableCallContext) GetDefaultFunc() *DefaultFunc {
 	return nil
 }
 
-// Mock detached ruleset for testing successful cases
 type mockDetachedRuleset struct {
 	ruleset   any
 	callResult any
@@ -89,8 +84,7 @@ func (m *mockDetachedRuleset) CallEval(context any) any {
 	return m.callResult
 }
 
-// Mock evaluable value that returns a detached ruleset
-type mockEvaluableValue struct {
+type mockEvaluableValue struct{
 	result any
 	err    error
 }
@@ -99,7 +93,6 @@ func (m *mockEvaluableValue) Eval(context EvalContext) (any, error) {
 	return m.result, m.err
 }
 
-// Mock object with GetRules method
 type mockRulesObject struct {
 	rules []any
 }

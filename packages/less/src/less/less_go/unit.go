@@ -5,7 +5,6 @@ import (
 	"strings"
 )
 
-// Unit represents a unit in the Less AST
 type Unit struct {
 	*Node
 	Numerator   []string
@@ -13,7 +12,6 @@ type Unit struct {
 	BackupUnit  string
 }
 
-// NewUnit creates a new Unit instance
 func NewUnit(numerator []string, denominator []string, backupUnit string) *Unit {
 	u := &Unit{
 		Node:        NewNode(),
@@ -22,7 +20,6 @@ func NewUnit(numerator []string, denominator []string, backupUnit string) *Unit 
 	}
 
 	if numerator != nil {
-		// Convert []string to []any for CopyArray
 		numInterface := make([]any, len(numerator))
 		for i, v := range numerator {
 			numInterface[i] = v
@@ -33,7 +30,6 @@ func NewUnit(numerator []string, denominator []string, backupUnit string) *Unit 
 	}
 
 	if denominator != nil {
-		// Convert []string to []any for CopyArray
 		denInterface := make([]any, len(denominator))
 		for i, v := range denominator {
 			denInterface[i] = v
@@ -52,14 +48,11 @@ func NewUnit(numerator []string, denominator []string, backupUnit string) *Unit 
 	return u
 }
 
-// Type returns the type of the node for visitor pattern consistency
 func (u *Unit) Type() string {
 	return "Unit"
 }
 
-// Clone creates a deep copy of the unit
 func (u *Unit) Clone() *Unit {
-	// Create new slices and copy values
 	newNum := make([]string, len(u.Numerator))
 	copy(newNum, u.Numerator)
 	newDen := make([]string, len(u.Denominator))
@@ -68,7 +61,6 @@ func (u *Unit) Clone() *Unit {
 	return NewUnit(newNum, newDen, u.BackupUnit)
 }
 
-// GenCSS generates CSS representation
 func (u *Unit) GenCSS(context any, output *CSSOutput) {
 	strictUnits := false
 	if ctx, ok := context.(map[string]any); ok {
@@ -86,7 +78,6 @@ func (u *Unit) GenCSS(context any, output *CSSOutput) {
 	}
 }
 
-// ToString returns the string representation of the unit
 func (u *Unit) ToString() string {
 	// Use strings.Builder for efficient string concatenation
 	var builder strings.Builder
@@ -98,26 +89,22 @@ func (u *Unit) ToString() string {
 	return builder.String()
 }
 
-// Compare compares this unit with another unit.
 func (u *Unit) Compare(other *Unit) int {
 	if other == nil {
 		return 999 // undefined equivalent in JavaScript
 	}
 
 	if u.Is(other.ToString()) {
-		return 0 // Units are equal by string representation
+		return 0
 	}
 
-	// Units are not equal
 	return 999 // undefined equivalent in JavaScript
 }
 
-// Is checks if the unit matches a given unit string
 func (u *Unit) Is(unitString string) bool {
 	return strings.EqualFold(u.ToString(), unitString)
 }
 
-// IsLength checks if the unit is a valid length unit
 func (u *Unit) IsLength() bool {
 	// Match JavaScript: RegExp('^(px|em|ex|ch|rem|in|cm|mm|pc|pt|ex|vw|vh|vmin|vmax)$', 'gi').test(this.toCSS())
 	// Note: JavaScript has 'ex' twice in the regex
@@ -135,9 +122,7 @@ func (u *Unit) IsLength() bool {
 	return false
 }
 
-// ToCSS generates the CSS representation of the unit
 func (u *Unit) ToCSS(context any) string {
-	// Use GenCSS to generate the CSS output
 	var chunks []string
 	output := &CSSOutput{
 		Add: func(chunk any, fileInfo any, index any) {
@@ -149,51 +134,41 @@ func (u *Unit) ToCSS(context any) string {
 			return len(chunks) == 0
 		},
 	}
-	
+
 	u.GenCSS(context, output)
 	return strings.Join(chunks, "")
 }
 
-// IsEmpty checks if the unit has no numerators or denominators
 func (u *Unit) IsEmpty() bool {
 	return len(u.Numerator) == 0 && len(u.Denominator) == 0
 }
 
-// IsSingular checks if the unit has exactly one numerator and no denominators
 func (u *Unit) IsSingular() bool {
 	return len(u.Numerator) <= 1 && len(u.Denominator) == 0
 }
 
-// Map applies a callback function to each unit in numerator and denominator
 func (u *Unit) Map(callback func(string, bool) string) {
-	// Create new slices to store results
 	newNum := make([]string, len(u.Numerator))
 	newDen := make([]string, len(u.Denominator))
 
-	// Apply callback to numerator
 	for i := range u.Numerator {
 		newNum[i] = callback(u.Numerator[i], false)
 	}
 
-	// Apply callback to denominator
 	for i := range u.Denominator {
 		newDen[i] = callback(u.Denominator[i], true)
 	}
 
-	// Update the unit with new values
 	u.Numerator = newNum
 	u.Denominator = newDen
 
-	// Sort to maintain consistent order
 	sort.Strings(u.Numerator)
 	sort.Strings(u.Denominator)
 }
 
-// UsedUnits returns a map of used unit types
 func (u *Unit) UsedUnits() map[string]string {
 	result := make(map[string]string)
 
-	// Map unit conversions
 	conversions := map[string]map[string]float64{
 		"length":   UnitConversionsLength,
 		"duration": UnitConversionsDuration,
@@ -214,25 +189,20 @@ func (u *Unit) UsedUnits() map[string]string {
 	return result
 }
 
-// Cancel cancels matching units between numerator and denominator
 func (u *Unit) Cancel() {
 	counter := make(map[string]int)
 
-	// Count numerators
 	for _, unit := range u.Numerator {
 		counter[unit]++
 	}
 
-	// Subtract denominators
 	for _, unit := range u.Denominator {
 		counter[unit]--
 	}
 
-	// Reset arrays
 	u.Numerator = make([]string, 0)
 	u.Denominator = make([]string, 0)
 
-	// Rebuild arrays based on counter
 	for unit, count := range counter {
 		if count > 0 {
 			for i := 0; i < count; i++ {

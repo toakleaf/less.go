@@ -447,7 +447,6 @@ func TestValue(t *testing.T) {
 	})
 }
 
-// Mock types for testing
 type mockEvaluator struct {
 	evalFn func(context any) (any, error)
 }

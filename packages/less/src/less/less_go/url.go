@@ -25,7 +25,6 @@ func (u *URL) GetType() string {
 	return "Url"
 }
 
-// NewURL creates a new URL instance
 func NewURL(val any, index int, currentFileInfo map[string]any, isEvald bool) *URL {
 	url := &URL{
 		Node:      NewNode(),
@@ -56,7 +55,6 @@ func (u *URL) fileInfo() map[string]any {
 	return make(map[string]any)
 }
 
-// escapePath escapes special characters in a path
 func escapePath(path string) string {
 	return reURLEscapeChars.ReplaceAllStringFunc(path, func(match string) string {
 		return "\\" + match
@@ -86,14 +84,12 @@ func normalizePath(path string) string {
 	return strings.Join(pathSegments, "/")
 }
 
-// Accept visits the URL with a visitor
 func (u *URL) Accept(visitor any) {
 	if v, ok := visitor.(interface{ Visit(any) any }); ok && u.Value != nil {
 		u.Value = v.Visit(u.Value)
 	}
 }
 
-// GenCSS generates CSS representation
 func (u *URL) GenCSS(context any, output *CSSOutput) {
 	output.Add("url(", nil, nil)
 	if u.Value != nil {
@@ -143,7 +139,6 @@ func (u *URL) Eval(context any) (any, error) {
 		// Handle *Anonymous value (which may wrap a *Quoted or contain a string)
 		var quoted *Quoted
 		if anon, ok := val.(*Anonymous); ok {
-			// Check if Anonymous.Value is a *Quoted
 			if q, ok := anon.Value.(*Quoted); ok {
 				quoted = q
 			} else if str, ok := anon.Value.(string); ok {
@@ -151,7 +146,6 @@ func (u *URL) Eval(context any) (any, error) {
 				quoted = NewQuoted("", str, false, anon.Index, anon.FileInfo)
 			}
 		} else if q, ok := val.(*Quoted); ok {
-			// Direct *Quoted value
 			quoted = q
 		}
 

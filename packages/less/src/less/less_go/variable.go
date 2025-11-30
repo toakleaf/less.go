@@ -20,7 +20,6 @@ type Variable struct {
 	evaluating bool
 }
 
-// NewVariable creates a new Variable instance
 func NewVariable(name string, index int, currentFileInfo map[string]any) *Variable {
 	return &Variable{
 		Node:      NewNode(),
@@ -30,32 +29,26 @@ func NewVariable(name string, index int, currentFileInfo map[string]any) *Variab
 	}
 }
 
-// Type returns the node type
 func (v *Variable) Type() string {
 	return "Variable"
 }
 
-// GetType returns the node type
 func (v *Variable) GetType() string {
 	return "Variable"
 }
 
-// GetIndex returns the node's index
 func (v *Variable) GetIndex() int {
 	return v._index
 }
 
-// FileInfo returns the node's file information
 func (v *Variable) FileInfo() map[string]any {
 	return v._fileInfo
 }
 
-// GetName returns the variable name
 func (v *Variable) GetName() string {
 	return v.name
 }
 
-// Eval evaluates the variable
 func (v *Variable) Eval(context any) (any, error) {
 	name := v.name
 
@@ -66,13 +59,11 @@ func (v *Variable) Eval(context any) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		
-		// Extract the value string from the result
+
 		var valueStr string
 		switch res := innerResult.(type) {
 		case map[string]any:
 			if value, exists := res["value"]; exists {
-				// Handle the value properly - it might be a node type
 				switch v := value.(type) {
 				case *Quoted:
 					valueStr = v.value
@@ -100,7 +91,6 @@ func (v *Variable) Eval(context any) (any, error) {
 				valueStr = res.ToCSS(context)
 			}
 		case *Anonymous:
-			// Handle Anonymous objects - extract the underlying value
 			if quoted, ok := res.Value.(*Quoted); ok {
 				valueStr = quoted.value
 			} else if str, ok := res.Value.(string); ok {
@@ -117,7 +107,6 @@ func (v *Variable) Eval(context any) (any, error) {
 				}
 			}
 		default:
-			// Try to get a value field if the type has one
 			if valuer, ok := innerResult.(interface{ GetValue() string }); ok {
 				valueStr = valuer.GetValue()
 			} else {
@@ -157,13 +146,11 @@ func (v *Variable) Eval(context any) (any, error) {
 
 		for _, frame := range frames {
 			if varResult := frame.Variable(name); varResult != nil {
-				// Handle important flag if present
 				if importantVal, exists := varResult["important"]; exists && importantVal != nil {
 					// For interface context (*Eval), access ImportantScope directly
 					if evalCtx, ok := context.(*Eval); ok {
 						if len(evalCtx.ImportantScope) > 0 {
 							lastScope := evalCtx.ImportantScope[len(evalCtx.ImportantScope)-1]
-							// Convert boolean to appropriate string
 							if boolVal, ok := importantVal.(bool); ok && boolVal {
 								lastScope["important"] = "!important"
 							} else if strVal, ok := importantVal.(string); ok {
@@ -176,7 +163,6 @@ func (v *Variable) Eval(context any) (any, error) {
 							if importantScope, ok := importantScopeAny.([]any); ok && len(importantScope) > 0 {
 								lastScope := importantScope[len(importantScope)-1]
 								if scope, ok := lastScope.(map[string]any); ok {
-									// Convert boolean to appropriate string
 									if boolVal, ok := importantVal.(bool); ok && boolVal {
 										scope["important"] = "!important"
 									} else if strVal, ok := importantVal.(string); ok {
@@ -188,7 +174,6 @@ func (v *Variable) Eval(context any) (any, error) {
 					}
 				}
 
-				// Get value from result
 				val, ok := varResult["value"]
 				if !ok {
 					continue
@@ -203,7 +188,6 @@ func (v *Variable) Eval(context any) (any, error) {
 					return selfCall.Eval(context)
 				}
 
-				// Evaluate value - check both interface types
 				if evalable, ok := val.(interface{ Eval(any) (any, error) }); ok {
 					result, err := evalable.Eval(context)
 					return result, err
@@ -250,18 +234,15 @@ func (v *Variable) Eval(context any) (any, error) {
 			return nil, fmt.Errorf("frames is not []any or []ParserFrame")
 		}
 
-		// Find variable in frames
 		for _, frameAny := range framesList {
 			// Frames can be Rulesets that have Variable lookup methods
 			if frame, ok := frameAny.(interface{ Variable(string) map[string]any }); ok {
 				if varResult := frame.Variable(name); varResult != nil {
-					// Handle important flag if present
 					if importantVal, exists := varResult["important"]; exists && importantVal != nil {
 						if importantScopeAny, exists := ctx["importantScope"]; exists {
 							if importantScope, ok := importantScopeAny.([]any); ok && len(importantScope) > 0 {
 								lastScope := importantScope[len(importantScope)-1]
 								if scope, ok := lastScope.(map[string]any); ok {
-									// Convert boolean to appropriate string
 									if boolVal, ok := importantVal.(bool); ok && boolVal {
 										scope["important"] = "!important"
 									} else if strVal, ok := importantVal.(string); ok {
@@ -272,7 +253,6 @@ func (v *Variable) Eval(context any) (any, error) {
 						}
 					}
 
-					// Get value from result
 					val, ok := varResult["value"]
 					if !ok {
 						continue
@@ -287,7 +267,6 @@ func (v *Variable) Eval(context any) (any, error) {
 						return selfCall.Eval(context)
 					}
 
-					// Evaluate value - check both interface types
 					if evalable, ok := val.(interface{ Eval(any) (any, error) }); ok {
 						result, err := evalable.Eval(context)
 
@@ -342,7 +321,6 @@ func (v *Variable) Eval(context any) (any, error) {
 	}
 }
 
-// ToCSS converts the variable to CSS by evaluating it first
 func (v *Variable) ToCSS(context any) string {
 	result, err := v.Eval(context)
 	if err != nil {
@@ -350,7 +328,6 @@ func (v *Variable) ToCSS(context any) string {
 		return v.name
 	}
 
-	// Convert result to CSS string
 	if cssObj, ok := result.(interface{ ToCSS(any) string }); ok {
 		return cssObj.ToCSS(context)
 	} else if str, ok := result.(string); ok {
@@ -360,7 +337,6 @@ func (v *Variable) ToCSS(context any) string {
 	}
 }
 
-// GenCSS generates CSS output by evaluating the variable and delegating to the result's GenCSS
 func (v *Variable) GenCSS(context any, output *CSSOutput) {
 	result, err := v.Eval(context)
 	if err != nil {
@@ -369,7 +345,6 @@ func (v *Variable) GenCSS(context any, output *CSSOutput) {
 		return
 	}
 
-	// If result has GenCSS, delegate to it
 	if gen, ok := result.(interface{ GenCSS(any, *CSSOutput) }); ok {
 		gen.GenCSS(context, output)
 	} else if str, ok := result.(string); ok {

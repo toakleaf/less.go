@@ -6,7 +6,6 @@ import (
 	"testing"
 )
 
-// Mock types that exactly match JavaScript test setup
 type mockRenderContext struct {
 	parseFunc func(string, map[string]any, func(error, any, any, map[string]any))
 	options   map[string]any
@@ -22,7 +21,6 @@ func (mc *mockRenderContext) GetOptions() map[string]any {
 	return mc.options
 }
 
-// MockParseTree that matches JavaScript mockParseTree behavior
 type mockParseTree struct {
 	toCSSFunc func(map[string]any) any
 }
@@ -34,37 +32,30 @@ func (mpt *mockParseTree) ToCSS(options map[string]any) any {
 	return map[string]any{"css": "body { color: red; }", "map": nil}
 }
 
-// Mock constructor that matches JavaScript MockParseTreeConstructor
 func createMockParseTreeConstructor(toCSSFunc func(map[string]any) any) func(any, any) any {
 	return func(root any, imports any) any {
 		return &mockParseTree{toCSSFunc: toCSSFunc}
 	}
 }
 
-// Test: should handle options as callback (second parameter)
-// Matches JS test "should handle options as callback (second parameter)"
 func TestRenderOptionsAsCallback(t *testing.T) {
 	mockEnvironment := map[string]any{}
 	mockParseTreeConstructor := createMockParseTreeConstructor(nil)
-	
+
 	mockContext := &mockRenderContext{
 		options: map[string]any{"sourceMap": false},
 		parseFunc: func(input string, options map[string]any, callback func(error, any, any, map[string]any)) {
-			// Verify input
 			if input != ".class { color: blue; }" {
 				t.Errorf("Expected input '.class { color: blue; }', got '%s'", input)
 			}
-			// Verify options merging happened
 			if sourceMap, ok := options["sourceMap"]; !ok || sourceMap != false {
 				t.Errorf("Expected sourceMap: false in options")
 			}
 			callback(nil, map[string]any{"type": "Root"}, []any{}, options)
 		},
 	}
-	
-	// Create render function like JavaScript: render = createRender(mockEnvironment, MockParseTreeConstructor);
+
 	renderFunc := CreateRender(mockEnvironment, mockParseTreeConstructor)
-	// Bind to context like JavaScript: render = render.bind(mockContext);
 	boundRender := Bind(renderFunc, mockContext, mockEnvironment, mockParseTreeConstructor)
 	
 	var callbackResult any
@@ -73,8 +64,7 @@ func TestRenderOptionsAsCallback(t *testing.T) {
 		callbackError = err
 		callbackResult = output
 	}
-	
-	// Call like JavaScript: render(input, callback);
+
 	boundRender(".class { color: blue; }", callback)
 	
 	if callbackError != nil {
@@ -84,8 +74,7 @@ func TestRenderOptionsAsCallback(t *testing.T) {
 	if callbackResult == nil {
 		t.Fatal("Expected result, got nil")
 	}
-	
-	// Verify result matches JavaScript: { css: 'body { color: red; }', map: null }
+
 	if resultMap, ok := callbackResult.(map[string]any); ok {
 		if css, ok := resultMap["css"]; !ok || css != "body { color: red; }" {
 			t.Errorf("Expected CSS 'body { color: red; }', got '%v'", css)
@@ -93,8 +82,6 @@ func TestRenderOptionsAsCallback(t *testing.T) {
 	}
 }
 
-// Test: should handle options and callback (three parameters)
-// Matches JS test "should handle options and callback (three parameters)"
 func TestRenderOptionsAndCallback(t *testing.T) {
 	mockEnvironment := map[string]any{}
 	mockParseTreeConstructor := createMockParseTreeConstructor(nil)
@@ -102,7 +89,6 @@ func TestRenderOptionsAndCallback(t *testing.T) {
 	mockContext := &mockRenderContext{
 		options: map[string]any{"sourceMap": false},
 		parseFunc: func(input string, options map[string]any, callback func(error, any, any, map[string]any)) {
-			// Verify options merging: context options + provided options
 			if compress, ok := options["compress"]; !ok || compress != true {
 				t.Errorf("Expected compress: true in merged options")
 			}
@@ -124,8 +110,7 @@ func TestRenderOptionsAndCallback(t *testing.T) {
 	}
 	
 	options := map[string]any{"compress": true}
-	
-	// Call like JavaScript: render(input, options, callback);
+
 	boundRender(".class { color: blue; }", options, callback)
 	
 	if callbackError != nil {
@@ -137,8 +122,6 @@ func TestRenderOptionsAndCallback(t *testing.T) {
 	}
 }
 
-// Test: should handle parse errors
-// Matches JS test "should handle parse errors"
 func TestRenderParseErrors(t *testing.T) {
 	mockEnvironment := map[string]any{}
 	mockParseTreeConstructor := createMockParseTreeConstructor(nil)
@@ -176,13 +159,10 @@ func TestRenderParseErrors(t *testing.T) {
 	}
 }
 
-// Test: should handle toCSS errors
-// Matches JS test "should handle toCSS errors"
 func TestRenderToCSSErrors(t *testing.T) {
 	toCSSError := errors.New("toCSS error")
 	mockEnvironment := map[string]any{}
-	
-	// Mock ParseTree that returns error on toCSS 
+
 	mockParseTreeConstructor := func(root any, imports any) any {
 		return &mockParseTreeWithError{err: toCSSError}
 	}
@@ -216,7 +196,6 @@ func TestRenderToCSSErrors(t *testing.T) {
 	}
 }
 
-// Mock ParseTree that throws error
 type mockParseTreeWithError struct {
 	err error
 }
@@ -225,8 +204,6 @@ func (mpt *mockParseTreeWithError) ToCSS(options map[string]any) (any, error) {
 	return nil, mpt.err
 }
 
-// Test: should create ParseTree with correct arguments
-// Matches JS test "should create ParseTree with correct arguments"
 func TestRenderCreateParseTreeCorrectArguments(t *testing.T) {
 	mockEnvironment := map[string]any{}
 	var capturedRoot any
@@ -265,8 +242,6 @@ func TestRenderCreateParseTreeCorrectArguments(t *testing.T) {
 	}
 }
 
-// Test: should return a Promise when no callback is provided
-// Matches JS test "should return a Promise when no callback is provided"
 func TestRenderReturnPromise(t *testing.T) {
 	mockEnvironment := map[string]any{}
 	mockParseTreeConstructor := createMockParseTreeConstructor(nil)
@@ -280,8 +255,7 @@ func TestRenderReturnPromise(t *testing.T) {
 	
 	renderFunc := CreateRender(mockEnvironment, mockParseTreeConstructor)
 	boundRender := Bind(renderFunc, mockContext, mockEnvironment, mockParseTreeConstructor)
-	
-	// Call without callback - should return Promise
+
 	result := boundRender(".class { color: blue; }", map[string]any{})
 	
 	if result == nil {
@@ -292,8 +266,7 @@ func TestRenderReturnPromise(t *testing.T) {
 	if !ok {
 		t.Fatalf("Expected RenderPromise, got %T", result)
 	}
-	
-	// Await the promise
+
 	output, err := promise.Await()
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
@@ -302,8 +275,7 @@ func TestRenderReturnPromise(t *testing.T) {
 	if output == nil {
 		t.Fatal("Expected output, got nil")
 	}
-	
-	// Verify output matches JavaScript expectation
+
 	if resultMap, ok := output.(map[string]any); ok {
 		if css, ok := resultMap["css"]; !ok || css != "body { color: red; }" {
 			t.Errorf("Expected CSS 'body { color: red; }', got '%v'", css)
@@ -311,8 +283,6 @@ func TestRenderReturnPromise(t *testing.T) {
 	}
 }
 
-// Test: should resolve with result on success
-// Matches JS test "should resolve with result on success"
 func TestRenderPromiseResolveWithResult(t *testing.T) {
 	expectedResult := map[string]any{"css": "compiled css", "map": "source map"}
 	mockEnvironment := map[string]any{}
@@ -343,8 +313,6 @@ func TestRenderPromiseResolveWithResult(t *testing.T) {
 	}
 }
 
-// Test: should reject with parse error
-// Matches JS test "should reject with parse error"
 func TestRenderPromiseRejectWithParseError(t *testing.T) {
 	parseError := errors.New("Parse error")
 	mockEnvironment := map[string]any{}
@@ -376,8 +344,6 @@ func TestRenderPromiseRejectWithParseError(t *testing.T) {
 	}
 }
 
-// Test: should reject with toCSS error
-// Matches JS test "should reject with toCSS error"
 func TestRenderPromiseRejectWithToCSSError(t *testing.T) {
 	toCSSError := errors.New("toCSS error")
 	mockEnvironment := map[string]any{}
@@ -412,8 +378,6 @@ func TestRenderPromiseRejectWithToCSSError(t *testing.T) {
 	}
 }
 
-// Test: should handle options without callback
-// Matches JS test "should handle options without callback"
 func TestRenderHandleOptionsWithoutCallback(t *testing.T) {
 	mockEnvironment := map[string]any{}
 	mockParseTreeConstructor := createMockParseTreeConstructor(nil)
@@ -421,7 +385,6 @@ func TestRenderHandleOptionsWithoutCallback(t *testing.T) {
 	mockContext := &mockRenderContext{
 		options: map[string]any{"sourceMap": false},
 		parseFunc: func(input string, options map[string]any, callback func(error, any, any, map[string]any)) {
-			// Verify options were merged correctly
 			if compress, ok := options["compress"]; !ok || compress != true {
 				t.Errorf("Expected compress: true in options")
 			}
@@ -444,8 +407,6 @@ func TestRenderHandleOptionsWithoutCallback(t *testing.T) {
 	}
 }
 
-// Test: should maintain context when using Promise
-// Matches JS test "should maintain context when using Promise"
 func TestRenderMaintainContextThroughPromise(t *testing.T) {
 	mockEnvironment := map[string]any{}
 	mockParseTreeConstructor := createMockParseTreeConstructor(nil)
@@ -453,7 +414,6 @@ func TestRenderMaintainContextThroughPromise(t *testing.T) {
 	customContext := &mockRenderContext{
 		options: map[string]any{"custom": "option"},
 		parseFunc: func(input string, options map[string]any, callback func(error, any, any, map[string]any)) {
-			// Verify custom context options are preserved
 			if custom, ok := options["custom"]; !ok || custom != "option" {
 				t.Errorf("Expected custom option to be preserved")
 			}
@@ -472,8 +432,6 @@ func TestRenderMaintainContextThroughPromise(t *testing.T) {
 	}
 }
 
-// Test: should handle null options
-// Matches JS test "should handle null options"
 func TestRenderHandleNullOptions(t *testing.T) {
 	mockEnvironment := map[string]any{}
 	mockParseTreeConstructor := createMockParseTreeConstructor(nil)
@@ -494,8 +452,7 @@ func TestRenderHandleNullOptions(t *testing.T) {
 		callbackError = err
 		callbackResult = output
 	}
-	
-	// Test with nil options (equivalent to JavaScript null)
+
 	boundRender(".class { color: blue; }", nil, callback)
 	
 	if callbackError != nil {
@@ -507,8 +464,6 @@ func TestRenderHandleNullOptions(t *testing.T) {
 	}
 }
 
-// Test: should handle undefined options (Go equivalent is interface{} with nil value)
-// Matches JS test "should handle undefined options"
 func TestRenderHandleUndefinedOptions(t *testing.T) {
 	mockEnvironment := map[string]any{}
 	mockParseTreeConstructor := createMockParseTreeConstructor(nil)
@@ -529,8 +484,7 @@ func TestRenderHandleUndefinedOptions(t *testing.T) {
 		callbackError = err
 		callbackResult = output
 	}
-	
-	// Test with undefined (interface{} with nil value in Go)
+
 	var undefinedOptions interface{} = nil
 	boundRender(".class { color: blue; }", undefinedOptions, callback)
 	
@@ -543,8 +497,6 @@ func TestRenderHandleUndefinedOptions(t *testing.T) {
 	}
 }
 
-// Test: should handle empty input
-// Matches JS test "should handle empty input"
 func TestRenderHandleEmptyInput(t *testing.T) {
 	mockEnvironment := map[string]any{}
 	mockParseTreeConstructor := createMockParseTreeConstructor(nil)
@@ -580,8 +532,6 @@ func TestRenderHandleEmptyInput(t *testing.T) {
 	}
 }
 
-// Test: should pass through options from parse callback
-// Matches JS test "should pass through options from parse callback"
 func TestRenderPassThroughOptionsFromParseCallback(t *testing.T) {
 	mockEnvironment := map[string]any{}
 	modifiedOptions := map[string]any{"sourceMap": true, "modified": true}
@@ -595,7 +545,6 @@ func TestRenderPassThroughOptionsFromParseCallback(t *testing.T) {
 	mockContext := &mockRenderContext{
 		options: map[string]any{"sourceMap": false},
 		parseFunc: func(input string, options map[string]any, callback func(error, any, any, map[string]any)) {
-			// Simulate parse modifying options and passing them through
 			callback(nil, map[string]any{"type": "Root"}, []any{}, modifiedOptions)
 		},
 	}
@@ -613,8 +562,7 @@ func TestRenderPassThroughOptionsFromParseCallback(t *testing.T) {
 	if callbackError != nil {
 		t.Fatalf("Expected no error, got: %v", callbackError)
 	}
-	
-	// Verify that the modified options from parse callback were passed to toCSS
+
 	if toCSSReceivedOptions == nil {
 		t.Fatal("Expected toCSS to receive options")
 	}

@@ -4,7 +4,6 @@ import (
 	"testing"
 )
 
-// Mock node for testing
 type VisibilityMockNode struct {
 	Type                     string
 	BlocksVisibilityValue    bool
@@ -37,7 +36,6 @@ func (m *VisibilityMockNode) Accept(visitor any) {
 	m.AcceptedVisitor = visitor
 }
 
-// Mock node without methods for testing error cases
 type IncompleteNode struct {
 	Type                     string
 	BlocksVisibilityValue    bool
@@ -53,11 +51,9 @@ func (i *IncompleteNode) BlocksVisibility() bool {
 }
 
 func (i *IncompleteNode) Accept(visitor any) {
-	// Accept exists but no ensure methods
 	i.AcceptWasCalled = true
 }
 
-// SimpleNode represents a node without a blocksVisibility method at all
 type SimpleNode struct {
 	Type                      string
 	EnsureVisibilityWasCalled bool

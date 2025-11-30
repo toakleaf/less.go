@@ -7,12 +7,10 @@ import (
 
 var _hasIndexed = false
 
-// VisitArgs represents the visit arguments passed to visitor functions
 type VisitArgs struct {
 	VisitDeeper bool
 }
 
-// TreeRegistry represents the tree module containing all node types
 type TreeRegistry struct {
 	NodeTypes map[string]any
 }
@@ -26,7 +24,6 @@ type AcceptorNode interface {
 	Accept(visitor any)
 }
 
-// NodeWithTypeIndex represents a node that has type and typeIndex
 type NodeWithTypeIndex interface {
 	GetTypeIndex() int
 }
@@ -42,7 +39,6 @@ type ArrayLikeNode interface {
 	Get(i int) any
 }
 
-// Implementation represents the visitor implementation interface
 type Implementation interface {
 	IsReplacing() bool
 }
@@ -54,19 +50,14 @@ type DirectDispatchVisitor interface {
 	VisitNodeOut(node any) bool
 }
 
-// noop function that returns the node unchanged
 func _noop(node any) any {
 	return node
 }
 
-
-// VisitFunc represents a visitor function
 type VisitFunc func(node any, visitArgs *VisitArgs) any
 
-// VisitOutFunc represents a visitor out function  
 type VisitOutFunc func(node any)
 
-// Visitor represents the visitor pattern implementation
 type Visitor struct {
 	implementation any
 	visitInCache   map[int]VisitFunc
@@ -74,7 +65,6 @@ type Visitor struct {
 	methodLookup   map[string]reflect.Value // Pre-built method lookup map
 }
 
-// NewVisitor creates a new visitor with the given implementation
 func NewVisitor(implementation any) *Visitor {
 	v := &Visitor{
 		implementation: implementation,
@@ -105,7 +95,6 @@ func NewVisitor(implementation any) *Visitor {
 
 		for i := 0; i < numMethods; i++ {
 			method := implType.Method(i)
-			// Store method by name for fast lookup
 			v.methodLookup[method.Name] = implValue.Method(i)
 		}
 	}
@@ -113,7 +102,6 @@ func NewVisitor(implementation any) *Visitor {
 	return v
 }
 
-// Visit visits a node using the visitor pattern
 func (v *Visitor) Visit(node any) any {
 	if node == nil {
 		return node
@@ -122,7 +110,6 @@ func (v *Visitor) Visit(node any) any {
 	var nodeTypeIndex int
 	var nodeType string
 
-	// Try to get type from the node first
 	if nodeWithType, ok := node.(NodeWithType); ok {
 		nodeType = nodeWithType.GetType()
 	} else {
@@ -167,7 +154,6 @@ func (v *Visitor) Visit(node any) any {
 		var visitFunc VisitFunc
 		var visitOutFunc VisitOutFunc
 
-		// Check cache first
 		if cachedFunc, exists := v.visitInCache[nodeTypeIndex]; exists {
 			visitFunc = cachedFunc
 			visitOutFunc = v.visitOutCache[nodeTypeIndex]
@@ -209,12 +195,10 @@ func (v *Visitor) Visit(node any) any {
 				}
 			}
 
-			// Cache the functions
 			v.visitInCache[nodeTypeIndex] = visitFunc
 			v.visitOutCache[nodeTypeIndex] = visitOutFunc
 		}
 
-		// Call visit function (if not _noop)
 		if visitFunc != nil {
 			newNode := visitFunc(node, visitArgs)
 			if v.isReplacing() {
@@ -223,21 +207,17 @@ func (v *Visitor) Visit(node any) any {
 		}
 	}
 
-	// Visit deeper if requested and node exists
 	if visitArgs.VisitDeeper && node != nil {
-		// Check if node has length property (array-like)
 		nodeVal := reflect.ValueOf(node)
 		if nodeVal.Kind() == reflect.Ptr && !nodeVal.IsNil() {
 			nodeVal = nodeVal.Elem()
 		}
 
-		// Check for array-like behavior: has length property and numeric indexing
 		if nodeVal.Kind() == reflect.Struct {
 			lengthField := nodeVal.FieldByName("length")
 			elementsField := nodeVal.FieldByName("Elements")
 
 			if lengthField.IsValid() && lengthField.Kind() == reflect.Int && lengthField.Int() > 0 {
-				// Array-like node processing
 				length := int(lengthField.Int())
 
 				// First try Elements field (Go-style array-like nodes)
@@ -262,7 +242,6 @@ func (v *Visitor) Visit(node any) any {
 					}
 				}
 			} else {
-				// Regular node - call accept if available
 				if accepter, ok := node.(interface{ Accept(any) }); ok {
 					accepter.Accept(v)
 				}
@@ -272,9 +251,7 @@ func (v *Visitor) Visit(node any) any {
 		}
 	}
 
-	// Call visitOut function
 	if directDispatcher, ok := v.implementation.(DirectDispatchVisitor); ok {
-		// Fast path: direct dispatch
 		directDispatcher.VisitNodeOut(node)
 	} else {
 		// Slow path: reflection-based dispatch (visitOutFunc was cached in the else block above)
@@ -286,7 +263,6 @@ func (v *Visitor) Visit(node any) any {
 	return node
 }
 
-// VisitArray visits an array of nodes
 func (v *Visitor) VisitArray(nodes []any, nonReplacing ...bool) []any {
 	if nodes == nil {
 		return nodes
@@ -297,8 +273,7 @@ func (v *Visitor) VisitArray(nodes []any, nonReplacing ...bool) []any {
 	if len(nonReplacing) > 0 {
 		isNonReplacing = nonReplacing[0]
 	}
-	
-	// Non-replacing mode
+
 	if isNonReplacing || !v.isReplacing() {
 		for i := 0; i < cnt; i++ {
 			v.Visit(nodes[i])
@@ -306,29 +281,24 @@ func (v *Visitor) VisitArray(nodes []any, nonReplacing ...bool) []any {
 		return nodes
 	}
 
-	// Replacing mode
 	out := make([]any, 0)
 	for i := 0; i < cnt; i++ {
 		evaluated := v.Visit(nodes[i])
 		if evaluated == nil {
 			continue // Skip undefined results like JS
 		}
-		
-		// Check if result is array-like (Go slice or has splice method)
+
 		if v.isArrayLike(evaluated) {
-			// It's array-like, flatten it
 			if arrayItems := v.convertToSlice(evaluated); len(arrayItems) > 0 {
 				v.Flatten(arrayItems, &out)
 			}
 		} else {
-			// Regular item, add to output
 			out = append(out, evaluated)
 		}
 	}
 	return out
 }
 
-// Flatten flattens nested arrays into a single array
 func (v *Visitor) Flatten(arr []any, out *[]any) []any {
 	if out == nil {
 		result := make([]any, 0)
@@ -339,15 +309,12 @@ func (v *Visitor) Flatten(arr []any, out *[]any) []any {
 		if item == nil {
 			continue // Skip undefined items like JS
 		}
-		
-		// Check if item is array-like (Go slice or has splice method)
+
 		if v.isArrayLike(item) {
-			// Recursively flatten nested arrays
 			if nestedItems := v.convertToSlice(item); len(nestedItems) > 0 {
 				v.Flatten(nestedItems, out)
 			}
 		} else {
-			// Regular item, add to output
 			*out = append(*out, item)
 		}
 	}
@@ -355,19 +322,17 @@ func (v *Visitor) Flatten(arr []any, out *[]any) []any {
 	return *out
 }
 
-// isReplacing checks if the implementation is replacing
 func (v *Visitor) isReplacing() bool {
 	if impl, ok := v.implementation.(Implementation); ok {
 		return impl.IsReplacing()
 	}
-	
+
 	// Use reflection to check for isReplacing property (like JS)
 	implValue := reflect.ValueOf(v.implementation)
 	if implValue.Kind() == reflect.Ptr {
 		implValue = implValue.Elem()
 	}
-	
-	// Check for isReplacing field first (direct property access like JS)
+
 	if implValue.Kind() == reflect.Struct {
 		isReplacingField := implValue.FieldByName("isReplacing")
 		if isReplacingField.IsValid() && isReplacingField.Kind() == reflect.Bool {
@@ -379,8 +344,7 @@ func (v *Visitor) isReplacing() bool {
 			return isReplacingField.Bool()
 		}
 	}
-	
-	// Fallback to method call
+
 	method := reflect.ValueOf(v.implementation).MethodByName("IsReplacing")
 	if method.IsValid() {
 		results := method.Call(nil)
@@ -394,41 +358,35 @@ func (v *Visitor) isReplacing() bool {
 	return false
 }
 
-// hasSpliceMethod checks if an object has a splice method (array-like detection)
 func (v *Visitor) hasSpliceMethod(obj any) bool {
 	if obj == nil {
 		return false
 	}
-	
-	// Check for splice method using reflection
+
 	objValue := reflect.ValueOf(obj)
 	spliceMethod := objValue.MethodByName("Splice")
 	return spliceMethod.IsValid()
 }
 
-// isArrayLike checks if an object is array-like (Go slice or has splice method)
 func (v *Visitor) isArrayLike(obj any) bool {
 	if obj == nil {
 		return false
 	}
-	
-	// Check if it's a Go slice
+
 	objValue := reflect.ValueOf(obj)
 	if objValue.Kind() == reflect.Slice {
 		return true
 	}
-	
+
 	// Also check for splice method (JS-style arrays)
 	return v.hasSpliceMethod(obj)
 }
 
-// convertToSlice converts an array-like object to a Go slice
 func (v *Visitor) convertToSlice(obj any) []any {
 	if obj == nil {
 		return nil
 	}
-	
-	// Try ArrayLikeNode interface first
+
 	if arrayLike, ok := obj.(ArrayLikeNode); ok {
 		length := arrayLike.Len()
 		result := make([]any, length)
@@ -458,8 +416,7 @@ func (v *Visitor) convertToSlice(obj any) []any {
 			return result
 		}
 	}
-	
-	// If it's already a slice, return it
+
 	if objValue.Kind() == reflect.Slice {
 		result := make([]any, objValue.Len())
 		for i := 0; i < objValue.Len(); i++ {
@@ -519,7 +476,6 @@ func initializeTree() {
 	}
 }
 
-// createNodePrototype creates a prototype object for a node type
 type NodePrototype struct {
 	Type      string
 	TypeIndex int
@@ -536,12 +492,12 @@ func (np *NodePrototype) GetPrototype() any {
 func createNodePrototype(nodeType string) *NodePrototype {
 	return &NodePrototype{
 		Type:      nodeType,
-		TypeIndex: 0, // Will be set by indexNodeTypes
+		TypeIndex: 0,
 	}
 }
 
-// GetTypeIndexForNodeType returns the TypeIndex for a given node type string
-// This is used by node constructors to set the TypeIndex field
+// GetTypeIndexForNodeType returns the TypeIndex for a given node type string.
+// Used by node constructors to set the TypeIndex field.
 func GetTypeIndexForNodeType(nodeType string) int {
 	if !_hasIndexed {
 		// Initialize if needed - this ensures prototypes are indexed

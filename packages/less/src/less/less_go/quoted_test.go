@@ -4,7 +4,6 @@ import (
 	"testing"
 )
 
-// Mock Declaration for testing
 type MockDeclaration struct {
 	name           string
 	value          any
@@ -27,7 +26,6 @@ func (d *MockDeclaration) ToCSS(context any) string {
 	return ""
 }
 
-// Mock Frame for testing
 type MockFrame struct {
 	variableFunc func(string) map[string]any
 	propertyFunc func(string) []any
@@ -47,7 +45,6 @@ func (f *MockFrame) Property(name string) []any {
 	return nil
 }
 
-// Mock EvalContext for testing
 type MockEvalContext struct {
 	frames []ParserFrame
 }
@@ -56,13 +53,9 @@ func (c *MockEvalContext) GetFrames() []ParserFrame {
 	return c.frames
 }
 
-func (c *MockEvalContext) EnterCalc() {
-	// No-op for testing
-}
+func (c *MockEvalContext) EnterCalc() {}
 
-func (c *MockEvalContext) ExitCalc() {
-	// No-op for testing
-}
+func (c *MockEvalContext) ExitCalc() {}
 
 func (c *MockEvalContext) GetImportantScope() []map[string]bool {
 	return []map[string]bool{{}}
@@ -76,9 +69,7 @@ func (c *MockEvalContext) IsMathOn() bool {
 	return false
 }
 
-func (c *MockEvalContext) SetMathOn(on bool) {
-	// No-op for testing
-}
+func (c *MockEvalContext) SetMathOn(on bool) {}
 
 func TestQuoted_Constructor(t *testing.T) {
 	t.Run("should initialize with default escaped value when not provided", func(t *testing.T) {
