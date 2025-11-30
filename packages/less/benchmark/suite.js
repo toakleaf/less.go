@@ -22,8 +22,9 @@ const benchmarkTestFiles = [
 			silent: true,
 			javascriptEnabled: true
 		},
-		// All passing _main tests EXCEPT those requiring plugins/Node.js
+		// All passing _main tests EXCEPT those requiring plugins/Node.js or network
 		// Excluded: import, import-module, javascript, plugin, plugin-module, plugin-preeval
+		// Also excluded: import-remote (makes network requests to cdn.jsdelivr.net)
 		files: [
 			'calc',
 			'charsets',
@@ -56,7 +57,6 @@ const benchmarkTestFiles = [
 			'import-once',
 			'import-reference',
 			'import-reference-issues',
-			'import-remote',
 			'lazy-eval',
 			'media',
 			'merge',
