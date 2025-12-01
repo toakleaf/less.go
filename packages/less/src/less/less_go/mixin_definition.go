@@ -621,10 +621,8 @@ func (md *MixinDefinition) Eval(context any) (*MixinDefinition, error) {
 
 	// Important: Do NOT evaluate the rules here. The rules should only be evaluated
 	// when the mixin is called via EvalCall
-	// Copy the rules without evaluating them
-	copiedRules := CopyArray(md.Rules)
-
-	result, err := NewMixinDefinition(md.Name, md.Params, copiedRules, md.Condition, md.Variadic, frames, md.VisibilityInfo())
+	// NewMixinDefinition will copy the rules internally via NewRuleset, so no need for CopyArray
+	result, err := NewMixinDefinition(md.Name, md.Params, md.Rules, md.Condition, md.Variadic, frames, md.VisibilityInfo())
 	if err != nil {
 		return nil, err
 	}
@@ -746,10 +744,8 @@ func (md *MixinDefinition) EvalCall(context any, args []any, important bool) (*R
 			}
 		}
 	}
-	rules := CopyArray(md.Rules)
-
-	// Create result ruleset
-	ruleset := NewRuleset(nil, rules, false, nil)
+	// Create result ruleset - NewRuleset will copy the rules internally, so no need for CopyArray
+	ruleset := NewRuleset(nil, md.Rules, false, nil)
 	// Match JavaScript: ruleset.originalRuleset = this
 	// If this MixinDefinition was created as a wrapper for a Ruleset,
 	// use the wrapped Ruleset as the originalRuleset for recursion detection.

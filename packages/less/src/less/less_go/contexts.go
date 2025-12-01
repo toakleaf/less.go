@@ -72,7 +72,7 @@ type Eval struct {
 	PluginBridge     *NodeJSPluginBridge
 	LazyPluginBridge *LazyNodeJSPluginBridge // Lazy bridge for deferred initialization
 
-	// Cached closures to avoid allocation in CopyEvalToMap
+	// Cached closures to avoid allocations in CopyEvalToMap
 	cachedInParenthesis    func()
 	cachedOutOfParenthesis func()
 	cachedIsMathOn         func(string) bool
@@ -177,7 +177,7 @@ func (e *Eval) OutOfParenthesis() {
 }
 
 func (e *Eval) ToMap() map[string]any {
-	// Use cached closures to avoid allocation
+	// Use cached closures to avoid allocations
 	if e.cachedInParenthesis == nil {
 		e.cachedInParenthesis = func() { e.InParenthesis() }
 	}
@@ -227,7 +227,7 @@ func (e *Eval) CopyEvalToMap(target map[string]any, includeMediaContext bool) {
 	target["mathOn"] = e.MathOn
 	target["_evalContext"] = e
 
-	// Use cached closures to avoid allocation on every call
+	// Use cached closures to avoid allocations
 	if e.cachedInParenthesis == nil {
 		e.cachedInParenthesis = func() { e.InParenthesis() }
 	}

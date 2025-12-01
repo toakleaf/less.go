@@ -596,14 +596,8 @@ func (r *Ruleset) Eval(context any) (any, error) {
 		hasOnePassingSelector = true
 	}
 
-	// Copy rules
-	var rules []any
-	if r.Rules != nil {
-		rules = CopyArray(r.Rules)
-	}
-
-	// Create new ruleset
-	ruleset := NewRuleset(selectors, rules, r.StrictImports, r.VisibilityInfo(), r.SelectorsParseFunc, r.ValueParseFunc, r.ParseContext, r.ParseImports)
+	// Create new ruleset - NewRuleset will copy the rules internally, so no need for CopyArray here
+	ruleset := NewRuleset(selectors, r.Rules, r.StrictImports, r.VisibilityInfo(), r.SelectorsParseFunc, r.ValueParseFunc, r.ParseContext, r.ParseImports)
 	ruleset.OriginalRuleset = r
 
 	// Debug: trace creation of div rulesets
