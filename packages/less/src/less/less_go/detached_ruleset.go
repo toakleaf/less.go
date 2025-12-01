@@ -110,6 +110,9 @@ func (dr *DetachedRuleset) CallEval(context any) any {
 		}
 	}
 
+	// OPTIMIZATION: Track if we used a pooled *Eval that needs to be returned
+	var pooledEval *Eval
+
 	if dr.frames != nil {
 		// Create concatenated frames: this.frames.concat(context.frames)
 		var contextFrames []any
@@ -126,29 +129,10 @@ func (dr *DetachedRuleset) CallEval(context any) any {
 			// detached rulesets should NOT add to the parent's mediaBlocks during the
 			// first loop of Ruleset.Eval. They should only be added when the spliced
 			// result is re-evaluated in the second loop with the actual parent context.
-			newEval := &Eval{
-				Frames:            append(dr.frames, contextFrames...),
-				Compress:          ctx.Compress,
-				Math:              ctx.Math,
-				StrictUnits:       ctx.StrictUnits,
-				Paths:             ctx.Paths,
-				SourceMap:         ctx.SourceMap,
-				ImportMultiple:    ctx.ImportMultiple,
-				UrlArgs:           ctx.UrlArgs,
-				JavascriptEnabled: ctx.JavascriptEnabled,
-				PluginManager:     ctx.PluginManager,
-				ImportantScope:    ctx.ImportantScope,
-				RewriteUrls:       ctx.RewriteUrls,
-				CalcStack:         ctx.CalcStack,
-				ParensStack:       ctx.ParensStack,
-				InCalc:            ctx.InCalc,
-				MathOn:            ctx.MathOn,
-				DefaultFunc:       ctx.DefaultFunc,
-				PluginBridge:      ctx.PluginBridge,      // Share plugin bridge for scope management
-				LazyPluginBridge:  ctx.LazyPluginBridge,  // Share lazy plugin bridge
-				// MediaBlocks: nil - intentionally not copied, see comment above
-				// MediaPath: nil - intentionally not copied, see comment above
-			}
+			// OPTIMIZATION: Use pooled *Eval to reduce allocations
+			newFrames := append(dr.frames, contextFrames...)
+			newEval := GetEvalFromPool(ctx, newFrames)
+			pooledEval = newEval // Track for returning to pool later
 			if os.Getenv("LESS_GO_DEBUG") == "1" {
 				fmt.Fprintf(os.Stderr, "[DetachedRuleset.CallEval] Created isolated *Eval context, MediaBlocks=%v, MediaPath=%v\n", newEval.MediaBlocks, newEval.MediaPath)
 			}
@@ -175,6 +159,9 @@ func (dr *DetachedRuleset) CallEval(context any) any {
 			evalContext = context
 		}
 	}
+	// NOTE: We do NOT use defer to return pooledEval to pool because in some code paths
+	// (lines 335-346, 350-356) we pass evalContext directly to an evaluator that might
+	// store a reference to it. We only return to pool in paths where we use evalContextToMap.
 
 	// Call eval on the ruleset
 	debug := os.Getenv("LESS_GO_DEBUG") == "1"
@@ -291,6 +278,11 @@ func (dr *DetachedRuleset) CallEval(context any) any {
 			// part of the result rules and re-evaluated with the parent's context in the
 			// second loop of Ruleset.Eval, where they'll properly add to the parent's mediaBlocks.
 			mapContext := evalContextToMap(evalContext)
+			// Safe to return pooled Eval now since we've copied to map
+			if pooledEval != nil {
+				PutEvalToPool(pooledEval)
+				pooledEval = nil
+			}
 			if debug {
 				mb, _ := mapContext["mediaBlocks"].([]any)
 				mp, _ := mapContext["mediaPath"].([]any)
@@ -326,6 +318,11 @@ func (dr *DetachedRuleset) CallEval(context any) any {
 				// Convert evalContext to map for Ruleset.Eval
 				// The child context has its own isolated mediaBlocks/mediaPath (see comment above)
 				mapContext := evalContextToMap(evalContext)
+				// Safe to return pooled Eval now since we've copied to map
+				if pooledEval != nil {
+					PutEvalToPool(pooledEval)
+					pooledEval = nil
+				}
 				result, err := ruleset.Eval(mapContext)
 				if err != nil {
 					panic(err)

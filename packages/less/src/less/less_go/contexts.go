@@ -4,7 +4,119 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 )
+
+// evalPool is a pool for reusing *Eval contexts to reduce GC pressure.
+// This is particularly important in hot paths like DetachedRuleset.CallEval
+// and MixinDefinition.EvalCall which create many short-lived contexts.
+var evalPool = sync.Pool{
+	New: func() any {
+		return &Eval{}
+	},
+}
+
+// GetEvalFromPool gets an *Eval from the pool and initializes it from a source context.
+// The returned context should be returned via PutEvalToPool when done.
+func GetEvalFromPool(source *Eval, frames []any) *Eval {
+	e := evalPool.Get().(*Eval)
+	// Copy fields from source
+	e.Paths = source.Paths
+	e.Compress = source.Compress
+	e.Math = source.Math
+	e.StrictUnits = source.StrictUnits
+	e.SourceMap = source.SourceMap
+	e.ImportMultiple = source.ImportMultiple
+	e.UrlArgs = source.UrlArgs
+	e.JavascriptEnabled = source.JavascriptEnabled
+	e.PluginManager = source.PluginManager
+	e.ImportantScope = source.ImportantScope
+	e.RewriteUrls = source.RewriteUrls
+	e.NumPrecision = source.NumPrecision
+	e.Frames = frames
+	e.parserFrames = nil // Will be rebuilt lazily if needed
+	e.CalcStack = source.CalcStack
+	e.ParensStack = source.ParensStack
+	e.InCalc = source.InCalc
+	e.MathOn = source.MathOn
+	e.DefaultFunc = source.DefaultFunc
+	e.FunctionRegistry = source.FunctionRegistry
+	e.MediaBlocks = nil // Intentionally nil - child contexts get fresh media arrays
+	e.MediaPath = nil
+	e.PluginBridge = source.PluginBridge
+	e.LazyPluginBridge = source.LazyPluginBridge
+	e.cachedInParenthesis = nil
+	e.cachedOutOfParenthesis = nil
+	e.cachedIsMathOn = nil
+	return e
+}
+
+// PutEvalToPool returns an *Eval to the pool.
+// The context should not be used after calling this function.
+func PutEvalToPool(e *Eval) {
+	if e == nil {
+		return
+	}
+	// Clear references to allow GC of referenced objects
+	e.Paths = nil
+	e.ImportantScope = nil
+	e.Frames = nil
+	e.parserFrames = nil
+	e.CalcStack = nil
+	e.ParensStack = nil
+	e.DefaultFunc = nil
+	e.FunctionRegistry = nil
+	e.MediaBlocks = nil
+	e.MediaPath = nil
+	e.PluginManager = nil
+	e.PluginBridge = nil
+	e.LazyPluginBridge = nil
+	e.cachedInParenthesis = nil
+	e.cachedOutOfParenthesis = nil
+	e.cachedIsMathOn = nil
+	// Reset scalar fields
+	e.Compress = false
+	e.Math = 0
+	e.StrictUnits = false
+	e.SourceMap = false
+	e.ImportMultiple = false
+	e.UrlArgs = ""
+	e.JavascriptEnabled = false
+	e.RewriteUrls = 0
+	e.NumPrecision = 0
+	e.InCalc = false
+	e.MathOn = false
+	evalPool.Put(e)
+}
+
+// frameSlicePool is a pool for reusing frame slices to reduce allocations
+// in hot paths that frequently concatenate frames.
+var frameSlicePool = sync.Pool{
+	New: func() any {
+		// Pre-allocate with capacity 16 which is typical for frame concatenation
+		return make([]any, 0, 16)
+	},
+}
+
+// GetFrameSliceFromPool gets a slice from the pool and prepares it for use.
+// The returned slice has length 0 but may have capacity from previous use.
+func GetFrameSliceFromPool() []any {
+	s := frameSlicePool.Get().([]any)
+	return s[:0]
+}
+
+// PutFrameSliceToPool returns a slice to the pool.
+// The slice should not be used after calling this function.
+func PutFrameSliceToPool(s []any) {
+	if s == nil {
+		return
+	}
+	// Clear references to allow GC of referenced objects
+	for i := range s {
+		s[i] = nil
+	}
+	frameSlicePool.Put(s[:0])
+}
 
 type Parse struct {
 	Paths           []string
