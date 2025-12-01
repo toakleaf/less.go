@@ -146,7 +146,13 @@ func (v *Variable) Eval(context any) (any, error) {
 
 		for _, frame := range frames {
 			if varResult := frame.Variable(name); varResult != nil {
-				if importantVal, exists := varResult["important"]; exists && importantVal != nil {
+				// Extract values from the pooled map before returning it
+				importantVal, hasImportant := varResult["important"]
+				val, hasValue := varResult["value"]
+				// Return the map to the pool immediately after extracting values
+				PutVariableResultMap(varResult)
+
+				if hasImportant && importantVal != nil {
 					// For interface context (*Eval), use typed SetImportantInCurrentScope
 					if evalCtx, ok := context.(*Eval); ok {
 						if boolVal, ok := importantVal.(bool); ok && boolVal {
@@ -171,8 +177,7 @@ func (v *Variable) Eval(context any) (any, error) {
 					}
 				}
 
-				val, ok := varResult["value"]
-				if !ok {
+				if !hasValue {
 					continue
 				}
 
@@ -235,7 +240,13 @@ func (v *Variable) Eval(context any) (any, error) {
 			// Frames can be Rulesets that have Variable lookup methods
 			if frame, ok := frameAny.(interface{ Variable(string) map[string]any }); ok {
 				if varResult := frame.Variable(name); varResult != nil {
-					if importantVal, exists := varResult["important"]; exists && importantVal != nil {
+					// Extract values from the pooled map before returning it
+					importantVal, hasImportant := varResult["important"]
+					val, hasValue := varResult["value"]
+					// Return the map to the pool immediately after extracting values
+					PutVariableResultMap(varResult)
+
+					if hasImportant && importantVal != nil {
 						if importantScopeAny, exists := ctx["importantScope"]; exists {
 							if importantScope, ok := importantScopeAny.([]any); ok && len(importantScope) > 0 {
 								lastScope := importantScope[len(importantScope)-1]
@@ -250,8 +261,7 @@ func (v *Variable) Eval(context any) (any, error) {
 						}
 					}
 
-					val, ok := varResult["value"]
-					if !ok {
+					if !hasValue {
 						continue
 					}
 

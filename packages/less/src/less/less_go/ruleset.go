@@ -6,7 +6,39 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"sync"
 )
+
+// variableResultPool is a pool for reusing variable result maps.
+// These maps are created frequently in Variable() and have short lifetimes.
+var variableResultPool = sync.Pool{
+	New: func() any {
+		return make(map[string]any, 2) // Capacity 2 for "value" and "important"
+	},
+}
+
+// getVariableResultMap gets a map from the pool and clears it.
+func getVariableResultMap() map[string]any {
+	m := variableResultPool.Get().(map[string]any)
+	// Clear the map for reuse
+	for k := range m {
+		delete(m, k)
+	}
+	return m
+}
+
+// PutVariableResultMap returns a variable result map to the pool.
+// Callers of Ruleset.Variable() should call this when done with the result.
+func PutVariableResultMap(m map[string]any) {
+	if m == nil {
+		return
+	}
+	// Clear references to allow GC of values
+	for k := range m {
+		delete(m, k)
+	}
+	variableResultPool.Put(m)
+}
 
 // Debug helper functions
 func elementToString(el *Element) string {
@@ -1459,10 +1491,14 @@ func (r *Ruleset) Variable(name string) map[string]any {
 	// 1. The underlying variables map can change during evaluation
 	// 2. Caching nil for missing variables breaks mixin lookups when variables are added later
 	// 3. The Variables() map itself is already cached per ruleset
+	//
+	// OPTIMIZATION: We use a sync.Pool to reuse the result maps since they have
+	// short lifetimes. Callers should call PutVariableResultMap() when done.
 
 	vars := r.Variables()
 	if decl, exists := vars[name]; exists {
-		var result map[string]any
+		// Get a pooled map instead of allocating a new one
+		result := getVariableResultMap()
 		if d, ok := decl.(*Declaration); ok {
 			// Transform the declaration to parse Anonymous values into proper nodes
 			transformed := r.transformDeclaration(d)
@@ -1475,9 +1511,7 @@ func (r *Ruleset) Variable(name string) map[string]any {
 				value = d.Value
 			}
 
-			result = map[string]any{
-				"value": value,
-			}
+			result["value"] = value
 
 			// Check if the declaration has important flag
 			if d.GetImportant() {
@@ -1486,9 +1520,7 @@ func (r *Ruleset) Variable(name string) map[string]any {
 			}
 		} else {
 			// Handle other types (like mock declarations in tests)
-			result = map[string]any{
-				"value": r.ParseValue(decl),
-			}
+			result["value"] = r.ParseValue(decl)
 
 			// Check if the declaration has important flag
 			if declMap, ok := decl.(map[string]any); ok {

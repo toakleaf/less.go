@@ -3,7 +3,38 @@ package less_go
 import (
 	"fmt"
 	"os"
+	"sync"
 )
+
+// contextMapPool is a pool for reusing context maps in EvalCall
+// Maps are pre-allocated with capacity 16 which is typical for eval contexts
+var contextMapPool = sync.Pool{
+	New: func() any {
+		return make(map[string]any, 16)
+	},
+}
+
+// getContextMap gets a map from the pool and clears it
+func getContextMap() map[string]any {
+	m := contextMapPool.Get().(map[string]any)
+	// Clear the map for reuse
+	for k := range m {
+		delete(m, k)
+	}
+	return m
+}
+
+// putContextMap returns a map to the pool
+func putContextMap(m map[string]any) {
+	if m == nil {
+		return
+	}
+	// Clear references to allow GC of values
+	for k := range m {
+		delete(m, k)
+	}
+	contextMapPool.Put(m)
+}
 
 // toCSS converts a value to its CSS string representation
 func toCSS(val any, context any) string {
@@ -684,7 +715,7 @@ func (md *MixinDefinition) EvalCall(context any, args []any, important bool) (*R
 	if err != nil {
 		return nil, err
 	}
-	argDecl, err := NewDeclaration("@arguments", evalExpr, nil, false, 0, make(map[string]any), false, true)
+	argDecl, err := NewDeclaration("@arguments", evalExpr, nil, false, 0, nil, false, true)
 	if err != nil {
 		return nil, err
 	}
