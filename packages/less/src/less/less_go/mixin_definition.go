@@ -713,8 +713,12 @@ func (md *MixinDefinition) EvalCall(context any, args []any, important bool) (*R
 	}
 	evalExpr, err := expr.Eval(context)
 	if err != nil {
+		// Release the temporary expression before returning error
+		expr.Release()
 		return nil, err
 	}
+	// Release the temporary expression wrapper - evalExpr is the result we need
+	expr.Release()
 	argDecl, err := NewDeclaration("@arguments", evalExpr, nil, false, 0, nil, false, true)
 	if err != nil {
 		return nil, err

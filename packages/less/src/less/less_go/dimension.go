@@ -335,6 +335,8 @@ func (d *Dimension) ConvertTo(conversions any) *Dimension {
 			}
 		}
 	default:
+		// Release the unused clone before early return
+		unit.Release()
 		return d
 	}
 

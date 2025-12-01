@@ -291,3 +291,29 @@ func ReleaseUnit(u *Unit) {
 func (u *Unit) Release() {
 	ReleaseUnit(u)
 }
+
+// ReleasePooledNode releases a node back to its pool if it's a pooled type.
+// This is a generic helper for releasing nodes without knowing their exact type.
+// Safe to call with nil or non-pooled types (no-op in those cases).
+func ReleasePooledNode(node any) {
+	if node == nil {
+		return
+	}
+	switch n := node.(type) {
+	case *Ruleset:
+		ReleaseRuleset(n)
+	case *Expression:
+		ReleaseExpression(n)
+	case *Selector:
+		ReleaseSelector(n)
+	case *Declaration:
+		ReleaseDeclaration(n)
+	case *Element:
+		ReleaseElement(n)
+	case *Unit:
+		ReleaseUnit(n)
+	case *Node:
+		ReleaseNode(n)
+	}
+	// For non-pooled types, do nothing
+}

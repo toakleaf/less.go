@@ -310,8 +310,13 @@ func (v *Visitor) VisitArray(nodes []any, nonReplacing ...bool) []any {
 
 	out := make([]any, 0)
 	for i := 0; i < cnt; i++ {
-		evaluated := v.Visit(nodes[i])
+		original := nodes[i]
+		evaluated := v.Visit(original)
 		if evaluated == nil {
+			// Node was filtered out by visitor - release the original back to pool
+			// This is safe because the visitor explicitly returned nil, meaning
+			// this node should not be part of the output tree
+			ReleasePooledNode(original)
 			continue // Skip undefined results like JS
 		}
 
