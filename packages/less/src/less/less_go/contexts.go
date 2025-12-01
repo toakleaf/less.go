@@ -32,7 +32,7 @@ func GetEvalFromPool(source *Eval, frames []any) *Eval {
 	e.PluginManager = source.PluginManager
 	e.ImportantScope = source.ImportantScope
 	e.RewriteUrls = source.RewriteUrls
-	e.NumPrecision = source.NumPrecision
+	e.NumPrecision = 0 // Not copied - default to 0 like original code
 	e.Frames = frames
 	e.parserFrames = nil // Will be rebuilt lazily if needed
 	e.CalcStack = source.CalcStack
@@ -40,7 +40,7 @@ func GetEvalFromPool(source *Eval, frames []any) *Eval {
 	e.InCalc = source.InCalc
 	e.MathOn = source.MathOn
 	e.DefaultFunc = source.DefaultFunc
-	e.FunctionRegistry = source.FunctionRegistry
+	e.FunctionRegistry = nil // NOT copied - should be inherited from frames during evaluation
 	e.MediaBlocks = nil // Intentionally nil - child contexts get fresh media arrays
 	e.MediaPath = nil
 	e.PluginBridge = source.PluginBridge
