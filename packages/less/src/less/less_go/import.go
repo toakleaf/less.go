@@ -645,11 +645,12 @@ func (i *Import) DoEval(context any) (any, error) {
 	}
 
 	if i.root != nil {
+		// Get rules directly - NewRuleset will copy them internally
 		var rules []any
 		if rootWithRules, ok := i.root.(interface{ GetRules() []any }); ok {
-			rules = CopyArray(rootWithRules.GetRules())
+			rules = rootWithRules.GetRules()
 		} else if rootRules, ok := i.root.([]any); ok {
-			rules = CopyArray(rootRules)
+			rules = rootRules
 		}
 
 		ruleset := NewRuleset(nil, rules, false, nil)
