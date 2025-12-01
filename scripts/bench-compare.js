@@ -36,7 +36,7 @@ try {
 console.log('Running Go warm benchmarks (30 iterations per file, with 5 warmup runs)...');
 let goWarmOutput;
 try {
-    goWarmOutput = execSync('go test -bench="^BenchmarkLessCompilation$" -benchmem -benchtime=30x ./packages/less/src/less/less_go', {
+    goWarmOutput = execSync('go test -bench="^BenchmarkLessCompilation$" -benchmem -benchtime=30x ./less', {
         encoding: 'utf8',
         cwd: path.join(__dirname, '..'),
         maxBuffer: 10 * 1024 * 1024 // 10MB buffer for all the output
@@ -56,7 +56,7 @@ try {
 console.log('Running Go cold-start benchmarks (30 iterations per file, no warmup)...\n');
 let goColdOutput;
 try {
-    goColdOutput = execSync('go test -bench=BenchmarkLessCompilationColdStart -benchmem -benchtime=30x ./packages/less/src/less/less_go', {
+    goColdOutput = execSync('go test -bench=BenchmarkLessCompilationColdStart -benchmem -benchtime=30x ./less', {
         encoding: 'utf8',
         cwd: path.join(__dirname, '..'),
         maxBuffer: 10 * 1024 * 1024 // 10MB buffer for all the output

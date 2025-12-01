@@ -3,7 +3,7 @@ package less_go
 import (
 	"testing"
 
-	"github.com/toakleaf/less.go/packages/less/src/less/less_go/runtime"
+	"github.com/toakleaf/less.go/less/runtime"
 )
 
 func TestNodeJSPluginBridge_ScopeManagement(t *testing.T) {

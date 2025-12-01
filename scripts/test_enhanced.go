@@ -197,15 +197,8 @@ Debug Features:
 func (r *EnhancedTestRunner) runUnitTests() {
 	fmt.Println(colorBold + "\n🧪 Running Unit Tests..." + colorReset)
 
-	// Change to the packages/less directory
-	packageDir := filepath.Join("packages", "less")
-	if err := os.Chdir(packageDir); err != nil {
-		fmt.Printf(colorRed+"Error changing directory: %v"+colorReset+"\n", err)
-		os.Exit(1)
-	}
-
 	// Build test command with enhanced options
-	args := []string{"test", "./..."}
+	args := []string{"test", "./less"}
 
 	if r.mode >= ModeVerbose {
 		args = append(args, "-v")
@@ -246,15 +239,12 @@ func getCurrentDir() string {
 func (r *EnhancedTestRunner) runIntegrationTests() {
 	fmt.Println(colorBold + "\n🔥 Running Full Integration Test Suite..." + colorReset)
 
-	// Change to packages/less/src/less/less_go directory
-	targetDir := filepath.Join("packages", "less", "src", "less", "less_go")
+	// Change to less directory at repo root
+	targetDir := "less"
 	if err := os.Chdir(targetDir); err != nil {
-		// Try from packages/less if we're already there
-		if err := os.Chdir(filepath.Join("src", "less", "less_go")); err != nil {
-			fmt.Printf(colorRed+"Error changing to less_go directory: %v"+colorReset+"\n", err)
-			fmt.Printf(colorRed+"Current directory: %s"+colorReset+"\n", getCurrentDir())
-			os.Exit(1)
-		}
+		fmt.Printf(colorRed+"Error changing to less directory: %v"+colorReset+"\n", err)
+		fmt.Printf(colorRed+"Current directory: %s"+colorReset+"\n", getCurrentDir())
+		os.Exit(1)
 	}
 
 	r.runIntegrationTestsWithFilter("")
@@ -263,15 +253,12 @@ func (r *EnhancedTestRunner) runIntegrationTests() {
 func (r *EnhancedTestRunner) runSummaryTests() {
 	fmt.Println(colorBold + "\n📊 Running Tests (Summary Mode)..." + colorReset)
 
-	// Change to packages/less/src/less/less_go directory
-	targetDir := filepath.Join("packages", "less", "src", "less", "less_go")
+	// Change to less directory at repo root
+	targetDir := "less"
 	if err := os.Chdir(targetDir); err != nil {
-		// Try from packages/less if we're already there
-		if err := os.Chdir(filepath.Join("src", "less", "less_go")); err != nil {
-			fmt.Printf(colorRed+"Error changing to less_go directory: %v"+colorReset+"\n", err)
-			fmt.Printf(colorRed+"Current directory: %s"+colorReset+"\n", getCurrentDir())
-			os.Exit(1)
-		}
+		fmt.Printf(colorRed+"Error changing to less directory: %v"+colorReset+"\n", err)
+		fmt.Printf(colorRed+"Current directory: %s"+colorReset+"\n", getCurrentDir())
+		os.Exit(1)
 	}
 
 	// Run integration tests and capture output

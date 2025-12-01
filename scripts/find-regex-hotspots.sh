@@ -18,7 +18,7 @@ echo "════════════════════════�
 echo "FILES WITH DYNAMIC REGEX COMPILATION:"
 echo "═══════════════════════════════════════════════════════════════════════════════"
 
-cd packages/less/src/less/less_go
+cd less
 
 total_count=0
 for file in *.go; do
@@ -81,7 +81,7 @@ echo "1. Review task documentation:"
 echo "   .claude/tasks/performance/CRITICAL_regex_compilation.md"
 echo ""
 echo "2. Create regex variables file (recommended):"
-echo "   packages/less/src/less/less_go/parser_regexes.go"
+echo "   less/parser_regexes.go"
 echo ""
 echo "3. Move all regexes to package-level vars"
 echo ""

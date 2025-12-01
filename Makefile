@@ -27,17 +27,17 @@ test: test-unit test-basic
 # Run unit tests (equivalent to pnpm test:unit)
 test-unit:
 	@echo "🧪 Running unit tests..."
-	cd packages/less && go test ./src/less/less_go -v -run "Test[^I]" | grep -E "(PASS|FAIL|RUN|===)"
+	go test ./less -v -run "Test[^I]" | grep -E "(PASS|FAIL|RUN|===)"
 
 # Run integration tests (equivalent to pnpm test)
 test-integration:
 	@echo "🔄 Running full integration test suite..."
-	cd packages/less && go test ./src/less/less_go -v -run "TestIntegrationSuite" -timeout 5m
+	go test ./less -v -run "TestIntegrationSuite" -timeout 5m
 
 # Run basic integration tests for development
 test-basic:
 	@echo "⚡ Running basic integration tests..."
-	cd packages/less && go test ./src/less/less_go -v -run "TestBasicIntegration" -timeout 1m
+	go test ./less -v -run "TestBasicIntegration" -timeout 1m
 
 # Build the CLI tool
 build:
@@ -62,7 +62,7 @@ dev:
 		exit 1; \
 	fi
 	@echo "👀 Watching files for changes (ctrl+c to stop)..."
-	find packages/less/src/less/less_go -name "*.go" | entr -c make test-basic
+	find less -name "*.go" | entr -c make test-basic
 
 # Show Go port status
 status:
@@ -70,10 +70,10 @@ status:
 	@echo "=================="
 	@echo ""
 	@echo "Go files:"
-	@find packages/less/src/less/less_go -name "*.go" | wc -l | xargs echo "  "
+	@find less -name "*.go" | wc -l | xargs echo "  "
 	@echo ""
 	@echo "Test files:"
-	@find packages/less/src/less/less_go -name "*_test.go" | wc -l | xargs echo "  "
+	@find less -name "*_test.go" | wc -l | xargs echo "  "
 	@echo ""
 	@echo "Available test data:"
 	@find packages/test-data/less/_main -name "*.less" | wc -l | xargs echo "  .less files:"
@@ -82,14 +82,14 @@ status:
 # Run tests with coverage
 test-coverage:
 	@echo "📈 Running tests with coverage..."
-	cd packages/less && go test ./src/less/less_go -coverprofile=coverage.out -covermode=atomic
-	cd packages/less && go tool cover -html=coverage.out -o coverage.html
-	@echo "Coverage report saved to packages/less/coverage.html"
+	go test ./less -coverprofile=coverage.out -covermode=atomic
+	go tool cover -html=coverage.out -o coverage.html
+	@echo "Coverage report saved to coverage.html"
 
 # Benchmark tests
 benchmark:
 	@echo "⏱️  Running benchmarks..."
-	cd packages/less && go test ./src/less/less_go -bench=. -benchmem
+	go test ./less -bench=. -benchmem
 
 # Compare with JavaScript tests
 compare-js:

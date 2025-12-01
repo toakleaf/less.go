@@ -5,7 +5,7 @@ import (
 	"os"
 	"reflect"
 
-	"github.com/toakleaf/less.go/packages/less/src/less/less_go/runtime"
+	"github.com/toakleaf/less.go/less/runtime"
 )
 
 // PluginCallInfo represents information about a plugin function call

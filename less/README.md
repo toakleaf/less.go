@@ -14,7 +14,7 @@ A complete Go port of [less.js](https://github.com/less/less.js) - the popular C
 ## Installation
 
 ```bash
-go get github.com/less/less.go/packages/less/src/less/less_go
+go get github.com/toakleaf/less.go/less
 ```
 
 ## Quick Start
@@ -28,7 +28,7 @@ import (
     "fmt"
     "log"
 
-    less "github.com/less/less.go/packages/less/src/less/less_go"
+    less "github.com/toakleaf/less.go/less"
 )
 
 func main() {
