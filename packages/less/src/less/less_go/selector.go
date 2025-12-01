@@ -435,35 +435,63 @@ func (s *Selector) Eval(context any) (any, error) {
 		if !ok {
 			return nil, errors.New("selector condition cannot be evaluated")
 		}
-		
+
 		evaldCondition = conditionNode.Eval(context) // This is a NODE, not a boolean
 	}
 
+	// Evaluate elements - only allocate new slice if something changed
 	var evaluatedElements []*Element
 	if s.Elements != nil {
-		evaluatedElements = make([]*Element, len(s.Elements))
 		for i, e := range s.Elements {
 			evaledE, err := e.Eval(context) // Element.Eval returns (any, error)
 			if err != nil {
 				return nil, err
 			}
-			if element, ok := evaledE.(*Element); ok {
-				evaluatedElements[i] = element
-			} else {
-				evaluatedElements[i] = e // fallback to original
+			element, ok := evaledE.(*Element)
+			if !ok {
+				element = e // fallback to original
 			}
+			// Lazy allocation: only create new slice when we detect a change
+			if evaluatedElements == nil {
+				if element != e {
+					// First change detected - allocate and copy previous elements
+					evaluatedElements = make([]*Element, len(s.Elements))
+					copy(evaluatedElements[:i], s.Elements[:i])
+					evaluatedElements[i] = element
+				}
+			} else {
+				evaluatedElements[i] = element
+			}
+		}
+		// If no changes were detected, reuse original slice
+		if evaluatedElements == nil {
+			evaluatedElements = s.Elements
 		}
 	}
 
+	// Evaluate extend list - only allocate new slice if something changed
 	var evaluatedExtendList []any
 	if s.ExtendList != nil {
-		evaluatedExtendList = make([]any, len(s.ExtendList))
 		for i, extendItem := range s.ExtendList {
+			var evaluated any = extendItem
 			if ev, ok := extendItem.(interface{ Eval(any) any }); ok {
-				evaluatedExtendList[i] = ev.Eval(context)
-			} else {
-				evaluatedExtendList[i] = extendItem // Not evaluatable
+				evaluated = ev.Eval(context)
 			}
+			// Lazy allocation: only create new slice when we detect a change
+			if evaluatedExtendList == nil {
+				if evaluated != extendItem {
+					// First change detected - allocate and copy previous items
+					evaluatedExtendList = make([]any, len(s.ExtendList))
+					copy(evaluatedExtendList[:i], s.ExtendList[:i])
+					evaluatedExtendList[i] = evaluated
+				}
+			} else {
+				evaluatedExtendList[i] = evaluated
+			}
+		}
+		// If no changes were detected, reuse original slice
+		if evaluatedExtendList == nil {
+			evaluatedExtendList = s.ExtendList
 		}
 	}
 	// Pass the evaluated condition NODE to CreateDerived

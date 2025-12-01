@@ -514,7 +514,7 @@ func (mc *MixinCall) Eval(context any) ([]any, error) {
 										// Create new context with incremented depth
 										callContext := context
 										if ctx, ok := context.(map[string]any); ok {
-											newCtx := make(map[string]any)
+											newCtx := make(map[string]any, len(ctx)+1)
 											for k, v := range ctx {
 												newCtx[k] = v
 											}

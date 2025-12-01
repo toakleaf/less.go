@@ -171,17 +171,17 @@ func (d *Declaration) SetImportant(important bool) {
 }
 
 func evalName(context any, name []any) (string, error) {
-	value := ""
+	var value strings.Builder
 	output := &CSSOutput{
 		Add: func(chunk any, fileInfo any, index any) {
 			if chunk != nil {
 				switch v := chunk.(type) {
 				case string:
-					value += v
+					value.WriteString(v)
 				case *Keyword:
-					value += v.value
+					value.WriteString(v.value)
 				default:
-					value += fmt.Sprintf("%v", v)
+					fmt.Fprintf(&value, "%v", v)
 				}
 			}
 		},
@@ -218,7 +218,7 @@ func evalName(context any, name []any) (string, error) {
 		}
 	}
 
-	return value, nil
+	return value.String(), nil
 }
 
 func (d *Declaration) Accept(visitor any) {
