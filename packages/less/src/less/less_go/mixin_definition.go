@@ -867,20 +867,10 @@ func (md *MixinDefinition) EvalCall(context any, args []any, important bool) (*R
 		fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] No pluginBridge in context\n")
 	}
 
-	// OPTIMIZATION: Pass *Eval directly when possible instead of converting to map
-	var evaluated any
-	if evalCtx, ok := context.(*Eval); ok {
-		// Create a new *Eval context with modified frames using pool
-		newEval := GetEvalFromPool(evalCtx, evalFrames)
-		// Debug: trace evalContext mediaPath after copy
-		if os.Getenv("LESS_GO_TRACE") != "" {
-			fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] %s: *Eval context, mediaPath is nil (fresh context)\n", md.Name)
-		}
-		evaluated, err = ruleset.Eval(newEval)
-		PutEvalToPool(newEval)
-	} else if ctx, ok := context.(map[string]any); ok {
-		// Fall back to map context when input is map
-		evalContext := getContextMap()
+	// Pre-allocate evalContext with capacity based on context size
+	var evalContext map[string]any
+	if ctx, ok := context.(map[string]any); ok {
+		evalContext = make(map[string]any, len(ctx))
 		evalContext["frames"] = evalFrames
 		for k, v := range ctx {
 			// Skip "frames" (already set), and "mediaBlocks"/"mediaPath" which should NOT be
@@ -892,22 +882,28 @@ func (md *MixinDefinition) EvalCall(context any, args []any, important bool) (*R
 				evalContext[k] = v
 			}
 		}
-		// Debug: trace evalContext mediaPath after copy
-		if os.Getenv("LESS_GO_TRACE") != "" {
-			if mp, ok := evalContext["mediaPath"].([]any); ok {
-				fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] %s: evalContext after copy, mediaPath len=%d\n", md.Name, len(mp))
-			} else {
-				fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] %s: evalContext after copy, mediaPath is nil/not []any\n", md.Name)
-			}
-		}
-		evaluated, err = ruleset.Eval(evalContext)
-		// Note: Can't safely return evalContext to pool as Ruleset.Eval may retain references
+	} else if evalCtx, ok := context.(*Eval); ok {
+		// Efficiently copy Eval fields to map (with closures for compatibility)
+		// Pass false for includeMediaContext to NOT copy mediaBlocks/mediaPath
+		evalContext = make(map[string]any, 8) // Typical Eval context has ~8 fields
+		evalContext["frames"] = evalFrames
+		evalCtx.CopyEvalToMap(evalContext, false)
 	} else {
-		evalContext := map[string]any{
+		evalContext = map[string]any{
 			"frames": evalFrames,
 		}
-		evaluated, err = ruleset.Eval(evalContext)
 	}
+
+	// Debug: trace evalContext mediaPath after copy
+	if os.Getenv("LESS_GO_TRACE") != "" {
+		if mp, ok := evalContext["mediaPath"].([]any); ok {
+			fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] %s: evalContext after copy, mediaPath len=%d\n", md.Name, len(mp))
+		} else {
+			fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] %s: evalContext after copy, mediaPath is nil/not []any\n", md.Name)
+		}
+	}
+
+	evaluated, err := ruleset.Eval(evalContext)
 	if err != nil {
 		return nil, err
 	}
