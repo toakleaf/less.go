@@ -336,6 +336,7 @@ func (im *ImportManager) Push(path string, tryAppendExtension bool, currentFileI
 		} else if importOptions.Inline {
 			fileParsedFunc(nil, contents, resolvedFilename)
 		} else {
+			// Check per-compilation cache first (for @import (multiple) handling)
 			if cached, exists := im.files[resolvedFilename]; exists {
 				cachedMultiple := false
 				if mult, ok := cached.Options["multiple"].(bool); ok {
@@ -344,6 +345,19 @@ func (im *ImportManager) Push(path string, tryAppendExtension bool, currentFileI
 
 				if !cachedMultiple && !importOptions.Multiple {
 					fileParsedFunc(nil, cached.Root, resolvedFilename)
+					return
+				}
+			}
+
+			// Check global parse cache for unchanged files (incremental compilation optimization)
+			// Skip cache for @import (multiple) which requires fresh parsing each time
+			globalCache := GetGlobalParseCache()
+			if !importOptions.Multiple {
+				if cachedRoot, hit := globalCache.Get(resolvedFilename, contents); hit {
+					if os.Getenv("LESS_GO_DEBUG") == "1" {
+						fmt.Printf("[DEBUG ImportManager] Global cache HIT for %s\n", resolvedFilename)
+					}
+					fileParsedFunc(nil, cachedRoot, resolvedFilename)
 					return
 				}
 			}
@@ -368,6 +382,13 @@ func (im *ImportManager) Push(path string, tryAppendExtension bool, currentFileI
 						var err error
 						if e != nil {
 							err = e
+						}
+						// Store in global cache on successful parse
+						if e == nil && root != nil {
+							globalCache.Put(resolvedFilename, contents, root)
+							if os.Getenv("LESS_GO_DEBUG") == "1" {
+								fmt.Printf("[DEBUG ImportManager] Global cache STORE for %s\n", resolvedFilename)
+							}
 						}
 						fileParsedFunc(err, root, resolvedFilename)
 					}, nil)
