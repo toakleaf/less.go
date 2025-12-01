@@ -76,8 +76,8 @@ status:
 	@find packages/less/src/less/less_go -name "*_test.go" | wc -l | xargs echo "  "
 	@echo ""
 	@echo "Available test data:"
-	@find packages/test-data/less/_main -name "*.less" | wc -l | xargs echo "  .less files:"
-	@find packages/test-data/css/_main -name "*.css" | wc -l | xargs echo "  .css files:"
+	@find testdata/less/_main -name "*.less" | wc -l | xargs echo "  .less files:"
+	@find testdata/css/_main -name "*.css" | wc -l | xargs echo "  .css files:"
 
 # Run tests with coverage
 test-coverage:
@@ -120,8 +120,8 @@ check: fmt lint test
 # Build and test CLI
 test-cli: build
 	@echo "🧪 Testing lessc-go CLI..."
-	@if [ -f "packages/test-data/less/_main/variables.less" ]; then \
-		./bin/lessc-go packages/test-data/less/_main/variables.less /tmp/test-output.css; \
+	@if [ -f "testdata/less/_main/variables.less" ]; then \
+		./bin/lessc-go testdata/less/_main/variables.less /tmp/test-output.css; \
 		echo "✅ CLI test completed - output saved to /tmp/test-output.css"; \
 	else \
 		echo "❌ Test file not found"; \

@@ -304,7 +304,7 @@ var benchmarkPluginTestFiles = []struct {
 // This is the primary benchmark for comparing with less.js
 // Includes warmup runs for fair comparison with JIT-compiled JavaScript
 func BenchmarkLessCompilation(b *testing.B) {
-	testDataRoot := "../../../../test-data"
+	testDataRoot := "../../../../../testdata"
 	lessRoot := filepath.Join(testDataRoot, "less")
 
 	for _, suite := range benchmarkTestFiles {
@@ -355,7 +355,7 @@ func BenchmarkLessCompilation(b *testing.B) {
 // This measures the real-world performance when the process is starting up
 // No warmup runs are performed, capturing cache misses and initial allocations
 func BenchmarkLessCompilationColdStart(b *testing.B) {
-	testDataRoot := "../../../../test-data"
+	testDataRoot := "../../../../../testdata"
 	lessRoot := filepath.Join(testDataRoot, "less")
 
 	for _, suite := range benchmarkTestFiles {
@@ -415,7 +415,7 @@ func BenchmarkLessEvaluation(b *testing.B) {
 // in a single session. Each benchmark iteration represents one complete build.
 // NO warmup runs - each iteration is independent, simulating a fresh build process.
 func BenchmarkLargeSuite(b *testing.B) {
-	testDataRoot := "../../../../test-data"
+	testDataRoot := "../../../../../testdata"
 	lessRoot := filepath.Join(testDataRoot, "less")
 
 	// Collect all test data
@@ -467,7 +467,7 @@ func BenchmarkLargeSuite(b *testing.B) {
 // These are benchmarked separately because they involve IPC overhead to Node.js
 // Use this benchmark to measure plugin system performance specifically
 func BenchmarkPluginTests(b *testing.B) {
-	testDataRoot := "../../../../test-data"
+	testDataRoot := "../../../../../testdata"
 	lessRoot := filepath.Join(testDataRoot, "less")
 
 	for _, suite := range benchmarkPluginTestFiles {

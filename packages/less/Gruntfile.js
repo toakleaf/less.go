@@ -1,9 +1,8 @@
 "use strict";
 
-var resolve = require('resolve');
 var path = require('path');
 
-var testFolder = path.relative(process.cwd(), path.dirname(resolve.sync('@less/test-data')));
+var testFolder = path.relative(process.cwd(), path.resolve(__dirname, '..', '..', 'testdata'));
 var lessFolder = path.join(testFolder, 'less');
 
 module.exports = function(grunt) {

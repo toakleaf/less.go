@@ -11,7 +11,7 @@ import (
 // TestBootstrap4NoPluginPerf tests bootstrap4 without plugin support
 // This isolates Go parser/eval performance from plugin IPC overhead
 func TestBootstrap4NoPluginPerf(t *testing.T) {
-	testDataRoot := "../../../../test-data"
+	testDataRoot := "../../../../../testdata"
 	lessFile := filepath.Join(testDataRoot, "less/3rd-party/bootstrap4.less")
 
 	lessData, err := ioutil.ReadFile(lessFile)
@@ -41,7 +41,7 @@ func TestBootstrap4NoPluginPerf(t *testing.T) {
 
 // TestBootstrap4NoPluginMultiRun runs multiple times without plugins
 func TestBootstrap4NoPluginMultiRun(t *testing.T) {
-	testDataRoot := "../../../../test-data"
+	testDataRoot := "../../../../../testdata"
 	lessFile := filepath.Join(testDataRoot, "less/3rd-party/bootstrap4.less")
 
 	lessData, err := ioutil.ReadFile(lessFile)

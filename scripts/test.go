@@ -102,8 +102,8 @@ func showStatus() {
 	fmt.Println("")
 	
 	// Count test data
-	lessFiles := countFiles("packages/test-data/less/_main", "*.less")
-	cssFiles := countFiles("packages/test-data/css/_main", "*.css")
+	lessFiles := countFiles("testdata/less/_main", "*.less")
+	cssFiles := countFiles("testdata/css/_main", "*.css")
 	fmt.Printf("Available test data:\n")
 	fmt.Printf("  .less files: %d\n", lessFiles)
 	fmt.Printf("  .css files: %d\n", cssFiles)
