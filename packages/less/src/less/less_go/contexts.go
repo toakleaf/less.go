@@ -71,6 +71,11 @@ type Eval struct {
 
 	PluginBridge     *NodeJSPluginBridge
 	LazyPluginBridge *LazyNodeJSPluginBridge // Lazy bridge for deferred initialization
+
+	// Cached closures to avoid allocation in CopyEvalToMap
+	cachedInParenthesis    func()
+	cachedOutOfParenthesis func()
+	cachedIsMathOn         func(string) bool
 }
 
 func buildParserFramesCache(frames []any) []ParserFrame {
@@ -172,6 +177,16 @@ func (e *Eval) OutOfParenthesis() {
 }
 
 func (e *Eval) ToMap() map[string]any {
+	// Use cached closures to avoid allocation
+	if e.cachedInParenthesis == nil {
+		e.cachedInParenthesis = func() { e.InParenthesis() }
+	}
+	if e.cachedOutOfParenthesis == nil {
+		e.cachedOutOfParenthesis = func() { e.OutOfParenthesis() }
+	}
+	if e.cachedIsMathOn == nil {
+		e.cachedIsMathOn = func(op string) bool { return e.IsMathOnWithOp(op) }
+	}
 	return map[string]any{
 		"paths":             e.Paths,
 		"compress":          e.Compress,
@@ -187,16 +202,10 @@ func (e *Eval) ToMap() map[string]any {
 		"numPrecision":      e.NumPrecision,
 		"mediaBlocks":       e.MediaBlocks,
 		"mediaPath":         e.MediaPath,
-		"inParenthesis": func() {
-			e.InParenthesis()
-		},
-		"outOfParenthesis": func() {
-			e.OutOfParenthesis()
-		},
-		"isMathOn": func(op string) bool {
-			return e.IsMathOnWithOp(op)
-		},
-		"inCalc": e.InCalc,
+		"inParenthesis":     e.cachedInParenthesis,
+		"outOfParenthesis":  e.cachedOutOfParenthesis,
+		"isMathOn":          e.cachedIsMathOn,
+		"inCalc":            e.InCalc,
 	}
 }
 
@@ -217,15 +226,20 @@ func (e *Eval) CopyEvalToMap(target map[string]any, includeMediaContext bool) {
 	target["inCalc"] = e.InCalc
 	target["mathOn"] = e.MathOn
 	target["_evalContext"] = e
-	target["inParenthesis"] = func() {
-		e.InParenthesis()
+
+	// Use cached closures to avoid allocation on every call
+	if e.cachedInParenthesis == nil {
+		e.cachedInParenthesis = func() { e.InParenthesis() }
 	}
-	target["outOfParenthesis"] = func() {
-		e.OutOfParenthesis()
+	if e.cachedOutOfParenthesis == nil {
+		e.cachedOutOfParenthesis = func() { e.OutOfParenthesis() }
 	}
-	target["isMathOn"] = func(op string) bool {
-		return e.IsMathOnWithOp(op)
+	if e.cachedIsMathOn == nil {
+		e.cachedIsMathOn = func(op string) bool { return e.IsMathOnWithOp(op) }
 	}
+	target["inParenthesis"] = e.cachedInParenthesis
+	target["outOfParenthesis"] = e.cachedOutOfParenthesis
+	target["isMathOn"] = e.cachedIsMathOn
 
 	if includeMediaContext {
 		target["mediaBlocks"] = e.MediaBlocks

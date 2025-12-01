@@ -5,6 +5,11 @@ import (
 	"strings"
 )
 
+// emptyToCSSContext is a shared read-only context for ToCSS calls that don't need context.
+// This avoids allocating a new map on every ToCSS call.
+// IMPORTANT: This map must NEVER be modified. ToCSS implementations should only read from it.
+var emptyToCSSContext = map[string]any{}
+
 // isVarNameChar checks if a character is valid in a variable/property name: [a-zA-Z0-9_-]
 func isVarNameChar(c byte) bool {
 	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
@@ -297,7 +302,11 @@ func (q *Quoted) Eval(context any) (any, error) {
 		// First try direct frame access for the test case
 		for _, frame := range frames {
 			if varResult := frame.Variable("@" + name); varResult != nil {
-				if val, ok := varResult["value"]; ok {
+				// Extract value and return map to pool immediately
+				val, hasValue := varResult["value"]
+				PutVariableResultMap(varResult)
+
+				if hasValue {
 					var result string
 					if quoted, ok := val.(*Quoted); ok {
 						result = quoted.value
@@ -306,7 +315,7 @@ func (q *Quoted) Eval(context any) (any, error) {
 						if str, ok := anon.Value.(string); ok {
 							result = str
 						} else if cssable, ok := anon.Value.(interface{ ToCSS(any) string }); ok {
-							result = cssable.ToCSS(make(map[string]any))
+							result = cssable.ToCSS(emptyToCSSContext)
 						} else {
 							result = fmt.Sprintf("%v", anon.Value)
 						}
@@ -320,7 +329,7 @@ func (q *Quoted) Eval(context any) (any, error) {
 							if str, ok := anon.Value.(string); ok {
 								result = str
 							} else if cssable, ok := anon.Value.(interface{ ToCSS(any) string }); ok {
-								result = cssable.ToCSS(make(map[string]any))
+								result = cssable.ToCSS(emptyToCSSContext)
 							} else {
 								result = fmt.Sprintf("%v", anon.Value)
 							}
@@ -330,18 +339,18 @@ func (q *Quoted) Eval(context any) (any, error) {
 						} else if expr, ok := evaluated.(*Expression); ok {
 							// Handle Expression results from Value eval
 							// Use ToCSS to get the full expression (e.g., "Arial, Verdana, San-Serif")
-							result = expr.ToCSS(make(map[string]any))
+							result = expr.ToCSS(emptyToCSSContext)
 						} else if evalValue, ok := evaluated.(*Value); ok {
 							// Handle Value results (e.g., comma-separated lists like "Arial, Verdana, San-Serif")
 							// Use ToCSS to get the full value list
-							result = evalValue.ToCSS(make(map[string]any))
+							result = evalValue.ToCSS(emptyToCSSContext)
 						} else if cssable, ok := evaluated.(interface{ ToCSS(any) string }); ok {
-							result = cssable.ToCSS(make(map[string]any))
+							result = cssable.ToCSS(emptyToCSSContext)
 						} else {
 							result = fmt.Sprintf("%v", evaluated)
 						}
 					} else if cssable, ok := val.(interface{ ToCSS(any) string }); ok {
-						result = cssable.ToCSS(make(map[string]any))
+						result = cssable.ToCSS(emptyToCSSContext)
 					} else {
 						result = fmt.Sprintf("%v", val)
 					}
@@ -362,7 +371,7 @@ func (q *Quoted) Eval(context any) (any, error) {
 		}
 
 		if cssable, ok := result.(interface{ ToCSS(any) string }); ok {
-			return cssable.ToCSS(make(map[string]any)), nil
+			return cssable.ToCSS(emptyToCSSContext), nil
 		}
 
 		return fmt.Sprintf("%v", result), nil
@@ -383,7 +392,7 @@ func (q *Quoted) Eval(context any) (any, error) {
 		}
 
 		if cssable, ok := result.(interface{ ToCSS(any) string }); ok {
-			return cssable.ToCSS(make(map[string]any)), nil
+			return cssable.ToCSS(emptyToCSSContext), nil
 		}
 
 		return fmt.Sprintf("%v", result), nil
