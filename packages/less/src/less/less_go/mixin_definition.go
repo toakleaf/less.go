@@ -757,47 +757,13 @@ func (md *MixinDefinition) EvalCall(context any, args []any, important bool) (*R
 	}
 
 	// Evaluate ruleset with proper context
+	// OPTIMIZATION: When context is *Eval, we pass *Eval directly to Ruleset.Eval
+	// instead of converting to map[string]any. This saves ~27MB of allocations per profile.
 	// Pre-allocate evalFrames with capacity based on mixinFrames length
 	evalFrames := make([]any, 2, 2+len(mixinFrames))
 	evalFrames[0] = md
 	evalFrames[1] = frame
 	evalFrames = append(evalFrames, mixinFrames...)
-
-	// Pre-allocate evalContext with capacity based on context size
-	var evalContext map[string]any
-	if ctx, ok := context.(map[string]any); ok {
-		evalContext = make(map[string]any, len(ctx))
-		evalContext["frames"] = evalFrames
-		for k, v := range ctx {
-			// Skip "frames" (already set), and "mediaBlocks"/"mediaPath" which should NOT be
-			// inherited. In JavaScript's contexts.Eval constructor, mediaBlocks and mediaPath
-			// are NOT in evalCopyProperties, meaning mixin body evaluation gets a fresh media
-			// context. This is critical for correct media query merging when a mixin contains
-			// nested @media rules with detached ruleset calls.
-			if k != "frames" && k != "mediaBlocks" && k != "mediaPath" {
-				evalContext[k] = v
-			}
-		}
-	} else if evalCtx, ok := context.(*Eval); ok {
-		// Efficiently copy Eval fields to map (with closures for compatibility)
-		// Pass false for includeMediaContext to NOT copy mediaBlocks/mediaPath
-		evalContext = make(map[string]any, 8) // Typical Eval context has ~8 fields
-		evalContext["frames"] = evalFrames
-		evalCtx.CopyEvalToMap(evalContext, false)
-	} else {
-		evalContext = map[string]any{
-			"frames": evalFrames,
-		}
-	}
-
-	// Debug: trace evalContext mediaPath after copy
-	if os.Getenv("LESS_GO_TRACE") != "" {
-		if mp, ok := evalContext["mediaPath"].([]any); ok {
-			fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] %s: evalContext after copy, mediaPath len=%d\n", md.Name, len(mp))
-		} else {
-			fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] %s: evalContext after copy, mediaPath is nil/not []any\n", md.Name)
-		}
-	}
 
 	// Re-load plugins from ancestor frames so that mixin body can access plugin functions
 	// This is needed because when #ns { @plugin "..."; .mixin() { ... } } is called,
@@ -814,9 +780,21 @@ func (md *MixinDefinition) EvalCall(context any, args []any, important bool) (*R
 		fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] Checking %d mixinFrames for plugins\n", len(mixinFrames))
 	}
 
+	// Get plugin bridge from context (handles both *Eval and map contexts)
+	var pluginBridge any
+	if evalCtx, ok := context.(*Eval); ok {
+		if evalCtx.LazyPluginBridge != nil {
+			pluginBridge = evalCtx.LazyPluginBridge
+		} else if evalCtx.PluginBridge != nil {
+			pluginBridge = evalCtx.PluginBridge
+		}
+	} else if ctx, ok := context.(map[string]any); ok {
+		pluginBridge = ctx["pluginBridge"]
+	}
+
 	// Enter a new plugin scope for this mixin call to prevent function leakage
 	var mixinScopeExitFunc func()
-	if pluginBridge, ok := evalContext["pluginBridge"]; ok && pluginBridge != nil {
+	if pluginBridge != nil {
 		if lazyBridge, ok := pluginBridge.(*LazyNodeJSPluginBridge); ok {
 			if bridge, err := lazyBridge.GetBridge(); err == nil && bridge != nil {
 				bridge.EnterScope()
@@ -849,7 +827,7 @@ func (md *MixinDefinition) EvalCall(context any, args []any, important bool) (*R
 	}
 
 	// Now re-register inherited plugin functions within the mixin's scope
-	if pluginBridge, ok := evalContext["pluginBridge"]; ok && pluginBridge != nil {
+	if pluginBridge != nil {
 		for frameIdx, frameAny := range mixinFrames {
 			if rs, ok := frameAny.(*Ruleset); ok {
 				if debug {
@@ -886,10 +864,50 @@ func (md *MixinDefinition) EvalCall(context any, args []any, important bool) (*R
 			}
 		}
 	} else if debug {
-		fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] No pluginBridge in evalContext\n")
+		fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] No pluginBridge in context\n")
 	}
 
-	evaluated, err := ruleset.Eval(evalContext)
+	// OPTIMIZATION: Pass *Eval directly when possible instead of converting to map
+	var evaluated any
+	if evalCtx, ok := context.(*Eval); ok {
+		// Create a new *Eval context with modified frames using pool
+		newEval := GetEvalFromPool(evalCtx, evalFrames)
+		// Debug: trace evalContext mediaPath after copy
+		if os.Getenv("LESS_GO_TRACE") != "" {
+			fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] %s: *Eval context, mediaPath is nil (fresh context)\n", md.Name)
+		}
+		evaluated, err = ruleset.Eval(newEval)
+		PutEvalToPool(newEval)
+	} else if ctx, ok := context.(map[string]any); ok {
+		// Fall back to map context when input is map
+		evalContext := getContextMap()
+		evalContext["frames"] = evalFrames
+		for k, v := range ctx {
+			// Skip "frames" (already set), and "mediaBlocks"/"mediaPath" which should NOT be
+			// inherited. In JavaScript's contexts.Eval constructor, mediaBlocks and mediaPath
+			// are NOT in evalCopyProperties, meaning mixin body evaluation gets a fresh media
+			// context. This is critical for correct media query merging when a mixin contains
+			// nested @media rules with detached ruleset calls.
+			if k != "frames" && k != "mediaBlocks" && k != "mediaPath" {
+				evalContext[k] = v
+			}
+		}
+		// Debug: trace evalContext mediaPath after copy
+		if os.Getenv("LESS_GO_TRACE") != "" {
+			if mp, ok := evalContext["mediaPath"].([]any); ok {
+				fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] %s: evalContext after copy, mediaPath len=%d\n", md.Name, len(mp))
+			} else {
+				fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] %s: evalContext after copy, mediaPath is nil/not []any\n", md.Name)
+			}
+		}
+		evaluated, err = ruleset.Eval(evalContext)
+		// Note: Can't safely return evalContext to pool as Ruleset.Eval may retain references
+	} else {
+		evalContext := map[string]any{
+			"frames": evalFrames,
+		}
+		evaluated, err = ruleset.Eval(evalContext)
+	}
 	if err != nil {
 		return nil, err
 	}
