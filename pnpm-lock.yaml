@@ -11,6 +11,9 @@ importers:
       all-contributors-cli:
         specifier: ~6.26.1
         version: 6.26.1(encoding@0.1.13)
+      copy-anything:
+        specifier: ^2.0.1
+        version: 2.0.6
       github-changes:
         specifier: ^1.1.2
         version: 1.1.2
@@ -20,6 +23,12 @@ importers:
       npm-run-all:
         specifier: ^4.1.5
         version: 4.1.5
+      parse-node-version:
+        specifier: ^1.0.1
+        version: 1.0.1
+      tslib:
+        specifier: ^2.3.0
+        version: 2.8.1
       vitest:
         specifier: ^3.0.9
         version: 3.0.9(@types/node@22.13.5)(@vitest/ui@3.0.9)(jsdom@26.0.0)
@@ -1250,6 +1259,9 @@ packages:
   cookie-jar@0.3.0:
     resolution: {integrity: sha512-dX1400pzPULr+ZovkIsDEqe7XH8xCAYGT5Dege4Eot44Qs2mS2iJmnh45TxTO5MIsCfrV/JGZVloLhm46AHxNw==}
 
+  copy-anything@2.0.6:
+    resolution: {integrity: sha512-1j20GZTsvKNkc4BY3NpMOM8tt///wY3FpIzozTOFO2ffuZcV61nojHXVKIy3WM+7ADCy5FVhdZYHYDdgTU0yJw==}
+
   copy-concurrently@1.0.5:
     resolution: {integrity: sha512-f2domd9fsVDFtaFcbaRZuYXwtdmnzqbADSwhSWYxYB/Q8zsdUUFMXVRwXGDMWmbEzAn1kdRrtI1T/KTFOL4X2A==}
     deprecated: This package is no longer supported.
@@ -2219,6 +2231,9 @@ packages:
     resolution: {integrity: sha512-mfcwb6IzQyOKTs84CQMrOwW4gQcaTOAWJ0zzJCl2WSPDrWk/OzDaImWFH3djXhb24g4eudZfLRozAvPGw4d9hQ==}
     engines: {node: '>= 0.4'}
 
+  is-what@3.14.1:
+    resolution: {integrity: sha512-sNxgpk9793nzSs7bA6JQJGeIuRBQhAaNGG77kzYQgMkrID+lS6SlK07K5LaptscDlSaIgH+GPFzf+d75FVxozA==}
+
   is-windows@1.0.2:
     resolution: {integrity: sha512-eXK1UInq2bPmjyX6e3VHIzMLobc4J94i4AWn+Hpq3OU5KkrRC96OAcR3PRJ/pGu6m8TRnBHP9dkXQVsT/COVIA==}
     engines: {node: '>=0.10.0'}
@@ -2815,6 +2830,10 @@ packages:
 
   parse-link-header@0.1.0:
     resolution: {integrity: sha512-VZ0pZwX3LRTfpDARULYD2C0fHuQqg7TPSGmPoKEHfBBmBhH7KMG3LV27GkUtjezoixE/CCJNAVnNw54IxkskWg==}
+
+  parse-node-version@1.0.1:
+    resolution: {integrity: sha512-3YHlOa/JgH6Mnpr05jP9eDG254US9ek25LyIxZlDItp2iJtwyaXQb57lBYLdT3MowkUFYEV2XXNAYIPlESvJlA==}
+    engines: {node: '>= 0.10'}
 
   parse-path@4.0.4:
     resolution: {integrity: sha512-Z2lWUis7jlmXC1jeOG9giRO2+FsuyNipeQ43HAjqAZjwSe3SEf+q/84FGPHoso3kyntbxa4c4i77t3m6fGf8cw==}
@@ -3631,6 +3650,9 @@ packages:
 
   tslib@1.14.1:
     resolution: {integrity: sha512-Xni35NKzjgMrwevysHTCArtLDpPvye8zV/0E4EyYn43P7/7qvQwPh9BGkHewbMulVntbigmcT7rdX3BNo9wRJg==}
+
+  tslib@2.8.1:
+    resolution: {integrity: sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==}
 
   tunnel-agent@0.3.0:
     resolution: {integrity: sha512-jlGqHGoKzyyjhwv/c9omAgohntThMcGtw8RV/RDLlkbbc08kni/akVxO62N8HaXMVbVsK1NCnpSK3N2xCt22ww==}
@@ -5523,6 +5545,10 @@ snapshots:
 
   cookie-jar@0.3.0: {}
 
+  copy-anything@2.0.6:
+    dependencies:
+      is-what: 3.14.1
+
   copy-concurrently@1.0.5:
     dependencies:
       aproba: 1.2.0
@@ -6659,6 +6685,8 @@ snapshots:
       call-bound: 1.0.3
       get-intrinsic: 1.3.0
 
+  is-what@3.14.1: {}
+
   is-windows@1.0.2: {}
 
   is@0.2.7: {}
@@ -7376,6 +7404,8 @@ snapshots:
   parse-link-header@0.1.0:
     dependencies:
       xtend: 2.0.6
+
+  parse-node-version@1.0.1: {}
 
   parse-path@4.0.4:
     dependencies:
@@ -8294,6 +8324,8 @@ snapshots:
   trim-newlines@3.0.1: {}
 
   tslib@1.14.1: {}
+
+  tslib@2.8.1: {}
 
   tunnel-agent@0.3.0: {}
 
