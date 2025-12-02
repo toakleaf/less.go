@@ -157,7 +157,7 @@ func main() {
 	// Example 8: Include paths for @import resolution
 	fmt.Println("=== Example 8: Include Paths ===")
 	fmt.Println("Include paths allow @import to find files in additional directories:")
-	fmt.Println(`
+	fmt.Print(`
     result, err := less.Compile(source, &less.CompileOptions{
         Paths: []string{
             "/path/to/vendor/less",

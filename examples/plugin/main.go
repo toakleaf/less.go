@@ -157,7 +157,7 @@ func main() {
 
 	// Print summary
 	fmt.Println("=== Plugin System Summary ===")
-	fmt.Println(`
+	fmt.Print(`
 Plugin support is fully functional! You can:
   - Load plugins via @plugin directive
   - Call custom functions with arguments
