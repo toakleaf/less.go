@@ -123,13 +123,20 @@ result, err := less.Compile(source, &less.CompileOptions{
 
 less.go provides native binary performance without requiring a JavaScript runtime:
 
-| Metric | Less.js | less.go | Notes |
-|--------|---------|---------|-------|
-| Cold start | ~993µs/file | ~931µs/file | Go ~6% faster |
-| No JIT warmup required | - | - | Consistent performance from first run |
-| Memory efficiency | - | 0.56 MB/file | Efficient memory usage |
+| Metric | Less.js | less.go | Difference |
+|--------|---------|---------|------------|
+| Full suite (90 files) | 380ms | 175ms | **Go 2.2x faster** |
+| Per file average | 4.23ms | 1.95ms | **Go 2.2x faster** |
+| Memory per file | - | 0.56 MB | Efficient memory usage |
 
-Bootstrap 4's full LESS source compiles in approximately **1.2 seconds**.
+- **No JIT warmup required** - Consistent performance from first run
+- **Native binary** - No JavaScript runtime needed for core functionality
+
+Run benchmarks yourself:
+```bash
+pnpm bench:compare        # Per-file comparison
+pnpm bench:compare:suite  # Full suite comparison
+```
 
 ## Features
 
