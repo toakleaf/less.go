@@ -26,7 +26,7 @@ for (let i = 0; i < ITERATIONS; i++) {
     process.stdout.write(`\r  JS Progress: ${i + 1}/${ITERATIONS} (${((i + 1) / ITERATIONS * 100).toFixed(1)}%)`);
 
     try {
-        const output = execSync('node packages/less/benchmark/suite.js --single-run', {
+        const output = execSync('node reference/less.js/benchmark/suite.js --single-run', {
             encoding: 'utf8',
             cwd: path.join(__dirname, '..'),
             stdio: ['ignore', 'pipe', 'ignore'] // Suppress stderr
@@ -122,7 +122,7 @@ const jsVariationPerc = (jsStdDev / jsAvg * 100);
 // Get test count from first JS run
 let testCount = 73; // default
 try {
-    const output = execSync('node packages/less/benchmark/suite.js --single-run', {
+    const output = execSync('node reference/less.js/benchmark/suite.js --single-run', {
         encoding: 'utf8',
         cwd: path.join(__dirname, '..'),
         stdio: ['ignore', 'pipe', 'ignore']
