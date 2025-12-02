@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import ImportVisitor from '@less/visitors/import-visitor';
 
 // Mock all dependencies
-vi.mock('../contexts', () => ({
+vi.mock('@less/contexts', () => ({
     default: {
         Eval: vi.fn().mockImplementation(function (options, frames) {
             this.frames = frames || [];
@@ -15,7 +15,7 @@ vi.mock('../contexts', () => ({
     }
 }));
 
-vi.mock('./visitor', () => ({
+vi.mock('@less/visitors/visitor', () => ({
     default: vi.fn().mockImplementation(function (implementation) {
         this.visit = vi.fn((node) => {
             // Simulate visitor behavior
@@ -27,7 +27,7 @@ vi.mock('./visitor', () => ({
     })
 }));
 
-vi.mock('./import-sequencer', () => ({
+vi.mock('@less/visitors/import-sequencer', () => ({
     default: vi.fn().mockImplementation(function (onEmptyCallback) {
         this.addImport = vi.fn((callback) => {
             // Return a trigger function
@@ -44,7 +44,7 @@ vi.mock('./import-sequencer', () => ({
     })
 }));
 
-vi.mock('../utils', () => ({
+vi.mock('@less/utils', () => ({
     copyArray: vi.fn((arr) => [...arr])
 }));
 

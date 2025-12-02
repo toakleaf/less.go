@@ -4,7 +4,7 @@ import Anonymous from '@less/tree/anonymous';
 import FunctionCaller from '@less/functions/function-caller';
 
 // Mock FunctionCaller
-vi.mock('../functions/function-caller', () => {
+vi.mock('@less/functions/function-caller', () => {
     return {
         default: vi.fn().mockImplementation((name, context) => ({
             name,

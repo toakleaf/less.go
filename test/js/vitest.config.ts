@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const lessPath = path.resolve(__dirname, '../../reference/less.js/packages/less/src/less');
 
 export default defineConfig({
   test: {
@@ -10,10 +11,14 @@ export default defineConfig({
     environment: 'node',
     include: ['**/*.test.js'],
     root: __dirname,
+    
   },
   resolve: {
     alias: {
-      '@less': path.resolve(__dirname, '../../reference/less.js/packages/less/src/less')
-    }
-  }
+      '@less': lessPath,
+    },
+  },
+  esbuild: {
+    target: 'node18',
+  },
 });

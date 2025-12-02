@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-vi.mock('./mixin-definition', () => ({ default: class {} }));
-vi.mock('./mixin-call', () => ({ default: class {} }));
+vi.mock('@less/tree/mixin-definition', () => ({ default: class {} }));
+vi.mock('@less/tree/mixin-call', () => ({ default: class {} }));
 import NamespaceValue from '@less/tree/namespace-value';
 
 describe('NamespaceValue', () => {

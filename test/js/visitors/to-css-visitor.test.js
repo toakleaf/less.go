@@ -3,7 +3,7 @@ import ToCSSVisitor from '@less/visitors/to-css-visitor';
 import tree from '@less/tree';
 
 // Mock the tree module
-vi.mock('../tree', () => ({
+vi.mock('@less/tree', () => ({
     default: {
         Declaration: vi.fn().mockImplementation(function(name, value) {
             this.type = 'Declaration';
@@ -43,7 +43,7 @@ vi.mock('../tree', () => ({
 }));
 
 // Mock the Visitor class
-vi.mock('./visitor', () => ({
+vi.mock('@less/visitors/visitor', () => ({
     default: vi.fn().mockImplementation(function(implementation) {
         this.implementation = implementation;
         this.visit = vi.fn((node) => {

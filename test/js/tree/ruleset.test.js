@@ -12,7 +12,7 @@ import Selector from '@less/tree/selector';
 import Element from '@less/tree/element';
 
 // Mock dependencies without affecting actual imports
-vi.mock('./node', () => {
+vi.mock('@less/tree/node', () => {
     const NodeMock = vi.fn().mockImplementation(function () {
         this.parent = null;
         this.visibilityBlocks = undefined;
@@ -32,7 +32,7 @@ vi.mock('./node', () => {
     };
 });
 
-vi.mock('./declaration', () => {
+vi.mock('@less/tree/declaration', () => {
     const DeclarationMock = vi
         .fn()
         .mockImplementation(function (
@@ -62,11 +62,11 @@ vi.mock('./declaration', () => {
     };
 });
 
-vi.mock('./anonymous', () => ({
+vi.mock('@less/tree/anonymous', () => ({
     default: vi.fn().mockImplementation(() => ({}))
 }));
 
-vi.mock('../contexts', () => ({
+vi.mock('@less/contexts', () => ({
     default: {
         Eval: vi.fn().mockImplementation((context, frames) => ({
             ...context,
@@ -75,7 +75,7 @@ vi.mock('../contexts', () => ({
     }
 }));
 
-vi.mock('../functions/function-registry', () => ({
+vi.mock('@less/functions/function-registry', () => ({
     default: {
         inherit: vi.fn().mockReturnValue({
             inherit: vi.fn().mockReturnThis()
@@ -83,23 +83,23 @@ vi.mock('../functions/function-registry', () => ({
     }
 }));
 
-vi.mock('../functions/default', () => ({
+vi.mock('@less/functions/default', () => ({
     default: {
         error: vi.fn(),
         reset: vi.fn()
     }
 }));
 
-vi.mock('./debug-info', () => ({
+vi.mock('@less/tree/debug-info', () => ({
     default: vi.fn().mockReturnValue('/* debug info */')
 }));
 
-vi.mock('../utils', () => ({
+vi.mock('@less/utils', () => ({
     copyArray: vi.fn().mockImplementation((arr) => [...(arr || [])]),
     flattenArray: vi.fn().mockImplementation((arr) => arr.flat())
 }));
 
-vi.mock('../parser/parser', () => ({
+vi.mock('@less/parser/parser', () => ({
     default: vi.fn().mockImplementation(() => ({
         parseNode: vi.fn().mockImplementation((selector, types, callback) => {
             callback(null, []);

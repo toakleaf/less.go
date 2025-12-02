@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock problematic circular dependencies
-vi.mock('./media', () => ({
+vi.mock('@less/tree/media', () => ({
     default: vi.fn()
 }));
-vi.mock('./container', () => ({
+vi.mock('@less/tree/container', () => ({
     default: vi.fn()
 }));
 

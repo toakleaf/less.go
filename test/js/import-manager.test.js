@@ -7,14 +7,14 @@ import * as utils from '@less/utils';
 import logger from '@less/logger';
 
 // Mock the Parser class
-vi.mock('./parser/parser', () => {
+vi.mock('@less/parser/parser', () => {
     return {
         default: vi.fn()
     };
 });
 
 // Mock contexts
-vi.mock('./contexts', () => {
+vi.mock('@less/contexts', () => {
     return {
         default: {
             Parse: vi.fn()
@@ -23,7 +23,7 @@ vi.mock('./contexts', () => {
 });
 
 // Mock logger
-vi.mock('./logger', () => {
+vi.mock('@less/logger', () => {
     return {
         default: {
             info: vi.fn(),

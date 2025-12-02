@@ -10,7 +10,7 @@ import contexts from '@less/contexts';
 import * as utils from '@less/utils';
 
 // Mock dependencies
-vi.mock('./selector', () => ({
+vi.mock('@less/tree/selector', () => ({
     default: vi
         .fn()
         .mockImplementation(function (
@@ -32,7 +32,7 @@ vi.mock('./selector', () => ({
         })
 }));
 
-vi.mock('./element', () => ({
+vi.mock('@less/tree/element', () => ({
     default: vi
         .fn()
         .mockImplementation(function (
@@ -51,7 +51,7 @@ vi.mock('./element', () => ({
         })
 }));
 
-vi.mock('./ruleset', () => ({
+vi.mock('@less/tree/ruleset', () => ({
     default: vi
         .fn()
         .mockImplementation(function (selectors, rules, strictImports) {
@@ -68,7 +68,7 @@ vi.mock('./ruleset', () => ({
         })
 }));
 
-vi.mock('./declaration', () => ({
+vi.mock('@less/tree/declaration', () => ({
     default: vi
         .fn()
         .mockImplementation(function (
@@ -93,21 +93,21 @@ vi.mock('./declaration', () => ({
         })
 }));
 
-vi.mock('./detached-ruleset', () => ({
+vi.mock('@less/tree/detached-ruleset', () => ({
     default: vi.fn().mockImplementation(function (ruleset) {
         this.ruleset = ruleset;
         this.eval = vi.fn().mockReturnThis();
     })
 }));
 
-vi.mock('./expression', () => ({
+vi.mock('@less/tree/expression', () => ({
     default: vi.fn().mockImplementation(function (value) {
         this.value = value;
         this.eval = vi.fn().mockReturnThis();
     })
 }));
 
-vi.mock('../contexts', () => ({
+vi.mock('@less/contexts', () => ({
     default: {
         Eval: vi.fn().mockImplementation(function (options, frames) {
             this.frames = frames || [];
@@ -117,7 +117,7 @@ vi.mock('../contexts', () => ({
     }
 }));
 
-vi.mock('../utils', () => ({
+vi.mock('@less/utils', () => ({
     copyArray: vi.fn().mockImplementation((arr) => (arr ? [...arr] : []))
 }));
 

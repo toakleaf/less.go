@@ -5,9 +5,9 @@ import visitor from '@less/visitors';
 import tree from '@less/tree';
 
 // Mock dependencies
-vi.mock('./contexts');
-vi.mock('./visitors');
-vi.mock('./tree');
+vi.mock('@less/contexts');
+vi.mock('@less/visitors');
+vi.mock('@less/tree');
 
 describe('transform-tree', () => {
     let mockRoot;

@@ -6,15 +6,15 @@ vi.mock('parse-node-version', () => ({
 }));
 
 // Mock all other dependencies
-vi.mock('./environment/environment', () => ({
+vi.mock('@less/environment/environment', () => ({
     default: vi.fn(() => ({ env: 'test' }))
 }));
 
-vi.mock('./data', () => ({
+vi.mock('@less/data', () => ({
     default: { data: 'mock' }
 }));
 
-vi.mock('./tree', () => ({
+vi.mock('@less/tree', () => ({
     default: {
         TestNode: function TestNode() {},
         AnotherNode: function AnotherNode() {},
@@ -25,69 +25,69 @@ vi.mock('./tree', () => ({
     }
 }));
 
-vi.mock('./environment/abstract-file-manager', () => ({
+vi.mock('@less/environment/abstract-file-manager', () => ({
     default: class AbstractFileManager {}
 }));
 
-vi.mock('./environment/abstract-plugin-loader', () => ({
+vi.mock('@less/environment/abstract-plugin-loader', () => ({
     default: class AbstractPluginLoader {}
 }));
 
-vi.mock('./visitors', () => ({
+vi.mock('@less/visitors', () => ({
     default: { visitors: 'mock' }
 }));
 
-vi.mock('./parser/parser', () => ({
+vi.mock('@less/parser/parser', () => ({
     default: class Parser {}
 }));
 
-vi.mock('./functions', () => ({
+vi.mock('@less/functions', () => ({
     default: vi.fn(() => ({ func: 'test' }))
 }));
 
-vi.mock('./contexts', () => ({
+vi.mock('@less/contexts', () => ({
     default: { contexts: 'mock' }
 }));
 
-vi.mock('./less-error', () => ({
+vi.mock('@less/less-error', () => ({
     default: class LessError extends Error {}
 }));
 
-vi.mock('./transform-tree', () => ({
+vi.mock('@less/transform-tree', () => ({
     default: { transform: 'mock' }
 }));
 
-vi.mock('./utils', () => ({
+vi.mock('@less/utils', () => ({
     copyArray: vi.fn(),
     clone: vi.fn(),
     defaults: vi.fn()
 }));
 
-vi.mock('./plugin-manager', () => ({
+vi.mock('@less/plugin-manager', () => ({
     default: class PluginManager {}
 }));
 
-vi.mock('./logger', () => ({
+vi.mock('@less/logger', () => ({
     default: { log: vi.fn() }
 }));
 
-vi.mock('./source-map-output', () => ({
+vi.mock('@less/source-map-output', () => ({
     default: vi.fn(() => ({ sourceMap: 'output' }))
 }));
 
-vi.mock('./source-map-builder', () => ({
+vi.mock('@less/source-map-builder', () => ({
     default: vi.fn(() => ({ sourceMap: 'builder' }))
 }));
 
-vi.mock('./parse-tree', () => ({
+vi.mock('@less/parse-tree', () => ({
     default: vi.fn(() => ({ parseTree: 'instance' }))
 }));
 
-vi.mock('./import-manager', () => ({
+vi.mock('@less/import-manager', () => ({
     default: vi.fn(() => ({ import: 'manager' }))
 }));
 
-vi.mock('./parse', () => ({
+vi.mock('@less/parse', () => ({
     default: vi.fn(() => {
         const mockParse = vi.fn().mockReturnValue('parsed');
         mockParse.bind = vi.fn().mockReturnValue(mockParse);
@@ -95,7 +95,7 @@ vi.mock('./parse', () => ({
     })
 }));
 
-vi.mock('./render', () => ({
+vi.mock('@less/render', () => ({
     default: vi.fn(() => {
         const mockRender = vi.fn().mockReturnValue('rendered');
         mockRender.bind = vi.fn().mockReturnValue(mockRender);

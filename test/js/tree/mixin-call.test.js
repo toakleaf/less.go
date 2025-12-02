@@ -5,7 +5,7 @@ import MixinDefinition from '@less/tree/mixin-definition';
 import defaultFunc from '@less/functions/default';
 
 // Mock dependencies
-vi.mock('./selector', () => ({
+vi.mock('@less/tree/selector', () => ({
     default: vi
         .fn()
         .mockImplementation(function (
@@ -28,7 +28,7 @@ vi.mock('./selector', () => ({
         })
 }));
 
-vi.mock('./mixin-definition', () => ({
+vi.mock('@less/tree/mixin-definition', () => ({
     default: vi
         .fn()
         .mockImplementation(function (
@@ -54,7 +54,7 @@ vi.mock('./mixin-definition', () => ({
         })
 }));
 
-vi.mock('../functions/default', () => ({
+vi.mock('@less/functions/default', () => ({
     default: {
         value: vi.fn(),
         reset: vi.fn()
