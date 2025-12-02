@@ -1,0 +1,14 @@
+{
+  "name": "@toakleaf/less.go-linux-arm64",
+  "version": "0.1.0",
+  "description": "Platform-specific binary for @toakleaf/less.go (Linux ARM64)",
+  "os": ["linux"],
+  "cpu": ["arm64"],
+  "main": "bin/lessc-go",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/toakleaf/less.go.git"
+  },
+  "license": "Apache-2.0",
+  "preferUnplugged": true
+}

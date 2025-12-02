@@ -1,0 +1,14 @@
+{
+  "name": "@toakleaf/less.go-darwin-x64",
+  "version": "0.1.0",
+  "description": "Platform-specific binary for @toakleaf/less.go (macOS x64)",
+  "os": ["darwin"],
+  "cpu": ["x64"],
+  "main": "bin/lessc-go",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/toakleaf/less.go.git"
+  },
+  "license": "Apache-2.0",
+  "preferUnplugged": true
+}
