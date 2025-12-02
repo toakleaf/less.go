@@ -1,82 +1,230 @@
-<p align="center"><img src="http://lesscss.org/public/img/less_logo.png" width="264" height="117"></p>
+# less.go
 
-<p align="center">
-    <a href="https://github.com/less/less.js/actions?query=branch%3Amaster"><img src="https://github.com/less/less.js/actions/workflows/ci.yml/badge.svg?branch=master" alt="Github Actions CI"/></a>
-    <a href="https://www.npmtrends.com/less"><img src="https://img.shields.io/npm/dm/less.svg?sanitize=true" alt="Downloads"></a>
-    <a href="https://www.npmjs.com/package/less"><img src="https://img.shields.io/npm/v/less.svg?sanitize=true" /></a>
-    <a href="https://twitter.com/lesstocss"><img alt="Twitter Follow" src="https://img.shields.io/twitter/follow/lesstocss.svg?style=flat-square" style="max-width:100%;" /></a>
-</p>
+A complete Go port of [Less.js](https://github.com/less/less.js) - the popular CSS preprocessor. This implementation maintains 100% feature parity with Less.js v4.2.2 while providing the performance benefits of a native Go binary.
 
-This is the Less.js monorepo.
+## Status
 
-## More information
+**Production Ready** (v1.0.0)
 
-For general information on the language, configuration options or usage visit [lesscss.org](http://lesscss.org).
+- 191/191 integration tests passing (100%)
+- 100 perfect CSS matches with Less.js output
+- 91 error handling tests correctly failing as expected
+- 3,012 unit tests passing
 
-Here are other resources for using Less.js:
+## Installation
 
-* [stackoverflow.com][so] is a great place to get answers about Less.
-* [Less.js Issues][issues] for reporting bugs
+### Via npm (Recommended)
 
+Install the pre-built binary for your platform:
+
+```bash
+npm install @toakleaf/less.go
+```
+
+This automatically installs the correct binary for your operating system and architecture.
+
+### Via Go
+
+```bash
+go install github.com/toakleaf/less.go/cmd/lessc-go@latest
+```
+
+Or add the library to your Go project:
+
+```bash
+go get github.com/toakleaf/less.go/less
+```
+
+## CLI Usage
+
+```bash
+# Basic compilation
+npx lessc-go input.less output.css
+
+# With compression
+npx lessc-go --compress input.less output.css
+
+# Read from stdin, write to stdout
+cat input.less | npx lessc-go -
+
+# With source map
+npx lessc-go --source-map input.less output.css
+
+# Include paths for @import resolution
+npx lessc-go --include-path=./mixins:./node_modules input.less output.css
+```
+
+### CLI Options
+
+| Option | Description |
+|--------|-------------|
+| `--compress` | Minify output CSS |
+| `--source-map` | Generate source map |
+| `--include-path=PATHS` | Colon-separated paths for `@import` resolution |
+| `--global-var='VAR=VALUE'` | Define global variables |
+| `--modify-var='VAR=VALUE'` | Override variables |
+| `--strict-units` | Enable strict unit checking |
+| `--math=MODE` | Math mode: `always`, `parens`, `parens-division` |
+| `--rootpath=PATH` | Base path for URL rewriting |
+| `--rewrite-urls=MODE` | URL rewriting: `off`, `local`, `all` |
+| `--js` | Enable inline JavaScript evaluation |
+| `--plugin` | Enable JavaScript plugin support |
+
+## Library Usage (Go)
+
+```go
+package main
+
+import (
+    "fmt"
+    "log"
+
+    less "github.com/toakleaf/less.go/less"
+)
+
+func main() {
+    source := `
+        @primary: #4a90d9;
+
+        .button {
+            background: @primary;
+            color: white;
+            &:hover {
+                background: darken(@primary, 10%);
+            }
+        }
+    `
+
+    result, err := less.Compile(source, nil)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    fmt.Println(result.CSS)
+}
+```
+
+### With Options
+
+```go
+result, err := less.Compile(source, &less.CompileOptions{
+    Filename:    "styles.less",
+    Compress:    true,
+    StrictUnits: true,
+    Math:        less.Math.ParensDivision,
+    Paths:       []string{"./imports", "./node_modules"},
+    GlobalVars: map[string]any{
+        "theme-color": "#ff6600",
+    },
+})
+```
+
+## Performance
+
+less.go provides native binary performance without requiring a JavaScript runtime:
+
+| Metric | Less.js | less.go | Notes |
+|--------|---------|---------|-------|
+| Cold start | ~993µs/file | ~931µs/file | Go ~6% faster |
+| No JIT warmup required | - | - | Consistent performance from first run |
+| Memory efficiency | - | 0.56 MB/file | Efficient memory usage |
+
+Bootstrap 4's full LESS source compiles in approximately **1.2 seconds**.
+
+## Features
+
+less.go implements **100% feature parity** with Less.js v4.2.2:
+
+- **Variables** - `@primary: #333;`
+- **Nesting** - Nested rules and selectors
+- **Mixins** - Parametric, guards, closures, recursion
+- **Extend** - `&:extend(.class)`
+- **Import** - Including npm module resolution
+- **Functions** - All 60+ built-in functions
+- **Detached Rulesets** - Reusable rule blocks
+- **CSS Guards** - Conditional CSS
+- **Media Query Bubbling** - Automatic media query handling
+- **Property Merge** - `+` and `+_` operators
+- **Compression** - CSS minification
+- **Source Maps** - Full source map support
+- **JavaScript Plugins** - Custom functions via Node.js bridge
+
+## Project Structure
+
+```
+less.go/
+├── less/              # Go implementation (core library)
+├── cmd/lessc-go/      # CLI tool
+├── testdata/          # Test fixtures
+├── test/js/           # JavaScript unit tests
+├── npm/               # NPM package templates
+├── reference/less.js/ # Original Less.js (git submodule, reference only)
+├── examples/          # Usage examples
+└── scripts/           # Build and test scripts
+```
+
+## Development
+
+### Prerequisites
+
+- Go 1.21+
+- Node.js 18+ (for JavaScript plugin support and tests)
+- pnpm
+
+### Setup
+
+```bash
+# Clone with submodules
+git clone --recurse-submodules https://github.com/toakleaf/less.go.git
+cd less.go
+
+# Install dependencies
+pnpm install
+```
+
+### Running Tests
+
+```bash
+# Run all integration tests
+pnpm test:go
+
+# Run Go unit tests
+pnpm test:go:unit
+
+# Run JavaScript unit tests
+pnpm test:js-unit
+
+# Quick summary (recommended)
+LESS_GO_QUIET=1 pnpm test:go 2>&1 | tail -100
+```
+
+### Benchmarking
+
+```bash
+# Compare Go vs JavaScript performance
+pnpm bench:compare
+
+# Go benchmarks
+pnpm bench:go:suite
+```
 
 ## Contributing
-Please read [CONTRIBUTING.md](CONTRIBUTING.md). Add unit tests for any new or changed functionality. Lint and test your code using [Grunt](http://gruntjs.com).
 
-### Reporting Issues
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on:
 
-Before opening any issue, please search for existing issues and read the [Issue Guidelines](https://github.com/necolas/issue-guidelines), written by [Nicolas Gallagher](https://github.com/necolas). After that if you find a bug or would like to make feature request, [please open a new issue][issues].
+- Setting up the development environment
+- Running tests
+- Submitting pull requests
 
-Please report documentation issues in [the documentation project](https://github.com/less/less-docs).
+## Related Projects
 
-### Development
+- [Less.js](https://github.com/less/less.js) - Original JavaScript implementation
+- [lesscss.org](http://lesscss.org) - LESS language documentation
 
-Read [Developing Less](http://lesscss.org/usage/#developing-less).
+## License
 
-## Release History
-See the [changelog](CHANGELOG.md)
+Apache License 2.0 - See [LICENSE](LICENSE)
 
-## Contributors
+---
 
-This project exists thanks to all the people who contribute. [[Contribute](CONTRIBUTING.md)].
-<a href="https://github.com/less/less.js/graphs/contributors"><img src="https://opencollective.com/less/contributors.svg?width=890&button=false" /></a>
-
-<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
-<!-- prettier-ignore-start -->
-<!-- markdownlint-disable -->
-<table>
-  <tbody>
-    <tr>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/matthew-dean"><img src="https://avatars.githubusercontent.com/u/414752?v=4?s=100" width="100px;" alt="Matthew Dean"/><br /><sub><b>Matthew Dean</b></sub></a><br /><a href="https://github.com/The Less CSS Team/Less.js/commits?author=matthew-dean" title="Code">💻</a> <a href="https://github.com/The Less CSS Team/Less.js/commits?author=matthew-dean" title="Documentation">📖</a> <a href="#maintenance-matthew-dean" title="Maintenance">🚧</a> <a href="#projectManagement-matthew-dean" title="Project Management">📆</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://cloudhead.io/"><img src="https://avatars.githubusercontent.com/u/40774?v=4?s=100" width="100px;" alt="Alexis Sellier"/><br /><sub><b>Alexis Sellier</b></sub></a><br /><a href="https://github.com/The Less CSS Team/Less.js/commits?author=cloudhead" title="Code">💻</a> <a href="https://github.com/The Less CSS Team/Less.js/commits?author=cloudhead" title="Documentation">📖</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/lukeapage"><img src="https://avatars.githubusercontent.com/u/309321?v=4?s=100" width="100px;" alt="Luke Page"/><br /><sub><b>Luke Page</b></sub></a><br /><a href="https://github.com/The Less CSS Team/Less.js/commits?author=lukeapage" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/seven-phases-max"><img src="https://avatars.githubusercontent.com/u/5304376?v=4?s=100" width="100px;" alt="Max Mikhailov"/><br /><sub><b>Max Mikhailov</b></sub></a><br /><a href="https://github.com/The Less CSS Team/Less.js/commits?author=seven-phases-max" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/iChenLei"><img src="https://avatars.githubusercontent.com/u/14012511?v=4?s=100" width="100px;" alt="Lei Chen"/><br /><sub><b>Lei Chen</b></sub></a><br /><a href="https://github.com/The Less CSS Team/Less.js/commits?author=iChenLei" title="Code">💻</a> <a href="https://github.com/The Less CSS Team/Less.js/issues?q=author%3AiChenLei" title="Bug reports">🐛</a> <a href="https://github.com/The Less CSS Team/Less.js/commits?author=iChenLei" title="Documentation">📖</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/puckowski"><img src="https://avatars.githubusercontent.com/u/3059609?v=4?s=100" width="100px;" alt="Daniel Puckowski"/><br /><sub><b>Daniel Puckowski</b></sub></a><br /><a href="https://github.com/The Less CSS Team/Less.js/commits?author=puckowski" title="Code">💻</a> <a href="https://github.com/The Less CSS Team/Less.js/issues?q=author%3Apuckowski" title="Bug reports">🐛</a></td>
-    </tr>
-  </tbody>
-  <tfoot>
-    <tr>
-      <td align="center" size="13px" colspan="7">
-        <img src="https://raw.githubusercontent.com/all-contributors/all-contributors-cli/1b8533af435da9854653492b1327a23a4dbd0a10/assets/logo-small.svg">
-          <a href="https://all-contributors.js.org/docs/en/bot/usage">Add your contributions</a>
-        </img>
-      </td>
-    </tr>
-  </tfoot>
-</table>
-
-<!-- markdownlint-restore -->
-<!-- prettier-ignore-end -->
-
-<!-- ALL-CONTRIBUTORS-LIST:END -->
-
-
-## [License](LICENSE)
-
-Copyright (c) 2009-2017 [Alexis Sellier](http://cloudhead.io) & The Core Less Team
-Licensed under the [Apache License](LICENSE).
-
-
-[so]: http://stackoverflow.com/questions/tagged/less "StackOverflow.com"
-[issues]: https://github.com/less/less.js/issues "GitHub Issues for Less.js"
-[download]: https://github.com/less/less.js/zipball/master "Download Less.js"
+**less.go** is a complete Go port, not a fork. It shares no code with Less.js but maintains 100% compatibility through comprehensive testing against the original implementation.

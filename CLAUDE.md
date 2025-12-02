@@ -4,11 +4,11 @@ This file provides context to Claude Code about the less.go project.
 
 ## Project Overview
 
-A complete Go port of less.js - the popular CSS preprocessor. The port maintains 1:1 functionality with the original JavaScript implementation while following Go idioms.
+A complete Go port of Less.js - the popular CSS preprocessor. The port maintains 1:1 functionality with the original JavaScript implementation while following Go idioms.
 
 **Status: Port Complete** (2025-11-30)
 - 191/191 integration tests passing (100%)
-- 100 perfect CSS matches with less.js output
+- 100 perfect CSS matches with Less.js output
 - 91 error handling tests correctly failing as expected
 - 3,012 unit tests passing
 
@@ -26,7 +26,23 @@ A complete Go port of less.js - the popular CSS preprocessor. The port maintains
 - Maintain 1:1 functionality between JavaScript and Go versions
 - Avoid external dependencies where possible
 - Follow language-specific idioms and conventions
-- Never modify original less.js source files
+- Never modify original Less.js source files in reference/
+
+## Project Structure
+
+```
+less.go/
+├── less/               # Go implementation (core library)
+├── cmd/lessc-go/       # CLI tool
+├── testdata/           # Test fixtures (LESS files, expected CSS)
+├── test/js/            # JavaScript unit tests
+├── npm/                # NPM package templates (platform-specific)
+├── reference/less.js/  # Original Less.js (git submodule, reference only)
+├── examples/           # Usage examples
+├── scripts/            # Build and test scripts
+├── packages/           # Monorepo packages
+└── .claude/            # Claude Code configuration and documentation
+```
 
 ## Testing
 
@@ -39,22 +55,22 @@ git submodule update --init  # Required for JS unit tests
 **Commands:**
 ```bash
 # Run all integration tests
-pnpm -w test:go
+pnpm test:go
 
 # Run Go unit tests
-pnpm -w test:go:unit
+pnpm test:go:unit
 
 # Run JavaScript unit tests
 pnpm test:js-unit
 
 # Quick summary (recommended)
-LESS_GO_QUIET=1 pnpm -w test:go 2>&1 | tail -100
+LESS_GO_QUIET=1 pnpm test:go 2>&1 | tail -100
 
 # Debug a specific test
 LESS_GO_DEBUG=1 go test -v -run TestIntegrationSuite/<suite>/<testname> ./less
 
 # See CSS diffs
-LESS_GO_DIFF=1 pnpm -w test:go
+LESS_GO_DIFF=1 pnpm test:go
 ```
 
 **Environment Variables:**
@@ -65,7 +81,7 @@ LESS_GO_DIFF=1 pnpm -w test:go
 - `LESS_GO_TRACE=1` - Show evaluation trace
 
 **Test Categories:**
-- **Perfect CSS Matches** - Tests producing identical CSS to less.js (100 tests)
+- **Perfect CSS Matches** - Tests producing identical CSS to Less.js (100 tests)
 - **Correctly Failed** - Error tests that properly fail as expected (91 tests)
 
 ## Benchmarking
@@ -116,13 +132,3 @@ pnpm bench:profile
 - Source maps
 
 All features are fully implemented - no quarantined tests!
-
-## Project Structure
-
-- `less/` - Go implementation
-- `reference/less.js/` - Original less.js source (git submodule, reference only)
-- `test/js/` - Custom JavaScript unit tests for less.js
-- `packages/test-data/` - Test fixtures shared by both implementations
-- `cmd/lessc-go/` - CLI tool
-- `examples/` - Example usage
-- `.claude/` - Claude Code configuration and documentation
