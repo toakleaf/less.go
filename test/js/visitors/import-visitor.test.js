@@ -1,4 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// Mock Parser to break the circular dependency chain
+vi.mock('@less/parser/parser', () => ({
+    default: class MockParser {
+        parse() { return null; }
+    }
+}));
+
 import ImportVisitor from '@less/visitors/import-visitor';
 
 // Mock all dependencies
@@ -632,18 +640,19 @@ describe('ImportVisitor', () => {
         it('should handle nested frame management', () => {
             const rulesetNode = { type: 'Ruleset' };
             const mixinNode = { type: 'MixinDefinition' };
-            const atRuleNode = { type: 'AtRule' };
-            
+            // AtRule needs value property to be added to frames in visitAtRule
+            const atRuleNode = { type: 'AtRule', value: 'screen' };
+
             importVisitor.visitRuleset(rulesetNode);
             importVisitor.visitMixinDefinition(mixinNode);
             importVisitor.visitAtRule(atRuleNode);
-            
+
             expect(importVisitor.context.frames).toEqual([atRuleNode, mixinNode, rulesetNode]);
-            
+
             importVisitor.visitAtRuleOut(atRuleNode);
             importVisitor.visitMixinDefinitionOut(mixinNode);
             importVisitor.visitRulesetOut(rulesetNode);
-            
+
             expect(importVisitor.context.frames).toEqual([]);
         });
 

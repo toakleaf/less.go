@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
+// Mock Parser to break the circular dependency chain
+vi.mock('@less/parser/parser', () => ({
+    default: class MockParser {
+        parse() { return null; }
+    }
+}));
+
 // Mock the dependencies at the module level to avoid circular import issues
 vi.mock('@less/tree/variable', () => ({
     default: vi.fn().mockImplementation((variable, index, fileInfo) => ({
@@ -51,7 +58,7 @@ vi.mock('@less/tree/node', () => ({
 import VariableCall from '@less/tree/variable-call';
 
 // Import Node for instanceof checks
-const { default: Node } = await import('./node');
+const { default: Node } = await import('@less/tree/node');
 
 describe('VariableCall', () => {
     let mockContext;
@@ -80,9 +87,9 @@ describe('VariableCall', () => {
         };
 
         // Get the mocked constructors
-        const { default: Variable } = await import('./variable');
-        const { default: Ruleset } = await import('./ruleset');
-        const { default: DetachedRuleset } = await import('./detached-ruleset');
+        const { default: Variable } = await import('@less/tree/variable');
+        const { default: Ruleset } = await import('@less/tree/ruleset');
+        const { default: DetachedRuleset } = await import('@less/tree/detached-ruleset');
 
         mockVariable = Variable;
         mockRuleset = Ruleset;

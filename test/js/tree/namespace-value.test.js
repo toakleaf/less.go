@@ -1,4 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+// Mock Parser to break the circular dependency chain
+vi.mock('@less/parser/parser', () => ({
+    default: class MockParser {
+        parse() { return null; }
+    }
+}));
+
 vi.mock('@less/tree/mixin-definition', () => ({ default: class {} }));
 vi.mock('@less/tree/mixin-call', () => ({ default: class {} }));
 import NamespaceValue from '@less/tree/namespace-value';

@@ -1,5 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+// Mock Parser to break the circular dependency chain:
+// Selector -> Parser -> tree/index -> AtRule -> Selector
+vi.mock('@less/parser/parser', () => ({
+    default: class MockParser {
+        parse() { return null; }
+    }
+}));
+
 // Mock problematic circular dependencies
 vi.mock('@less/tree/media', () => ({
     default: vi.fn()
@@ -80,10 +88,12 @@ describe('AtRule', () => {
         });
 
         it('should convert single rule to array and add empty selectors', () => {
-            const rule = new Ruleset();
+            // Create a Ruleset with rules property so declarationsBlock doesn't fail
+            const rule = new Ruleset([], []);
+            // Pass isRooted=true to ensure rules go to this.rules instead of this.declarations
             const atRule = new AtRule('@media', null, rule, 1, {
                 filename: 'test.less'
-            });
+            }, null, true);
 
             expect(Array.isArray(atRule.rules)).toBe(true);
             expect(atRule.rules.length).toBe(1);
@@ -111,8 +121,10 @@ describe('AtRule', () => {
         });
 
         it('should set parent for rules', () => {
-            const rule = new Ruleset();
-            const atRule = new AtRule('@media', null, rule);
+            // Create a Ruleset with rules property so declarationsBlock doesn't fail
+            const rule = new Ruleset([], []);
+            // Pass isRooted=true to ensure rules go to this.rules and parent is set
+            const atRule = new AtRule('@media', null, rule, 0, null, null, true);
 
             expect(rule.parent).toBe(atRule);
         });
@@ -134,7 +146,8 @@ describe('AtRule', () => {
         it('should visit rules when present', () => {
             const rule = new Ruleset();
             const visitedRule = new Ruleset();
-            const atRule = new AtRule('@media', null, [rule]);
+            // Pass isRooted=true to ensure rules go to this.rules
+            const atRule = new AtRule('@media', null, [rule], 0, null, null, true);
 
             const visitor = {
                 visitArray: vi.fn().mockReturnValue([visitedRule])
@@ -178,7 +191,8 @@ describe('AtRule', () => {
     describe('isRulesetLike', () => {
         it('should return rules array when rules exist', () => {
             const rules = [new Ruleset()];
-            const atRule = new AtRule('@media', null, rules);
+            // Pass isRooted=true to ensure rules go to this.rules
+            const atRule = new AtRule('@media', null, rules, 0, null, null, true);
             expect(atRule.isRulesetLike()).toBe(rules);
         });
 
@@ -194,7 +208,8 @@ describe('AtRule', () => {
 
         it('should return rules array when charset rule with rules', () => {
             const rules = [new Ruleset()];
-            const atRule = new AtRule('@charset', null, rules);
+            // Pass isRooted=true to ensure rules go to this.rules
+            const atRule = new AtRule('@charset', null, rules, 0, null, null, true);
             expect(atRule.isRulesetLike()).toBe(rules);
         });
     });
@@ -299,10 +314,12 @@ describe('AtRule', () => {
             evaluatedRule.root = undefined;
             rule.eval = vi.fn().mockReturnValue(evaluatedRule);
 
-            const atRule = new AtRule('@media', null, [rule]);
+            // Pass isRooted=true to ensure rules go to this.rules
+            const atRule = new AtRule('@media', null, [rule], 0, null, null, true);
             const context = {
                 mediaPath: ['existing'],
-                mediaBlocks: ['existing']
+                mediaBlocks: ['existing'],
+                frames: []  // Required by evalRoot
             };
 
             const result = atRule.eval(context);
@@ -383,7 +400,8 @@ describe('AtRule', () => {
             const originalVariable = Ruleset.prototype.variable;
             Ruleset.prototype.variable = vi.fn().mockReturnValue(mockVariable);
 
-            const atRule = new AtRule('@media', null, [rule]);
+            // Pass isRooted=true to ensure rules go to this.rules
+            const atRule = new AtRule('@media', null, [rule], 0, null, null, true);
             const result = atRule.variable('@var');
 
             expect(Ruleset.prototype.variable).toHaveBeenCalledWith('@var');
@@ -429,7 +447,8 @@ describe('AtRule', () => {
             const originalFind = Ruleset.prototype.find;
             Ruleset.prototype.find = vi.fn().mockReturnValue(mockResult);
 
-            const atRule = new AtRule('@media', null, [rule]);
+            // Pass isRooted=true to ensure rules go to this.rules
+            const atRule = new AtRule('@media', null, [rule], 0, null, null, true);
             const selector = { toCSS: () => '.test' };
             const result = atRule.find(selector, 'self', 'filter');
 
@@ -458,7 +477,8 @@ describe('AtRule', () => {
             const originalFind = Ruleset.prototype.find;
             Ruleset.prototype.find = vi.fn();
 
-            const atRule = new AtRule('@media', null, [rule]);
+            // Pass isRooted=true to ensure rules go to this.rules
+            const atRule = new AtRule('@media', null, [rule], 0, null, null, true);
             const mockSelector = { toCSS: () => '.test' };
             const args = [mockSelector, 'arg2', 'arg3'];
             atRule.find(...args);
@@ -479,7 +499,8 @@ describe('AtRule', () => {
             const originalRulesets = Ruleset.prototype.rulesets;
             Ruleset.prototype.rulesets = vi.fn().mockReturnValue(mockRulesets);
 
-            const atRule = new AtRule('@media', null, [rule]);
+            // Pass isRooted=true to ensure rules go to this.rules
+            const atRule = new AtRule('@media', null, [rule], 0, null, null, true);
             const result = atRule.rulesets();
 
             expect(Ruleset.prototype.rulesets).toHaveBeenCalled();
@@ -623,7 +644,8 @@ describe('AtRule', () => {
 
         it('should handle parent-child relationships', () => {
             const rule = new Ruleset();
-            const atRule = new AtRule('@media', null, [rule]);
+            // Pass isRooted=true to ensure rules go to this.rules and parent is set
+            const atRule = new AtRule('@media', null, [rule], 0, null, null, true);
 
             expect(rule.parent).toBe(atRule);
         });
