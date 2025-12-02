@@ -134,8 +134,8 @@ less.go provides native binary performance without requiring a JavaScript runtim
 
 Run benchmarks yourself:
 ```bash
-pnpm bench:compare        # Per-file comparison
-pnpm bench:compare:suite  # Full suite comparison
+pnpm bench:compare:suite  # Recommended: realistic full-suite comparison
+pnpm bench:compare        # Per-file comparison (for debugging)
 ```
 
 ## Features
