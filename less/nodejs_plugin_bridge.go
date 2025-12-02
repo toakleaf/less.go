@@ -5,7 +5,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/toakleaf/less.go/packages/less/src/less/less_go/runtime"
+	"github.com/toakleaf/less.go/less/runtime"
 )
 
 // NodeJSPluginBridge bridges the runtime.JSPluginLoader with the less_go.PluginLoader interface.

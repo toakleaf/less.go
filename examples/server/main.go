@@ -27,7 +27,7 @@ import (
 	"sync"
 	"time"
 
-	less "github.com/toakleaf/less.go/packages/less/src/less/less_go"
+	less "github.com/toakleaf/less.go/less"
 )
 
 // CacheEntry stores compiled CSS with metadata

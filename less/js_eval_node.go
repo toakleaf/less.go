@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/toakleaf/less.go/packages/less/src/less/less_go/runtime"
+	"github.com/toakleaf/less.go/less/runtime"
 )
 
 type JsEvalNode struct {

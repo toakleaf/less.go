@@ -18,7 +18,7 @@ import (
 	"os"
 	"path/filepath"
 
-	less "github.com/toakleaf/less.go/packages/less/src/less/less_go"
+	less "github.com/toakleaf/less.go/less"
 )
 
 func main() {

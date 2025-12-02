@@ -9,16 +9,16 @@ import (
 
 // Helper to get plugin path for tests
 func getTestPluginPath(t *testing.T, pluginName string) string {
-	// Try relative to test directory
+	// Try relative to test directory (less/runtime/)
 	candidates := []string{
-		filepath.Join("..", "..", "..", "..", "..", "..", "testdata", "plugin", pluginName),
+		filepath.Join("..", "..", "testdata", "plugin", pluginName),
 	}
 
 	// Try from current working directory
 	wd, err := os.Getwd()
 	if err == nil {
 		candidates = append(candidates,
-			filepath.Join(wd, "..", "..", "..", "..", "..", "..", "testdata", "plugin", pluginName),
+			filepath.Join(wd, "..", "..", "testdata", "plugin", pluginName),
 			filepath.Join(wd, "testdata", "plugin", pluginName),
 		)
 	}
@@ -899,13 +899,13 @@ func getPluginHostPathBench(b *testing.B) string {
 
 func getTestPluginPathBench(b *testing.B, pluginName string) string {
 	candidates := []string{
-		filepath.Join("..", "..", "..", "..", "..", "..", "testdata", "plugin", pluginName),
+		filepath.Join("..", "..", "testdata", "plugin", pluginName),
 	}
 
 	wd, err := os.Getwd()
 	if err == nil {
 		candidates = append(candidates,
-			filepath.Join(wd, "..", "..", "..", "..", "..", "..", "testdata", "plugin", pluginName),
+			filepath.Join(wd, "..", "..", "testdata", "plugin", pluginName),
 			filepath.Join(wd, "testdata", "plugin", pluginName),
 		)
 	}

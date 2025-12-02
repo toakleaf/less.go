@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	less_go "github.com/toakleaf/less.go/packages/less/src/less/less_go"
+	less_go "github.com/toakleaf/less.go/less"
 )
 
 const version = "4.2.2-go"

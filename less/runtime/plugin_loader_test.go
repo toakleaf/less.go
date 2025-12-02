@@ -17,9 +17,8 @@ func findTestDataPluginDir() string {
 
 	// Check different possible relative paths
 	candidates := []string{
-		filepath.Join(cwd, "..", "..", "..", "..", "testdata", "plugin"),
-		filepath.Join(cwd, "packages", "testdata", "plugin"),
-		"/home/user/less.go/packages/testdata/plugin",
+		filepath.Join(cwd, "..", "..", "testdata", "plugin"),
+		filepath.Join(cwd, "testdata", "plugin"),
 	}
 
 	for _, candidate := range candidates {

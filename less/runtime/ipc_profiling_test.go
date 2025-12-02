@@ -8,7 +8,7 @@ import (
 )
 
 // TestIPCLatencyProfile profiles the IPC latency breakdown.
-// Run with: go test -v -run TestIPCLatencyProfile ./packages/less/src/less/less_go/runtime/...
+// Run with: go test -v -run TestIPCLatencyProfile ./less/runtime/...
 func TestIPCLatencyProfile(t *testing.T) {
 	rt, err := NewNodeJSRuntime()
 	if err != nil {

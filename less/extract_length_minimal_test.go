@@ -96,7 +96,7 @@ func TestExtractLengthMinimal(t *testing.T) {
 
 func TestExtractLengthActualFile(t *testing.T) {
 	// Test with the actual file content
-	testDataRoot := "../../../../../testdata"
+	testDataRoot := "../testdata"
 	lessFile := filepath.Join(testDataRoot, "less/_main/extract-and-length.less")
 	lessContent, err := ioutil.ReadFile(lessFile)
 	if err != nil {

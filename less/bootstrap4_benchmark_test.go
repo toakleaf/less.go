@@ -13,7 +13,7 @@ import (
 // This test is NOT a benchmark - it's a test that outputs timing information
 // Run with: go test -v -run TestBootstrap4Performance
 func TestBootstrap4Performance(t *testing.T) {
-	testDataRoot := "../../../../../testdata"
+	testDataRoot := "../testdata"
 	lessFile := filepath.Join(testDataRoot, "less/3rd-party/bootstrap4.less")
 
 	// Read the file
@@ -104,7 +104,7 @@ func TestBootstrap4Performance(t *testing.T) {
 // BenchmarkBootstrap4 runs a proper Go benchmark for bootstrap4
 // Run with: go test -bench=BenchmarkBootstrap4 -benchtime=5s
 func BenchmarkBootstrap4(b *testing.B) {
-	testDataRoot := "../../../../../testdata"
+	testDataRoot := "../testdata"
 	lessFile := filepath.Join(testDataRoot, "less/3rd-party/bootstrap4.less")
 
 	// Read the file
@@ -135,7 +135,7 @@ func BenchmarkBootstrap4(b *testing.B) {
 
 // BenchmarkBootstrap4ColdStart measures cold-start performance (no warmup)
 func BenchmarkBootstrap4ColdStart(b *testing.B) {
-	testDataRoot := "../../../../../testdata"
+	testDataRoot := "../testdata"
 	lessFile := filepath.Join(testDataRoot, "less/3rd-party/bootstrap4.less")
 
 	// Read the file
@@ -162,7 +162,7 @@ func BenchmarkBootstrap4ColdStart(b *testing.B) {
 // TestBootstrap4CompareOutput tests if the Go output matches less.js
 // This is separate from performance testing
 func TestBootstrap4CompareOutput(t *testing.T) {
-	testDataRoot := "../../../../../testdata"
+	testDataRoot := "../testdata"
 	lessFile := filepath.Join(testDataRoot, "less/3rd-party/bootstrap4.less")
 	expectedCSSFile := filepath.Join(testDataRoot, "css/3rd-party/bootstrap4.css")
 
@@ -231,7 +231,7 @@ func TestBootstrap4CompareOutput(t *testing.T) {
 
 // TestBootstrap4QuickPerf is a quick single-run performance check
 func TestBootstrap4QuickPerf(t *testing.T) {
-	testDataRoot := "../../../../../testdata"
+	testDataRoot := "../testdata"
 	lessFile := filepath.Join(testDataRoot, "less/3rd-party/bootstrap4.less")
 
 	lessData, err := ioutil.ReadFile(lessFile)

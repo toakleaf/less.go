@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/toakleaf/less.go/packages/less/src/less/less_go/runtime"
+	"github.com/toakleaf/less.go/less/runtime"
 )
 
 var mathEvalContextPool = sync.Pool{

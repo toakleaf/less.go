@@ -24,9 +24,9 @@ func TestSimpleIntegration(t *testing.T) {
 		{"comments", "comments.less", "comments.css", nil},
 	}
 
-	// Base paths for test data - from packages/less/src/less/less_go to testdata
-	lessDir := "../../../../../testdata/less/_main"
-	cssDir := "../../../../../testdata/css/_main"
+	// Base paths for test data - from less/ to testdata
+	lessDir := "../testdata/less/_main"
+	cssDir := "../testdata/css/_main"
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
