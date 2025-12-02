@@ -25,11 +25,11 @@ done
 # Publish platform packages first
 for dir in npm/less.go-*/; do
   echo "Publishing $(basename $dir)..."
-  (cd "$dir" && npm publish --access public)
+  (cd "$dir" && npm publish --access public --provenance)
 done
 
 # Publish main package last
 echo "Publishing less.go..."
-(cd npm/less.go && npm publish --access public)
+(cd npm/less.go && npm publish --access public --provenance)
 
 echo "Done!"
