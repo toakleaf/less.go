@@ -178,6 +178,9 @@ less.go/
 git clone --recurse-submodules https://github.com/toakleaf/less.go.git
 cd less.go
 
+# Or if already cloned, initialize submodules
+git submodule update --init --recursive
+
 # Install dependencies
 pnpm install
 ```
