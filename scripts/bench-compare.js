@@ -14,7 +14,7 @@ console.log('╚═════════════════════�
 
 // Run JavaScript benchmark and capture JSON output
 console.log('Running JavaScript benchmarks...');
-const jsOutput = execSync('node reference/less.js/benchmark/suite.js --json', {
+const jsOutput = execSync('node benchmark/suite.js --json', {
     encoding: 'utf8',
     cwd: path.join(__dirname, '..')
 });
