@@ -4,7 +4,7 @@ A complete Go port of [less.js](https://github.com/less/less.js) - the popular C
 
 ## Status
 
-**Production Ready** (v1.0.0 - 2025-11-30)
+**Initial Release** (v0.1.0)
 
 - 191/191 integration tests passing (100%)
 - 100 perfect CSS matches with less.js output
