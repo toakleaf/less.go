@@ -1,7 +1,7 @@
 {
   "name": "less.go",
   "private": true,
-  "version": "4.2.2",
+  "version": "0.1.0",
   "description": "A complete Go port of Less.js - the CSS preprocessor",
   "homepage": "https://github.com/toakleaf/less.go",
   "scripts": {
