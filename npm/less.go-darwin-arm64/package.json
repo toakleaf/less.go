@@ -1,7 +1,7 @@
 {
-  "name": "@toakleaf/less.go-darwin-arm64",
+  "name": "@lessgo/less.go-darwin-arm64",
   "version": "0.1.0",
-  "description": "Platform-specific binary for @toakleaf/less.go (macOS ARM64)",
+  "description": "Platform-specific binary for @lessgo/less.go (macOS ARM64)",
   "os": ["darwin"],
   "cpu": ["arm64"],
   "main": "bin/lessc-go",

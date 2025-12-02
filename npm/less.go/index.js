@@ -9,12 +9,12 @@ const fs = require("fs");
  * Platform to package name mapping
  */
 const PLATFORM_PACKAGES = {
-  "darwin-arm64": "@toakleaf/less.go-darwin-arm64",
-  "darwin-x64": "@toakleaf/less.go-darwin-x64",
-  "linux-x64": "@toakleaf/less.go-linux-x64",
-  "linux-arm64": "@toakleaf/less.go-linux-arm64",
-  "win32-x64": "@toakleaf/less.go-win32-x64",
-  "win32-arm64": "@toakleaf/less.go-win32-arm64",
+  "darwin-arm64": "@lessgo/less.go-darwin-arm64",
+  "darwin-x64": "@lessgo/less.go-darwin-x64",
+  "linux-x64": "@lessgo/less.go-linux-x64",
+  "linux-arm64": "@lessgo/less.go-linux-arm64",
+  "win32-x64": "@lessgo/less.go-win32-x64",
+  "win32-arm64": "@lessgo/less.go-win32-arm64",
 };
 
 /**
@@ -96,7 +96,7 @@ function getBinaryPath() {
   if (!binaryPath) {
     throw new Error(
       `Could not find the lessc-go binary. The platform-specific package ` +
-        `"${packageName}" may not be installed. Try reinstalling @toakleaf/less.go`
+        `"${packageName}" may not be installed. Try reinstalling @lessgo/less.go`
     );
   }
 

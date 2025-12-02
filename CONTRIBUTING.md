@@ -146,7 +146,7 @@ cd npm/less.go
 npm link
 
 # Test in another project
-npm link @toakleaf/less.go
+npm link @lessgo/less.go
 npx lessc-go --version
 ```
 

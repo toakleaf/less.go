@@ -1,7 +1,7 @@
 {
-  "name": "@toakleaf/less.go-linux-x64",
+  "name": "@lessgo/less.go-linux-x64",
   "version": "0.1.0",
-  "description": "Platform-specific binary for @toakleaf/less.go (Linux x64)",
+  "description": "Platform-specific binary for @lessgo/less.go (Linux x64)",
   "os": ["linux"],
   "cpu": ["x64"],
   "main": "bin/lessc-go",
