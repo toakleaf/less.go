@@ -34,7 +34,7 @@ case "$ARCH" in
 esac
 
 PLATFORM_KEY="${PLATFORM}-${ARCH_NAME}"
-PACKAGE_NAME="@toakleaf/less.go-${PLATFORM_KEY}"
+PACKAGE_NAME="@lessgo/${PLATFORM_KEY}"
 
 # Try to find the binary in node_modules
 find_binary() {
@@ -82,7 +82,7 @@ if [ -z "$BINARY_PATH" ]; then
   echo "lessc-go: Could not find the platform-specific binary." >&2
   echo "lessc-go: Platform: $PLATFORM_KEY" >&2
   echo "lessc-go: Expected package: $PACKAGE_NAME" >&2
-  echo "lessc-go: Try reinstalling @toakleaf/less.go" >&2
+  echo "lessc-go: Try reinstalling lessgo" >&2
   exit 1
 fi
 

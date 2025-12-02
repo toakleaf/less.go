@@ -3,7 +3,7 @@
 
 set -e
 
-VERSION=${1:-$(node -p "require('./npm/less.go/package.json').version")}
+VERSION=${1:-$(node -p "require('./npm/lessgo/package.json').version")}
 
 echo "Publishing version $VERSION..."
 
@@ -22,14 +22,16 @@ for pkg in npm/*/package.json; do
   "
 done
 
-# Publish platform packages first
-for dir in npm/less.go-*/; do
-  echo "Publishing $(basename $dir)..."
-  (cd "$dir" && npm publish --access public)
+# Publish platform packages first (scoped packages under @lessgo)
+for dir in npm/darwin-* npm/linux-* npm/win32-*; do
+  if [ -d "$dir" ]; then
+    echo "Publishing $(basename $dir)..."
+    (cd "$dir" && npm publish --access public --provenance)
+  fi
 done
 
-# Publish main package last
-echo "Publishing less.go..."
-(cd npm/less.go && npm publish --access public)
+# Publish main package last (unscoped 'lessgo')
+echo "Publishing lessgo..."
+(cd npm/lessgo && npm publish --access public --provenance)
 
 echo "Done!"

@@ -1,7 +1,7 @@
 {
-  "name": "@toakleaf/less.go-win32-x64",
+  "name": "@lessgo/win32-x64",
   "version": "0.1.0",
-  "description": "Platform-specific binary for @toakleaf/less.go (Windows x64)",
+  "description": "Platform-specific binary for lessgo (Windows x64)",
   "os": ["win32"],
   "cpu": ["x64"],
   "main": "bin/lessc-go.exe",

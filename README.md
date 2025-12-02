@@ -18,7 +18,7 @@ A complete Go port of [Less.js](https://github.com/less/less.js) - the popular C
 Install the pre-built binary for your platform:
 
 ```bash
-npm install @toakleaf/less.go
+npm install lessgo
 ```
 
 This automatically installs the correct binary for your operating system and architecture.

@@ -5,6 +5,10 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   build:
     name: Build Binaries
@@ -58,4 +62,4 @@ jobs:
       - name: Publish packages
         run: ./scripts/publish-npm.sh ${{ steps.version.outputs.VERSION }}
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true

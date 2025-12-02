@@ -1,10 +1,10 @@
 {
-  "name": "@toakleaf/less.go-linux-arm64",
+  "name": "@lessgo/win32-arm64",
   "version": "0.1.0",
-  "description": "Platform-specific binary for @toakleaf/less.go (Linux ARM64)",
-  "os": ["linux"],
+  "description": "Platform-specific binary for lessgo (Windows ARM64)",
+  "os": ["win32"],
   "cpu": ["arm64"],
-  "main": "bin/lessc-go",
+  "main": "bin/lessc-go.exe",
   "repository": {
     "type": "git",
     "url": "https://github.com/toakleaf/less.go.git"

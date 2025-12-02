@@ -6,7 +6,7 @@ set -e
 VERSION=${1:-"dev"}
 OUTPUT_DIR="npm"
 
-# Platform targets: GOOS/GOARCH -> npm package suffix
+# Platform targets: GOOS/GOARCH -> npm package directory
 declare -A TARGETS=(
   ["darwin/arm64"]="darwin-arm64"
   ["darwin/amd64"]="darwin-x64"
@@ -30,7 +30,7 @@ for target in "${!TARGETS[@]}"; do
 
   GOOS=$GOOS GOARCH=$GOARCH go build \
     -ldflags="-s -w -X main.version=$VERSION" \
-    -o "$OUTPUT_DIR/less.go-$SUFFIX/bin/$OUTPUT_NAME" \
+    -o "$OUTPUT_DIR/$SUFFIX/bin/$OUTPUT_NAME" \
     ./cmd/lessc-go
 done
 

@@ -119,13 +119,13 @@ less.go is distributed via npm with platform-specific packages:
 
 ```
 npm/
-├── less.go/              # Main package (installs correct platform binary)
-├── less.go-darwin-arm64/ # macOS Apple Silicon
-├── less.go-darwin-x64/   # macOS Intel
-├── less.go-linux-arm64/  # Linux ARM64
-├── less.go-linux-x64/    # Linux x64
-├── less.go-win32-arm64/  # Windows ARM64
-└── less.go-win32-x64/    # Windows x64
+├── lessgo/       # Main package (installs correct platform binary)
+├── darwin-arm64/ # macOS Apple Silicon (@lessgo/darwin-arm64)
+├── darwin-x64/   # macOS Intel (@lessgo/darwin-x64)
+├── linux-arm64/  # Linux ARM64 (@lessgo/linux-arm64)
+├── linux-x64/    # Linux x64 (@lessgo/linux-x64)
+├── win32-arm64/  # Windows ARM64 (@lessgo/win32-arm64)
+└── win32-x64/    # Windows x64 (@lessgo/win32-x64)
 ```
 
 ### Building for NPM
@@ -142,11 +142,11 @@ make build
 
 ```bash
 # Link for local testing
-cd npm/less.go
+cd npm/lessgo
 npm link
 
 # Test in another project
-npm link @toakleaf/less.go
+npm link lessgo
 npx lessc-go --version
 ```
 

@@ -21,7 +21,7 @@ if "%PROCESSOR_ARCHITECTURE%"=="AMD64" (
 )
 
 set "PLATFORM_KEY=win32-%ARCH_NAME%"
-set "PACKAGE_NAME=@toakleaf/less.go-%PLATFORM_KEY%"
+set "PACKAGE_NAME=@lessgo/%PLATFORM_KEY%"
 
 :: Try to find the binary in node_modules
 set "BINARY_PATH="
@@ -45,7 +45,7 @@ if not defined BINARY_PATH (
     echo lessc-go: Could not find the platform-specific binary. 1>&2
     echo lessc-go: Platform: %PLATFORM_KEY% 1>&2
     echo lessc-go: Expected package: %PACKAGE_NAME% 1>&2
-    echo lessc-go: Try reinstalling @toakleaf/less.go 1>&2
+    echo lessc-go: Try reinstalling lessgo 1>&2
     exit /b 1
 )
 
