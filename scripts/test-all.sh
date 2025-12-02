@@ -21,14 +21,14 @@ trap "rm -f $UNIT_OUTPUT $INT_OUTPUT" EXIT
 FAILED=0
 
 # Run unit tests (silently)
-if ! go test ./packages/less/src/less/less_go -run 'Test[^I]' -timeout 2m > "$UNIT_OUTPUT" 2>&1; then
+if ! go test ./less -run 'Test[^I]' -timeout 2m > "$UNIT_OUTPUT" 2>&1; then
     FAILED=1
 fi
 
 # Run integration tests in strict mode (silently)
 # LESS_GO_STRICT=1 makes output differences cause actual test failures
 # LESS_GO_QUIET=1 suppresses individual test output
-if ! LESS_GO_STRICT=1 LESS_GO_QUIET=1 go test ./packages/less/src/less/less_go -run 'TestIntegrationSuite' -timeout 5m > "$INT_OUTPUT" 2>&1; then
+if ! LESS_GO_STRICT=1 LESS_GO_QUIET=1 go test ./less -run 'TestIntegrationSuite' -timeout 5m > "$INT_OUTPUT" 2>&1; then
     FAILED=1
 fi
 

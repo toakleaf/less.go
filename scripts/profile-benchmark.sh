@@ -25,7 +25,7 @@ go test -bench=BenchmarkLargeSuite \
     -cpuprofile=profiles/cpu.prof \
     -memprofile=profiles/mem.prof \
     -benchmem \
-    ./packages/less/src/less/less_go \
+    ./less \
     > profiles/bench-output.txt 2>&1
 
 echo "✓ Profiling complete"

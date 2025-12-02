@@ -56,8 +56,7 @@ Examples:
 
 func runUnitTests() {
 	fmt.Println("🧪 Running unit tests...")
-	cmd := exec.Command("go", "test", "./src/less/less_go", "-v", "-run", "Test[^I]")
-	cmd.Dir = "packages/less"
+	cmd := exec.Command("go", "test", "./less", "-v", "-run", "Test[^I]")
 	runCommand(cmd)
 }
 
@@ -65,9 +64,8 @@ func runIntegrationTests() {
 	fmt.Println("🔄 Running full integration test suite...")
 	fmt.Println("📋 Note: Output will be piped to 'less' for easy navigation")
 	fmt.Println("   Use arrows/Page Up/Down to scroll, 'q' to quit, '/' to search")
-	
-	cmd := exec.Command("bash", "-c", "go test ./src/less/less_go -v -run TestIntegrationSuite -timeout 5m | less +G")
-	cmd.Dir = "packages/less"
+
+	cmd := exec.Command("bash", "-c", "go test ./less -v -run TestIntegrationSuite -timeout 5m | less +G")
 	cmd.Stdin = os.Stdin
 	runCommand(cmd)
 }
@@ -90,17 +88,17 @@ func showStatus() {
 	fmt.Println("📊 Go Port Status")
 	fmt.Println("==================")
 	fmt.Println("")
-	
+
 	// Count Go files
-	goFiles := countFiles("packages/less/src/less/less_go", "*.go")
+	goFiles := countFiles("less", "*.go")
 	fmt.Printf("Go files: %d\n", goFiles)
-	
+
 	// Count test files
-	testFiles := countFiles("packages/less/src/less/less_go", "*_test.go")
+	testFiles := countFiles("less", "*_test.go")
 	fmt.Printf("Test files: %d\n", testFiles)
-	
+
 	fmt.Println("")
-	
+
 	// Count test data
 	lessFiles := countFiles("packages/test-data/less/_main", "*.less")
 	cssFiles := countFiles("packages/test-data/css/_main", "*.css")
@@ -121,8 +119,7 @@ func runCommand(cmd *exec.Cmd) {
 
 func runSummaryOnly() {
 	fmt.Println("📊 Running integration tests and showing only the summary...")
-	cmd := exec.Command("bash", "-c", "go test ./src/less/less_go -v -run TestIntegrationSuite -timeout 5m | grep -A 100 '📊 INTEGRATION TEST SUMMARY'")
-	cmd.Dir = "packages/less"
+	cmd := exec.Command("bash", "-c", "go test ./less -v -run TestIntegrationSuite -timeout 5m | grep -A 100 '📊 INTEGRATION TEST SUMMARY'")
 	runCommand(cmd)
 }
 

@@ -47,7 +47,7 @@ pnpm -w test:go:unit
 LESS_GO_QUIET=1 pnpm -w test:go 2>&1 | tail -100
 
 # Debug a specific test
-LESS_GO_DEBUG=1 go test -v -run TestIntegrationSuite/<suite>/<testname>
+LESS_GO_DEBUG=1 go test -v -run TestIntegrationSuite/<suite>/<testname> ./less
 
 # See CSS diffs
 LESS_GO_DIFF=1 pnpm -w test:go
@@ -115,7 +115,9 @@ All features are fully implemented - no quarantined tests!
 
 ## Project Structure
 
-- `packages/less/src/less/less_go/` - Go implementation
+- `less/` - Go implementation
 - `packages/less/src/less/` - Original JavaScript (reference only)
-- `packages/less/test/` - Test fixtures shared by both implementations
+- `packages/test-data/` - Test fixtures shared by both implementations
+- `cmd/lessc-go/` - CLI tool
+- `examples/` - Example usage
 - `.claude/` - Claude Code configuration and documentation

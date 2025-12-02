@@ -170,7 +170,7 @@ functions.add('my-color', function() {
 ### Compile Function
 
 ```go
-import less "github.com/toakleaf/less.go/packages/less/src/less/less_go"
+import less "github.com/toakleaf/less.go/less"
 
 result, err := less.Compile(lessSource, &less.CompileOptions{
     Filename:    "styles.less",

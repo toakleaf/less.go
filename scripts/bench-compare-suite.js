@@ -45,7 +45,7 @@ process.stdout.write('\n');
 console.log('Compiling Go test binary (one-time)...');
 const goBinaryPath = path.join(__dirname, '..', 'less_go.test');
 try {
-    execSync(`go test -c -o ${goBinaryPath} ./packages/less/src/less/less_go`, {
+    execSync(`go test -c -o ${goBinaryPath} ./less`, {
         encoding: 'utf8',
         cwd: path.join(__dirname, '..'),
         stdio: ['ignore', 'pipe', 'ignore']
@@ -69,7 +69,7 @@ for (let i = 0; i < ITERATIONS; i++) {
         // -test.run=^$ skips all regular tests, running only the benchmark
         const goOutput = execSync(`${goBinaryPath} -test.run=^$ -test.bench=BenchmarkLargeSuite -test.benchmem -test.benchtime=1x`, {
             encoding: 'utf8',
-            cwd: path.join(__dirname, '..', 'packages/less/src/less/less_go'),
+            cwd: path.join(__dirname, '..', 'less'),
             maxBuffer: 10 * 1024 * 1024,
             stdio: ['ignore', 'pipe', 'ignore'] // Suppress stderr
         });

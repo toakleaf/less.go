@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"log"
 
-	less "github.com/toakleaf/less.go/packages/less/src/less/less_go"
+	less "github.com/toakleaf/less.go/less"
 )
 
 func main() {
