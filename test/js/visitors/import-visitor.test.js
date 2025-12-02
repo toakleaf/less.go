@@ -1,8 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// Mock Parser to break the circular dependency chain
+vi.mock('@less/parser/parser', () => ({
+    default: class MockParser {
+        parse() { return null; }
+    }
+}));
+
 import ImportVisitor from '@less/visitors/import-visitor';
 
 // Mock all dependencies
-vi.mock('../contexts', () => ({
+vi.mock('@less/contexts', () => ({
     default: {
         Eval: vi.fn().mockImplementation(function (options, frames) {
             this.frames = frames || [];
@@ -15,7 +23,7 @@ vi.mock('../contexts', () => ({
     }
 }));
 
-vi.mock('./visitor', () => ({
+vi.mock('@less/visitors/visitor', () => ({
     default: vi.fn().mockImplementation(function (implementation) {
         this.visit = vi.fn((node) => {
             // Simulate visitor behavior
@@ -27,7 +35,7 @@ vi.mock('./visitor', () => ({
     })
 }));
 
-vi.mock('./import-sequencer', () => ({
+vi.mock('@less/visitors/import-sequencer', () => ({
     default: vi.fn().mockImplementation(function (onEmptyCallback) {
         this.addImport = vi.fn((callback) => {
             // Return a trigger function
@@ -44,7 +52,7 @@ vi.mock('./import-sequencer', () => ({
     })
 }));
 
-vi.mock('../utils', () => ({
+vi.mock('@less/utils', () => ({
     copyArray: vi.fn((arr) => [...arr])
 }));
 
@@ -632,18 +640,19 @@ describe('ImportVisitor', () => {
         it('should handle nested frame management', () => {
             const rulesetNode = { type: 'Ruleset' };
             const mixinNode = { type: 'MixinDefinition' };
-            const atRuleNode = { type: 'AtRule' };
-            
+            // AtRule needs value property to be added to frames in visitAtRule
+            const atRuleNode = { type: 'AtRule', value: 'screen' };
+
             importVisitor.visitRuleset(rulesetNode);
             importVisitor.visitMixinDefinition(mixinNode);
             importVisitor.visitAtRule(atRuleNode);
-            
+
             expect(importVisitor.context.frames).toEqual([atRuleNode, mixinNode, rulesetNode]);
-            
+
             importVisitor.visitAtRuleOut(atRuleNode);
             importVisitor.visitMixinDefinitionOut(mixinNode);
             importVisitor.visitRulesetOut(rulesetNode);
-            
+
             expect(importVisitor.context.frames).toEqual([]);
         });
 

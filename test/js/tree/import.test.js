@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Import from '@less/tree/import';
 
 // Mock all dependencies to avoid circular imports and focus on Import behavior
-vi.mock('./node', () => ({
+vi.mock('@less/tree/node', () => ({
     default: vi.fn().mockImplementation(function () {
         this.parent = null;
         this.visibilityBlocks = undefined;
@@ -45,7 +45,7 @@ vi.mock('./node', () => ({
     })
 }));
 
-vi.mock('./media', () => ({
+vi.mock('@less/tree/media', () => ({
     default: vi.fn().mockImplementation(function (contents, features) {
         this.type = 'Media';
         this.contents = contents;
@@ -54,7 +54,7 @@ vi.mock('./media', () => ({
     })
 }));
 
-vi.mock('./url', () => ({
+vi.mock('@less/tree/url', () => ({
     default: vi.fn().mockImplementation(function (value) {
         this.type = 'URL';
         this.value = value;
@@ -62,7 +62,7 @@ vi.mock('./url', () => ({
     })
 }));
 
-vi.mock('./quoted', () => ({
+vi.mock('@less/tree/quoted', () => ({
     default: vi.fn().mockImplementation(function (str, value) {
         this.type = 'Quoted';
         this.value = value;
@@ -71,7 +71,7 @@ vi.mock('./quoted', () => ({
     })
 }));
 
-vi.mock('./ruleset', () => ({
+vi.mock('@less/tree/ruleset', () => ({
     default: vi.fn().mockImplementation(function (selectors, rules) {
         this.type = 'Ruleset';
         this.selectors = selectors;
@@ -86,7 +86,7 @@ vi.mock('./ruleset', () => ({
     })
 }));
 
-vi.mock('./anonymous', () => ({
+vi.mock('@less/tree/anonymous', () => ({
     default: vi
         .fn()
         .mockImplementation(function (
@@ -106,11 +106,11 @@ vi.mock('./anonymous', () => ({
         })
 }));
 
-vi.mock('../utils', () => ({
+vi.mock('@less/utils', () => ({
     copyArray: vi.fn((arr) => [...arr])
 }));
 
-vi.mock('../less-error', () => ({
+vi.mock('@less/less-error', () => ({
     default: vi.fn().mockImplementation(function (error, imports, filename) {
         this.message = error.message || 'Plugin error during evaluation';
         this.imports = imports;

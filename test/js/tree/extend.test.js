@@ -1,4 +1,13 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+// Mock Parser to break the circular dependency chain:
+// Selector -> Parser -> tree/index -> AtRule -> Selector
+vi.mock('@less/parser/parser', () => ({
+    default: class MockParser {
+        parse() { return null; }
+    }
+}));
+
 import Extend from '@less/tree/extend';
 import Selector from '@less/tree/selector';
 

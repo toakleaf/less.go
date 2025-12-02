@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as utils from '@less/utils';
 import createRender from '@less/render';
 
-vi.mock('./utils', () => ({
+vi.mock('@less/utils', () => ({
     copyOptions: vi.fn((opts1, opts2) => {
         return { ...opts1, ...opts2 };
     })

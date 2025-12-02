@@ -4,7 +4,7 @@ import Element from '@less/tree/element';
 import LessError from '@less/less-error';
 
 // Mock the Parser module
-vi.mock('../parser/parser', () => {
+vi.mock('@less/parser/parser', () => {
     const mockParseNode = vi.fn();
     return {
         default: vi.fn().mockImplementation(() => ({

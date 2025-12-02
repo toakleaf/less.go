@@ -3,7 +3,7 @@ import Environment from '@less/environment/environment';
 import logger from '@less/logger';
 
 // Mock logger
-vi.mock('../logger.js', () => ({
+vi.mock('@less/logger.js', () => ({
     default: {
         warn: vi.fn()
     }

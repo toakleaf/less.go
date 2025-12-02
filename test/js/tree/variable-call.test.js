@@ -1,7 +1,14 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
+// Mock Parser to break the circular dependency chain
+vi.mock('@less/parser/parser', () => ({
+    default: class MockParser {
+        parse() { return null; }
+    }
+}));
+
 // Mock the dependencies at the module level to avoid circular import issues
-vi.mock('./variable', () => ({
+vi.mock('@less/tree/variable', () => ({
     default: vi.fn().mockImplementation((variable, index, fileInfo) => ({
         variable,
         _index: index,
@@ -10,7 +17,7 @@ vi.mock('./variable', () => ({
     }))
 }));
 
-vi.mock('./ruleset', () => ({
+vi.mock('@less/tree/ruleset', () => ({
     default: vi.fn().mockImplementation((selectors, rules) => ({
         selectors,
         rules,
@@ -18,14 +25,14 @@ vi.mock('./ruleset', () => ({
     }))
 }));
 
-vi.mock('./detached-ruleset', () => ({
+vi.mock('@less/tree/detached-ruleset', () => ({
     default: vi.fn().mockImplementation((ruleset) => ({
         ruleset,
         callEval: vi.fn()
     }))
 }));
 
-vi.mock('../less-error', () => ({
+vi.mock('@less/less-error', () => ({
     default: vi.fn().mockImplementation((options) => {
         const error = new Error(options.message);
         error.type = 'LessError';
@@ -33,7 +40,7 @@ vi.mock('../less-error', () => ({
     })
 }));
 
-vi.mock('./node', () => ({
+vi.mock('@less/tree/node', () => ({
     default: class Node {
         constructor() {
             this.parent = null;
@@ -51,7 +58,7 @@ vi.mock('./node', () => ({
 import VariableCall from '@less/tree/variable-call';
 
 // Import Node for instanceof checks
-const { default: Node } = await import('./node');
+const { default: Node } = await import('@less/tree/node');
 
 describe('VariableCall', () => {
     let mockContext;
@@ -80,9 +87,9 @@ describe('VariableCall', () => {
         };
 
         // Get the mocked constructors
-        const { default: Variable } = await import('./variable');
-        const { default: Ruleset } = await import('./ruleset');
-        const { default: DetachedRuleset } = await import('./detached-ruleset');
+        const { default: Variable } = await import('@less/tree/variable');
+        const { default: Ruleset } = await import('@less/tree/ruleset');
+        const { default: DetachedRuleset } = await import('@less/tree/detached-ruleset');
 
         mockVariable = Variable;
         mockRuleset = Ruleset;

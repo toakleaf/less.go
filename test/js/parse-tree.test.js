@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import parseTreeFactory from '@less/parse-tree';
 
 // Mock dependencies
-vi.mock('./less-error', () => ({
+vi.mock('@less/less-error', () => ({
     default: class LessError extends Error {
         constructor(e, imports) {
             super(e.message || e);
@@ -20,11 +20,11 @@ vi.mock('./less-error', () => ({
     }
 }));
 
-vi.mock('./transform-tree', () => ({
+vi.mock('@less/transform-tree', () => ({
     default: vi.fn()
 }));
 
-vi.mock('./logger', () => ({
+vi.mock('@less/logger', () => ({
     default: {
         warn: vi.fn(),
         error: vi.fn(),

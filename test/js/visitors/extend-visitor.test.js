@@ -6,9 +6,9 @@ import logger from '@less/logger';
 import * as utils from '@less/utils';
 
 // Mock dependencies
-vi.mock('./visitor');
-vi.mock('../logger');
-vi.mock('../utils');
+vi.mock('@less/visitors/visitor');
+vi.mock('@less/logger');
+vi.mock('@less/utils');
 
 describe('ProcessExtendsVisitor', () => {
     let visitor;

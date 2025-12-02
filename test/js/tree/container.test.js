@@ -1,7 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+// Mock Parser to break the circular dependency chain
+vi.mock('@less/parser/parser', () => ({
+    default: class MockParser {
+        parse() { return null; }
+    }
+}));
+
 // Mock all dependencies
-vi.mock('./ruleset', () => ({
+vi.mock('@less/tree/ruleset', () => ({
     default: vi.fn().mockImplementation(function (selectors, rules) {
         this.selectors = selectors;
         this.rules = rules;
@@ -14,7 +21,7 @@ vi.mock('./ruleset', () => ({
     })
 }));
 
-vi.mock('./value', () => ({
+vi.mock('@less/tree/value', () => ({
     default: vi.fn().mockImplementation(function (value) {
         this.value = value;
         this.genCSS = vi.fn();
@@ -24,7 +31,7 @@ vi.mock('./value', () => ({
     })
 }));
 
-vi.mock('./selector', () => ({
+vi.mock('@less/tree/selector', () => ({
     default: vi
         .fn()
         .mockImplementation(function (
@@ -47,7 +54,7 @@ vi.mock('./selector', () => ({
         })
 }));
 
-vi.mock('./atrule', () => ({
+vi.mock('@less/tree/atrule', () => ({
     default: vi.fn().mockImplementation(function () {
         this.outputRuleset = vi.fn();
         this.copyVisibilityInfo = vi.fn();
@@ -59,7 +66,7 @@ vi.mock('./atrule', () => ({
     })
 }));
 
-vi.mock('./nested-at-rule', () => ({ default: { someNestedMethod: vi.fn() } }));
+vi.mock('@less/tree/nested-at-rule', () => ({ default: { someNestedMethod: vi.fn() } }));
 
 import Container from '@less/tree/container';
 import Ruleset from '@less/tree/ruleset';

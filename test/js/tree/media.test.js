@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Media from '@less/tree/media';
 
 // Mock all dependencies to avoid circular imports and focus on Media behavior
-vi.mock('./ruleset', () => ({
+vi.mock('@less/tree/ruleset', () => ({
     default: vi.fn().mockImplementation(function (selectors, rules) {
         this.selectors = selectors;
         this.rules = rules;
@@ -15,7 +15,7 @@ vi.mock('./ruleset', () => ({
     })
 }));
 
-vi.mock('./value', () => ({
+vi.mock('@less/tree/value', () => ({
     default: vi.fn().mockImplementation(function (value) {
         this.value = Array.isArray(value) ? value : [value];
         this.eval = vi.fn().mockReturnValue(this);
@@ -26,7 +26,7 @@ vi.mock('./value', () => ({
     })
 }));
 
-vi.mock('./selector', () => ({
+vi.mock('@less/tree/selector', () => ({
     default: vi
         .fn()
         .mockImplementation(function (
@@ -54,7 +54,7 @@ vi.mock('./selector', () => ({
         })
 }));
 
-vi.mock('./atrule', () => ({
+vi.mock('@less/tree/atrule', () => ({
     default: function () {
         this.type = 'AtRule';
         this.outputRuleset = vi.fn((_context, output, rules) => {
@@ -92,7 +92,7 @@ vi.mock('./atrule', () => ({
     }
 }));
 
-vi.mock('./nested-at-rule', () => ({
+vi.mock('@less/tree/nested-at-rule', () => ({
     default: {
         isRulesetLike() {
             return true;
