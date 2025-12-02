@@ -1,13 +1,13 @@
 {
-  "name": "@less/root",
+  "name": "less.go-monorepo",
   "private": true,
   "version": "4.2.2",
-  "description": "Less monorepo",
-  "homepage": "http://lesscss.org",
+  "description": "Go port of less.js - the popular CSS preprocessor",
+  "homepage": "https://github.com/toakleaf/less.go",
   "scripts": {
     "publish": "lerna publish from-package --no-private",
     "changelog": "github-changes -o less -r less.js -a --only-pulls --use-commit-body -m \"(YYYY-MM-DD)\"",
-    "test": "cd packages/less && npm test",
+    "test": "pnpm test:go && pnpm test:js-unit",
     "test:js-unit": "vitest --config test/js/vitest.config.ts",
     "test:go": "go run scripts/test.go integration",
     "test:go:unit": "go run scripts/test.go unit",
@@ -23,10 +23,10 @@
     "bench:go:parse": "go test -bench=BenchmarkLessParsing -benchmem -benchtime=10s ./less",
     "bench:go:eval": "go test -bench=BenchmarkLessEvaluation -benchmem -benchtime=10s ./less",
     "bench:go:suite": "go test -bench=BenchmarkLargeSuite -benchmem -benchtime=30x ./less",
-    "bench:js": "node packages/less/benchmark/suite.js",
-    "bench:js:detailed": "node packages/less/benchmark/suite.js --detailed",
-    "bench:js:json": "node packages/less/benchmark/suite.js --json",
-    "bench:js:suite": "node packages/less/benchmark/suite.js --suite",
+    "bench:js": "node reference/less.js/benchmark/suite.js",
+    "bench:js:detailed": "node reference/less.js/benchmark/suite.js --detailed",
+    "bench:js:json": "node reference/less.js/benchmark/suite.js --json",
+    "bench:js:suite": "node reference/less.js/benchmark/suite.js --suite",
     "bench:compare": "node scripts/bench-compare.js",
     "bench:compare:suite": "node scripts/bench-compare-suite.js",
     "bench:profile": "bash scripts/profile-benchmark.sh",
@@ -39,11 +39,11 @@
   ],
   "license": "Apache-2.0",
   "bugs": {
-    "url": "https://github.com/less/less.js/issues"
+    "url": "https://github.com/toakleaf/less.go/issues"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/less/less.js.git"
+    "url": "https://github.com/toakleaf/less.go.git"
   },
   "devDependencies": {
     "all-contributors-cli": "~6.26.1",
