@@ -9,7 +9,7 @@ import (
 
 func TestColorsMatchJS(t *testing.T) {
 	// Read the JavaScript file
-	jsPath := filepath.Join("..", "..", "less", "data", "colors.js")
+	jsPath := filepath.Join("..", "packages", "less", "src", "less", "data", "colors.js")
 	jsContent, err := os.ReadFile(jsPath)
 	if err != nil {
 		t.Fatalf("Failed to read colors.js: %v", err)

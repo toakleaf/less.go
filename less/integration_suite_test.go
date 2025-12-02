@@ -50,8 +50,8 @@ func TestIntegrationSuite(t *testing.T) {
 		fmt.Printf("   Debug Options: AST=%v, Trace=%v, Diff=%v\n", showAST, showTrace, showDiff)
 	}
 	
-	// Base paths for test data - from less/ to packages/test-data
-	testDataRoot := "../packages/test-data"
+	// Base paths for test data - from less/ to testdata
+	testDataRoot := "../testdata"
 	lessRoot := filepath.Join(testDataRoot, "less")
 	cssRoot := filepath.Join(testDataRoot, "css")
 

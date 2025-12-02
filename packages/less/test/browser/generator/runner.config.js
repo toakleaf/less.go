@@ -1,9 +1,8 @@
 var path = require('path');
-var resolve = require('resolve')
 var { forceCovertToBrowserPath } = require('./utils');
 
 /** Root of repo */
-var testFolder = forceCovertToBrowserPath(path.dirname(resolve.sync('@less/test-data')));
+var testFolder = forceCovertToBrowserPath(path.resolve(__dirname, '..', '..', '..', '..', 'testdata'));
 var lessFolder = forceCovertToBrowserPath(path.join(testFolder, 'less'));
 var localTests = forceCovertToBrowserPath(path.resolve(__dirname, '..'));
 

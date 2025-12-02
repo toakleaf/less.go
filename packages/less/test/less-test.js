@@ -32,7 +32,7 @@ module.exports = function() {
     var oneTestOnly = process.argv[2],
         isFinished = false;
 
-    var testFolder = path.dirname(require.resolve('@less/test-data'));
+    var testFolder = path.resolve(__dirname, '..', '..', '..', 'testdata');
     var lessFolder = path.join(testFolder, 'less');
 
     // Define String.prototype.endsWith if it doesn't exist (in older versions of node)

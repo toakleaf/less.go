@@ -2,6 +2,7 @@ package less_go
 
 import (
 	"io/ioutil"
+	"path/filepath"
 	"testing"
 )
 
@@ -95,7 +96,8 @@ func TestExtractLengthMinimal(t *testing.T) {
 
 func TestExtractLengthActualFile(t *testing.T) {
 	// Test with the actual file content
-	lessFile := "/Users/tyler/dev/less.go/packages/test-data/less/_main/extract-and-length.less"
+	testDataRoot := "../testdata"
+	lessFile := filepath.Join(testDataRoot, "less/_main/extract-and-length.less")
 	lessContent, err := ioutil.ReadFile(lessFile)
 	if err != nil {
 		t.Skipf("Skipping test - file not found: %v", err)
@@ -104,7 +106,7 @@ func TestExtractLengthActualFile(t *testing.T) {
 	factory := Factory(nil, nil)
 	options := map[string]any{
 		"filename": lessFile,
-		"paths": []string{"/Users/tyler/dev/less.go/packages/test-data/less/_main"},
+		"paths": []string{filepath.Join(testDataRoot, "less/_main")},
 		"relativeUrls": true,
 		"silent": true,
 		"javascriptEnabled": true,

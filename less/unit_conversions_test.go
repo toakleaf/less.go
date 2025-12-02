@@ -17,7 +17,7 @@ func floatsAlmostEqual(a, b float64) bool {
 }
 
 func TestUnitConversionsMatchJS(t *testing.T) {
-	jsPath := filepath.Join("..", "..", "less", "data", "unit-conversions.js")
+	jsPath := filepath.Join("..", "packages", "less", "src", "less", "data", "unit-conversions.js")
 	jsContentBytes, err := os.ReadFile(jsPath)
 	if err != nil {
 		t.Fatalf("Failed to read unit-conversions.js from path %s: %v", jsPath, err)

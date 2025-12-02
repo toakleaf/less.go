@@ -42,7 +42,7 @@ func TestJSVisitorIntegration_WithNodeJS(t *testing.T) {
 	loader := runtime.NewJSPluginLoader(rt)
 
 	// Load the plugin-preeval.js plugin
-	pluginPath := filepath.Join(cwd, "..", "..", "..", "..", "test-data", "plugin", "plugin-preeval.js")
+	pluginPath := filepath.Join(cwd, "..", "testdata", "plugin", "plugin-preeval.js")
 	if _, err := os.Stat(pluginPath); os.IsNotExist(err) {
 		t.Skipf("Plugin not found at %s (run from project root)", pluginPath)
 	}
@@ -143,7 +143,7 @@ func TestJSVisitorIntegration_VisitorExecution(t *testing.T) {
 
 	// Load the plugin
 	loader := runtime.NewJSPluginLoader(rt)
-	pluginPath := filepath.Join(cwd, "..", "..", "..", "..", "test-data", "plugin", "plugin-preeval.js")
+	pluginPath := filepath.Join(cwd, "..", "testdata", "plugin", "plugin-preeval.js")
 	if _, err := os.Stat(pluginPath); os.IsNotExist(err) {
 		t.Skipf("Plugin not found at %s", pluginPath)
 	}
@@ -198,7 +198,7 @@ func TestJSVisitorAdapter_RunWithNodeJS(t *testing.T) {
 
 	// Load the plugin
 	loader := runtime.NewJSPluginLoader(rt)
-	pluginPath := filepath.Join(cwd, "..", "..", "..", "..", "test-data", "plugin", "plugin-preeval.js")
+	pluginPath := filepath.Join(cwd, "..", "testdata", "plugin", "plugin-preeval.js")
 	if _, err := os.Stat(pluginPath); os.IsNotExist(err) {
 		t.Skipf("Plugin not found at %s", pluginPath)
 	}
