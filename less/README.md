@@ -409,13 +409,13 @@ Bootstrap 4's full LESS source compiles in approximately **1.2 seconds**.
 
 ```bash
 # Run all integration tests
-pnpm -w test:go
+pnpm test:go
 
 # Run unit tests
-pnpm -w test:go:unit
+pnpm test:go:unit
 
 # Quick summary
-LESS_GO_QUIET=1 pnpm -w test:go 2>&1 | tail -100
+LESS_GO_QUIET=1 pnpm test:go 2>&1 | tail -100
 
 # Debug specific test
 LESS_GO_DEBUG=1 go test -v -run TestIntegrationSuite/<suite>/<testname>
@@ -523,15 +523,15 @@ each(@colors, {
 
 ## License
 
-Apache License 2.0 - See [LICENSE](../../../../LICENSE)
+Apache License 2.0 - See [LICENSE](../LICENSE)
 
 ## Contributing
 
-See [CONTRIBUTING.md](../../../../CONTRIBUTING.md) for guidelines.
+See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines.
 
 ## Related
 
-- [less.js](https://github.com/less/less.js) - Original JavaScript implementation
+- [Less.js](https://github.com/less/less.js) - Original JavaScript implementation
 - [lesscss.org](http://lesscss.org) - LESS language documentation
-- [CHANGELOG.md](../../../../CHANGELOG.md) - Release history
-- [BENCHMARKS.md](../../../../BENCHMARKS.md) - Performance comparison details
+- [CHANGELOG.md](../CHANGELOG.md) - Release history
+- [BENCHMARKS.md](../BENCHMARKS.md) - Performance comparison details

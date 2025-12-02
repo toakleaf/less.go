@@ -8,16 +8,16 @@ This guide explains how to use the improved integration test output system for l
 
 ```bash
 # Get summary only (recommended for LLMs and humans)
-LESS_GO_QUIET=1 pnpm -w test:go 2>&1 | tail -100
+LESS_GO_QUIET=1 pnpm test:go 2>&1 | tail -100
 
 # Run all tests with verbose output
-pnpm -w test:go
+pnpm test:go
 
 # Debug a specific failing test
 LESS_GO_DEBUG=1 LESS_GO_DIFF=1 go test -v -run TestIntegrationSuite/<suite>/<test>
 
 # Get JSON output for programmatic analysis
-LESS_GO_JSON=1 LESS_GO_QUIET=1 pnpm -w test:go
+LESS_GO_JSON=1 LESS_GO_QUIET=1 pnpm test:go
 ```
 
 ## Environment Variables
@@ -142,7 +142,7 @@ After fixing tests, update `CLAUDE.md`:
 
 1. Run the summary:
    ```bash
-   LESS_GO_QUIET=1 pnpm -w test:go 2>&1 | tail -100
+   LESS_GO_QUIET=1 pnpm test:go 2>&1 | tail -100
    ```
 
 2. Update the "Current Integration Test Status" section with:
@@ -159,7 +159,7 @@ After fixing tests, update `CLAUDE.md`:
 
 ```bash
 # 1. See which category the test is in
-LESS_GO_QUIET=1 pnpm -w test:go 2>&1 | tail -100
+LESS_GO_QUIET=1 pnpm test:go 2>&1 | tail -100
 
 # 2. Run the specific test with diffs
 LESS_GO_DEBUG=1 LESS_GO_DIFF=1 go test -v -run TestIntegrationSuite/main/import-reference
@@ -173,20 +173,20 @@ LESS_GO_TRACE=1 go test -v -run TestIntegrationSuite/main/import-reference
 go test -v -run TestIntegrationSuite/main/import-reference
 
 # 6. Check for regressions
-LESS_GO_QUIET=1 pnpm -w test:go 2>&1 | tail -100
+LESS_GO_QUIET=1 pnpm test:go 2>&1 | tail -100
 ```
 
 ### Checking Overall Progress
 
 ```bash
 # Quick check
-LESS_GO_QUIET=1 pnpm -w test:go 2>&1 | grep "OVERALL SUCCESS"
+LESS_GO_QUIET=1 pnpm test:go 2>&1 | grep "OVERALL SUCCESS"
 
 # Full summary
-LESS_GO_QUIET=1 pnpm -w test:go 2>&1 | tail -100
+LESS_GO_QUIET=1 pnpm test:go 2>&1 | tail -100
 
 # JSON for analysis
-LESS_GO_JSON=1 LESS_GO_QUIET=1 pnpm -w test:go
+LESS_GO_JSON=1 LESS_GO_QUIET=1 pnpm test:go
 ```
 
 ## Tips for LLMs
@@ -195,7 +195,7 @@ When analyzing test results:
 
 1. **Always use QUIET mode** to reduce noise:
    ```bash
-   LESS_GO_QUIET=1 pnpm -w test:go 2>&1 | tail -100
+   LESS_GO_QUIET=1 pnpm test:go 2>&1 | tail -100
    ```
 
 2. **Focus on categories** rather than individual test output
@@ -206,7 +206,7 @@ When analyzing test results:
 
 5. **Use JSON mode** for programmatic analysis:
    ```bash
-   LESS_GO_JSON=1 LESS_GO_QUIET=1 pnpm -w test:go
+   LESS_GO_JSON=1 LESS_GO_QUIET=1 pnpm test:go
    ```
 
 6. **Compare metrics** before and after changes to detect regressions
@@ -245,7 +245,7 @@ Old commands still work, but new commands are recommended:
 
 | Old | New (Recommended) |
 |-----|-------------------|
-| `pnpm -w test:go \| grep summary` | `LESS_GO_QUIET=1 pnpm -w test:go 2>&1 \| tail -100` |
+| `pnpm test:go \| grep summary` | `LESS_GO_QUIET=1 pnpm test:go 2>&1 \| tail -100` |
 | Multiple grep commands | Single summary command |
 | Manual counting | Automatic categorization |
 

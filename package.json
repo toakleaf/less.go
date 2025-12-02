@@ -1,8 +1,8 @@
 {
-  "name": "less.go-monorepo",
+  "name": "less.go",
   "private": true,
   "version": "4.2.2",
-  "description": "Go port of less.js - the popular CSS preprocessor",
+  "description": "A complete Go port of Less.js - the CSS preprocessor",
   "homepage": "https://github.com/toakleaf/less.go",
   "scripts": {
     "publish": "lerna publish from-package --no-private",

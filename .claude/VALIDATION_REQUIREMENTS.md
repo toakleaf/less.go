@@ -9,14 +9,14 @@ Every agent must complete ALL of these steps before creating a PR:
 ### 1. Verify Specific Test Passes
 ```bash
 # Run the test(s) you were working on
-pnpm -w test:go:filter -- "your-test-name"
+go test -v -run "TestIntegrationSuite/your-test-name" ./less
 # Expected: ✅ Test passes or shows significant improvement
 ```
 
 ### 2. Run ALL Unit Tests (REQUIRED)
 ```bash
 # This catches regressions in core functionality
-pnpm -w test:go:unit
+pnpm test:go:unit
 # Expected: ✅ All unit tests pass (zero failures)
 ```
 
@@ -25,9 +25,7 @@ pnpm -w test:go:unit
 ### 3. Run FULL Integration Test Suite (REQUIRED)
 ```bash
 # This verifies no existing passing tests broke
-pnpm -w test:go
-# Or alternatively:
-pnpm -w test:go:full
+pnpm test:go
 # Expected: No new failures compared to baseline
 ```
 
@@ -36,7 +34,7 @@ pnpm -w test:go:full
 ### 4. Check Overall Success Rate
 ```bash
 # Verify overall improvement
-pnpm -w test:go:summary
+LESS_GO_QUIET=1 pnpm test:go 2>&1 | tail -30
 # Expected: Success rate increased or stayed same
 ```
 

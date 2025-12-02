@@ -1,31 +1,38 @@
 # Quick Start Guide for Independent Agents
-## less.go Port - 2025-11-27
+## less.go Port - 2025-12-02
 
 ---
 
-## Current Status - Only 2 Tests Remaining!
+## Current Status - Port Complete!
 
 ### Baseline Metrics (MUST MAINTAIN)
 - **Unit Tests**: 3,012 tests passing (100%)
-- **Perfect Matches**: 90 tests (48.9%)
-- **Output Differences**: 2 tests (1.1%)
-- **Error Tests**: 89 tests (48.4%)
-- **Overall Success**: 97.3%
+- **Perfect Matches**: 100 tests
+- **Error Tests**: 91 tests (correctly failing)
+- **Overall Success**: 100% (191/191 tests)
 - **NO REGRESSIONS**: Maintaining all progress
 
 ---
 
-## Only 1 Task Left!
+## Project Structure
 
-| # | Task | Impact | Difficulty |
-|---|------|--------|------------|
-| 1 | Import Reference | +2 tests | Medium |
-
-### Task 1: Import Reference (HIGH PRIORITY)
-**Files**: `import-reference`, `import-reference-issues`
-**Details**: `.claude/tasks/runtime-failures/import-reference.md`
-
-Reference imports outputting CSS when they shouldn't. Files imported with `(reference)` option should not output CSS, but selectors/mixins should be available.
+```
+less.go/
+├── .claude/
+│   ├── AGENT_WORK_QUEUE.md        ← Current work items
+│   ├── strategy/MASTER_PLAN.md    ← Overall strategy
+│   └── tasks/                     ← Task details
+│
+├── less/                           ← Go implementation (WHERE YOU MAKE CHANGES)
+│   ├── parser.go                  ← LESS parsing
+│   ├── evaluator.go               ← Expression evaluation
+│   ├── import.go                  ← Import handling
+│   └── (other .go files)
+│
+└── testdata/
+    ├── less/                       ← Test input LESS files
+    └── css/                        ← Expected CSS output files
+```
 
 ---
 
@@ -38,32 +45,32 @@ git fetch origin
 git checkout -b claude/fix-{taskname}-{yourID}
 
 # Get baseline numbers
-pnpm -w test:go:unit | tail -5          # Should see: PASS
-LESS_GO_QUIET=1 pnpm -w test:go 2>&1 | grep "Perfect CSS"  # Should see: 89
+pnpm test:go:unit | tail -5          # Should see: PASS
+LESS_GO_QUIET=1 pnpm test:go 2>&1 | grep "Perfect CSS"  # Should see: 100
 ```
 
 ### 2. Make Your Changes
-- Edit Go files in `packages/less/src/less/less_go/`
+- Edit Go files in `less/`
 - Follow patterns from working code
-- Compare with JavaScript implementation
+- Compare with JavaScript implementation in `reference/less.js/`
 - Use LESS_GO_DIFF to see differences
 
 ### 3. Test Incrementally
 ```bash
 # Test your specific fix
-LESS_GO_DIFF=1 pnpm -w test:go 2>&1 | grep -A 20 "your-test-name"
+LESS_GO_DIFF=1 pnpm test:go 2>&1 | grep -A 20 "your-test-name"
 
 # Check for unit test regressions
-pnpm -w test:go:unit
+pnpm test:go:unit
 
 # See full impact
-LESS_GO_QUIET=1 pnpm -w test:go 2>&1 | tail -30
+LESS_GO_QUIET=1 pnpm test:go 2>&1 | tail -30
 ```
 
 ### 4. Verify No Regressions (CRITICAL!)
 ```bash
-pnpm -w test:go:unit          # MUST: 3,012 passing
-LESS_GO_QUIET=1 pnpm -w test:go 2>&1 | grep "Perfect CSS"  # MUST: >= 90
+pnpm test:go:unit          # MUST: 3,012 passing
+LESS_GO_QUIET=1 pnpm test:go 2>&1 | grep "Perfect CSS"  # MUST: >= 100
 ```
 
 ### 5. Commit & Push
@@ -75,34 +82,13 @@ git push origin claude/fix-{taskname}-{yourID}
 
 ---
 
-## Files You'll Need
-
-```
-less.go/
-├── .claude/
-│   ├── AGENT_WORK_QUEUE.md        ← Current work items
-│   ├── strategy/MASTER_PLAN.md    ← Overall strategy
-│   └── tasks/runtime-failures/    ← Task details
-│
-├── packages/less/src/less/less_go/  ← WHERE YOU MAKE CHANGES
-│   ├── import.go, import_visitor.go ← For import-reference
-│   ├── url.go, ruleset.go           ← For urls
-│   └── (other files as needed)
-│
-└── packages/test-data/
-    ├── less/_main/                  ← Test input files
-    └── css/_main/                   ← Expected output files
-```
-
----
-
 ## Golden Rules
 
 1. **ALWAYS check baseline before starting**
 2. **NEVER let unit tests fail**
-3. **NEVER reduce perfect match count** (currently 90)
+3. **NEVER reduce perfect match count** (currently 100)
 4. **ALWAYS test incrementally**
-5. **ALWAYS read the JavaScript version when confused**
+5. **ALWAYS read the JavaScript version when confused** (in `reference/less.js/`)
 6. **ALWAYS verify no regressions before committing**
 
 ---
@@ -111,13 +97,13 @@ less.go/
 
 ### Unit tests failing?
 ```bash
-pnpm -w test:go:unit 2>&1 | grep -A 5 "FAIL"
+pnpm test:go:unit 2>&1 | grep -A 5 "FAIL"
 # Review your changes, understand what you modified
 ```
 
 ### Perfect match count dropped?
 ```bash
-LESS_GO_DIFF=1 pnpm -w test:go 2>&1 | grep -B 3 "Output Differs"
+LESS_GO_DIFF=1 pnpm test:go 2>&1 | grep -B 3 "Output Differs"
 # Revert your last change, understand why it broke something
 ```
 
@@ -127,30 +113,19 @@ LESS_GO_DIFF=1 pnpm -w test:go 2>&1 | grep -B 3 "Output Differs"
 
 ```bash
 # See test data
-cat packages/test-data/less/_main/import-reference.less  # Input
-cat packages/test-data/css/_main/import-reference.css    # Expected
+cat testdata/less/_main/import-reference.less  # Input
+cat testdata/css/_main/import-reference.css    # Expected
 
 # Compare with actual output
-LESS_GO_DIFF=1 pnpm -w test:go 2>&1 | grep -A 30 "import-reference"
+LESS_GO_DIFF=1 pnpm test:go 2>&1 | grep -A 30 "import-reference"
 
 # Full debug mode
-LESS_GO_DEBUG=1 LESS_GO_TRACE=1 LESS_GO_DIFF=1 pnpm -w test:go
+LESS_GO_DEBUG=1 LESS_GO_TRACE=1 LESS_GO_DIFF=1 pnpm test:go
 ```
 
 ---
 
-## What Success Looks Like
-
-When you fix both import-reference tests:
-```
-✅ Perfect CSS Matches: 92 (50.0%)  # Was 90, now 92 (+2!)
-✅ Success Rate: 98.4% (181/184 tests)
-# Only 3 external dependency tests remain as expected failures
-```
+**You've got this!** The port is complete - now it's about maintenance and improvements.
 
 ---
-
-**You've got this!** Only 2 tests left to fix (both import-reference).
-
----
-Last Updated: 2025-11-27
+Last Updated: 2025-12-02
