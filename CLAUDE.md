@@ -33,6 +33,7 @@ A complete Go port of less.js - the popular CSS preprocessor. The port maintains
 **Prerequisites:**
 ```bash
 pnpm install  # Required for npm module resolution tests
+git submodule update --init  # Required for JS unit tests
 ```
 
 **Commands:**
@@ -40,8 +41,11 @@ pnpm install  # Required for npm module resolution tests
 # Run all integration tests
 pnpm -w test:go
 
-# Run unit tests
+# Run Go unit tests
 pnpm -w test:go:unit
+
+# Run JavaScript unit tests
+pnpm test:js-unit
 
 # Quick summary (recommended)
 LESS_GO_QUIET=1 pnpm -w test:go 2>&1 | tail -100
@@ -116,7 +120,8 @@ All features are fully implemented - no quarantined tests!
 ## Project Structure
 
 - `less/` - Go implementation
-- `packages/less/src/less/` - Original JavaScript (reference only)
+- `reference/less.js/` - Original less.js source (git submodule, reference only)
+- `test/js/` - Custom JavaScript unit tests for less.js
 - `packages/test-data/` - Test fixtures shared by both implementations
 - `cmd/lessc-go/` - CLI tool
 - `examples/` - Example usage
