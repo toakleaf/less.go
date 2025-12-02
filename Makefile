@@ -126,3 +126,13 @@ test-cli: build
 	else \
 		echo "❌ Test file not found"; \
 	fi
+
+# Cross-compile for all platforms
+.PHONY: build-npm
+build-npm:
+	./scripts/build-binaries.sh $(VERSION)
+
+# Publish npm packages
+.PHONY: publish-npm
+publish-npm: build-npm
+	./scripts/publish-npm.sh $(VERSION)
