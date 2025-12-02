@@ -1,9 +1,9 @@
 {
-  "name": "@lessgo/less.go-darwin-arm64",
+  "name": "@lessgo/darwin-x64",
   "version": "0.1.0",
-  "description": "Platform-specific binary for @lessgo/less.go (macOS ARM64)",
+  "description": "Platform-specific binary for lessgo (macOS x64)",
   "os": ["darwin"],
-  "cpu": ["arm64"],
+  "cpu": ["x64"],
   "main": "bin/lessc-go",
   "repository": {
     "type": "git",

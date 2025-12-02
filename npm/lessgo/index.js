@@ -9,12 +9,12 @@ const fs = require("fs");
  * Platform to package name mapping
  */
 const PLATFORM_PACKAGES = {
-  "darwin-arm64": "@lessgo/less.go-darwin-arm64",
-  "darwin-x64": "@lessgo/less.go-darwin-x64",
-  "linux-x64": "@lessgo/less.go-linux-x64",
-  "linux-arm64": "@lessgo/less.go-linux-arm64",
-  "win32-x64": "@lessgo/less.go-win32-x64",
-  "win32-arm64": "@lessgo/less.go-win32-arm64",
+  "darwin-arm64": "@lessgo/darwin-arm64",
+  "darwin-x64": "@lessgo/darwin-x64",
+  "linux-x64": "@lessgo/linux-x64",
+  "linux-arm64": "@lessgo/linux-arm64",
+  "win32-x64": "@lessgo/win32-x64",
+  "win32-arm64": "@lessgo/win32-arm64",
 };
 
 /**
@@ -96,7 +96,7 @@ function getBinaryPath() {
   if (!binaryPath) {
     throw new Error(
       `Could not find the lessc-go binary. The platform-specific package ` +
-        `"${packageName}" may not be installed. Try reinstalling @lessgo/less.go`
+        `"${packageName}" may not be installed. Try reinstalling lessgo`
     );
   }
 
@@ -297,11 +297,11 @@ function verifyInstallation() {
   const platformKey = getPlatformKey();
   const packageName = getPlatformPackage();
 
-  console.log(`less.go: Detected platform ${platformKey}`);
+  console.log(`lessgo: Detected platform ${platformKey}`);
 
   if (!packageName) {
     console.warn(
-      `less.go: Warning - Unsupported platform "${platformKey}". ` +
+      `lessgo: Warning - Unsupported platform "${platformKey}". ` +
         `Binary execution will not work on this platform.`
     );
     return false;
@@ -309,18 +309,18 @@ function verifyInstallation() {
 
   try {
     const binaryPath = getBinaryPath();
-    console.log(`less.go: Found binary at ${binaryPath}`);
+    console.log(`lessgo: Found binary at ${binaryPath}`);
 
     // Try to run --version to verify it works
     const result = execFileSync(binaryPath, ["--version"], {
       encoding: "utf8",
       timeout: 5000,
     });
-    console.log(`less.go: ${result.trim()}`);
+    console.log(`lessgo: ${result.trim()}`);
     return true;
   } catch (err) {
     console.warn(
-      `less.go: Warning - Could not verify binary installation. ` +
+      `lessgo: Warning - Could not verify binary installation. ` +
         `The package "${packageName}" may not be installed or the binary may not be executable.`
     );
     return false;

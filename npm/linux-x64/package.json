@@ -1,9 +1,9 @@
 {
-  "name": "@lessgo/less.go-linux-arm64",
+  "name": "@lessgo/linux-x64",
   "version": "0.1.0",
-  "description": "Platform-specific binary for @lessgo/less.go (Linux ARM64)",
+  "description": "Platform-specific binary for lessgo (Linux x64)",
   "os": ["linux"],
-  "cpu": ["arm64"],
+  "cpu": ["x64"],
   "main": "bin/lessc-go",
   "repository": {
     "type": "git",

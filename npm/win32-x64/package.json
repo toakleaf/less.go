@@ -1,10 +1,10 @@
 {
-  "name": "@lessgo/less.go-linux-x64",
+  "name": "@lessgo/win32-x64",
   "version": "0.1.0",
-  "description": "Platform-specific binary for @lessgo/less.go (Linux x64)",
-  "os": ["linux"],
+  "description": "Platform-specific binary for lessgo (Windows x64)",
+  "os": ["win32"],
   "cpu": ["x64"],
-  "main": "bin/lessc-go",
+  "main": "bin/lessc-go.exe",
   "repository": {
     "type": "git",
     "url": "https://github.com/toakleaf/less.go.git"
