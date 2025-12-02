@@ -1,0 +1,90 @@
+#!/bin/sh
+# Wrapper script for lessc-go binary
+# This script finds and executes the platform-specific binary
+
+set -e
+
+# Get the directory where this script lives
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PACKAGE_DIR="$(dirname "$SCRIPT_DIR")"
+
+# Detect platform
+OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+ARCH="$(uname -m)"
+
+# Map OS names
+case "$OS" in
+  darwin) PLATFORM="darwin" ;;
+  linux) PLATFORM="linux" ;;
+  mingw*|msys*|cygwin*) PLATFORM="win32" ;;
+  *)
+    echo "lessc-go: Unsupported operating system: $OS" >&2
+    exit 1
+    ;;
+esac
+
+# Map architecture names
+case "$ARCH" in
+  x86_64|amd64) ARCH_NAME="x64" ;;
+  arm64|aarch64) ARCH_NAME="arm64" ;;
+  *)
+    echo "lessc-go: Unsupported architecture: $ARCH" >&2
+    exit 1
+    ;;
+esac
+
+PLATFORM_KEY="${PLATFORM}-${ARCH_NAME}"
+PACKAGE_NAME="@toakleaf/less.go-${PLATFORM_KEY}"
+
+# Try to find the binary in node_modules
+find_binary() {
+  # Check in the same node_modules as this package
+  if [ -d "$PACKAGE_DIR/../$PACKAGE_NAME" ]; then
+    BINARY="$PACKAGE_DIR/../$PACKAGE_NAME/bin/lessc-go"
+    if [ -x "$BINARY" ]; then
+      echo "$BINARY"
+      return 0
+    fi
+  fi
+
+  # Check in node_modules relative to cwd
+  if [ -d "./node_modules/$PACKAGE_NAME" ]; then
+    BINARY="./node_modules/$PACKAGE_NAME/bin/lessc-go"
+    if [ -x "$BINARY" ]; then
+      echo "$BINARY"
+      return 0
+    fi
+  fi
+
+  # Use Node.js to resolve
+  BINARY=$(node -e "
+    try {
+      const path = require('path');
+      const pkg = require.resolve('$PACKAGE_NAME/package.json');
+      const bin = path.join(path.dirname(pkg), 'bin', 'lessc-go');
+      console.log(bin);
+    } catch (e) {
+      process.exit(1);
+    }
+  " 2>/dev/null)
+
+  if [ -n "$BINARY" ] && [ -x "$BINARY" ]; then
+    echo "$BINARY"
+    return 0
+  fi
+
+  return 1
+}
+
+BINARY_PATH=$(find_binary)
+
+if [ -z "$BINARY_PATH" ]; then
+  echo "lessc-go: Could not find the platform-specific binary." >&2
+  echo "lessc-go: Platform: $PLATFORM_KEY" >&2
+  echo "lessc-go: Expected package: $PACKAGE_NAME" >&2
+  echo "lessc-go: Try reinstalling @toakleaf/less.go" >&2
+  exit 1
+fi
+
+# Execute the binary with all arguments
+exec "$BINARY_PATH" "$@"
