@@ -1,5 +1,11 @@
 # lessgo
 
+## 0.2.0
+
+### Minor Changes
+
+- Added @lessgo/plugin-vite - Vite plugin for using less.go as the LESS preprocessor
+
 ## 0.1.7
 
 ### Patch Changes

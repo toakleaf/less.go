@@ -49,9 +49,6 @@ echo ""
 echo "Building Vite plugin..."
 pnpm --filter @lessgo/plugin-vite run build
 
-echo ""
-echo "Publishing packages with npm (OIDC trusted publishers)..."
-
 # Platform packages must be published first (lessgo depends on them as optionalDependencies)
 PLATFORM_PACKAGES=(
   "darwin-arm64"
@@ -72,11 +69,58 @@ publish_failed() {
   exit 1
 }
 
+# =============================================================================
+# DRY-RUN PHASE: Verify all packages can be published before publishing any
+# This prevents partial releases where some packages are published but others fail
+# =============================================================================
+echo ""
+echo "=== DRY-RUN: Verifying all packages can be published ==="
+
+DRY_RUN_FAILED=false
+
+for pkg in "${PLATFORM_PACKAGES[@]}"; do
+  echo "Verifying @lessgo/$pkg..."
+  if ! npm publish "./npm/$pkg" --access public --dry-run 2>&1; then
+    echo "ERROR: Dry-run failed for @lessgo/$pkg"
+    DRY_RUN_FAILED=true
+  fi
+done
+
+echo "Verifying lessgo..."
+if ! npm publish "./npm/lessgo" --access public --dry-run 2>&1; then
+  echo "ERROR: Dry-run failed for lessgo"
+  DRY_RUN_FAILED=true
+fi
+
+echo "Verifying @lessgo/plugin-vite..."
+if ! npm publish "./packages/plugin-vite" --access public --dry-run 2>&1; then
+  echo "ERROR: Dry-run failed for @lessgo/plugin-vite"
+  DRY_RUN_FAILED=true
+fi
+
+if [ "$DRY_RUN_FAILED" = true ]; then
+  echo ""
+  echo "=== DRY-RUN FAILED ==="
+  echo "One or more packages failed validation. No packages were published."
+  echo "Fix the issues above and try again."
+  publish_failed
+fi
+
+echo ""
+echo "=== DRY-RUN PASSED: All packages validated successfully ==="
+echo ""
+
+# =============================================================================
+# PUBLISH PHASE: Actually publish packages (only runs if dry-run passed)
+# =============================================================================
+echo "Publishing packages with npm (OIDC trusted publishers)..."
+
 for pkg in "${PLATFORM_PACKAGES[@]}"; do
   echo ""
   echo "=== Publishing @lessgo/$pkg ==="
   if ! npm publish "./npm/$pkg" --access public; then
     echo "ERROR: Failed to publish @lessgo/$pkg"
+    echo "WARNING: Some packages may have been published. Manual intervention may be required."
     publish_failed
   fi
 done
@@ -85,6 +129,7 @@ echo ""
 echo "=== Publishing lessgo ==="
 if ! npm publish "./npm/lessgo" --access public; then
   echo "ERROR: Failed to publish lessgo"
+  echo "WARNING: Some packages may have been published. Manual intervention may be required."
   publish_failed
 fi
 
@@ -93,6 +138,7 @@ echo ""
 echo "=== Publishing @lessgo/plugin-vite ==="
 if ! npm publish "./packages/plugin-vite" --access public; then
   echo "ERROR: Failed to publish @lessgo/plugin-vite"
+  echo "WARNING: Some packages may have been published. Manual intervention may be required."
   publish_failed
 fi
 
