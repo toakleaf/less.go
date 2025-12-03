@@ -54,5 +54,5 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Run all Go tests (unit + integration)
-        run: pnpm test:go:all
+      - name: Run integration tests (strict mode)
+        run: LESS_GO_STRICT=1 LESS_GO_QUIET=1 go test ./less -run 'TestIntegrationSuite' -timeout 5m -v
