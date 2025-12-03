@@ -1,5 +1,11 @@
 # @lessgo/plugin-vite
 
+## 0.2.0
+
+### Minor Changes
+
+- Version alignment with lessgo 0.2.0
+
 ## 0.1.7
 
 ### Minor Changes
