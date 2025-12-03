@@ -43,22 +43,22 @@ importers:
   npm/lessgo:
     optionalDependencies:
       '@lessgo/darwin-arm64':
-        specifier: 0.1.2
+        specifier: 0.1.3
         version: link:../darwin-arm64
       '@lessgo/darwin-x64':
-        specifier: 0.1.2
+        specifier: 0.1.3
         version: link:../darwin-x64
       '@lessgo/linux-arm64':
-        specifier: 0.1.2
+        specifier: 0.1.3
         version: link:../linux-arm64
       '@lessgo/linux-x64':
-        specifier: 0.1.2
+        specifier: 0.1.3
         version: link:../linux-x64
       '@lessgo/win32-arm64':
-        specifier: 0.1.2
+        specifier: 0.1.3
         version: link:../win32-arm64
       '@lessgo/win32-x64':
-        specifier: 0.1.2
+        specifier: 0.1.3
         version: link:../win32-x64
 
   npm/linux-arm64: {}
