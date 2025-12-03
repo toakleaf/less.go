@@ -1,0 +1,65 @@
+{
+  "name": "@lessgo/plugin-vite",
+  "version": "0.1.0",
+  "description": "Vite plugin for using less.go (lessc-go) as the LESS preprocessor",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "pnpm run build"
+  },
+  "keywords": [
+    "vite",
+    "vite-plugin",
+    "less",
+    "less.go",
+    "lessgo",
+    "css",
+    "preprocessor"
+  ],
+  "homepage": "https://github.com/toakleaf/less.go",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/toakleaf/less.go.git",
+    "directory": "packages/plugin-vite"
+  },
+  "bugs": {
+    "url": "https://github.com/toakleaf/less.go/issues"
+  },
+  "author": "Alexis Sellier <self@cloudhead.net>",
+  "peerDependencies": {
+    "vite": "^4.0.0 || ^5.0.0 || ^6.0.0"
+  },
+  "dependencies": {
+    "lessgo": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "vite": "^6.0.0",
+    "vitest": "^3.0.9"
+  }
+}
