@@ -1,5 +1,11 @@
 # @lessgo/win32-arm64
 
+## 0.1.6
+
+### Patch Changes
+
+-   [`3acfcd0`](https://github.com/toakleaf/less.go/commit/3acfcd0ae8af315f10c247e956b6c93f9399ad48) Thanks [@toakleaf](https://github.com/toakleaf)! - Include plugin-host.js in built package
+
 ## 0.1.5
 
 ### Patch Changes
