@@ -92,10 +92,18 @@ if ! npm publish "./npm/lessgo" --access public --dry-run 2>&1; then
   DRY_RUN_FAILED=true
 fi
 
-echo "Verifying @lessgo/plugin-vite..."
-if ! npm publish "./packages/plugin-vite" --access public --dry-run 2>&1; then
-  echo "ERROR: Dry-run failed for @lessgo/plugin-vite"
+# Pack plugin-vite with pnpm to resolve workspace:* protocol
+echo "Packing @lessgo/plugin-vite (resolves workspace:* to actual version)..."
+PLUGIN_VITE_TARBALL=$(cd packages/plugin-vite && pnpm pack --pack-destination ../../ 2>/dev/null | tail -1)
+if [ -z "$PLUGIN_VITE_TARBALL" ]; then
+  echo "ERROR: Failed to pack @lessgo/plugin-vite"
   DRY_RUN_FAILED=true
+else
+  echo "Verifying @lessgo/plugin-vite..."
+  if ! npm publish "./$PLUGIN_VITE_TARBALL" --access public --dry-run 2>&1; then
+    echo "ERROR: Dry-run failed for @lessgo/plugin-vite"
+    DRY_RUN_FAILED=true
+  fi
 fi
 
 if [ "$DRY_RUN_FAILED" = true ]; then
@@ -133,14 +141,21 @@ if ! npm publish "./npm/lessgo" --access public; then
   publish_failed
 fi
 
-# Publish Vite plugin (independent versioning)
+# Publish Vite plugin using the tarball created during dry-run
+# (pnpm pack resolves workspace:* to actual version)
 echo ""
 echo "=== Publishing @lessgo/plugin-vite ==="
-if ! npm publish "./packages/plugin-vite" --access public; then
+if [ -z "$PLUGIN_VITE_TARBALL" ] || [ ! -f "./$PLUGIN_VITE_TARBALL" ]; then
+  echo "ERROR: Plugin-vite tarball not found. Re-packing..."
+  PLUGIN_VITE_TARBALL=$(cd packages/plugin-vite && pnpm pack --pack-destination ../../ 2>/dev/null | tail -1)
+fi
+if ! npm publish "./$PLUGIN_VITE_TARBALL" --access public; then
   echo "ERROR: Failed to publish @lessgo/plugin-vite"
   echo "WARNING: Some packages may have been published. Manual intervention may be required."
   publish_failed
 fi
+# Clean up tarball
+rm -f "./$PLUGIN_VITE_TARBALL"
 
 # Success! Now commit the version changes
 echo ""
