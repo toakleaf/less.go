@@ -2,79 +2,30 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
   id-token: write
 
 jobs:
-  build:
-    name: Build Binaries
+  release:
+    name: Release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.22'
-
-      - name: Get version from tag
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
-      - name: Build all binaries
-        run: ./scripts/build-binaries.sh ${{ steps.version.outputs.VERSION }}
-
-      - name: Upload darwin-arm64
-        uses: actions/upload-artifact@v4
-        with:
-          name: darwin-arm64
-          path: npm/darwin-arm64/bin/
-
-      - name: Upload darwin-x64
-        uses: actions/upload-artifact@v4
-        with:
-          name: darwin-x64
-          path: npm/darwin-x64/bin/
-
-      - name: Upload linux-x64
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-x64
-          path: npm/linux-x64/bin/
-
-      - name: Upload linux-arm64
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-arm64
-          path: npm/linux-arm64/bin/
-
-      - name: Upload win32-x64
-        uses: actions/upload-artifact@v4
-        with:
-          name: win32-x64
-          path: npm/win32-x64/bin/
-
-      - name: Upload win32-arm64
-        uses: actions/upload-artifact@v4
-        with:
-          name: win32-arm64
-          path: npm/win32-arm64/bin/
-
-  publish:
-    name: Publish to npm
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write  # Required for npm trusted publishing (OIDC)
-    steps:
-      - uses: actions/checkout@v4
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -82,50 +33,22 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Download darwin-arm64
-        uses: actions/download-artifact@v4
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
         with:
-          name: darwin-arm64
-          path: npm/darwin-arm64/bin/
+          version: 10
 
-      - name: Download darwin-x64
-        uses: actions/download-artifact@v4
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Create Release Pull Request or Publish
+        id: changesets
+        uses: changesets/action@v1
         with:
-          name: darwin-x64
-          path: npm/darwin-x64/bin/
-
-      - name: Download linux-x64
-        uses: actions/download-artifact@v4
-        with:
-          name: linux-x64
-          path: npm/linux-x64/bin/
-
-      - name: Download linux-arm64
-        uses: actions/download-artifact@v4
-        with:
-          name: linux-arm64
-          path: npm/linux-arm64/bin/
-
-      - name: Download win32-x64
-        uses: actions/download-artifact@v4
-        with:
-          name: win32-x64
-          path: npm/win32-x64/bin/
-
-      - name: Download win32-arm64
-        uses: actions/download-artifact@v4
-        with:
-          name: win32-arm64
-          path: npm/win32-arm64/bin/
-
-      - name: Make binaries executable
-        run: chmod +x npm/*/bin/lessc-go 2>/dev/null || true
-
-      - name: Get version from tag
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
-      - name: Publish packages
-        run: ./scripts/publish-npm.sh ${{ steps.version.outputs.VERSION }}
+          version: pnpm changeset:version
+          publish: pnpm changeset:publish
+          title: 'chore: release packages'
+          commit: 'chore: release packages'
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_CONFIG_PROVENANCE: true

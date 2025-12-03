@@ -5,6 +5,9 @@
   "description": "A complete Go port of Less.js - the CSS preprocessor",
   "homepage": "https://github.com/toakleaf/less.go",
   "scripts": {
+    "changeset": "changeset",
+    "changeset:version": "changeset version",
+    "changeset:publish": "./scripts/changeset-publish.sh",
     "test": "pnpm test:go && pnpm test:js-unit",
     "test:js-unit": "vitest --config test/js/vitest.config.ts",
     "test:go": "go run scripts/test.go integration",
@@ -44,6 +47,8 @@
     "url": "https://github.com/toakleaf/less.go.git"
   },
   "devDependencies": {
+    "@changesets/changelog-github": "^0.5.2",
+    "@changesets/cli": "^2.29.8",
     "all-contributors-cli": "~6.26.1",
     "copy-anything": "^2.0.1",
     "less": "^4.2.2",
