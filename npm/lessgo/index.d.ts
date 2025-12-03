@@ -30,6 +30,26 @@ export function getPlatformPackage(): string | null;
 export function getBinaryPath(): string;
 
 /**
+ * Plugin specification
+ */
+export interface PluginSpec {
+  /**
+   * Plugin name or path (can be npm module name, relative path, or absolute path)
+   * For npm modules, the "less-plugin-" prefix is optional
+   * @example "clean-css" or "less-plugin-clean-css"
+   * @example "./my-plugin.js"
+   * @example "/path/to/plugin.js"
+   */
+  name: string;
+
+  /**
+   * Options string to pass to the plugin's setOptions() method
+   * @example "browsers: last 2 versions"
+   */
+  options?: string;
+}
+
+/**
  * Options for LESS compilation
  */
 export interface CompileOptions {
@@ -67,6 +87,14 @@ export interface CompileOptions {
    * Variables to modify
    */
   modifyVars?: Record<string, string>;
+
+  /**
+   * Plugins to load
+   * @example [{ name: 'clean-css' }]
+   * @example [{ name: 'autoprefix', options: 'browsers: last 2 versions' }]
+   * @example [{ name: './my-plugin.js' }]
+   */
+  plugins?: (PluginSpec | string)[];
 }
 
 /**
