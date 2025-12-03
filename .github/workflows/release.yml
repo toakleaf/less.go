@@ -45,28 +45,20 @@ jobs:
       - name: Update npm for OIDC support
         run: npm install -g npm@latest
 
-      - name: Configure git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Release (version + publish atomically)
-        id: release
-        run: ./scripts/release.sh
+      - name: Create Release Pull Request or Publish
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          # Creates a PR when changesets exist, or publishes when version PR is merged
+          version: pnpm changeset:version
+          publish: ./scripts/publish.sh
+          title: 'chore: release packages'
+          commit: 'chore: release packages'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Push version changes
-        if: success()
-        run: git push
-
-      - name: Get version for release
-        if: success()
-        id: version
-        run: echo "version=$(node -p \"require('./npm/lessgo/package.json').version\")" >> $GITHUB_OUTPUT
-
       - name: Create GitHub Release
-        if: success() && steps.version.outputs.version
+        if: steps.changesets.outputs.published == 'true'
         uses: actions/github-script@v7
         with:
           script: |
