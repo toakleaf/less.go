@@ -4,34 +4,10 @@ on:
   push:
     branches: [main, master]
   pull_request:
-    branches: [main, master]
 
 jobs:
-  test-go:
-    name: Go Tests
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        go-version: ['1.21', '1.22']
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ matrix.go-version }}
-
-      - name: Run Go tests
-        run: go test -v ./...
-
-      - name: Build CLI
-        run: go build -v ./cmd/lessc-go
-
-  test-integration:
-    name: Integration Tests
+  test:
+    name: Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -56,5 +32,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Run integration tests
-        run: pnpm test:go
+      - name: Run all tests
+        run: pnpm test:go:all
+
+      - name: Build CLI
+        run: go build -v ./cmd/lessc-go
