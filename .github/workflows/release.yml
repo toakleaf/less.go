@@ -2,46 +2,30 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - master
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
   id-token: write
 
 jobs:
-  build:
-    name: Build Binaries
+  release:
+    name: Release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.22'
-
-      - name: Get version from tag
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
-      - name: Build all binaries
-        run: ./scripts/build-binaries.sh ${{ steps.version.outputs.VERSION }}
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: binaries
-          path: npm/less.go-*/bin/
-
-  publish:
-    name: Publish to npm
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -49,17 +33,54 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Download binaries
-        uses: actions/download-artifact@v4
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
         with:
-          name: binaries
-          path: npm/
+          version: 10
 
-      - name: Get version from tag
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+      - name: Install dependencies
+        run: pnpm install
 
-      - name: Publish packages
-        run: ./scripts/publish-npm.sh ${{ steps.version.outputs.VERSION }}
+      - name: Create Release Pull Request or Publish
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          version: pnpm changeset:version
+          publish: pnpm changeset:publish
+          title: 'chore: release packages'
+          commit: 'chore: release packages'
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
+
+      - name: Create GitHub Release
+        if: steps.changesets.outputs.published == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const version = require('./npm/lessgo/package.json').version;
+
+            // Read changelog to get release notes
+            let body = `## lessgo v${version}\n\nPublished to npm: https://www.npmjs.com/package/lessgo/v/${version}`;
+
+            try {
+              const changelog = fs.readFileSync('./npm/lessgo/CHANGELOG.md', 'utf8');
+              // Extract the latest version's notes
+              const match = changelog.match(/## \d+\.\d+\.\d+\n([\s\S]*?)(?=## \d+\.\d+\.\d+|$)/);
+              if (match) {
+                body = match[0];
+              }
+            } catch (e) {
+              console.log('No CHANGELOG.md found, using default body');
+            }
+
+            await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: `v${version}`,
+              name: `v${version}`,
+              body: body,
+              draft: false,
+              prerelease: false
+            });
