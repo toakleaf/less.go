@@ -121,10 +121,6 @@ async function compile(input, options = {}) {
   const args = [];
 
   // Build arguments from options
-  if (options.string) {
-    args.push("--stdin");
-  }
-
   if (options.paths && options.paths.length > 0) {
     args.push(`--include-path=${options.paths.join(os.platform() === "win32" ? ";" : ":")}`);
   }
@@ -152,8 +148,10 @@ async function compile(input, options = {}) {
     }
   }
 
-  // Add input file if not using stdin
-  if (!options.string) {
+  // Add input file or stdin marker
+  if (options.string) {
+    args.push("-");
+  } else {
     args.push(input);
   }
 
@@ -204,10 +202,6 @@ function compileSync(input, options = {}) {
   const args = [];
 
   // Build arguments from options
-  if (options.string) {
-    args.push("--stdin");
-  }
-
   if (options.paths && options.paths.length > 0) {
     args.push(`--include-path=${options.paths.join(os.platform() === "win32" ? ";" : ":")}`);
   }
@@ -235,8 +229,10 @@ function compileSync(input, options = {}) {
     }
   }
 
-  // Add input file if not using stdin
-  if (!options.string) {
+  // Add input file or stdin marker
+  if (options.string) {
+    args.push("-");
+  } else {
     args.push(input);
   }
 
