@@ -1,5 +1,11 @@
 # @lessgo/linux-arm64
 
+## 0.1.7
+
+### Patch Changes
+
+-   [#456](https://github.com/toakleaf/less.go/pull/456) [`0356932`](https://github.com/toakleaf/less.go/commit/0356932525100e19147d4c6ad9056228f244b4e0) Thanks [@toakleaf](https://github.com/toakleaf)! - Add plugins option to Node.js compile() API
+
 ## 0.1.6
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@lessgo/darwin-arm64",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Platform-specific binary for lessgo (macOS ARM64)",
   "os": [
     "darwin"
