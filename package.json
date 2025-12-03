@@ -7,7 +7,8 @@
   "scripts": {
     "changeset": "changeset",
     "changeset:version": "changeset version && pnpm install --no-frozen-lockfile",
-    "changeset:publish": "./scripts/changeset-publish.sh",
+    "changeset:publish": "./scripts/release.sh",
+    "release": "./scripts/release.sh",
     "test": "pnpm test:go && pnpm test:js-unit",
     "test:js-unit": "vitest --config test/js/vitest.config.ts",
     "test:go": "go run scripts/test.go integration",
