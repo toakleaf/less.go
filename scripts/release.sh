@@ -12,6 +12,7 @@ echo "npm version: $(npm --version)"
 CHANGESETS=$(ls -A .changeset/*.md 2>/dev/null | grep -v README.md || true)
 if [ -z "$CHANGESETS" ]; then
   echo "No changesets found. Nothing to release."
+  echo "released=false" >> $GITHUB_OUTPUT
   exit 0
 fi
 
@@ -99,6 +100,10 @@ Published packages:
 
 # Clean up stash
 git stash drop 2>/dev/null || true
+
+# Signal successful release to GitHub Actions
+echo "released=true" >> $GITHUB_OUTPUT
+echo "version=$VERSION" >> $GITHUB_OUTPUT
 
 echo ""
 echo "=== Release v$VERSION complete! ==="

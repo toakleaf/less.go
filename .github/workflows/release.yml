@@ -58,23 +58,16 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Push changes
-        if: success()
+        if: steps.release.outputs.released == 'true'
         run: git push
 
-      - name: Get version
-        if: success()
-        id: version
-        run: |
-          VERSION=$(node -p "require('./npm/lessgo/package.json').version" 2>/dev/null || echo "")
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
       - name: Create GitHub Release
-        if: success() && steps.version.outputs.version
+        if: steps.release.outputs.released == 'true'
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
-            const version = '${{ steps.version.outputs.version }}';
+            const version = '${{ steps.release.outputs.version }}';
 
             if (!version) {
               console.log('No version found, skipping release');
