@@ -1,6 +1,6 @@
 {
   "name": "lessgo",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A complete Go port of Less.js - the CSS preprocessor",
   "main": "index.js",
   "types": "index.d.ts",
@@ -14,7 +14,14 @@
     "type": "git",
     "url": "https://github.com/toakleaf/less.go.git"
   },
-  "keywords": ["less", "css", "preprocessor", "compiler", "go", "fast"],
+  "keywords": [
+    "less",
+    "css",
+    "preprocessor",
+    "compiler",
+    "go",
+    "fast"
+  ],
   "author": "toakleaf",
   "license": "Apache-2.0",
   "bugs": {
@@ -25,11 +32,11 @@
     "node": ">=14"
   },
   "optionalDependencies": {
-    "@lessgo/darwin-arm64": "0.1.0",
-    "@lessgo/darwin-x64": "0.1.0",
-    "@lessgo/linux-x64": "0.1.0",
-    "@lessgo/linux-arm64": "0.1.0",
-    "@lessgo/win32-x64": "0.1.0",
-    "@lessgo/win32-arm64": "0.1.0"
+    "@lessgo/darwin-arm64": "0.1.1",
+    "@lessgo/darwin-x64": "0.1.1",
+    "@lessgo/linux-x64": "0.1.1",
+    "@lessgo/linux-arm64": "0.1.1",
+    "@lessgo/win32-x64": "0.1.1",
+    "@lessgo/win32-arm64": "0.1.1"
   }
 }
