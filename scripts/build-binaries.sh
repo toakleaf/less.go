@@ -5,6 +5,7 @@ set -e
 
 VERSION=${1:-"dev"}
 OUTPUT_DIR="npm"
+RUNTIME_DIR="less/runtime"
 
 # Platform targets: GOOS/GOARCH -> npm package directory
 declare -A TARGETS=(
@@ -32,6 +33,12 @@ for target in "${!TARGETS[@]}"; do
     -ldflags="-s -w -X main.version=$VERSION" \
     -o "$OUTPUT_DIR/$SUFFIX/bin/$OUTPUT_NAME" \
     ./cmd/lessc-go
+
+  # Copy runtime files to the bin directory
+  # These are needed for JavaScript plugin support
+  echo "Copying runtime files for $SUFFIX..."
+  cp "$RUNTIME_DIR/plugin-host.js" "$OUTPUT_DIR/$SUFFIX/bin/"
+  cp "$RUNTIME_DIR/bindings.js" "$OUTPUT_DIR/$SUFFIX/bin/"
 done
 
-echo "Done! Binaries built for all platforms."
+echo "Done! Binaries and runtime files built for all platforms."
