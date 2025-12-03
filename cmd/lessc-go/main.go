@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bufio"
+	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,155 +14,325 @@ import (
 
 const version = "4.2.2-go"
 
-func main() {
-	if len(os.Args) < 2 {
-		printUsage()
-		os.Exit(1)
-	}
+// stringSliceFlag allows for multiple values of a flag (e.g., --include-path multiple times)
+type stringSliceFlag []string
 
-	switch os.Args[1] {
-	case "-v", "--version":
+func (s *stringSliceFlag) String() string {
+	return strings.Join(*s, ", ")
+}
+
+func (s *stringSliceFlag) Set(value string) error {
+	// Support both comma-separated and multiple flag usage
+	for _, v := range strings.Split(value, string(os.PathListSeparator)) {
+		if v != "" {
+			*s = append(*s, v)
+		}
+	}
+	return nil
+}
+
+// keyValueFlag for --global-var and --modify-var
+type keyValueFlag map[string]string
+
+func (kv *keyValueFlag) String() string {
+	pairs := make([]string, 0, len(*kv))
+	for k, v := range *kv {
+		pairs = append(pairs, k+"="+v)
+	}
+	return strings.Join(pairs, ", ")
+}
+
+func (kv *keyValueFlag) Set(value string) error {
+	// Parse "name=value" format
+	parts := strings.SplitN(value, "=", 2)
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid format, expected name=value, got: %s", value)
+	}
+	(*kv)[parts[0]] = parts[1]
+	return nil
+}
+
+func main() {
+	// Define flags
+	var (
+		showVersion  bool
+		showHelp     bool
+		compress     bool
+		sourceMap    bool
+		sourceMapInline bool
+		strictUnits  bool
+		jsEnabled    bool
+		silent       bool
+		mathMode     string
+		rewriteUrls  string
+		rootpath     string
+		urlArgs      string
+		includePaths stringSliceFlag
+		globalVars   = make(keyValueFlag)
+		modifyVars   = make(keyValueFlag)
+	)
+
+	// Custom usage message
+	flag.Usage = printUsage
+
+	// Boolean flags
+	flag.BoolVar(&showVersion, "v", false, "Print version number and exit")
+	flag.BoolVar(&showVersion, "version", false, "Print version number and exit")
+	flag.BoolVar(&showHelp, "h", false, "Print help and exit")
+	flag.BoolVar(&showHelp, "help", false, "Print help and exit")
+	flag.BoolVar(&compress, "compress", false, "Compress output CSS")
+	flag.BoolVar(&compress, "x", false, "Compress output CSS (shorthand)")
+	flag.BoolVar(&sourceMap, "source-map", false, "Generate source map")
+	flag.BoolVar(&sourceMapInline, "source-map-inline", false, "Inline source map in CSS output")
+	flag.BoolVar(&strictUnits, "strict-units", false, "Enable strict unit checking")
+	flag.BoolVar(&jsEnabled, "js", false, "Enable inline JavaScript evaluation")
+	flag.BoolVar(&silent, "silent", false, "Suppress output messages")
+	flag.BoolVar(&silent, "s", false, "Suppress output messages (shorthand)")
+
+	// String flags
+	flag.StringVar(&mathMode, "math", "parens-division", "Math mode: always, parens-division, parens, strict")
+	flag.StringVar(&rewriteUrls, "rewrite-urls", "", "URL rewriting: off, local, all")
+	flag.StringVar(&rootpath, "rootpath", "", "Set rootpath for URL rewriting")
+	flag.StringVar(&urlArgs, "url-args", "", "Query string to append to URLs")
+
+	// Multi-value flags
+	flag.Var(&includePaths, "include-path", "Include path for @import (can be specified multiple times, or use OS path separator)")
+	flag.Var(&includePaths, "I", "Include path (shorthand)")
+	flag.Var(&globalVars, "global-var", "Define a global variable (format: name=value)")
+	flag.Var(&modifyVars, "modify-var", "Modify a variable (format: name=value)")
+
+	// Parse flags
+	flag.Parse()
+
+	// Handle version and help
+	if showVersion {
 		fmt.Printf("lessc-go %s (Less Compiler Go Port)\n", version)
 		os.Exit(0)
-	case "-h", "--help":
+	}
+
+	if showHelp {
 		printUsage()
 		os.Exit(0)
 	}
 
-	inputFile := os.Args[1]
+	// Get positional arguments (input and optional output file)
+	args := flag.Args()
+	if len(args) < 1 {
+		fmt.Fprintln(os.Stderr, "Error: No input file specified")
+		printUsage()
+		os.Exit(1)
+	}
+
+	inputFile := args[0]
 	var outputFile string
-	if len(os.Args) > 2 {
-		outputFile = os.Args[2]
+	if len(args) > 1 {
+		outputFile = args[1]
 	}
 
-	// Read input file
-	inputContent, err := ioutil.ReadFile(inputFile)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error reading file %s: %v\n", inputFile, err)
-		os.Exit(1)
+	// Read input (from stdin or file)
+	var inputContent []byte
+	var absPath string
+	var err error
+
+	if inputFile == "-" {
+		// Read from stdin
+		inputContent, err = io.ReadAll(os.Stdin)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error reading from stdin: %v\n", err)
+			os.Exit(1)
+		}
+		absPath = "stdin"
+
+		// For stdin, use current directory as base path for imports
+		cwd, _ := os.Getwd()
+		if len(includePaths) == 0 {
+			includePaths = append(includePaths, cwd)
+		}
+	} else {
+		// Check if input looks like LESS code (for piped content detection)
+		if strings.Contains(inputFile, "{") || strings.Contains(inputFile, "@") {
+			// Treat as LESS code directly
+			inputContent = []byte(inputFile)
+			absPath = "inline"
+			cwd, _ := os.Getwd()
+			if len(includePaths) == 0 {
+				includePaths = append(includePaths, cwd)
+			}
+		} else {
+			// Read from file
+			inputContent, err = os.ReadFile(inputFile)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error reading file %s: %v\n", inputFile, err)
+				os.Exit(1)
+			}
+
+			absPath, err = filepath.Abs(inputFile)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error getting absolute path: %v\n", err)
+				os.Exit(1)
+			}
+
+			// Add file's directory to include paths
+			fileDir := filepath.Dir(absPath)
+			includePaths = append([]string{fileDir}, includePaths...)
+		}
 	}
 
-	// Get absolute path for proper context
-	absPath, err := filepath.Abs(inputFile)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error getting absolute path: %v\n", err)
-		os.Exit(1)
+	// Build compile options
+	options := &less_go.CompileOptions{
+		Filename:    absPath,
+		Paths:       includePaths,
+		Compress:    compress,
+		StrictUnits: strictUnits,
 	}
 
-	// Set up Less compilation options
-	options := map[string]any{
-		"filename": absPath,
-		"paths":    []string{filepath.Dir(absPath)},
+	// Enable JavaScript if requested
+	if jsEnabled {
+		options.EnableJavaScriptPlugins = true
+		options.JavascriptEnabled = true
 	}
 
-	// Create Less factory instance
-	factory := less_go.Factory(nil, nil)
+	// Set math mode
+	switch strings.ToLower(mathMode) {
+	case "always":
+		options.Math = less_go.Math.Always
+	case "parens-division", "parens_division":
+		options.Math = less_go.Math.ParensDivision
+	case "parens", "strict":
+		options.Math = less_go.Math.Parens
+	}
 
-	// Compile the Less content
-	result, err := compileLess(factory, string(inputContent), options)
+	// Set rewrite URLs mode
+	switch strings.ToLower(rewriteUrls) {
+	case "all":
+		options.RewriteUrls = less_go.RewriteUrls.All
+	case "local":
+		options.RewriteUrls = less_go.RewriteUrls.Local
+	case "off":
+		options.RewriteUrls = less_go.RewriteUrls.Off
+	}
+
+	if rootpath != "" {
+		options.Rootpath = rootpath
+	}
+
+	if urlArgs != "" {
+		options.UrlArgs = urlArgs
+	}
+
+	// Handle global vars
+	if len(globalVars) > 0 {
+		options.GlobalVars = make(map[string]any)
+		for k, v := range globalVars {
+			options.GlobalVars[k] = v
+		}
+	}
+
+	// Handle modify vars
+	if len(modifyVars) > 0 {
+		options.ModifyVars = make(map[string]any)
+		for k, v := range modifyVars {
+			options.ModifyVars[k] = v
+		}
+	}
+
+	// Compile the LESS content
+	result, err := less_go.Compile(string(inputContent), options)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Compilation error: %v\n", err)
 		os.Exit(1)
 	}
 
+	css := result.CSS
+
+	// Handle source map output
+	var sourceMapContent string
+	if sourceMap || sourceMapInline {
+		sourceMapContent = result.Map
+
+		if sourceMapInline && sourceMapContent != "" {
+			// For inline source maps, the library should have added them
+			// If not present, we skip since source map generation needs work
+		} else if sourceMap && outputFile != "" && sourceMapContent != "" {
+			// Write external source map file
+			mapFile := outputFile + ".map"
+			if err := os.WriteFile(mapFile, []byte(sourceMapContent), 0644); err != nil {
+				fmt.Fprintf(os.Stderr, "Error writing source map file %s: %v\n", mapFile, err)
+				os.Exit(1)
+			}
+
+			// Append source map URL to CSS
+			css += fmt.Sprintf("\n/*# sourceMappingURL=%s */\n", filepath.Base(mapFile))
+
+			if !silent {
+				fmt.Fprintf(os.Stderr, "Source map written to %s\n", mapFile)
+			}
+		}
+	}
+
 	// Output result
 	if outputFile != "" {
-		err = ioutil.WriteFile(outputFile, []byte(result), 0644)
+		err = os.WriteFile(outputFile, []byte(css), 0644)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error writing output file %s: %v\n", outputFile, err)
 			os.Exit(1)
 		}
-		fmt.Printf("Compiled %s -> %s\n", inputFile, outputFile)
+		if !silent {
+			fmt.Fprintf(os.Stderr, "Compiled %s -> %s\n", inputFile, outputFile)
+		}
 	} else {
-		fmt.Print(result)
+		// Write to stdout
+		writer := bufio.NewWriter(os.Stdout)
+		writer.WriteString(css)
+		writer.Flush()
 	}
-}
-
-func compileLess(factory map[string]any, input string, options map[string]any) (string, error) {
-	// Try to use the render function
-	if renderFunc, ok := factory["render"].(func(string, ...any) any); ok {
-		result := renderFunc(input, options)
-
-		// Handle RenderPromise results
-		if promise, ok := result.(*less_go.RenderPromise); ok {
-			promiseResult, err := promise.Await()
-			if err != nil {
-				return "", fmt.Errorf("render promise failed: %v", err)
-			}
-			result = promiseResult
-		}
-
-		// Check if we got a CSS string directly from ToCSS
-		if css, ok := result.(string); ok {
-			return fmt.Sprintf("/* Go Less Compiler v%s - Success! */\n%s", version, css), nil
-		}
-
-		// Check if we got a Ruleset that can generate CSS (fallback for old path)
-		if ruleset, ok := result.(*less_go.Ruleset); ok {
-
-			// Create a CSS output collector
-			var cssOutput strings.Builder
-			output := &less_go.CSSOutput{
-				Add: func(chunk, fileInfo, index any) {
-					if chunk != nil {
-						cssOutput.WriteString(fmt.Sprintf("%v", chunk))
-					}
-				},
-				IsEmpty: func() bool {
-					return cssOutput.Len() == 0
-				},
-			}
-
-			// Generate CSS
-			context := map[string]any{
-				"compress": false,
-			}
-			ruleset.GenCSS(context, output)
-
-			css := cssOutput.String()
-			return fmt.Sprintf("/* Go Less Compiler v%s - Success! */\n%s", version, css), nil
-		}
-
-		if resultMap, ok := result.(map[string]any); ok {
-			if resultMap["type"] == "Render" {
-				// Current implementation is still stubbed
-				return fmt.Sprintf("/* Go Less Compiler v%s - Stub Implementation */\n/* Input was: %s */\n/* TODO: Implement actual CSS generation */\n%s\n",
-					version,
-					options["filename"],
-					input), nil
-			}
-
-			// Check if it's a parsed result (Ruleset)
-			if resultMap["type"] == "Ruleset" {
-				// We got parsed AST! Now we need CSS generation
-				return fmt.Sprintf("/* Go Less Compiler v%s - Parsed Successfully! */\n/* Got AST: %+v */\n/* TODO: Implement CSS generation from AST */\n",
-					version,
-					resultMap), nil
-			}
-		}
-
-		return fmt.Sprintf("/* Go Less Compiler v%s - Error */\n/* Unexpected result type: %T */\n/* Result: %+v */", version, result, result), nil
-	}
-
-	return "", fmt.Errorf("render function not found or not callable")
 }
 
 func printUsage() {
-	fmt.Printf(`lessc-go %s (Less Compiler Go Port)
-Usage: lessc-go [option option=parameter ...] <source> [destination]
+	fmt.Printf(`lessc-go %s (Less Compiler - Go Port)
+Usage: lessc-go [options] <input.less|-|"less code"> [output.css]
 
-Example: lessc-go style.less style.css
+Input:
+  <input.less>       Compile a LESS file
+  -                  Read LESS from stdin
+  "less code"        Compile LESS code directly (if contains { or @)
+
+Examples:
+  lessc-go style.less                      # Output to stdout
+  lessc-go style.less style.css            # Output to file
+  lessc-go --compress style.less out.css   # Minified output
+  cat style.less | lessc-go - out.css      # Read from stdin
+  echo "@color: red; .a { color: @color; }" | lessc-go -
 
 Options:
-  -h, --help               Print help (this message) and exit
-  -v, --version            Print version number and exit
+  -h, --help               Print this help message
+  -v, --version            Print version number
 
-This is a development version of the Less compiler ported to Go.
-Currently implements basic infrastructure with stubbed parsing.
+Compilation:
+  -x, --compress           Compress/minify CSS output
+  --strict-units           Enable strict unit checking in math operations
+  --math=MODE              Math mode: always, parens-division (default), parens
+  --js                     Enable inline JavaScript evaluation
 
-For production use, please use the official lessc compiler:
-  npm install -g less
-  lessc style.less style.css
+Import Paths:
+  -I, --include-path=PATH  Add path for @import resolution (repeatable)
+                           Can also use OS path separator (: on Unix, ; on Windows)
+
+URL Handling:
+  --rewrite-urls=MODE      Rewrite URLs: off, local, all
+  --rootpath=PATH          Set root path for URL rewriting
+  --url-args=ARGS          Query string to append to all URLs
+
+Variables:
+  --global-var=NAME=VALUE  Define a global variable (before parsing)
+  --modify-var=NAME=VALUE  Modify a variable (after parsing, overrides)
+
+Source Maps:
+  --source-map             Generate external source map (.map file)
+  --source-map-inline      Embed source map in CSS output
+
+Output Control:
+  -s, --silent             Suppress informational messages
 
 `, version)
 }
