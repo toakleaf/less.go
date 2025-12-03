@@ -1,5 +1,11 @@
 # lessgo
 
+## 0.1.2
+
+### Patch Changes
+
+-   [`a91922d`](https://github.com/toakleaf/less.go/commit/a91922d104766d00ab9faeb44f03858bdffce87c) Thanks [@toakleaf](https://github.com/toakleaf)! - Fixed release process - hopefully
+
 ## 0.1.1
 
 ### Patch Changes
