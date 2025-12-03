@@ -3,6 +3,7 @@ package less_go
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 )
@@ -11,6 +12,18 @@ type CompileResult struct {
 	CSS     string   `json:"css"`
 	Map     string   `json:"map,omitempty"`
 	Imports []string `json:"imports,omitempty"`
+}
+
+// PluginSpec specifies a plugin to load before compilation
+type PluginSpec struct {
+	// Name is the plugin name or path
+	// Can be: relative path, absolute path, or npm module name
+	// NPM modules are resolved with "less-plugin-" prefix first
+	Name string
+
+	// Options is an optional string of options to pass to the plugin
+	// Passed to the plugin's setOptions() method
+	Options string
 }
 
 type CompileOptions struct {
@@ -47,6 +60,10 @@ type CompileOptions struct {
 	// When true, `expression` syntax can be used for JavaScript expressions
 	// Note: This also requires EnableJavaScriptPlugins to be true for the runtime
 	JavascriptEnabled bool
+
+	// Plugins specifies plugins to load before compilation
+	// When plugins are specified, EnableJavaScriptPlugins is automatically enabled
+	Plugins []PluginSpec
 
 	// GlobalVars are variables to inject before compilation
 	GlobalVars map[string]any
@@ -111,6 +128,11 @@ func Compile(input string, options *CompileOptions) (*CompileResult, error) {
 		options = &CompileOptions{}
 	}
 
+	// Auto-enable JavaScript plugins when plugins are specified
+	if len(options.Plugins) > 0 {
+		options.EnableJavaScriptPlugins = true
+	}
+
 	optionsMap := convertCompileOptionsToMap(options)
 
 	var lessContext *LessContext
@@ -126,6 +148,31 @@ func Compile(input string, options *CompileOptions) (*CompileResult, error) {
 				}
 			}
 		}()
+
+		// Preload plugins specified in options
+		if len(options.Plugins) > 0 && lessContext.PluginBridge != nil {
+			// Determine base directory for plugin resolution
+			baseDir := "."
+			if options.Filename != "" {
+				baseDir = filepath.Dir(options.Filename)
+			}
+			// If we have include paths, use the first one as a fallback
+			if len(options.Paths) > 0 && baseDir == "." {
+				baseDir = options.Paths[0]
+			}
+
+			for _, plugin := range options.Plugins {
+				context := make(map[string]any)
+				if plugin.Options != "" {
+					context["options"] = map[string]any{"_args": plugin.Options}
+				}
+
+				result := lessContext.PluginBridge.LoadPluginSync(plugin.Name, baseDir, context, nil, nil)
+				if err, ok := result.(error); ok {
+					return nil, fmt.Errorf("failed to load plugin %q: %w", plugin.Name, err)
+				}
+			}
+		}
 	} else {
 		lessContext = NewLessContext(optionsMap)
 	}

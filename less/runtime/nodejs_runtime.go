@@ -165,6 +165,7 @@ func NewNodeJSRuntime(opts ...RuntimeOption) (*NodeJSRuntime, error) {
 		candidates := []string{
 			"plugin-host.js",
 			filepath.Join("runtime", "plugin-host.js"),
+			filepath.Join("less", "runtime", "plugin-host.js"),
 		}
 
 		// Try to find it relative to the executable or working directory
@@ -174,6 +175,7 @@ func NewNodeJSRuntime(opts ...RuntimeOption) (*NodeJSRuntime, error) {
 			candidates = append(candidates,
 				filepath.Join(execDir, "plugin-host.js"),
 				filepath.Join(execDir, "runtime", "plugin-host.js"),
+				filepath.Join(execDir, "less", "runtime", "plugin-host.js"),
 			)
 		}
 
@@ -181,6 +183,7 @@ func NewNodeJSRuntime(opts ...RuntimeOption) (*NodeJSRuntime, error) {
 		cwd, err := os.Getwd()
 		if err == nil {
 			candidates = append(candidates,
+				filepath.Join(cwd, "less", "runtime", "plugin-host.js"),
 				filepath.Join(cwd, "packages", "less", "src", "less", "less_go", "runtime", "plugin-host.js"),
 			)
 		}

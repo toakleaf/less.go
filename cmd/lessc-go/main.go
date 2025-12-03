@@ -52,24 +52,53 @@ func (kv *keyValueFlag) Set(value string) error {
 	return nil
 }
 
+// pluginSliceFlag for --plugin (supports name or name=options format)
+type pluginSliceFlag []less_go.PluginSpec
+
+func (p *pluginSliceFlag) String() string {
+	names := make([]string, len(*p))
+	for i, spec := range *p {
+		if spec.Options != "" {
+			names[i] = spec.Name + "=" + spec.Options
+		} else {
+			names[i] = spec.Name
+		}
+	}
+	return strings.Join(names, ", ")
+}
+
+func (p *pluginSliceFlag) Set(value string) error {
+	// Parse "name" or "name=options" format
+	spec := less_go.PluginSpec{}
+	if idx := strings.Index(value, "="); idx != -1 {
+		spec.Name = value[:idx]
+		spec.Options = value[idx+1:]
+	} else {
+		spec.Name = value
+	}
+	*p = append(*p, spec)
+	return nil
+}
+
 func main() {
 	// Define flags
 	var (
-		showVersion  bool
-		showHelp     bool
-		compress     bool
-		sourceMap    bool
+		showVersion     bool
+		showHelp        bool
+		compress        bool
+		sourceMap       bool
 		sourceMapInline bool
-		strictUnits  bool
-		jsEnabled    bool
-		silent       bool
-		mathMode     string
-		rewriteUrls  string
-		rootpath     string
-		urlArgs      string
-		includePaths stringSliceFlag
-		globalVars   = make(keyValueFlag)
-		modifyVars   = make(keyValueFlag)
+		strictUnits     bool
+		jsEnabled       bool
+		silent          bool
+		mathMode        string
+		rewriteUrls     string
+		rootpath        string
+		urlArgs         string
+		includePaths    stringSliceFlag
+		plugins         pluginSliceFlag
+		globalVars      = make(keyValueFlag)
+		modifyVars      = make(keyValueFlag)
 	)
 
 	// Custom usage message
@@ -100,6 +129,7 @@ func main() {
 	flag.Var(&includePaths, "I", "Include path (shorthand)")
 	flag.Var(&globalVars, "global-var", "Define a global variable (format: name=value)")
 	flag.Var(&modifyVars, "modify-var", "Modify a variable (format: name=value)")
+	flag.Var(&plugins, "plugin", "Load a plugin (format: name or name=options, can be repeated)")
 
 	// Parse flags
 	flag.Parse()
@@ -190,6 +220,11 @@ func main() {
 	if jsEnabled {
 		options.EnableJavaScriptPlugins = true
 		options.JavascriptEnabled = true
+	}
+
+	// Set plugins (auto-enables JavaScript plugin support)
+	if len(plugins) > 0 {
+		options.Plugins = plugins
 	}
 
 	// Set math mode
@@ -346,6 +381,17 @@ Variables:
 Source Maps:
   --source-map             Generate external source map (.map file)
   --source-map-inline      Embed source map in CSS output
+
+Plugins:
+  --plugin=NAME            Load a plugin (can be repeated)
+  --plugin=NAME=OPTIONS    Load a plugin with options
+                           Plugin names are resolved as:
+                           - File path (./plugin.js, /path/to/plugin.js)
+                           - NPM module (tries less-plugin-NAME then NAME)
+                           Examples:
+                             --plugin=clean-css
+                             --plugin=./my-plugin.js
+                             --plugin=autoprefix="browsers: last 2 versions"
 
 Output Control:
   -s, --silent             Suppress informational messages
