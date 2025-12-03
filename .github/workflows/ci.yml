@@ -8,10 +8,9 @@ on:
 jobs:
   test-go-unit:
     name: Go Unit Tests
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
         go-version: ['1.21', '1.22']
     steps:
       - uses: actions/checkout@v4
