@@ -114,6 +114,7 @@ function getBinaryPath() {
  * @param {string} [options.sourceMapFilename] - Source map filename
  * @param {Object} [options.globalVars] - Global variables
  * @param {Object} [options.modifyVars] - Modify variables
+ * @param {Array<string|{name: string, options?: string}>} [options.plugins] - Plugins to load
  * @returns {Promise<{css: string, map?: string}>} Compilation result
  */
 async function compile(input, options = {}) {
@@ -145,6 +146,20 @@ async function compile(input, options = {}) {
   if (options.modifyVars) {
     for (const [key, value] of Object.entries(options.modifyVars)) {
       args.push(`--modify-var=${key}=${value}`);
+    }
+  }
+
+  if (options.plugins && options.plugins.length > 0) {
+    for (const plugin of options.plugins) {
+      if (typeof plugin === "string") {
+        args.push(`--plugin=${plugin}`);
+      } else if (plugin && plugin.name) {
+        if (plugin.options) {
+          args.push(`--plugin=${plugin.name}=${plugin.options}`);
+        } else {
+          args.push(`--plugin=${plugin.name}`);
+        }
+      }
     }
   }
 
@@ -194,7 +209,15 @@ async function compile(input, options = {}) {
 /**
  * Synchronously compile a LESS file or string
  * @param {string} input - File path or LESS content
- * @param {Object} options - Compilation options (same as compile)
+ * @param {Object} options - Compilation options
+ * @param {boolean} [options.string=false] - If true, treat input as LESS content instead of file path
+ * @param {string[]} [options.paths] - Include paths for @import
+ * @param {boolean} [options.compress=false] - Minify output
+ * @param {boolean} [options.sourceMap=false] - Generate source map
+ * @param {string} [options.sourceMapFilename] - Source map filename
+ * @param {Object} [options.globalVars] - Global variables
+ * @param {Object} [options.modifyVars] - Modify variables
+ * @param {Array<string|{name: string, options?: string}>} [options.plugins] - Plugins to load
  * @returns {{css: string, map?: string}} Compilation result
  */
 function compileSync(input, options = {}) {
@@ -226,6 +249,20 @@ function compileSync(input, options = {}) {
   if (options.modifyVars) {
     for (const [key, value] of Object.entries(options.modifyVars)) {
       args.push(`--modify-var=${key}=${value}`);
+    }
+  }
+
+  if (options.plugins && options.plugins.length > 0) {
+    for (const plugin of options.plugins) {
+      if (typeof plugin === "string") {
+        args.push(`--plugin=${plugin}`);
+      } else if (plugin && plugin.name) {
+        if (plugin.options) {
+          args.push(`--plugin=${plugin.name}=${plugin.options}`);
+        } else {
+          args.push(`--plugin=${plugin.name}`);
+        }
+      }
     }
   }
 
