@@ -94,7 +94,9 @@ fi
 
 # Pack plugin-vite with pnpm to resolve workspace:* protocol
 echo "Packing @lessgo/plugin-vite (resolves workspace:* to actual version)..."
-PLUGIN_VITE_TARBALL=$(cd packages/plugin-vite && pnpm pack --pack-destination ../../ 2>/dev/null | tail -1)
+# pnpm pack returns the full absolute path, so we extract just the filename
+PLUGIN_VITE_TARBALL_PATH=$(cd packages/plugin-vite && pnpm pack --pack-destination ../../ 2>/dev/null | tail -1)
+PLUGIN_VITE_TARBALL=$(basename "$PLUGIN_VITE_TARBALL_PATH")
 if [ -z "$PLUGIN_VITE_TARBALL" ]; then
   echo "ERROR: Failed to pack @lessgo/plugin-vite"
   DRY_RUN_FAILED=true
@@ -147,7 +149,8 @@ echo ""
 echo "=== Publishing @lessgo/plugin-vite ==="
 if [ -z "$PLUGIN_VITE_TARBALL" ] || [ ! -f "./$PLUGIN_VITE_TARBALL" ]; then
   echo "ERROR: Plugin-vite tarball not found. Re-packing..."
-  PLUGIN_VITE_TARBALL=$(cd packages/plugin-vite && pnpm pack --pack-destination ../../ 2>/dev/null | tail -1)
+  PLUGIN_VITE_TARBALL_PATH=$(cd packages/plugin-vite && pnpm pack --pack-destination ../../ 2>/dev/null | tail -1)
+  PLUGIN_VITE_TARBALL=$(basename "$PLUGIN_VITE_TARBALL_PATH")
 fi
 if ! npm publish "./$PLUGIN_VITE_TARBALL" --access public; then
   echo "ERROR: Failed to publish @lessgo/plugin-vite"
