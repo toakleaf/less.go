@@ -57,6 +57,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Debug changesets output
+        run: |
+          echo "Published: ${{ steps.changesets.outputs.published }}"
+          echo "Published packages: ${{ steps.changesets.outputs.publishedPackages }}"
+          echo "Has changesets: ${{ steps.changesets.outputs.hasChangesets }}"
+
       - name: Create GitHub Release
         if: steps.changesets.outputs.published == 'true'
         uses: actions/github-script@v7
