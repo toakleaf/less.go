@@ -1,6 +1,6 @@
 {
   "name": "@lessgo/linux-x64",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Platform-specific binary for lessgo (Linux x64)",
   "os": [
     "linux"
