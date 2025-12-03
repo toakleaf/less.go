@@ -1,6 +1,6 @@
 # @lessgo/plugin-vite
 
-## 0.1.0
+## 0.1.7
 
 ### Minor Changes
 
