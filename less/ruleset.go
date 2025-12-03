@@ -3094,4 +3094,203 @@ func applyReplacementRuleset(parent any, index int, replacement any) {
 			fmt.Printf("[applyReplacementRuleset] Unknown parent type: %T\n", parent)
 		}
 	}
+}
+
+// GenCSSSourceMap generates CSS with source map information
+// This implements the SourceMapNode interface for source map generation
+func (r *Ruleset) GenCSSSourceMap(context map[string]any, output *SourceMapOutput) {
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Fprintf(os.Stderr, "[Ruleset.GenCSSSourceMap] called, Root=%v, Paths=%d, Rules=%d\n",
+			r.Root, len(r.Paths), len(r.Rules))
+	}
+
+	// Skip rulesets that are inside mixin definitions
+	if r.InsideMixinDefinition {
+		return
+	}
+
+	// Skip invisible rulesets
+	if r.Node != nil && r.Node.BlocksVisibility() {
+		nodeVisible := r.Node.IsVisible()
+		if nodeVisible == nil || !*nodeVisible {
+			return
+		}
+	}
+
+	compress := false
+	if c, ok := context["compress"].(bool); ok {
+		compress = c
+	}
+
+	tabLevel := 0
+	if tl, ok := context["tabLevel"].(int); ok {
+		tabLevel = tl
+	}
+
+	// Get file info for source mapping
+	var fileInfo *FileInfo
+	if r.Node != nil {
+		fi := r.Node.FileInfo()
+		if fi != nil {
+			if fn, ok := fi["filename"].(string); ok && fn != "" {
+				fileInfo = &FileInfo{Filename: fn}
+			}
+		}
+	}
+	// Fallback to rootFilename from context if file info is not available
+	if fileInfo == nil {
+		if rootFilename, ok := context["rootFilename"].(string); ok && rootFilename != "" {
+			fileInfo = &FileInfo{Filename: rootFilename}
+		}
+	}
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Fprintf(os.Stderr, "[Ruleset.GenCSSSourceMap] fileInfo=%v\n", fileInfo)
+	}
+
+	index := 0
+	if r.Node != nil {
+		index = r.Node.GetIndex()
+	}
+
+	// Generate selectors (paths)
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Fprintf(os.Stderr, "[Ruleset.GenCSSSourceMap] Processing %d paths, fileInfo=%v, index=%d\n",
+			len(r.Paths), fileInfo, index)
+	}
+	if len(r.Paths) > 0 {
+		pathsOutput := 0
+		for _, path := range r.Paths {
+			// Check if path is visible
+			allVisible := true
+			for _, sel := range path {
+				if selector, ok := sel.(*Selector); ok {
+					if selector.Node != nil && selector.Node.BlocksVisibility() {
+						nodeVis := selector.Node.IsVisible()
+						if nodeVis == nil || !*nodeVis {
+							allVisible = false
+							break
+						}
+					}
+				}
+			}
+			if !allVisible {
+				continue
+			}
+
+			// Output selector with source mapping
+			if pathsOutput > 0 {
+				if compress {
+					output.Add(",", fileInfo, index, false)
+				} else {
+					output.Add(",\n", fileInfo, index, false)
+				}
+			}
+			pathsOutput++
+
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Fprintf(os.Stderr, "[Ruleset.GenCSSSourceMap] Path has %d selectors\n", len(path))
+			}
+			for j, sel := range path {
+				if selector, ok := sel.(*Selector); ok {
+					if os.Getenv("LESS_GO_DEBUG") == "1" {
+						fmt.Fprintf(os.Stderr, "[Ruleset.GenCSSSourceMap] Selector has %d elements\n", len(selector.Elements))
+					}
+					// Get selector's file info and index for accurate source mapping
+					selFileInfo := fileInfo
+					selIndex := index
+					if selector.Node != nil {
+						fi := selector.Node.FileInfo()
+						if fi != nil {
+							if fn, ok := fi["filename"].(string); ok {
+								selFileInfo = &FileInfo{Filename: fn}
+							}
+						}
+						selIndex = selector.Node.GetIndex()
+					}
+
+					// Output selector elements
+					for k, element := range selector.Elements {
+						if element == nil {
+							continue
+						}
+						if os.Getenv("LESS_GO_DEBUG") == "1" {
+							fmt.Fprintf(os.Stderr, "[Ruleset.GenCSSSourceMap] Element k=%d, value=%v, type=%T\n", k, element.Value, element.Value)
+						}
+						// Get element's file info and index
+						elemFileInfo := selFileInfo
+						elemIndex := selIndex
+						if element.Node != nil {
+							fi := element.Node.FileInfo()
+							if fi != nil {
+								if fn, ok := fi["filename"].(string); ok {
+									elemFileInfo = &FileInfo{Filename: fn}
+								}
+							}
+							elemIndex = element.Node.GetIndex()
+						}
+
+						// Output combinator
+						if element.Combinator != nil && (k > 0 || j > 0) {
+							combVal := element.Combinator.Value
+							if combVal == " " && compress {
+								// Skip space in compress mode if not needed
+							} else {
+								output.Add(combVal, elemFileInfo, elemIndex, false)
+							}
+						}
+
+						// Output element value
+						if element.Value != nil {
+							if os.Getenv("LESS_GO_DEBUG") == "1" {
+								fmt.Fprintf(os.Stderr, "[Ruleset.GenCSSSourceMap] About to call output.Add for element value\n")
+							}
+							switch v := element.Value.(type) {
+							case string:
+								if os.Getenv("LESS_GO_DEBUG") == "1" {
+									fmt.Fprintf(os.Stderr, "[Ruleset.GenCSSSourceMap] Calling output.Add(%q, %v, %d, false)\n", v, elemFileInfo, elemIndex)
+								}
+								output.Add(v, elemFileInfo, elemIndex, false)
+							case fmt.Stringer:
+								output.Add(v.String(), elemFileInfo, elemIndex, false)
+							default:
+								output.Add(fmt.Sprintf("%v", v), elemFileInfo, elemIndex, false)
+							}
+						}
+					}
+				}
+			}
+		}
+
+		// Output opening brace
+		if compress {
+			output.Add("{", fileInfo, index, false)
+		} else {
+			output.Add(" {\n", fileInfo, index, false)
+		}
+	}
+
+	// Output rules
+	for _, rule := range r.Rules {
+		// Check if rule implements GenCSSSourceMap
+		if smNode, ok := rule.(SourceMapNode); ok {
+			childContext := make(map[string]any)
+			for k, v := range context {
+				childContext[k] = v
+			}
+			childContext["tabLevel"] = tabLevel + 1
+			smNode.GenCSSSourceMap(childContext, output)
+		} else if decl, ok := rule.(*Declaration); ok {
+			// Handle declarations
+			decl.genCSSSourceMapImpl(context, output)
+		}
+	}
+
+	// Output closing brace
+	if len(r.Paths) > 0 {
+		if compress {
+			output.Add("}", fileInfo, index, false)
+		} else {
+			output.Add("}\n", fileInfo, index, false)
+		}
+	}
 } 

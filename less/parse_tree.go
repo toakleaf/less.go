@@ -1,11 +1,19 @@
 package less_go
 
 import (
+	"encoding/base64"
 	"fmt"
 	"os"
 	"runtime"
 	"strings"
 )
+
+// sourceMapEnv implements SourceMapEnvironment for base64 encoding
+type sourceMapEnv struct{}
+
+func (e *sourceMapEnv) EncodeBase64(str string) string {
+	return base64.StdEncoding.EncodeToString([]byte(str))
+}
 
 
 // ParseTreeFactory represents the factory function type that creates ParseTree classes
@@ -146,44 +154,93 @@ func (pt *ParseTree) ToCSS(options *ToCSSOptions) (*ToCSSResult, error) {
 
 	// Handle source map generation
 	var css string
-	if options != nil && options.SourceMap != nil {
+	sourceMapEnabled := options != nil && options.SourceMap != nil && pt.sourceMapBuilder != nil
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		fmt.Fprintf(os.Stderr, "[ParseTree.ToCSS] sourceMapEnabled=%v, options.SourceMap=%v, pt.sourceMapBuilder=%T\n",
+			sourceMapEnabled, options != nil && options.SourceMap != nil, pt.sourceMapBuilder)
+	}
+	if sourceMapEnabled {
 		// Create source map builder using the factory function
-		if pt.sourceMapBuilder != nil {
-			if builderFunc, ok := pt.sourceMapBuilder.(func(any) any); ok {
-				sourceMapBuilder = builderFunc(options.SourceMap)
+		// Handle typed factory function
+		if builderFunc, ok := pt.sourceMapBuilder.(func(any) *SourceMapBuilder); ok {
+			sourceMapBuilder = builderFunc(options.SourceMap)
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Fprintf(os.Stderr, "[ParseTree.ToCSS] Created sourceMapBuilder: %v\n", sourceMapBuilder != nil)
 			}
-			
-			// Call toCSS on source map builder
-			if builder, ok := sourceMapBuilder.(interface {
-				ToCSS(any, map[string]any, *ImportManager) (string, error)
-			}); ok {
-				// Handle case where ToCSSVisitor returns multiple rulesets as array for source map generation
-				if rulesetArray, ok := evaldRoot.([]any); ok {
-					// Multiple rulesets - generate CSS for each separately with source map
-					var cssBuilder strings.Builder
-					for i, ruleset := range rulesetArray {
-						generatedCSS, err := builder.ToCSS(ruleset, toCSSOptions, pt.Imports)
-						if err != nil {
-							return nil, NewLessError(ErrorDetails{
-								Message: err.Error(),
-							}, pt.Imports.Contents(), pt.Imports.RootFilename())
+		} else if builderFunc, ok := pt.sourceMapBuilder.(func(any) any); ok {
+			sourceMapBuilder = builderFunc(options.SourceMap)
+		}
+
+		// Generate CSS with source map using the SourceMapBuilder
+		if builder, ok := sourceMapBuilder.(*SourceMapBuilder); ok {
+			// Create environment for base64 encoding
+			env := &sourceMapEnv{}
+
+			// Convert ImportManager to Imports struct for SourceMapBuilder
+			// Ensure the root file content is included
+			contentsMap := pt.Imports.Contents()
+			if contentsMap == nil {
+				contentsMap = make(map[string]string)
+			}
+			// The ImportManager may not have stored the root file's content
+			// If the file map has the root file, we can get its content from there
+			rootFilename := pt.Imports.RootFilename()
+			if rootFilename != "" {
+				if _, hasContent := contentsMap[rootFilename]; !hasContent {
+					// Try to get content from the files cache
+					files := pt.Imports.Files()
+					if files != nil {
+						for filename := range files {
+							if filename == rootFilename {
+								// The file was imported, we need to get its original content
+								// For now, we'll read it from disk
+								if content, err := os.ReadFile(rootFilename); err == nil {
+									contentsMap[rootFilename] = string(content)
+								}
+								break
+							}
 						}
+					}
+					// If still no content, try reading from disk
+					if _, hasContent := contentsMap[rootFilename]; !hasContent {
+						if content, err := os.ReadFile(rootFilename); err == nil {
+							contentsMap[rootFilename] = string(content)
+						}
+					}
+				}
+			}
+			imports := &Imports{
+				Contents:             contentsMap,
+				ContentsIgnoredChars: pt.Imports.ContentsIgnoredChars(),
+			}
+
+			// Add root filename to context for source mapping
+			toCSSOptions["rootFilename"] = rootFilename
+
+			if os.Getenv("LESS_GO_DEBUG") == "1" {
+				fmt.Fprintf(os.Stderr, "[ParseTree.ToCSS] evaldRoot type=%T, implements SourceMapNode=%v, rootFilename=%s\n",
+					evaldRoot, func() bool { _, ok := evaldRoot.(SourceMapNode); return ok }(), pt.Imports.RootFilename())
+			}
+
+			// Handle the root node - could be array or single node
+			if rulesetArray, ok := evaldRoot.([]any); ok {
+				// Multiple rulesets - generate CSS for each separately with source map
+				var cssBuilder strings.Builder
+				for i, ruleset := range rulesetArray {
+					if smNode, ok := ruleset.(SourceMapNode); ok {
+						generatedCSS := builder.ToCSS(smNode, toCSSOptions, imports, env)
 						cssBuilder.WriteString(generatedCSS)
-						// Add separator between rulesets (except for the last one)
 						if i < len(rulesetArray)-1 && !compress {
 							cssBuilder.WriteString("\n")
 						}
 					}
-					css = cssBuilder.String()
-				} else {
-					// Single ruleset
-					generatedCSS, err := builder.ToCSS(evaldRoot, toCSSOptions, pt.Imports)
-					if err != nil {
-						return nil, NewLessError(ErrorDetails{
-							Message: err.Error(),
-						}, pt.Imports.Contents(), pt.Imports.RootFilename())
-					}
-					css = generatedCSS
+				}
+				css = cssBuilder.String()
+			} else if smNode, ok := evaldRoot.(SourceMapNode); ok {
+				// Single ruleset
+				css = builder.ToCSS(smNode, toCSSOptions, imports, env)
+				if os.Getenv("LESS_GO_DEBUG") == "1" {
+					fmt.Fprintf(os.Stderr, "[ParseTree.ToCSS] Generated CSS with source map, len=%d\n", len(css))
 				}
 			}
 		}
