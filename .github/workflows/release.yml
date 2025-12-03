@@ -41,6 +41,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      # Ensure npm CLI supports OIDC trusted publishing (requires 11.5.1+)
+      - name: Update npm for OIDC support
+        run: npm install -g npm@latest
+
       - name: Create Release Pull Request or Publish
         id: changesets
         uses: changesets/action@v1
@@ -51,7 +55,8 @@ jobs:
           commit: 'chore: release packages'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_CONFIG_PROVENANCE: true
+          # Using npm Trusted Publishers (OIDC) - no NPM_TOKEN needed
+          # Provenance is automatic with trusted publishing
 
       - name: Create GitHub Release
         if: steps.changesets.outputs.published == 'true'
