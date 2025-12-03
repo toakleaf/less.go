@@ -2,6 +2,8 @@ package less_go
 
 import (
 	"encoding/json"
+	"fmt"
+	"os"
 	"strings"
 )
 
@@ -114,12 +116,25 @@ func (smo *SourceMapOutput) Add(chunk string, fileInfo *FileInfo, index int, map
 	if chunk == "" {
 		return
 	}
+	if os.Getenv("LESS_GO_DEBUG") == "1" {
+		filename := ""
+		if fileInfo != nil {
+			filename = fileInfo.Filename
+		}
+		fmt.Fprintf(os.Stderr, "[SourceMapOutput.Add] chunk=%q, file=%s, index=%d\n", chunk, filename, index)
+	}
 
 	var lines, sourceLines []string
 	var columns, sourceColumns string
 
 	if fileInfo != nil && fileInfo.Filename != "" {
 		inputSource, exists := smo.contentsMap[fileInfo.Filename]
+		if os.Getenv("LESS_GO_DEBUG") == "1" {
+			fmt.Fprintf(os.Stderr, "[SourceMapOutput.Add] fileInfo.Filename=%s, exists=%v, contentsMap keys:\n", fileInfo.Filename, exists)
+			for k := range smo.contentsMap {
+				fmt.Fprintf(os.Stderr, "  - %s\n", k)
+			}
+		}
 
 		// remove vars/banner added to the top of the file
 		if ignoredChars, hasIgnored := smo.contentsIgnoredCharsMap[fileInfo.Filename]; hasIgnored {

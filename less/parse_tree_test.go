@@ -42,6 +42,19 @@ func (m *MockSourceMapBuilder) GetExternalSourceMap() string {
 	return `{"version":3,"sources":["main.less"],"mappings":"AAAA"}`
 }
 
+// MockRootWithSourceMap implements both ToCSS and SourceMapNode interfaces
+type MockRootWithSourceMap struct {
+	css string
+}
+
+func (m *MockRootWithSourceMap) ToCSS(options map[string]any) (string, error) {
+	return m.css, nil
+}
+
+func (m *MockRootWithSourceMap) GenCSSSourceMap(context map[string]any, output *SourceMapOutput) {
+	output.Add(m.css, nil, 0, false)
+}
+
 // Test that constructor properly sets fields
 func TestParseTreeConstructor(t *testing.T) {
 	mockRoot := &MockEvaluatedRoot{css: "body { color: red; }"}
@@ -218,17 +231,22 @@ func TestSourceMapHandling(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockRoot := &MockEvaluatedRoot{css: "body { color: red; }"}
-			mockImports := &ImportManager{}
-			
-			// Create a simple source map builder factory that returns a mock
-			sourceMapBuilderFactory := func(opts any) any {
-				return &MockSourceMapBuilder{
-					sourceMapOptions: opts,
-					css:              "body { color: red; }", // Ensure CSS is returned
-				}
+			var mockRoot any
+			if tt.sourceMapOpts != nil {
+				// Use a root that implements SourceMapNode for source map tests
+				mockRoot = &MockRootWithSourceMap{css: "body { color: red; }"}
+			} else {
+				mockRoot = &MockEvaluatedRoot{css: "body { color: red; }"}
 			}
-			
+			mockImports := &ImportManager{}
+
+			// Create a source map builder factory that returns a real SourceMapBuilder
+			sourceMapBuilderFactory := func(opts any) *SourceMapBuilder {
+				return NewSourceMapBuilder(SourceMapBuilderOptions{
+					SourceMapFilename: "test.css.map",
+				})
+			}
+
 			var ptClass *ParseTreeClass
 			if tt.sourceMapOpts != nil {
 				// Pass the factory to the ParseTreeClass so it can create builders
@@ -236,7 +254,7 @@ func TestSourceMapHandling(t *testing.T) {
 			} else {
 				ptClass = DefaultParseTreeFactory(nil)
 			}
-			
+
 			parseTree := ptClass.NewParseTree(mockRoot, mockImports)
 			
 			options := &ToCSSOptions{

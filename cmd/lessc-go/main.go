@@ -236,6 +236,22 @@ func main() {
 		}
 	}
 
+	// Handle source map options
+	if sourceMap || sourceMapInline {
+		options.SourceMap = true
+		options.SourceMapOptions = &less_go.SourceMapOptions{
+			SourceMapFileInline:   sourceMapInline,
+			OutputSourceFiles:     true, // Include source content in the source map
+		}
+		// Set source map filename based on output file
+		if outputFile != "" {
+			// Use relative path for the sourceMappingURL
+			options.SourceMapOptions.SourceMapURL = filepath.Base(outputFile) + ".map"
+			options.SourceMapOptions.SourceMapFilename = outputFile + ".map"
+			options.SourceMapOptions.SourceMapOutputFilename = outputFile
+		}
+	}
+
 	// Compile the LESS content
 	result, err := less_go.Compile(string(inputContent), options)
 	if err != nil {
@@ -261,8 +277,8 @@ func main() {
 				os.Exit(1)
 			}
 
-			// Append source map URL to CSS
-			css += fmt.Sprintf("\n/*# sourceMappingURL=%s */\n", filepath.Base(mapFile))
+			// Note: The library already appends the sourceMappingURL comment,
+			// so we don't need to add it here
 
 			if !silent {
 				fmt.Fprintf(os.Stderr, "Source map written to %s\n", mapFile)

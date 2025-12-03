@@ -53,6 +53,39 @@ type CompileOptions struct {
 
 	// ModifyVars are variables to inject after compilation (override existing variables)
 	ModifyVars map[string]any
+
+	// SourceMap enables source map generation
+	SourceMap bool
+
+	// SourceMapOptions contains detailed source map configuration
+	SourceMapOptions *SourceMapOptions
+}
+
+// SourceMapOptions contains source map generation settings
+type SourceMapOptions struct {
+	// SourceMapFilename is the name of the source map file
+	SourceMapFilename string
+
+	// SourceMapURL overrides the source map URL in the CSS output
+	SourceMapURL string
+
+	// SourceMapBasepath is the base path to remove from source paths
+	SourceMapBasepath string
+
+	// SourceMapRootpath is the root path to prepend to source paths
+	SourceMapRootpath string
+
+	// SourceMapOutputFilename is the output filename for path calculation
+	SourceMapOutputFilename string
+
+	// OutputSourceFiles embeds the source content in the source map
+	OutputSourceFiles bool
+
+	// SourceMapFileInline embeds the source map as a data URI in the CSS
+	SourceMapFileInline bool
+
+	// DisableSourcemapAnnotation disables adding the sourceMappingURL comment
+	DisableSourcemapAnnotation bool
 }
 
 // Compile compiles LESS source code to CSS.
@@ -169,6 +202,36 @@ func convertCompileOptionsToMap(options *CompileOptions) map[string]any {
 		result["javascriptEnabled"] = true
 	}
 
+	// Source map options
+	if options.SourceMap || options.SourceMapOptions != nil {
+		sourceMapOpts := make(map[string]any)
+		sourceMapOpts["enabled"] = true
+
+		if options.SourceMapOptions != nil {
+			opts := options.SourceMapOptions
+			if opts.SourceMapFilename != "" {
+				sourceMapOpts["sourceMapFilename"] = opts.SourceMapFilename
+			}
+			if opts.SourceMapURL != "" {
+				sourceMapOpts["sourceMapURL"] = opts.SourceMapURL
+			}
+			if opts.SourceMapBasepath != "" {
+				sourceMapOpts["sourceMapBasepath"] = opts.SourceMapBasepath
+			}
+			if opts.SourceMapRootpath != "" {
+				sourceMapOpts["sourceMapRootpath"] = opts.SourceMapRootpath
+			}
+			if opts.SourceMapOutputFilename != "" {
+				sourceMapOpts["sourceMapOutputFilename"] = opts.SourceMapOutputFilename
+			}
+			sourceMapOpts["outputSourceFiles"] = opts.OutputSourceFiles
+			sourceMapOpts["sourceMapFileInline"] = opts.SourceMapFileInline
+			sourceMapOpts["disableSourcemapAnnotation"] = opts.DisableSourcemapAnnotation
+		}
+
+		result["sourceMap"] = sourceMapOpts
+	}
+
 	return result
 }
 
@@ -261,7 +324,42 @@ func compileWithContext(lessContext *LessContext, input string, options map[stri
 				}
 			}()
 
-			parseTreeFactory := DefaultParseTreeFactory(nil)
+			// Create source map builder factory if source maps are enabled
+			var sourceMapBuilderFactory any
+			if sourceMapOpts := opts["sourceMap"]; sourceMapOpts != nil {
+				sourceMapBuilderFactory = func(options any) *SourceMapBuilder {
+					builderOpts := SourceMapBuilderOptions{}
+					if optsMap, ok := options.(map[string]any); ok {
+						if v, ok := optsMap["sourceMapFilename"].(string); ok {
+							builderOpts.SourceMapFilename = v
+						}
+						if v, ok := optsMap["sourceMapURL"].(string); ok {
+							builderOpts.SourceMapURL = v
+						}
+						if v, ok := optsMap["sourceMapOutputFilename"].(string); ok {
+							builderOpts.SourceMapOutputFilename = v
+						}
+						if v, ok := optsMap["sourceMapBasepath"].(string); ok {
+							builderOpts.SourceMapBasepath = v
+						}
+						if v, ok := optsMap["sourceMapRootpath"].(string); ok {
+							builderOpts.SourceMapRootpath = v
+						}
+						if v, ok := optsMap["outputSourceFiles"].(bool); ok {
+							builderOpts.OutputSourceFiles = v
+						}
+						if v, ok := optsMap["sourceMapFileInline"].(bool); ok {
+							builderOpts.SourceMapFileInline = v
+						}
+						if v, ok := optsMap["disableSourcemapAnnotation"].(bool); ok {
+							builderOpts.DisableSourcemapAnnotation = v
+						}
+					}
+					return NewSourceMapBuilder(builderOpts)
+				}
+			}
+
+			parseTreeFactory := DefaultParseTreeFactory(sourceMapBuilderFactory)
 			parseTreeInstance := parseTreeFactory.NewParseTree(root, imports)
 
 			functionsObj := createFunctions(env)
@@ -308,6 +406,10 @@ func compileWithContext(lessContext *LessContext, input string, options map[stri
 				}
 				if javascriptEnabled, ok := opts["javascriptEnabled"].(bool); ok {
 					toCSSOptions.JavascriptEnabled = javascriptEnabled
+				}
+				// Pass source map options
+				if sourceMapOpts := opts["sourceMap"]; sourceMapOpts != nil {
+					toCSSOptions.SourceMap = sourceMapOpts
 				}
 			}
 

@@ -541,4 +541,147 @@ func (d *Declaration) ToCSS(context any) string {
 	}
 	d.GenCSS(context, output)
 	return strings.Join(strs, "")
+}
+
+// genCSSSourceMapImpl generates CSS for a declaration with source map support
+func (d *Declaration) genCSSSourceMapImpl(context map[string]any, output *SourceMapOutput) {
+	// Check visibility - skip if node blocks visibility and is not explicitly visible
+	if d.variable {
+		return
+	}
+	if d.Node != nil && d.Node.BlocksVisibility() {
+		nodeVisible := d.Node.IsVisible()
+		if nodeVisible == nil || !*nodeVisible {
+			return
+		}
+	}
+
+	compress := false
+	if c, ok := context["compress"].(bool); ok {
+		compress = c
+	}
+
+	// Get file info for source mapping
+	var fileInfo *FileInfo
+	if d.Node != nil {
+		fi := d.Node.FileInfo()
+		if fi != nil {
+			if fn, ok := fi["filename"].(string); ok && fn != "" {
+				fileInfo = &FileInfo{Filename: fn}
+			}
+		}
+	}
+	// Fallback to rootFilename from context if file info is not available
+	if fileInfo == nil {
+		if rootFilename, ok := context["rootFilename"].(string); ok && rootFilename != "" {
+			fileInfo = &FileInfo{Filename: rootFilename}
+		}
+	}
+
+	index := d.GetIndex()
+
+	// Get indentation
+	tabLevel := 0
+	if tl, ok := context["tabLevel"].(int); ok {
+		tabLevel = tl
+	}
+	indent := ""
+	if !compress {
+		for i := 0; i < tabLevel; i++ {
+			indent += "  "
+		}
+	}
+
+	// Format name as string for CSS output
+	nameStr := ""
+	switch n := d.name.(type) {
+	case string:
+		nameStr = n
+	case *Keyword:
+		nameStr = n.value
+	case *Anonymous:
+		nameStr = fmt.Sprintf("%v", n.Value)
+	case []any:
+		// For interpolated names, build the string
+		for _, part := range n {
+			switch p := part.(type) {
+			case string:
+				nameStr += p
+			case *Keyword:
+				nameStr += p.value
+			default:
+				nameStr += fmt.Sprintf("%v", p)
+			}
+		}
+	default:
+		nameStr = fmt.Sprintf("%v", n)
+	}
+
+	// Output indentation and name with source mapping
+	if !compress {
+		output.Add(indent, nil, 0, false)
+	}
+	output.Add(nameStr, fileInfo, index, false)
+
+	// Output colon
+	if compress {
+		output.Add(":", fileInfo, index, false)
+	} else {
+		output.Add(": ", fileInfo, index, false)
+	}
+
+	// Generate value CSS
+	if d.Value != nil {
+		valueCSS := d.valueToCSS(context)
+		output.Add(valueCSS, fileInfo, index, true)
+	}
+
+	// Add important and semicolon
+	if d.important != "" {
+		output.Add(d.important, fileInfo, index, false)
+	}
+
+	if !d.inline {
+		if compress {
+			output.Add(";", fileInfo, index, false)
+		} else {
+			output.Add(";\n", fileInfo, index, false)
+		}
+	}
+}
+
+// valueToCSS generates the CSS string for the declaration value
+func (d *Declaration) valueToCSS(context any) string {
+	if d.Value == nil {
+		return ""
+	}
+
+	// Use GenCSS to generate the value
+	var strs []string
+	output := &CSSOutput{
+		Add: func(chunk any, fileInfo any, index any) {
+			switch v := chunk.(type) {
+			case string:
+				strs = append(strs, v)
+			case fmt.Stringer:
+				strs = append(strs, v.String())
+			default:
+				strs = append(strs, fmt.Sprintf("%v", chunk))
+			}
+		},
+		IsEmpty: func() bool {
+			return len(strs) == 0
+		},
+	}
+
+	if d.Value != nil {
+		d.Value.GenCSS(context, output)
+	}
+
+	return strings.Join(strs, "")
+}
+
+// GenCSSSourceMap implements the SourceMapNode interface
+func (d *Declaration) GenCSSSourceMap(context map[string]any, output *SourceMapOutput) {
+	d.genCSSSourceMapImpl(context, output)
 } 

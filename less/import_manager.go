@@ -548,6 +548,22 @@ func (im *ImportManager) Contents() map[string]string {
 	return im.contents
 }
 
+// ContentsIgnoredChars returns the number of characters to ignore at the start of each file
+// This is used for source maps when global vars or banners are injected
+func (im *ImportManager) ContentsIgnoredChars() map[string]int {
+	result := make(map[string]int)
+	// The contentsIgnoredChars field stores string representations, convert to int
+	for k, v := range im.contentsIgnoredChars {
+		if v != "" {
+			// Try to parse as int, default to 0 if failed
+			var n int
+			fmt.Sscanf(v, "%d", &n)
+			result[k] = n
+		}
+	}
+	return result
+}
+
 func (im *ImportManager) RootFilename() string {
 	return im.rootFilename
 }
