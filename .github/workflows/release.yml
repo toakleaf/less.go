@@ -70,6 +70,9 @@ jobs:
     name: Publish to npm
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # Required for npm trusted publishing (OIDC)
     steps:
       - uses: actions/checkout@v4
 
@@ -125,5 +128,4 @@ jobs:
       - name: Publish packages
         run: ./scripts/publish-npm.sh ${{ steps.version.outputs.VERSION }}
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
