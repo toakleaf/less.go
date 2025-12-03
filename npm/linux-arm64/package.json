@@ -1,6 +1,6 @@
 {
   "name": "@lessgo/linux-arm64",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Platform-specific binary for lessgo (Linux ARM64)",
   "os": [
     "linux"
