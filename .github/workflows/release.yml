@@ -53,6 +53,8 @@ jobs:
       - name: Release (version + publish atomically)
         id: release
         run: ./scripts/release.sh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Push version changes
         if: success()
