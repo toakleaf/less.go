@@ -2,13 +2,13 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: ['**']
   pull_request:
     branches: [main, master]
 
 jobs:
-  test-go:
-    name: Go Tests
+  test-go-unit:
+    name: Go Unit Tests
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -24,8 +24,8 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
 
-      - name: Run Go tests
-        run: go test -v ./...
+      - name: Run Go unit tests
+        run: go test -v -run 'Test[^I]' ./less
 
       - name: Build CLI
         run: go build -v ./cmd/lessc-go
@@ -56,5 +56,5 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Run integration tests
-        run: pnpm test:go
+      - name: Run all Go tests (unit + integration)
+        run: pnpm test:go:all
