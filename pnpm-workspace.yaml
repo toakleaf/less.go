@@ -1,3 +1,4 @@
 packages:
   - 'npm/*'
   - 'packages/test-import-module'
+  - 'packages/plugin-vite'

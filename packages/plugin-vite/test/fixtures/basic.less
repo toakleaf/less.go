@@ -1,0 +1,13 @@
+@primary-color: #007bff;
+@secondary-color: #6c757d;
+
+.container {
+  color: @primary-color;
+  background: @secondary-color;
+}
+
+.nested {
+  .child {
+    color: darken(@primary-color, 10%);
+  }
+}

@@ -32,7 +32,9 @@ echo "Updating lockfile..."
 pnpm install --no-frozen-lockfile
 
 VERSION=$(node -p "require('./npm/lessgo/package.json').version")
-echo "New version: $VERSION"
+PLUGIN_VITE_VERSION=$(node -p "require('./packages/plugin-vite/package.json').version")
+echo "New lessgo version: $VERSION"
+echo "New plugin-vite version: $PLUGIN_VITE_VERSION"
 
 # Build binaries for all platforms
 echo ""
@@ -41,6 +43,11 @@ echo "Building binaries..."
 
 # Make Unix binaries executable
 chmod +x npm/*/bin/lessc-go 2>/dev/null || true
+
+# Build Vite plugin
+echo ""
+echo "Building Vite plugin..."
+pnpm --filter @lessgo/plugin-vite run build
 
 echo ""
 echo "Publishing packages with npm (OIDC trusted publishers)..."
@@ -81,22 +88,34 @@ if ! npm publish "./npm/lessgo" --access public; then
   publish_failed
 fi
 
+# Publish Vite plugin (independent versioning)
+echo ""
+echo "=== Publishing @lessgo/plugin-vite ==="
+if ! npm publish "./packages/plugin-vite" --access public; then
+  echo "ERROR: Failed to publish @lessgo/plugin-vite"
+  publish_failed
+fi
+
 # Success! Now commit the version changes
 echo ""
 echo "=== All packages published successfully! ==="
 echo "Committing version changes..."
 
-git add -A
-git commit -m "chore: release v$VERSION
-
-Published packages:
-- lessgo@$VERSION
+# Build list of published packages
+PUBLISHED_PACKAGES="- lessgo@$VERSION
 - @lessgo/darwin-arm64@$VERSION
 - @lessgo/darwin-x64@$VERSION
 - @lessgo/linux-x64@$VERSION
 - @lessgo/linux-arm64@$VERSION
 - @lessgo/win32-x64@$VERSION
-- @lessgo/win32-arm64@$VERSION"
+- @lessgo/win32-arm64@$VERSION
+- @lessgo/plugin-vite@$PLUGIN_VITE_VERSION"
+
+git add -A
+git commit -m "chore: release v$VERSION
+
+Published packages:
+$PUBLISHED_PACKAGES"
 
 # Clean up stash
 git stash drop 2>/dev/null || true
