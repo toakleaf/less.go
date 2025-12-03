@@ -1,6 +1,6 @@
 {
   "name": "lessgo",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "A complete Go port of Less.js - the CSS preprocessor",
   "main": "index.js",
   "types": "index.d.ts",
@@ -32,11 +32,11 @@
     "node": ">=14"
   },
   "optionalDependencies": {
-    "@lessgo/darwin-arm64": "0.1.2",
-    "@lessgo/darwin-x64": "0.1.2",
-    "@lessgo/linux-x64": "0.1.2",
-    "@lessgo/linux-arm64": "0.1.2",
-    "@lessgo/win32-x64": "0.1.2",
-    "@lessgo/win32-arm64": "0.1.2"
+    "@lessgo/darwin-arm64": "0.1.3",
+    "@lessgo/darwin-x64": "0.1.3",
+    "@lessgo/linux-x64": "0.1.3",
+    "@lessgo/linux-arm64": "0.1.3",
+    "@lessgo/win32-x64": "0.1.3",
+    "@lessgo/win32-arm64": "0.1.3"
   }
 }

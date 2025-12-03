@@ -1,5 +1,11 @@
 # @lessgo/darwin-arm64
 
+## 0.1.3
+
+### Patch Changes
+
+-   [`8d61e93`](https://github.com/toakleaf/less.go/commit/8d61e939f533d16abfe241f2f2aefbf65875f40b) Thanks [@toakleaf](https://github.com/toakleaf)! - Fixing release process
+
 ## 0.1.2
 
 ### Patch Changes
