@@ -1,6 +1,6 @@
 # less.go
 
-A complete Go port of [Less.js](https://github.com/less/less.js) - the popular CSS preprocessor. This implementation maintains 100% feature parity with Less.js v4.2.2 while providing the performance benefits of a native Go binary.
+An attempt at a complete Go port of [Less.js](https://github.com/less/less.js) - the popular CSS preprocessor. This implementation aims to maintain 100% feature parity with Less.js v4.2.2 while providing the performance benefits of a native Go binary.
 
 ## Status
 
