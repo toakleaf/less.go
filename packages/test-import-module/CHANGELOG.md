@@ -1,5 +1,11 @@
 # @less/test-import-module
 
+## 4.0.2
+
+### Patch Changes
+
+-   [`a91922d`](https://github.com/toakleaf/less.go/commit/a91922d104766d00ab9faeb44f03858bdffce87c) Thanks [@toakleaf](https://github.com/toakleaf)! - Fixed release process - hopefully
+
 ## 4.0.1
 
 ### Patch Changes

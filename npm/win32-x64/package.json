@@ -1,6 +1,6 @@
 {
   "name": "@lessgo/win32-x64",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Platform-specific binary for lessgo (Windows x64)",
   "os": [
     "win32"
