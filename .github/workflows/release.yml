@@ -52,3 +52,35 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
+
+      - name: Create GitHub Release
+        if: steps.changesets.outputs.published == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const version = require('./npm/lessgo/package.json').version;
+
+            // Read changelog to get release notes
+            let body = `## lessgo v${version}\n\nPublished to npm: https://www.npmjs.com/package/lessgo/v/${version}`;
+
+            try {
+              const changelog = fs.readFileSync('./npm/lessgo/CHANGELOG.md', 'utf8');
+              // Extract the latest version's notes
+              const match = changelog.match(/## \d+\.\d+\.\d+\n([\s\S]*?)(?=## \d+\.\d+\.\d+|$)/);
+              if (match) {
+                body = match[0];
+              }
+            } catch (e) {
+              console.log('No CHANGELOG.md found, using default body');
+            }
+
+            await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: `v${version}`,
+              name: `v${version}`,
+              body: body,
+              draft: false,
+              prerelease: false
+            });
