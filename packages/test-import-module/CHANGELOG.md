@@ -1,5 +1,11 @@
 # @less/test-import-module
 
+## 4.0.4
+
+### Patch Changes
+
+-   [`7d4593c`](https://github.com/toakleaf/less.go/commit/7d4593c4453db0da50ab3f2c198af246427bab5a) Thanks [@toakleaf](https://github.com/toakleaf)! - Fixed stdin issue and source maps
+
 ## 4.0.3
 
 ### Patch Changes

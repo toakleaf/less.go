@@ -1,5 +1,11 @@
 # @lessgo/darwin-arm64
 
+## 0.1.4
+
+### Patch Changes
+
+-   [`7d4593c`](https://github.com/toakleaf/less.go/commit/7d4593c4453db0da50ab3f2c198af246427bab5a) Thanks [@toakleaf](https://github.com/toakleaf)! - Fixed stdin issue and source maps
+
 ## 0.1.3
 
 ### Patch Changes
