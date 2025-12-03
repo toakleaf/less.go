@@ -30,11 +30,41 @@ jobs:
       - name: Build all binaries
         run: ./scripts/build-binaries.sh ${{ steps.version.outputs.VERSION }}
 
-      - name: Upload artifacts
+      - name: Upload darwin-arm64
         uses: actions/upload-artifact@v4
         with:
-          name: binaries
-          path: npm/less.go-*/bin/
+          name: darwin-arm64
+          path: npm/darwin-arm64/bin/
+
+      - name: Upload darwin-x64
+        uses: actions/upload-artifact@v4
+        with:
+          name: darwin-x64
+          path: npm/darwin-x64/bin/
+
+      - name: Upload linux-x64
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-x64
+          path: npm/linux-x64/bin/
+
+      - name: Upload linux-arm64
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-arm64
+          path: npm/linux-arm64/bin/
+
+      - name: Upload win32-x64
+        uses: actions/upload-artifact@v4
+        with:
+          name: win32-x64
+          path: npm/win32-x64/bin/
+
+      - name: Upload win32-arm64
+        uses: actions/upload-artifact@v4
+        with:
+          name: win32-arm64
+          path: npm/win32-arm64/bin/
 
   publish:
     name: Publish to npm
@@ -49,11 +79,44 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Download binaries
+      - name: Download darwin-arm64
         uses: actions/download-artifact@v4
         with:
-          name: binaries
-          path: npm/
+          name: darwin-arm64
+          path: npm/darwin-arm64/bin/
+
+      - name: Download darwin-x64
+        uses: actions/download-artifact@v4
+        with:
+          name: darwin-x64
+          path: npm/darwin-x64/bin/
+
+      - name: Download linux-x64
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-x64
+          path: npm/linux-x64/bin/
+
+      - name: Download linux-arm64
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-arm64
+          path: npm/linux-arm64/bin/
+
+      - name: Download win32-x64
+        uses: actions/download-artifact@v4
+        with:
+          name: win32-x64
+          path: npm/win32-x64/bin/
+
+      - name: Download win32-arm64
+        uses: actions/download-artifact@v4
+        with:
+          name: win32-arm64
+          path: npm/win32-arm64/bin/
+
+      - name: Make binaries executable
+        run: chmod +x npm/*/bin/lessc-go 2>/dev/null || true
 
       - name: Get version from tag
         id: version
@@ -62,4 +125,5 @@ jobs:
       - name: Publish packages
         run: ./scripts/publish-npm.sh ${{ steps.version.outputs.VERSION }}
         env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
