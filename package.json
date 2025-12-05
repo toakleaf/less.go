@@ -30,8 +30,13 @@
     "bench:js:detailed": "node benchmark/suite.js --detailed",
     "bench:js:json": "node benchmark/suite.js --json",
     "bench:js:suite": "node benchmark/suite.js --suite",
+    "bench:bun": "bun benchmark/suite.js",
+    "bench:bun:detailed": "bun benchmark/suite.js --detailed",
+    "bench:bun:json": "bun benchmark/suite.js --json",
+    "bench:bun:suite": "bun benchmark/suite.js --suite",
     "bench:compare": "node scripts/bench-compare.js",
     "bench:compare:suite": "node scripts/bench-compare-suite.js",
+    "bench:compare:all": "node scripts/bench-compare-all.js",
     "bench:profile": "bash scripts/profile-benchmark.sh",
     "bench:find-regex": "bash scripts/find-regex-hotspots.sh",
     "postinstall": "npx only-allow pnpm"
