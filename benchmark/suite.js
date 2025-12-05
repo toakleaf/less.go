@@ -1,11 +1,17 @@
 /**
  * Comprehensive benchmark suite for less.js
  * Tests the same files as the Go benchmark for fair comparison
+ * Supports both Node.js and Bun runtimes
  */
 
 const path = require('path');
 const fs = require('fs');
 const less = require('less');
+
+// Runtime detection
+const isBun = typeof Bun !== 'undefined';
+const runtime = isBun ? 'bun' : 'node';
+const runtimeVersion = isBun ? Bun.version : process.version;
 
 // Configuration
 const TOTAL_RUNS = 30;
@@ -297,7 +303,11 @@ function prepareTests() {
 }
 
 // High-resolution timing
+// Use Bun.nanoseconds() for more precise timing in Bun, fallback to process.hrtime()
 function getTime() {
+	if (isBun) {
+		return Bun.nanoseconds() / 1_000_000; // Convert to milliseconds
+	}
 	const hrtime = process.hrtime();
 	return hrtime[0] * 1000 + hrtime[1] / 1000000;
 }
@@ -394,8 +404,9 @@ function formatTime(ms) {
 // Print detailed results
 function printResults(results, runCount, showIndividual = false) {
 	console.log('\n' + '='.repeat(80));
-	console.log('LESS.JS BENCHMARK RESULTS');
+	console.log(`LESS.JS BENCHMARK RESULTS (${runtime} ${runtimeVersion})`);
 	console.log('='.repeat(80));
+	console.log(`Runtime: ${runtime} ${runtimeVersion}`);
 	console.log(`Total tests: ${results.length}`);
 	console.log(`Runs per test: ${runCount} (${WARMUP_RUNS} warmup)`);
 	console.log('='.repeat(80));
@@ -518,8 +529,9 @@ async function benchmarkSuite(tests, runCount) {
 // Print suite results
 function printSuiteResults(times, testCount, runCount) {
 	console.log('\n' + '='.repeat(80));
-	console.log('LESS.JS SUITE BENCHMARK RESULTS');
+	console.log(`LESS.JS SUITE BENCHMARK RESULTS (${runtime} ${runtimeVersion})`);
 	console.log('='.repeat(80));
+	console.log(`Runtime: ${runtime} ${runtimeVersion}`);
 	console.log(`Total files: ${testCount}`);
 	console.log(`Suite runs: ${runCount} (${WARMUP_RUNS} warmup)`);
 	console.log(`Methodology: All ${testCount} files compiled sequentially per iteration`);
@@ -572,6 +584,8 @@ async function main() {
 		// Output JSON for easy parsing by wrapper scripts
 		console.log(JSON.stringify({
 			timestamp: new Date().toISOString(),
+			runtime: runtime,
+			runtimeVersion: runtimeVersion,
 			mode: 'single-run',
 			testCount: tests.length,
 			totalTime: totalTime,
@@ -596,6 +610,8 @@ async function main() {
 			const stats = calculateStats(times.total, WARMUP_RUNS);
 			const jsonOutput = {
 				timestamp: new Date().toISOString(),
+				runtime: runtime,
+				runtimeVersion: runtimeVersion,
 				mode: 'suite',
 				runs: runCount,
 				warmupRuns: WARMUP_RUNS,
@@ -633,6 +649,8 @@ async function main() {
 		if (process.argv.includes('--json')) {
 			const jsonOutput = {
 				timestamp: new Date().toISOString(),
+				runtime: runtime,
+				runtimeVersion: runtimeVersion,
 				mode: 'individual',
 				runs: runCount,
 				warmupRuns: WARMUP_RUNS,
