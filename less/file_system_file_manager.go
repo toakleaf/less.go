@@ -35,40 +35,70 @@ func isRemoteURL(filename string) bool {
 	return strings.HasPrefix(filename, "http://") || strings.HasPrefix(filename, "https://")
 }
 
-// fetchRemoteFile fetches a file from a remote URL
+// fetchRemoteFile fetches a file from a remote URL with retry logic
 func fetchRemoteFile(url string) *LoadedFile {
 	// Create HTTP client with timeout
 	client := &http.Client{
 		Timeout: 30 * time.Second,
 	}
 
-	// Make GET request
-	resp, err := client.Get(url)
-	if err != nil {
-		return &LoadedFile{
-			Message: fmt.Sprintf("Failed to fetch remote file: %v", err),
+	// Retry configuration: 3 attempts with exponential backoff
+	maxRetries := 3
+	var lastErr error
+	var lastStatus int
+	var lastStatusText string
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		if attempt > 0 {
+			// Exponential backoff: 1s, 2s, 4s
+			time.Sleep(time.Duration(1<<uint(attempt-1)) * time.Second)
+		}
+
+		// Make GET request
+		resp, err := client.Get(url)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+
+		// Check status code
+		if resp.StatusCode == http.StatusOK {
+			// Read response body
+			contents, err := ioutil.ReadAll(resp.Body)
+			resp.Body.Close()
+			if err != nil {
+				return &LoadedFile{
+					Message: fmt.Sprintf("Failed to read remote file: %v", err),
+				}
+			}
+
+			return &LoadedFile{
+				Filename: url,
+				Contents: string(contents),
+			}
+		}
+
+		// Store status for error message
+		lastStatus = resp.StatusCode
+		lastStatusText = resp.Status
+		resp.Body.Close()
+
+		// Don't retry on most client errors (4xx), but do retry on:
+		// - 429 (rate limit)
+		// - 404 (CDNs can return temporary 404s during edge propagation)
+		if resp.StatusCode >= 400 && resp.StatusCode < 500 && resp.StatusCode != 429 && resp.StatusCode != 404 {
+			break
 		}
 	}
-	defer resp.Body.Close()
 
-	// Check status code
-	if resp.StatusCode != http.StatusOK {
+	// Return appropriate error message
+	if lastErr != nil {
 		return &LoadedFile{
-			Message: fmt.Sprintf("Remote file returned status %d: %s", resp.StatusCode, resp.Status),
+			Message: fmt.Sprintf("Failed to fetch remote file: %v", lastErr),
 		}
 	}
-
-	// Read response body
-	contents, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return &LoadedFile{
-			Message: fmt.Sprintf("Failed to read remote file: %v", err),
-		}
-	}
-
 	return &LoadedFile{
-		Filename: url,
-		Contents: string(contents),
+		Message: fmt.Sprintf("Remote file returned status %d: %s", lastStatus, lastStatusText),
 	}
 }
 
