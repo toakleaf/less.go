@@ -269,6 +269,15 @@ func (e *Expression) GenCSS(context any, output *CSSOutput) {
 				}
 			}
 
+			// Check if the next value is a Paren with NoSpacing set
+			// This preserves the original input spacing - if there was no space before
+			// the parenthesis in the input (like layer(foo)), don't add one in output
+			if shouldAddSpace {
+				if paren, isParen := nextValue.(*Paren); isParen && paren.NoSpacing {
+					shouldAddSpace = false
+				}
+			}
+
 			if shouldAddSpace {
 				output.Add(" ", nil, nil)
 			}
@@ -324,5 +333,4 @@ func (e *Expression) GetType() string {
 func (e *Expression) GetValue() []any {
 	return e.Value
 }
-
  
