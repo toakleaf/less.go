@@ -1,5 +1,25 @@
 # @lessgo/linux-arm64
 
+## 0.2.2
+
+### Patch Changes
+
+-   [#463](https://github.com/toakleaf/less.go/pull/463) [`73595ec`](https://github.com/toakleaf/less.go/commit/73595ec62030a5be0b94c99b6f64410b78bbe0e4) Thanks [@toakleaf](https://github.com/toakleaf)! - Fix rgba() ignoring variable alpha values
+
+    The rgba() function (and rgb(), hsl(), hsla()) was ignoring alpha values when passed as variables. For example:
+
+    ```less
+    @alpha: 0.5;
+    color: rgba(
+        255,
+        0,
+        0,
+        @alpha
+    ); // was producing #ff0000 instead of rgba(255, 0, 0, 0.5)
+    ```
+
+    This fix ensures that variable arguments are properly evaluated before being passed to color functions.
+
 ## 0.2.1
 
 ### Patch Changes

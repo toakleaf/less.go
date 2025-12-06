@@ -1,6 +1,6 @@
 {
   "name": "@lessgo/win32-arm64",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Platform-specific binary for lessgo (Windows ARM64)",
   "os": [
     "win32"
