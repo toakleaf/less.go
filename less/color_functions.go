@@ -213,12 +213,12 @@ func ColorRGBA(r, g, b, a any) any {
 		result := NewColor(color.RGB, alpha, "rgba")
 		return result
 	}
-	
+
 	// Handle nil values
 	if g == nil || b == nil {
 		return nil
 	}
-	
+
 	// Convert RGB values
 	rVal, err := scaled(r, 255)
 	if err != nil {
@@ -232,7 +232,7 @@ func ColorRGBA(r, g, b, a any) any {
 	if err != nil {
 		return nil
 	}
-	
+
 	// Default alpha to 1 if not provided
 	aVal := 1.0
 	if a != nil {
@@ -240,7 +240,7 @@ func ColorRGBA(r, g, b, a any) any {
 			aVal = av
 		}
 	}
-	
+
 	return NewColor([]float64{rVal, gVal, bVal}, aVal, "rgba")
 }
 
@@ -1305,8 +1305,43 @@ func (w *ColorFunctionWrapper) Call(args ...any) (any, error) {
 }
 
 func (w *ColorFunctionWrapper) CallCtx(ctx *Context, args ...any) (any, error) {
-	// Color functions don't need context evaluation
-	return w.Call(args...)
+	// For rgb, rgba, hsl, hsla: evaluate individual arguments if they are Nodes
+	// but preserve Expression nodes for comma-less syntax handling
+	switch w.name {
+	case "rgb", "rgba", "hsl", "hsla":
+		// Get the EvalContext from the first frame for proper variable resolution
+		var evalCtx any
+		if ctx != nil && len(ctx.Frames) > 0 && ctx.Frames[0].EvalContext != nil {
+			evalCtx = ctx.Frames[0].EvalContext
+		}
+
+		evaluatedArgs := make([]any, len(args))
+		for i, arg := range args {
+			// Don't evaluate Expression nodes (used for comma-less syntax)
+			if _, isExpr := arg.(*Expression); isExpr {
+				evaluatedArgs[i] = arg
+			} else if evalCtx != nil {
+				// Try different Eval signatures
+				if evaluable, ok := arg.(interface{ Eval(any) (any, error) }); ok {
+					result, err := evaluable.Eval(evalCtx)
+					if err != nil {
+						evaluatedArgs[i] = arg
+					} else {
+						evaluatedArgs[i] = result
+					}
+				} else if evaluable, ok := arg.(interface{ Eval(any) any }); ok {
+					evaluatedArgs[i] = evaluable.Eval(evalCtx)
+				} else {
+					evaluatedArgs[i] = arg
+				}
+			} else {
+				evaluatedArgs[i] = arg
+			}
+		}
+		return w.Call(evaluatedArgs...)
+	default:
+		return w.Call(args...)
+	}
 }
 
 func (w *ColorFunctionWrapper) NeedsEvalArgs() bool {
