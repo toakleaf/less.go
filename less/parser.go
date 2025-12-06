@@ -2219,10 +2219,19 @@ func (p *Parsers) MediaFeature(syntaxOptions map[string]any) any {
 	var e any
 	var prop any
 	var rangeProp any
+	spacing := false // Tracks if there was whitespace before '(' in the input
 
 	p.parser.parserInput.Save()
 
 	for {
+		// Check if there's spacing before '(' - this is a look-ahead to detect
+		// patterns like "and (" vs "layer(" to preserve original spacing
+		p.parser.parserInput.Save()
+		if p.parser.parserInput.Re(reSpacingBeforeParen) != nil {
+			spacing = true
+		}
+		p.parser.parserInput.Restore("")
+
 		e = entities.DeclarationCall()
 		if e == nil {
 			e = entities.Keyword()
@@ -2283,16 +2292,21 @@ func (p *Parsers) MediaFeature(syntaxOptions map[string]any) any {
 						}
 						queryInParens = NewQueryInParens(condition.Op, condition.Lvalue, condition.Rvalue, rangeOp, rangeValue, condition.Index)
 					}
-					nodes = append(nodes, NewParen(queryInParens))
+					// Set NoSpacing=true if there was no whitespace before '(' in the input
+					nodes = append(nodes, NewParenWithSpacing(queryInParens, !spacing))
 					e = prop
 				} else if prop != nil && e != nil {
 					decl, _ := NewDeclaration(prop, e, nil, false, p.parser.parserInput.GetIndex()+p.parser.currentIndex, p.parser.fileInfo, true, false)
-					nodes = append(nodes, NewParen(decl))
+					// Set NoSpacing=true if there was no whitespace before '(' in the input
+					nodes = append(nodes, NewParenWithSpacing(decl, !spacing))
 				} else if e != nil {
-					nodes = append(nodes, NewParen(e))
+					// Set NoSpacing=true if there was no whitespace before '(' in the input
+					nodes = append(nodes, NewParenWithSpacing(e, !spacing))
 				} else {
 					p.parser.error("badly formed media feature definition", "")
 				}
+				// Reset spacing for next paren
+				spacing = false
 			} else {
 				p.parser.error("Missing closing ')'", "Parse")
 			}
