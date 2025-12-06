@@ -20,13 +20,15 @@ var (
 
 // Debug configuration from environment
 var (
-	debugMode   = os.Getenv("LESS_GO_DEBUG") == "1"
-	showAST     = os.Getenv("LESS_GO_AST") == "1"
-	showTrace   = os.Getenv("LESS_GO_TRACE") == "1"
-	showDiff    = os.Getenv("LESS_GO_DIFF") == "1"
-	strictMode  = os.Getenv("LESS_GO_STRICT") == "1"  // Fail tests on output differences
-	quietMode   = os.Getenv("LESS_GO_QUIET") == "1"   // Suppress individual test output
-	jsonOutput  = os.Getenv("LESS_GO_JSON") == "1"    // Output results as JSON
+	debugMode    = os.Getenv("LESS_GO_DEBUG") == "1"
+	showAST      = os.Getenv("LESS_GO_AST") == "1"
+	showTrace    = os.Getenv("LESS_GO_TRACE") == "1"
+	showDiff     = os.Getenv("LESS_GO_DIFF") == "1"
+	strictMode   = os.Getenv("LESS_GO_STRICT") == "1"  // Fail tests on output differences
+	quietMode    = os.Getenv("LESS_GO_QUIET") == "1"   // Suppress individual test output
+	jsonOutput   = os.Getenv("LESS_GO_JSON") == "1"    // Output results as JSON
+	skipCustom   = os.Getenv("LESS_GO_SKIP_CUSTOM") == "1"  // Skip custom integration tests
+	customOnly   = os.Getenv("LESS_GO_CUSTOM_ONLY") == "1"  // Run only custom integration tests
 )
 
 // addTestResult safely adds a test result to the global results slice
@@ -192,6 +194,21 @@ func TestIntegrationSuite(t *testing.T) {
 		},
 	}
 
+	// Custom test suite - separate from Less.js original tests
+	// These are user-defined tests that can be added by dropping .less/.css pairs
+	customTestMap := []TestSuite{
+		{
+			Name: "custom",
+			Options: map[string]any{
+				"relativeUrls":      true,
+				"silent":            true,
+				"javascriptEnabled": true,
+			},
+			Folder:   "custom/",
+			IsCustom: true,
+		},
+	}
+
 	// Error test suites (these should fail compilation)
 	errorTestMap := []TestSuite{
 		{
@@ -236,18 +253,31 @@ func TestIntegrationSuite(t *testing.T) {
 		},
 	}
 
-	// Run success test suites
-	for _, suite := range testMap {
-		t.Run(suite.Name, func(t *testing.T) {
-			runTestSuite(t, suite, lessRoot, cssRoot)
-		})
+	// Run success test suites (skip if customOnly is set)
+	if !customOnly {
+		for _, suite := range testMap {
+			t.Run(suite.Name, func(t *testing.T) {
+				runTestSuite(t, suite, lessRoot, cssRoot)
+			})
+		}
 	}
 
-	// Run error test suites
-	for _, suite := range errorTestMap {
-		t.Run(suite.Name, func(t *testing.T) {
-			runErrorTestSuite(t, suite, lessRoot)
-		})
+	// Run error test suites (skip if customOnly is set)
+	if !customOnly {
+		for _, suite := range errorTestMap {
+			t.Run(suite.Name, func(t *testing.T) {
+				runErrorTestSuite(t, suite, lessRoot)
+			})
+		}
+	}
+
+	// Run custom test suites (skip if skipCustom is set)
+	if !skipCustom {
+		for _, suite := range customTestMap {
+			t.Run(suite.Name, func(t *testing.T) {
+				runTestSuite(t, suite, lessRoot, cssRoot)
+			})
+		}
 	}
 
 	// Run summary as a final subtest to ensure it appears at the end
@@ -279,6 +309,7 @@ type TestSuite struct {
 	Options     map[string]any
 	Folder      string
 	ExpectError bool
+	IsCustom    bool // Marks custom (user-defined) test suites
 }
 
 type TestResult struct {
