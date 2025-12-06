@@ -79,10 +79,34 @@ LESS_GO_DIFF=1 pnpm test:go
 - `LESS_GO_DIFF=1` - Show CSS diffs for failing tests
 - `LESS_GO_JSON=1` - Output results as JSON
 - `LESS_GO_TRACE=1` - Show evaluation trace
+- `LESS_GO_SKIP_CUSTOM=1` - Skip custom integration tests
+- `LESS_GO_CUSTOM_ONLY=1` - Run only custom integration tests
 
 **Test Categories:**
-- **Perfect CSS Matches** - Tests producing identical CSS to Less.js (100 tests)
-- **Correctly Failed** - Error tests that properly fail as expected (91 tests)
+- **Perfect CSS Matches** - Tests producing identical CSS to Less.js
+- **Correctly Failed** - Error tests that properly fail as expected
+- **Custom Tests** - User-defined tests separate from Less.js originals
+
+### Custom Integration Tests
+
+Add your own integration tests by dropping `.less` and `.css` file pairs into:
+- `testdata/less/custom/` - Input LESS files
+- `testdata/css/custom/` - Expected CSS output files
+
+Files must have matching names (e.g., `my-test.less` and `my-test.css`).
+
+```bash
+# Run only custom tests
+LESS_GO_CUSTOM_ONLY=1 go test ./less -v -run TestIntegrationSuite -timeout 5m
+
+# Run all tests except custom
+LESS_GO_SKIP_CUSTOM=1 pnpm test:go:all
+
+# Debug a specific custom test
+LESS_GO_DEBUG=1 go test -v -run TestIntegrationSuite/custom/<testname> ./less
+```
+
+Custom tests run with default options: `relativeUrls: true`, `silent: true`, `javascriptEnabled: true`.
 
 ## Benchmarking
 

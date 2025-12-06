@@ -1,0 +1,42 @@
+// Test rgba() with variable alpha values - this is where differences occur
+
+// Simple variable alpha
+@alpha: 0.5;
+
+.simple-variable {
+  color: rgba(255, 0, 0, @alpha);
+}
+
+// Alpha with calculation
+.alpha-calc {
+  color: rgba(255, 0, 0, @alpha * 2);
+}
+
+// Alpha from percentage variable
+@alpha-percent: 50%;
+
+.percent-variable {
+  color: fade(#ff0000, @alpha-percent);
+}
+
+// Nested variable
+@base-alpha: 0.25;
+@double-alpha: @base-alpha * 2;
+
+.nested-variable {
+  color: rgba(255, 0, 0, @double-alpha);
+}
+
+// Zero alpha variable
+@zero-alpha: 0;
+
+.zero-variable {
+  color: rgba(255, 0, 0, @zero-alpha);
+}
+
+// Full alpha variable
+@full-alpha: 1;
+
+.full-variable {
+  color: rgba(255, 0, 0, @full-alpha);
+}

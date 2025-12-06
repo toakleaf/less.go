@@ -1,0 +1,57 @@
+// Test rgba() and fade() alpha channel handling
+
+// Basic rgba with literal alpha values (these work correctly)
+.rgba-literal {
+  color: rgba(255, 0, 0, 0.5);
+  background: rgba(0, 128, 255, 1);
+  border-color: rgba(100, 100, 100, 0);
+  outline-color: rgba(50, 100, 150, 0.25);
+}
+
+// rgba with percentage alpha
+.rgba-percent {
+  color: rgba(255, 0, 0, 50%);
+  background: rgba(0, 128, 255, 100%);
+  border-color: rgba(100, 100, 100, 0%);
+}
+
+// fade() function - sets absolute opacity
+.fade-basic {
+  color: fade(#ff0000, 50%);
+  background: fade(#0080ff, 100%);
+  border-color: fade(#646464, 0%);
+  outline-color: fade(rgb(50, 100, 150), 25%);
+}
+
+// fade() with rgba input (should replace alpha)
+.fade-rgba {
+  color: fade(rgba(255, 0, 0, 0.8), 50%);
+  background: fade(rgba(0, 128, 255, 0.2), 100%);
+  border-color: fade(rgba(100, 100, 100, 1), 0%);
+}
+
+// fade() with color variables
+@base-color: #3498db;
+@faded-color: fade(@base-color, 50%);
+
+.fade-color-variables {
+  color: @faded-color;
+  background: fade(@base-color, 75%);
+  border-color: fade(@base-color, 25%);
+}
+
+// Edge cases with literal values
+.edge-cases {
+  color: rgba(255, 0, 0, 0.01);
+  background: fade(#ff0000, 1%);
+  border-color: rgba(0, 255, 0, 0.333);
+  outline-color: fade(#00ff00, 33.3%);
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0);
+}
+
+// Combining with other color functions
+.combined-functions {
+  color: fade(darken(#3498db, 10%), 50%);
+  background: fade(lighten(#e74c3c, 20%), 75%);
+  border-color: fade(saturate(#95a5a6, 50%), 80%);
+}
