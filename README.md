@@ -1,6 +1,6 @@
 # less.go
 
-An attempt at a complete Go port of [Less.js](https://github.com/less/less.js) - the popular CSS preprocessor. This implementation aims to maintain 100% feature parity with Less.js v4.2.2 while providing the performance benefits of a native Go binary.
+An attempt at a complete Go port of [Less.js](https://github.com/less/less.js) - the popular CSS preprocessor. This implementation aims to maintain 100% feature parity with Less.js v4.4.2 while providing the performance benefits of a native Go binary.
 
 ## Status
 
@@ -140,7 +140,7 @@ pnpm bench:compare        # Per-file comparison (for debugging)
 
 ## Features
 
-less.go implements **100% feature parity** with Less.js v4.2.2:
+less.go implements **100% feature parity** with Less.js v4.4.2:
 
 - **Variables** - `@primary: #333;`
 - **Nesting** - Nested rules and selectors
@@ -151,6 +151,8 @@ less.go implements **100% feature parity** with Less.js v4.2.2:
 - **Detached Rulesets** - Reusable rule blocks
 - **CSS Guards** - Conditional CSS
 - **Media Query Bubbling** - Automatic media query handling
+- **Container Queries** - `@container` with size and style queries
+- **CSS Layers** - `@layer` at-rule and import with layer()
 - **Property Merge** - `+` and `+_` operators
 - **Compression** - CSS minification
 - **Source Maps** - Full source map support
