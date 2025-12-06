@@ -1028,15 +1028,25 @@ func (v *ToCSSVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitArgs) any {
 						rule := nodeRules[i]
 						if ruleWithRules, ok := rule.(interface{ GetRules() []any }); ok {
 							if ruleWithRules.GetRules() != nil {
-								if os.Getenv("LESS_GO_DEBUG") == "1" {
-									fmt.Fprintf(os.Stderr, "[VisitRuleset] Extracting child ruleset at index %d\n", i)
+								// Check if this is a @starting-style at-rule
+								// @starting-style should stay nested inside its parent ruleset
+								// (like CSS native nesting) and NOT bubble out like @media does
+								isStartingStyle := false
+								if atRule, ok := rule.(*AtRule); ok && atRule.Name == "@starting-style" {
+									isStartingStyle = true
 								}
-								// visit because we are moving them out from being a child
-								rulesets = append(rulesets, v.visitor.Visit(rule))
-								// Remove from nodeRules
-								nodeRules = append(nodeRules[:i], nodeRules[i+1:]...)
-								nodeRuleCnt--
-								continue
+
+								if !isStartingStyle {
+									if os.Getenv("LESS_GO_DEBUG") == "1" {
+										fmt.Fprintf(os.Stderr, "[VisitRuleset] Extracting child ruleset at index %d\n", i)
+									}
+									// visit because we are moving them out from being a child
+									rulesets = append(rulesets, v.visitor.Visit(rule))
+									// Remove from nodeRules
+									nodeRules = append(nodeRules[:i], nodeRules[i+1:]...)
+									nodeRuleCnt--
+									continue
+								}
 							}
 						}
 						i++
