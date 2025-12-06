@@ -94,6 +94,24 @@ func number(n any) (float64, error) {
 	}
 }
 
+// numberAsPercent extracts a value and always treats it as a percentage (0-100 scale).
+// This matches Less.js behavior for fade, fadein, fadeout which always divide by 100
+// regardless of whether the unit is '%' or not. For example, both fade(#f00, 30) and
+// fade(#f00, 30%) should result in rgba(255, 0, 0, 0.3).
+func numberAsPercent(n any) (float64, error) {
+	switch v := n.(type) {
+	case *Dimension:
+		// Always divide by 100, regardless of unit
+		return v.Value / 100, nil
+	case float64:
+		return v / 100, nil
+	case int:
+		return float64(v) / 100, nil
+	default:
+		return 0, fmt.Errorf("color functions take numbers as parameters")
+	}
+}
+
 // scaled extracts a scaled value (handles percentages for RGB)
 func scaled(n any, size float64) (float64, error) {
 	if dim, ok := n.(*Dimension); ok && dim.Unit != nil && dim.Unit.ToString() == "%" {
@@ -796,7 +814,9 @@ func ColorFadeIn(color, amount any, method ...any) any {
 		return nil
 	}
 
-	amountVal, err := number(amount)
+	// Use numberAsPercent to match Less.js behavior where both
+	// fadein(#f00, 30) and fadein(#f00, 30%) add 0.3 to alpha
+	amountVal, err := numberAsPercent(amount)
 	if err != nil {
 		return nil
 	}
@@ -829,7 +849,9 @@ func ColorFadeOut(color, amount any, method ...any) any {
 		return nil
 	}
 
-	amountVal, err := number(amount)
+	// Use numberAsPercent to match Less.js behavior where both
+	// fadeout(#f00, 30) and fadeout(#f00, 30%) subtract 0.3 from alpha
+	amountVal, err := numberAsPercent(amount)
 	if err != nil {
 		return nil
 	}
@@ -858,7 +880,9 @@ func ColorFadeOut(color, amount any, method ...any) any {
 // ColorFade sets opacity to a specific value
 func ColorFade(color, amount any) any {
 	if c, ok := color.(*Color); ok {
-		amountVal, err := number(amount)
+		// Use numberAsPercent to match Less.js behavior where both
+		// fade(#f00, 30) and fade(#f00, 30%) result in 0.3 alpha
+		amountVal, err := numberAsPercent(amount)
 		if err != nil {
 			return nil
 		}
