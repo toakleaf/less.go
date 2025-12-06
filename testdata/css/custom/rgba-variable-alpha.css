@@ -1,0 +1,18 @@
+.simple-variable {
+  color: rgba(255, 0, 0, 0.5);
+}
+.alpha-calc {
+  color: #ff0000;
+}
+.percent-variable {
+  color: rgba(255, 0, 0, 0.5);
+}
+.nested-variable {
+  color: rgba(255, 0, 0, 0.5);
+}
+.zero-variable {
+  color: rgba(255, 0, 0, 0);
+}
+.full-variable {
+  color: #ff0000;
+}

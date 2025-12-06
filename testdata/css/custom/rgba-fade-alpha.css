@@ -1,0 +1,39 @@
+.rgba-literal {
+  color: rgba(255, 0, 0, 0.5);
+  background: #0080ff;
+  border-color: rgba(100, 100, 100, 0);
+  outline-color: rgba(50, 100, 150, 0.25);
+}
+.rgba-percent {
+  color: rgba(255, 0, 0, 0.5);
+  background: #0080ff;
+  border-color: rgba(100, 100, 100, 0);
+}
+.fade-basic {
+  color: rgba(255, 0, 0, 0.5);
+  background: #0080ff;
+  border-color: rgba(100, 100, 100, 0);
+  outline-color: rgba(50, 100, 150, 0.25);
+}
+.fade-rgba {
+  color: rgba(255, 0, 0, 0.5);
+  background: #0080ff;
+  border-color: rgba(100, 100, 100, 0);
+}
+.fade-color-variables {
+  color: rgba(52, 152, 219, 0.5);
+  background: rgba(52, 152, 219, 0.75);
+  border-color: rgba(52, 152, 219, 0.25);
+}
+.edge-cases {
+  color: rgba(255, 0, 0, 0.01);
+  background: rgba(255, 0, 0, 0.01);
+  border-color: rgba(0, 255, 0, 0.333);
+  outline-color: rgba(0, 255, 0, 0.333);
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0);
+}
+.combined-functions {
+  color: rgba(33, 125, 187, 0.5);
+  background: rgba(242, 159, 151, 0.75);
+  border-color: rgba(100, 208, 215, 0.8);
+}
