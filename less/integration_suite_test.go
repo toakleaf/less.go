@@ -33,9 +33,9 @@ var (
 )
 
 // Tests that require network access and should be skipped in CI
-var networkDependentTests = map[string]bool{
-	"import-remote": true,
-}
+// Note: import-remote was removed after pinning @less/test-data@4.4.2 to fix
+// intermittent failures caused by missing empty.less in @4.4.3
+var networkDependentTests = map[string]bool{}
 
 // addTestResult safely adds a test result to the global results slice
 func addTestResult(result TestResult) {
