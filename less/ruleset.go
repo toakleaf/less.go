@@ -2172,6 +2172,14 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 
 	// Generate CSS for rules (skip if this ruleset contains only extends)
 	// Note: Silent comments have been filtered out above, so we only process rules that generate output
+	// IMPORTANT: For topLevel rulesets that output braces, update the context tabLevel
+	// so that nested at-rules like @starting-style receive the correct indentation level.
+	// The tabLevel increment was skipped earlier (for proper selector/brace formatting),
+	// but child rules need to know they're at tabLevel+1.
+	if !r.Root && !isMediaEmpty && !isContainer && (outputCount > 0 || len(r.Selectors) > 0) {
+		// This ruleset outputs braces, so its children should be at tabLevel+1
+		ctx["tabLevel"] = tabLevel + 1
+	}
 	if !hasOnlyExtends {
 	for i, rule := range ruleNodes {
 		if i+1 == len(ruleNodes) {

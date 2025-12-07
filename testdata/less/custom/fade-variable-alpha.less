@@ -1,0 +1,7 @@
+.colored-shadow(@color, @opacity: 0.4) {
+  box-shadow: 0 10px 40px -10px fade(@color, @opacity * 100);
+}
+
+.test {
+  .colored-shadow(#3498db, 0.3);
+}

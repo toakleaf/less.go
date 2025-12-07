@@ -9,7 +9,7 @@ import (
 type Paren struct {
 	*Node
 	Value     any  // This will store the node value
-	NoSpacing bool // When true, no space should be added before this paren
+	NoSpacing bool // If true, no space should be added before this paren in output
 }
 
 // NewParen creates a new Paren instance with the provided node as value
@@ -17,6 +17,15 @@ func NewParen(node any) *Paren {
 	return &Paren{
 		Node:  NewNode(),
 		Value: node,
+	}
+}
+
+// NewParenWithSpacing creates a new Paren instance with explicit spacing control
+func NewParenWithSpacing(node any, noSpacing bool) *Paren {
+	return &Paren{
+		Node:      NewNode(),
+		Value:     node,
+		NoSpacing: noSpacing,
 	}
 }
 
@@ -50,12 +59,8 @@ func (p *Paren) Eval(context any) any {
 		}
 	}
 
-	newParen := NewParen(evaluatedValue)
-	// Preserve NoSpacing through evaluation
-	if p.NoSpacing {
-		newParen.NoSpacing = true
-	}
-	return newParen
+	// Preserve NoSpacing flag through evaluation
+	return NewParenWithSpacing(evaluatedValue, p.NoSpacing)
 }
 
 func (p *Paren) ToCSS(context any) string {

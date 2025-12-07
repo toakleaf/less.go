@@ -70,6 +70,13 @@ var (
 	reOperatorAttr    = regexp.MustCompile(`^[|~*$^]?=`)
 )
 
+// Spacing detection patterns
+var (
+	// Matches identifier followed by whitespace then opening paren - used to detect spacing
+	// before parentheses in media features (e.g., "and (" vs "layer(")
+	reSpacingBeforeParen = regexp.MustCompile(`^[0-9a-z-]*\s+\(`)
+)
+
 // Function and call patterns
 var (
 	reFunctionURL  = regexp.MustCompile(`(?i)^url\(`)
@@ -85,12 +92,6 @@ var (
 	reImportOptions = regexp.MustCompile(`^(less|css|multiple|once|inline|reference|optional)`)
 	reCaseFlag      = regexp.MustCompile(`^[iIsS]`)
 	reWordIdent     = regexp.MustCompile(`^[\w-]+`)
-)
-
-// Media feature patterns
-var (
-	// Matches when there's whitespace before opening paren, used to detect spacing for function-like syntax
-	reSpacingBeforeParen = regexp.MustCompile(`^[0-9a-z-]*\s+\(`)
 )
 
 // Combinator patterns

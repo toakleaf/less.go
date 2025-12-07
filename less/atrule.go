@@ -436,8 +436,11 @@ func (a *AtRule) Eval(context any) (any, error) {
 				// Also set Root=true for vendor-prefixed @keyframes (@-webkit-keyframes, etc.)
 				// For non-rooted directives (@supports, @document), leave Root unset
 				// so JoinSelectorVisitor can properly handle selector joining
+				// NOTE: @starting-style should NOT have Root=true on its inner ruleset
+				// because when nested, it needs to output with proper indentation
 				isKeyframes := strings.Contains(a.Name, "keyframes")
-				if a.IsRooted || isKeyframes {
+				isStartingStyle := a.Name == "@starting-style"
+				if (a.IsRooted || isKeyframes) && !isStartingStyle {
 					rs.Root = true
 				}
 			} else {
