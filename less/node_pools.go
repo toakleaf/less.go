@@ -78,14 +78,6 @@ var keywordPool = sync.Pool{
 	},
 }
 
-// cssStringsPool is a pool for reusing string slices in ToCSS methods.
-var cssStringsPool = sync.Pool{
-	New: func() any {
-		s := make([]string, 0, 8)
-		return &s
-	},
-}
-
 func GetNodeFromPool() *Node {
 	return nodePool.Get().(*Node)
 }
@@ -365,38 +357,16 @@ func (k *Keyword) Release() {
 	ReleaseKeyword(k)
 }
 
-// GetCSSStrings gets a string slice from the pool for ToCSS operations.
-func GetCSSStrings() *[]string {
-	s := cssStringsPool.Get().(*[]string)
-	*s = (*s)[:0]
-	return s
-}
-
-// ReleaseCSSStrings returns a string slice to the pool.
-func ReleaseCSSStrings(s *[]string) {
-	if s == nil {
-		return
-	}
-	// Clear references for GC
-	for i := range *s {
-		(*s)[i] = ""
-	}
-	*s = (*s)[:0]
-	cssStringsPool.Put(s)
-}
-
-// Static units for common cases to avoid allocations.
+// Static units for common cases to avoid allocations in hot paths.
 // These are immutable and should never be modified or released to pool.
+// Only includes units actually used in hot paths (math functions).
 var (
 	staticEmptyUnit *Unit
 	staticRadUnit   *Unit
-	staticPxUnit    *Unit
-	staticSUnit     *Unit
-	staticPercentUnit *Unit
 )
 
 func initStaticUnits() {
-	// Empty unit
+	// Empty unit (used by sin, cos, tan)
 	staticEmptyUnit = &Unit{
 		Node:        NewNode(),
 		Numerator:   []string{},
@@ -404,77 +374,23 @@ func initStaticUnits() {
 		BackupUnit:  "",
 	}
 
-	// Rad unit (used by trig functions)
+	// Rad unit (used by asin, acos, atan)
 	staticRadUnit = &Unit{
 		Node:        NewNode(),
 		Numerator:   []string{"rad"},
 		Denominator: []string{},
 		BackupUnit:  "rad",
 	}
-
-	// Px unit (common length unit)
-	staticPxUnit = &Unit{
-		Node:        NewNode(),
-		Numerator:   []string{"px"},
-		Denominator: []string{},
-		BackupUnit:  "px",
-	}
-
-	// S unit (seconds)
-	staticSUnit = &Unit{
-		Node:        NewNode(),
-		Numerator:   []string{"s"},
-		Denominator: []string{},
-		BackupUnit:  "s",
-	}
-
-	// Percent unit
-	staticPercentUnit = &Unit{
-		Node:        NewNode(),
-		Numerator:   []string{"%"},
-		Denominator: []string{},
-		BackupUnit:  "%",
-	}
 }
 
 // GetEmptyUnit returns a static empty unit. Do not modify or release.
 func GetEmptyUnit() *Unit {
-	if staticEmptyUnit == nil {
-		initStaticUnits()
-	}
 	return staticEmptyUnit
 }
 
 // GetRadUnit returns a static rad unit. Do not modify or release.
 func GetRadUnit() *Unit {
-	if staticRadUnit == nil {
-		initStaticUnits()
-	}
 	return staticRadUnit
-}
-
-// GetPxUnit returns a static px unit. Do not modify or release.
-func GetPxUnit() *Unit {
-	if staticPxUnit == nil {
-		initStaticUnits()
-	}
-	return staticPxUnit
-}
-
-// GetSUnit returns a static seconds unit. Do not modify or release.
-func GetSUnit() *Unit {
-	if staticSUnit == nil {
-		initStaticUnits()
-	}
-	return staticSUnit
-}
-
-// GetPercentUnit returns a static percent unit. Do not modify or release.
-func GetPercentUnit() *Unit {
-	if staticPercentUnit == nil {
-		initStaticUnits()
-	}
-	return staticPercentUnit
 }
 
 func init() {
