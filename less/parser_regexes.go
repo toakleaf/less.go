@@ -90,11 +90,12 @@ var (
 
 // Keyword patterns
 var (
-	reImportant     = regexp.MustCompile(`^! *important`)
-	reMediaAll      = regexp.MustCompile(`^(!?all)`)
-	reImportOptions = regexp.MustCompile(`^(less|css|multiple|once|inline|reference|optional)`)
-	reCaseFlag      = regexp.MustCompile(`^[iIsS]`)
-	reWordIdent     = regexp.MustCompile(`^[\w-]+`)
+	reImportant       = regexp.MustCompile(`^! *important`)
+	reImportantSuffix = regexp.MustCompile(`\s*(! *important)\s*$`)
+	reMediaAll        = regexp.MustCompile(`^(!?all)`)
+	reImportOptions   = regexp.MustCompile(`^(less|css|multiple|once|inline|reference|optional)`)
+	reCaseFlag        = regexp.MustCompile(`^[iIsS]`)
+	reWordIdent       = regexp.MustCompile(`^[\w-]+`)
 )
 
 // Combinator patterns
