@@ -72,11 +72,10 @@ func NewDimensionFrom(value float64, unit *Unit) *Dimension {
 	if math.IsNaN(value) {
 		return nil
 	}
-	d := &Dimension{
-		Node:  NewNode(),
-		Value: value,
-		Unit:  unit,
-	}
+	d := GetDimensionFromPool()
+	d.Node = NewNode()
+	d.Value = value
+	d.Unit = unit
 	d.SetParent(d.Unit, d.Node)
 	return d
 }

@@ -149,19 +149,14 @@ func (u *Unit) IsSingular() bool {
 }
 
 func (u *Unit) Map(callback func(string, bool) string) {
-	newNum := make([]string, len(u.Numerator))
-	newDen := make([]string, len(u.Denominator))
-
+	// Transform values in-place to avoid allocations
 	for i := range u.Numerator {
-		newNum[i] = callback(u.Numerator[i], false)
+		u.Numerator[i] = callback(u.Numerator[i], false)
 	}
 
 	for i := range u.Denominator {
-		newDen[i] = callback(u.Denominator[i], true)
+		u.Denominator[i] = callback(u.Denominator[i], true)
 	}
-
-	u.Numerator = newNum
-	u.Denominator = newDen
 
 	sort.Strings(u.Numerator)
 	sort.Strings(u.Denominator)
@@ -201,8 +196,9 @@ func (u *Unit) Cancel() {
 		counter[unit]--
 	}
 
-	u.Numerator = make([]string, 0)
-	u.Denominator = make([]string, 0)
+	// Reuse existing slice capacity instead of allocating new slices
+	u.Numerator = u.Numerator[:0]
+	u.Denominator = u.Denominator[:0]
 
 	for unit, count := range counter {
 		if count > 0 {

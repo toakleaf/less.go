@@ -113,33 +113,27 @@ func Abs(n *Dimension) (*Dimension, error) {
 }
 
 func Tan(n *Dimension) (*Dimension, error) {
-	emptyUnit := NewUnit(nil, nil, "")
-	return MathHelper(math.Tan, emptyUnit, n)
+	return MathHelper(math.Tan, GetEmptyUnit(), n)
 }
 
 func Sin(n *Dimension) (*Dimension, error) {
-	emptyUnit := NewUnit(nil, nil, "")
-	return MathHelper(math.Sin, emptyUnit, n)
+	return MathHelper(math.Sin, GetEmptyUnit(), n)
 }
 
 func Cos(n *Dimension) (*Dimension, error) {
-	emptyUnit := NewUnit(nil, nil, "")
-	return MathHelper(math.Cos, emptyUnit, n)
+	return MathHelper(math.Cos, GetEmptyUnit(), n)
 }
 
 func Atan(n *Dimension) (*Dimension, error) {
-	radUnit := NewUnit([]string{"rad"}, nil, "rad")
-	return MathHelper(math.Atan, radUnit, n)
+	return MathHelper(math.Atan, GetRadUnit(), n)
 }
 
 func Asin(n *Dimension) (*Dimension, error) {
-	radUnit := NewUnit([]string{"rad"}, nil, "rad")
-	return MathHelper(math.Asin, radUnit, n)
+	return MathHelper(math.Asin, GetRadUnit(), n)
 }
 
 func Acos(n *Dimension) (*Dimension, error) {
-	radUnit := NewUnit([]string{"rad"}, nil, "rad")
-	return MathHelper(math.Acos, radUnit, n)
+	return MathHelper(math.Acos, GetRadUnit(), n)
 }
 
 func Round(n *Dimension, f *Dimension) (*Dimension, error) {
