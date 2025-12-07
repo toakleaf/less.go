@@ -893,26 +893,12 @@ func (p *Parsers) Declaration() any {
 			}
 
 			if value != nil {
-				// For anonymous values, check if they contain !important
-				// BUT: if this is a merge declaration (merge != ""), keep !important inline
-				// because merged values preserve !important position in Less.js
-				// e.g., "prop+_: value1 !important; prop+_: value2;" → "prop: value1 !important value2;"
-				if merge == "" {
-					if anon, ok := value.(*Anonymous); ok {
-						if str, ok := anon.Value.(string); ok && strings.Contains(str, "!important") {
-							// Extract the value without !important
-							parts := strings.Split(str, "!")
-							if len(parts) >= 2 {
-								anon.Value = strings.TrimSpace(parts[0])
-								important = "!important"
-							}
-						}
-					}
-				}
-				// Still try to parse important flag in case it's after the anonymous value
-				if important == nil {
-					important = p.Important()
-				}
+				// Anonymous values in Less.js absorb the ';' and include any !important
+				// as part of the value text. They are output as-is, preserving original
+				// formatting including whitespace around !important.
+				// Unlike regular values where !important is parsed separately,
+				// anonymous values don't have their !important extracted.
+				// The important parameter is set to false for anonymous values.
 				p.parser.parserInput.Forget()
 				// Pass merge as-is (string "+" or "+_")
 			var mergeFlag any
