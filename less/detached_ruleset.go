@@ -112,6 +112,7 @@ func (dr *DetachedRuleset) CallEval(context any) any {
 
 	if dr.frames != nil {
 		// Create concatenated frames: this.frames.concat(context.frames)
+		// OPTIMIZATION: Use ConcatFrames for pre-allocated concatenation
 		var contextFrames []any
 
 		switch ctx := context.(type) {
@@ -127,7 +128,7 @@ func (dr *DetachedRuleset) CallEval(context any) any {
 			// first loop of Ruleset.Eval. They should only be added when the spliced
 			// result is re-evaluated in the second loop with the actual parent context.
 			newEval := &Eval{
-				Frames:            append(dr.frames, contextFrames...),
+				Frames:            ConcatFrames(dr.frames, contextFrames),
 				Compress:          ctx.Compress,
 				Math:              ctx.Math,
 				StrictUnits:       ctx.StrictUnits,
@@ -167,8 +168,7 @@ func (dr *DetachedRuleset) CallEval(context any) any {
 			if frames, ok := ctx["frames"].([]any); ok {
 				contextFrames = frames
 			}
-			newFrames := append(dr.frames, contextFrames...)
-			contextMap["frames"] = newFrames
+			contextMap["frames"] = ConcatFrames(dr.frames, contextFrames)
 			evalContext = contextMap
 		default:
 			// Fallback for unknown context types

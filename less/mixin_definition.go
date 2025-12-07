@@ -487,7 +487,9 @@ func (md *MixinDefinition) EvalParams(context any, mixinEnv any, args []any, eva
 									defaultParamEnv.(map[string]any)[k] = v
 								}
 								if frames, ok := mixinEnvMap["frames"].([]any); ok {
-									updatedFrames := []any{frame}
+									// OPTIMIZATION: Pre-allocate updatedFrames with exact capacity
+									updatedFrames := make([]any, 0, 1+len(frames))
+									updatedFrames = append(updatedFrames, frame)
 									updatedFrames = append(updatedFrames, frames...)
 									defaultParamEnv.(map[string]any)["frames"] = updatedFrames
 								}
@@ -510,7 +512,9 @@ func (md *MixinDefinition) EvalParams(context any, mixinEnv any, args []any, eva
 									defaultParamEnv.(map[string]any)[k] = v
 								}
 								if frames, ok := mixinEnvMap["frames"].([]any); ok {
-									updatedFrames := []any{frame}
+									// OPTIMIZATION: Pre-allocate updatedFrames with exact capacity
+									updatedFrames := make([]any, 0, 1+len(frames))
+									updatedFrames = append(updatedFrames, frame)
 									updatedFrames = append(updatedFrames, frames...)
 									defaultParamEnv.(map[string]any)["frames"] = updatedFrames
 								}
@@ -656,11 +660,12 @@ func (md *MixinDefinition) EvalCall(context any, args []any, important bool) (*R
 	// fmt.Printf("DEBUG EvalCall: mixin=%s, args=%d, arguments pre-allocated=%d\n", md.Name, len(args), len(arguments))
 	
 	// Determine mixin frames
+	// OPTIMIZATION: Use ConcatFrames for pre-allocated concatenation
 	var mixinFrames []any
 	if md.Frames != nil {
 		if ctx, ok := context.(map[string]any); ok {
 			if ctxFrames, ok := ctx["frames"].([]any); ok {
-				mixinFrames = append(md.Frames, ctxFrames...)
+				mixinFrames = ConcatFrames(md.Frames, ctxFrames)
 			} else {
 				mixinFrames = md.Frames
 			}
@@ -949,11 +954,12 @@ func (md *MixinDefinition) MatchCondition(args []any, context any) bool {
 	// Create evaluation context similar to JavaScript version
 	// Match JavaScript: new contexts.Eval(context, this.frames ? this.frames.concat(context.frames) : context.frames)
 	// This preserves all context properties (including defaultFunc) while updating frames
+	// OPTIMIZATION: Use ConcatFrames for pre-allocated concatenation
 	var mixinFrames []any
 	if md.Frames != nil {
 		if ctx, ok := context.(map[string]any); ok {
 			if ctxFrames, ok := ctx["frames"].([]any); ok {
-				mixinFrames = append(md.Frames, ctxFrames...)
+				mixinFrames = ConcatFrames(md.Frames, ctxFrames)
 			} else {
 				mixinFrames = md.Frames
 			}
@@ -1000,20 +1006,29 @@ func (md *MixinDefinition) MatchCondition(args []any, context any) bool {
 		return false
 	}
 
-	evalFrames := []any{paramFrame}
-	if md.Frames != nil {
-		evalFrames = append(evalFrames, md.Frames...)
-	}
-
-	// Get additional frames from context
+	// OPTIMIZATION: Pre-calculate total capacity for evalFrames to avoid reallocations
+	var contextFramesLen int
+	var contextFrames []any
 	if evalCtx, ok := context.(*Eval); ok {
 		if evalCtx.Frames != nil {
-			evalFrames = append(evalFrames, evalCtx.Frames...)
+			contextFrames = evalCtx.Frames
+			contextFramesLen = len(evalCtx.Frames)
 		}
 	} else if ctx, ok := context.(map[string]any); ok {
 		if ctxFrames, ok := ctx["frames"].([]any); ok {
-			evalFrames = append(evalFrames, ctxFrames...)
+			contextFrames = ctxFrames
+			contextFramesLen = len(ctxFrames)
 		}
+	}
+
+	evalFramesCap := 1 + len(md.Frames) + contextFramesLen
+	evalFrames := make([]any, 0, evalFramesCap)
+	evalFrames = append(evalFrames, paramFrame)
+	if md.Frames != nil {
+		evalFrames = append(evalFrames, md.Frames...)
+	}
+	if contextFrames != nil {
+		evalFrames = append(evalFrames, contextFrames...)
 	}
 
 	// Create evaluation context preserving type

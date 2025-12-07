@@ -163,3 +163,37 @@ func FlattenArray(arr []any, result ...[]any) []any {
 func IsNullOrUndefined(val any) bool {
 	return val == nil
 }
+
+// ConcatFrames concatenates multiple frame slices with pre-allocated capacity
+// to avoid multiple allocations during append operations.
+// This is a performance optimization for frame concatenation which happens
+// frequently during mixin evaluation.
+func ConcatFrames(slices ...[]any) []any {
+	// Calculate total capacity
+	totalLen := 0
+	for _, s := range slices {
+		totalLen += len(s)
+	}
+	if totalLen == 0 {
+		return nil
+	}
+	// Pre-allocate with exact capacity
+	result := make([]any, 0, totalLen)
+	for _, s := range slices {
+		result = append(result, s...)
+	}
+	return result
+}
+
+// PrependToFrames prepends elements to a frames slice with pre-allocated capacity.
+// This is optimized for the common pattern of prepending 1-2 frames to an existing slice.
+func PrependToFrames(prefix []any, frames []any) []any {
+	totalLen := len(prefix) + len(frames)
+	if totalLen == 0 {
+		return nil
+	}
+	result := make([]any, totalLen)
+	copy(result, prefix)
+	copy(result[len(prefix):], frames)
+	return result
+}
