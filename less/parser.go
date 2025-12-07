@@ -894,13 +894,18 @@ func (p *Parsers) Declaration() any {
 
 			if value != nil {
 				// For anonymous values, check if they contain !important
-				if anon, ok := value.(*Anonymous); ok {
-					if str, ok := anon.Value.(string); ok && strings.Contains(str, "!important") {
-						// Extract the value without !important
-						parts := strings.Split(str, "!")
-						if len(parts) >= 2 {
-							anon.Value = strings.TrimSpace(parts[0])
-							important = "!important"
+				// BUT: if this is a merge declaration (merge != ""), keep !important inline
+				// because merged values preserve !important position in Less.js
+				// e.g., "prop+_: value1 !important; prop+_: value2;" → "prop: value1 !important value2;"
+				if merge == "" {
+					if anon, ok := value.(*Anonymous); ok {
+						if str, ok := anon.Value.(string); ok && strings.Contains(str, "!important") {
+							// Extract the value without !important
+							parts := strings.Split(str, "!")
+							if len(parts) >= 2 {
+								anon.Value = strings.TrimSpace(parts[0])
+								important = "!important"
+							}
 						}
 					}
 				}
