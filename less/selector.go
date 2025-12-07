@@ -251,18 +251,14 @@ func (s *Selector) CreateDerived(elementsInput any, extendList []any, evaldCondi
 	// will be based on the evaldConditionFromEval parameter or the original s.evaldCondition.
 
 	// Handle potential nil Node
-	index := 0
+	// OPTIMIZATION: Only allocate maps when s.Node is nil.
+	// When s.Node is not nil, use the existing FileInfo and VisibilityInfo.
+	var index int
+	var fileInfo map[string]any
+	var visibilityInfo map[string]any
 	if s.Node != nil {
 		index = s.GetIndex()
-	}
-
-	fileInfo := make(map[string]any)
-	if s.Node != nil {
 		fileInfo = s.FileInfo()
-	}
-
-	visibilityInfo := make(map[string]any)
-	if s.Node != nil {
 		visibilityInfo = s.VisibilityInfo()
 	}
 
