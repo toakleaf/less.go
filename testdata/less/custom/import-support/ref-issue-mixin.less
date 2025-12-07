@@ -1,0 +1,20 @@
+// Mixin file for reference import testing
+.reference-mixin() {
+  ref-mixin: applied;
+  another: property;
+}
+
+.visible-class {
+  should-be: visible;
+}
+
+// Mixin with & selector (issue #1968 pattern)
+.button-mixin() {
+  padding: 10px;
+  &-primary {
+    background: blue;
+  }
+  &:disabled {
+    opacity: 0.5;
+  }
+}

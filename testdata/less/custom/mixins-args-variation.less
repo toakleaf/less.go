@@ -1,0 +1,164 @@
+// Variation test inspired by math/strict/mixins-args
+// Tests mixin argument patterns: defaults, named args, rest params, etc.
+
+// Test 1: Basic mixin with defaults
+.box-shadow(@x: 0, @y: 0, @blur: 5px, @color: rgba(0,0,0,0.5)) {
+  box-shadow: @x @y @blur @color;
+}
+
+.shadow-default {
+  .box-shadow();
+}
+
+.shadow-partial {
+  .box-shadow(2px, 2px);
+}
+
+.shadow-full {
+  .box-shadow(5px, 5px, 10px, rgba(0,0,0,0.8));
+}
+
+// Test 2: Named arguments
+.named-call {
+  .box-shadow(@color: red, @blur: 20px);
+}
+
+// Test 3: Mixin with rest params
+.flex-container(@display: flex, @rest...) {
+  display: @display;
+  flex-properties: @rest;
+}
+
+.flex-test {
+  .flex-container(flex, row, wrap, center);
+}
+
+// Test 4: @arguments keyword
+.border-style(@width: 1px, @style: solid, @color: black) {
+  border: @arguments;
+}
+
+.border-test {
+  .border-style();
+}
+
+.border-custom {
+  .border-style(2px, dashed, blue);
+}
+
+// Test 5: Mixin with computed defaults
+@default-size: 16px;
+.font-size(@size: @default-size, @line: (@size * 1.5)) {
+  font-size: @size;
+  line-height: @line;
+}
+
+.text-default {
+  .font-size();
+}
+
+.text-custom {
+  .font-size(20px);
+}
+
+// Test 6: Semi-colon vs comma delimiters
+.delimiter-test(@a; @b) {
+  first: @a;
+  second: @b;
+}
+
+.semi-colon-test {
+  .delimiter-test(@a: foo; @b: bar, baz);
+}
+
+// Test 7: Variadic mixin with named arg
+.variadic(@first, @rest...) {
+  first-arg: @first;
+  rest-args: @rest;
+  all-args: @arguments;
+}
+
+.variadic-test {
+  .variadic(a, b, c, d);
+}
+
+// Test 8: Default referencing previous arg
+.cascade-defaults(@a: 10px, @b: @a, @c: @b) {
+  a: @a;
+  b: @b;
+  c: @c;
+}
+
+.cascade-test-1 {
+  .cascade-defaults();
+}
+
+.cascade-test-2 {
+  .cascade-defaults(20px);
+}
+
+.cascade-test-3 {
+  .cascade-defaults(5px, 15px);
+}
+
+// Test 9: Slash in default values (border-radius pattern)
+.rounded(@radius: 4px/8px) {
+  border-radius: @radius;
+}
+
+.rounded-default {
+  .rounded();
+}
+
+.rounded-custom {
+  .rounded(10px/20px);
+}
+
+.rounded-calc {
+  .rounded((5px * 2));
+}
+
+// Test 10: Complex named argument override
+.complex-mixin(@a: defA, @b: defB, @c: defC, @d: defD) {
+  values: @a, @b, @c, @d;
+}
+
+.complex-test {
+  .complex-mixin(1, 2, 3, @a: override-a);
+  .complex-mixin(@d: d-first, 1, 2, 3);
+}
+
+// Test 11: Comma in default value (use semicolon as separator)
+.comma-default(@items: one, two, three;) {
+  items: @items;
+}
+
+.comma-test {
+  .comma-default();
+}
+
+.comma-override {
+  .comma-default(a, b, c, d;);
+}
+
+// Test 12: Nested mixin call
+.outer-mixin(@val) {
+  .inner-mixin(@inner-val: @val) {
+    value: @inner-val;
+  }
+  .inner-mixin();
+}
+
+.nested-test {
+  .outer-mixin(test-value);
+}
+
+// Test 13: Spread operator style
+.spread-mixin(@a, @b, @c) {
+  spread-result: @a, @b, @c;
+}
+
+@list-values: 1, 2, 3;
+.spread-test {
+  .spread-mixin(@list-values...);
+}

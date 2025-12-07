@@ -1,0 +1,79 @@
+.shadow-default {
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+}
+.shadow-partial {
+  box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5);
+}
+.shadow-full {
+  box-shadow: 5px 5px 10px rgba(0, 0, 0, 0.8);
+}
+.named-call {
+  box-shadow: 0 0 20px red;
+}
+.flex-test {
+  display: flex;
+  flex-properties: row wrap center;
+}
+.border-test {
+  border: 1px solid black;
+}
+.border-custom {
+  border: 2px dashed blue;
+}
+.text-default {
+  font-size: 16px;
+  line-height: 24px;
+}
+.text-custom {
+  font-size: 20px;
+  line-height: 30px;
+}
+.semi-colon-test {
+  first: foo;
+  second: bar, baz;
+}
+.variadic-test {
+  first-arg: a;
+  rest-args: b c d;
+  all-args: a b c d;
+}
+.cascade-test-1 {
+  a: 10px;
+  b: 10px;
+  c: 10px;
+}
+.cascade-test-2 {
+  a: 20px;
+  b: 20px;
+  c: 20px;
+}
+.cascade-test-3 {
+  a: 5px;
+  b: 15px;
+  c: 15px;
+}
+.rounded-default {
+  border-radius: 4px/8px;
+}
+.rounded-custom {
+  border-radius: 10px/20px;
+}
+.rounded-calc {
+  border-radius: 10px;
+}
+.complex-test {
+  values: override-a, 1, 2, 3;
+  values: 1, 2, 3, d-first;
+}
+.comma-test {
+  items: one, two, three;
+}
+.comma-override {
+  items: a, b, c, d;
+}
+.nested-test {
+  value: test-value;
+}
+.spread-test {
+  spread-result: 1, 2, 3;
+}

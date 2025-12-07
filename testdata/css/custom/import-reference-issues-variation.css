@@ -1,0 +1,39 @@
+.extended-class {
+  background: green;
+}
+.extended-class {
+  extra-prop: added;
+}
+.button:hover {
+  color: red;
+}
+.button:focus {
+  color: blue;
+}
+.button:hover {
+  color: red;
+}
+.button:focus {
+  color: blue;
+}
+.use-namespaced-mixin {
+  ref-mixin: applied;
+  another: property;
+  should-have: mixin-above;
+}
+#hidden-wrapper .extends-deep {
+  from-nested: file;
+}
+.extends-deep {
+  own-prop: value;
+}
+.extended-class {
+  background: green;
+}
+.multiple-ref-test {
+  testing: multiple;
+}
+.call-mixin-with-reference {
+  first-prop: before-reference;
+  after-mixin: property;
+}

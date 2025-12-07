@@ -1,0 +1,16 @@
+.one,
+.imported-content {
+  color: red;
+}
+.two {
+  color: blue;
+}
+.three {
+  color: green;
+}
+.imported-content {
+  additional-property: test;
+}
+.var-after-import {
+  content: imported-module-test;
+}

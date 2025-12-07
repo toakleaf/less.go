@@ -1,0 +1,123 @@
+// Variation test inspired by math/strict/css
+// Tests CSS output preservation and formatting patterns
+
+@charset "utf-8";
+
+// Test 1: Basic selectors
+div { color: black; }
+div { width: 99%; }
+
+* {
+  min-width: 45em;
+}
+
+// Test 2: Complex selectors
+h1, h2 > a > p, h3 {
+  color: none;
+}
+
+div.class {
+  color: blue;
+}
+
+div#id {
+  color: green;
+}
+
+.class#id {
+  color: purple;
+}
+
+.one.two.three {
+  color: grey;
+}
+
+// Test 3: Media queries
+@media print {
+  * {
+    font-size: 3em;
+  }
+}
+
+@media screen {
+  * {
+    font-size: 10px;
+  }
+}
+
+// Test 4: Font-face
+@font-face {
+  font-family: 'Test Font';
+}
+
+// Test 5: Pseudo selectors
+a:hover, a:link {
+  color: #999;
+}
+
+p, p:first-child {
+  text-transform: none;
+}
+
+q:lang(no) {
+  quotes: none;
+}
+
+// Test 6: Adjacent sibling
+p + h1 {
+  font-size: 2.2em;
+}
+
+// Test 7: Shorthands with slashes
+#shorthand-tests {
+  border: 1px solid #000;
+  font: 12px/16px Arial;
+  font: 100%/16px Arial;
+  margin: 1px 0;
+  padding: 0 auto;
+}
+
+#more-shorthand-tests {
+  margin: 0;
+  padding: 1px 0 2px 0;
+  font: normal small/20px 'Trebuchet MS', Verdana, sans-serif;
+  font: 0/0 a;
+  border-radius: 5px / 10px;
+}
+
+// Test 8: Vendor prefixes and special values
+.browser-specific {
+  -moz-border-radius: 2px;
+  display: -moz-inline-stack;
+  width: 0.1em;
+  background-color: #009998;
+  background: -webkit-gradient(linear, left top, left bottom, from(red), to(blue));
+  margin: ;
+  .nested-in-misc {
+    multiple-semi-colons: yes;;;;;;
+  };
+  filter: alpha(opacity=100);
+  width: auto\9;
+}
+
+// Test 9: Important declarations
+#important-tests {
+  color: red !important;
+  width: 100%!important;
+  height: 20px ! important;
+}
+
+// Test 10: Dynamic font-face via mixin
+.define-font(@name) {
+  @font-face {
+    font-family: @name
+  }
+}
+
+.define-font(custom-font-a);
+.define-font(custom-font-b);
+
+// Test 11: Unicode characters
+.unicode-test {
+  margin: 0;
+}

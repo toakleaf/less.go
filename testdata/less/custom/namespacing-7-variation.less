@@ -1,0 +1,89 @@
+// Variation test for namespacing-7
+// Tests namespace mixin property access, guards, and detached ruleset access
+
+// Test 1: Basic namespace with options mixin
+#config {
+  .settings() {
+    enabled: true;
+    level: 3;
+    color: red;
+  }
+}
+
+// Test 2: Guard accessing namespace mixin property
+& when (#config.settings[enabled]) {
+  .config-enabled {
+    status: enabled;
+  }
+}
+
+& when (#config.settings[enabled] = true) {
+  .config-enabled-exact {
+    status: exactly-true;
+  }
+}
+
+& when (#config.settings[enabled] = false) {
+  .should-not-appear {
+    status: disabled;
+  }
+}
+
+// Test 3: Numeric comparison in guard
+& when (#config.settings[level] > 2) {
+  .high-level {
+    level: high;
+  }
+}
+
+& when (#config.settings[level] = 3) {
+  .exact-level {
+    level: three;
+  }
+}
+
+// Test 4: Detached ruleset in variable
+@settings: {
+  @theme: {
+    primary: blue;
+    secondary: green;
+  };
+};
+
+// Test 5: Guard with DR property access
+& when (@settings[@theme][primary] = blue) {
+  .theme-is-blue {
+    confirmed: yes;
+  }
+}
+
+// Test 6: Nested namespace access
+#outer {
+  #inner {
+    .deep() {
+      value: deep-value;
+    }
+  }
+}
+
+.access-deep {
+  prop: #outer#inner.deep[value];
+}
+
+// Test 7: Multiple conditions with namespace values
+@flags: {
+  @debug: true;
+  @production: false;
+};
+
+& when (@flags[@debug]) and (not(@flags[@production])) {
+  .development-mode {
+    mode: development;
+  }
+}
+
+// Test 8: Using namespace values in properties
+.styled {
+  color: #config.settings[color];
+  level: #config.settings[level];
+}

@@ -1,0 +1,64 @@
+:root {
+  --color-primary: #3366ff;
+  --color-secondary: #ff6633;
+  --color-success: #33cc66;
+  --color-warning: #ffcc00;
+}
+.buttons-bg-light {
+  background: white;
+  color: #000;
+}
+.buttons-bg-dark {
+  background: black;
+  color: #fff;
+}
+.buttons-bg-blue {
+  background: blue;
+  color: #fff;
+}
+.typography-sm-normal {
+  font-size: 12px;
+  font-weight: 400;
+}
+.typography-sm-bold {
+  font-size: 12px;
+  font-weight: 700;
+}
+.typography-md-normal {
+  font-size: 16px;
+  font-weight: 400;
+}
+.typography-md-bold {
+  font-size: 16px;
+  font-weight: 700;
+}
+.typography-lg-normal {
+  font-size: 24px;
+  font-weight: 400;
+}
+.typography-lg-bold {
+  font-size: 24px;
+  font-weight: 700;
+}
+.card {
+  --card-bg: #f5f5f5;
+  --card-text: #222;
+}
+.grid-sm {
+  order: 1;
+}
+.grid-md {
+  order: 2;
+}
+.grid-lg {
+  order: 3;
+}
+.grid-xl {
+  order: 4;
+}
+.spaced-element {
+  margin-top: 10px;
+  margin-bottom: 20px;
+  padding-left: 15px;
+  padding-right: 15px;
+}

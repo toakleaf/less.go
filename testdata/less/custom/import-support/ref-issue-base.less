@@ -1,0 +1,19 @@
+// Base file with classes for extend testing
+.extendable-class {
+  background: green;
+}
+
+.mixin-with-ampersand() {
+  &:hover {
+    color: red;
+  }
+  &:focus {
+    color: blue;
+  }
+}
+
+.nested-mixin-parent {
+  .nested-mixin() {
+    nested-prop: value;
+  }
+}
