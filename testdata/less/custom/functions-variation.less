@@ -1,0 +1,202 @@
+// Functions variation tests - testing built-in functions with different inputs
+
+#color-functions {
+  // Lighten/darken with different amounts
+  lighten-5: lighten(#336699, 5%);
+  lighten-25: lighten(#336699, 25%);
+  lighten-50: lighten(#336699, 50%);
+  darken-5: darken(#cc6633, 5%);
+  darken-25: darken(#cc6633, 25%);
+  darken-50: darken(#cc6633, 50%);
+
+  // Saturate/desaturate
+  saturate-10: saturate(#8a8a8a, 10%);
+  saturate-50: saturate(#8a8a8a, 50%);
+  desaturate-10: desaturate(#ff6600, 10%);
+  desaturate-50: desaturate(#ff6600, 50%);
+
+  // Spin (hue rotation)
+  spin-30: spin(#ff0000, 30);
+  spin-90: spin(#ff0000, 90);
+  spin-180: spin(#ff0000, 180);
+  spin-neg-45: spin(#00ff00, -45);
+
+  // Mix with different weights
+  mix-default: mix(#ff0000, #0000ff);
+  mix-25: mix(#ff0000, #0000ff, 25);
+  mix-75: mix(#ff0000, #0000ff, 75);
+
+  // Tint and shade
+  tint-10: tint(#007bff, 10%);
+  tint-50: tint(#007bff, 50%);
+  shade-10: shade(#007bff, 10%);
+  shade-50: shade(#007bff, 50%);
+
+  // Fade in/out
+  fade-50: fade(#ff0000, 50%);
+  fadeout-25: fadeout(rgba(255,0,0,1), 25%);
+  fadein-25: fadein(rgba(255,0,0,0.5), 25%);
+
+  // Color component extraction
+  @test-color: hsl(210, 50%, 40%);
+  hue-val: hue(@test-color);
+  sat-val: saturation(@test-color);
+  light-val: lightness(@test-color);
+
+  @rgb-color: rgb(100, 150, 200);
+  red-val: red(@rgb-color);
+  green-val: green(@rgb-color);
+  blue-val: blue(@rgb-color);
+
+  // Alpha manipulation
+  alpha-val: alpha(rgba(0, 0, 0, 0.7));
+}
+
+#math-functions {
+  // Rounding
+  round-default: round(3.7);
+  round-decimals: round(3.14159, 2);
+  ceil-val: ceil(4.2);
+  floor-val: floor(4.8);
+
+  // Absolute and signs
+  abs-negative: abs(-25);
+  abs-positive: abs(25);
+
+  // Power and roots
+  pow-2: pow(3, 2);
+  pow-3: pow(2, 3);
+  sqrt-val: sqrt(16);
+  sqrt-decimal: sqrt(2);
+
+  // Trigonometry
+  sin-0: sin(0);
+  sin-90: sin(90deg);
+  cos-0: cos(0);
+  cos-90: cos(90deg);
+  tan-45: tan(45deg);
+
+  // Min/max
+  min-numbers: min(5, 3, 8, 1, 9);
+  max-numbers: max(5, 3, 8, 1, 9);
+  min-units: min(10px, 5px, 20px);
+  max-units: max(10px, 5px, 20px);
+
+  // Mod
+  mod-positive: mod(11, 3);
+  mod-negative: mod(-11, 3);
+
+  // Percentage
+  percent-1: percentage(0.5);
+  percent-2: percentage((1/3));
+}
+
+#string-functions {
+  // Escape
+  escaped: e("-webkit-filter: blur(5px)");
+
+  // Replace
+  replace-simple: replace("hello world", "world", "universe");
+  replace-regex: replace("foo-123-bar", "[0-9]+", "XXX");
+  replace-global: replace("aaa-bbb-aaa", "aaa", "ccc", "g");
+  replace-case: replace("Hello HELLO", "hello", "hi", "gi");
+
+  // Format
+  format-d: %("value: %d", 42);
+  format-s: %("name: %s", "test");
+  format-multi: %("coords: %d, %d", 10, 20);
+  format-a: %("color: %a", red);
+}
+
+#unit-functions {
+  // Unit manipulation
+  unit-strip: unit(50px);
+  unit-convert: unit(50, em);
+  unit-get: get-unit(100vh);
+  unit-get-empty: get-unit(42);
+
+  // Convert
+  convert-cm-mm: convert(2cm, mm);
+  convert-in-cm: convert(1in, cm);
+  convert-rad-deg: convert(3.14159rad, deg);
+}
+
+#type-checking {
+  .is-checks {
+    is-color-hex: iscolor(#fff);
+    is-color-name: iscolor(red);
+    is-color-rgb: iscolor(rgb(0,0,0));
+    is-number: isnumber(42);
+    is-string: isstring("hello");
+    is-keyword: iskeyword(solid);
+    is-pixel: ispixel(10px);
+    is-em: isem(2em);
+    is-percent: ispercentage(50%);
+    is-unit-rem: isunit(1.5rem, rem);
+  }
+}
+
+#boolean-and-if {
+  // Boolean operations
+  bool-and: boolean(true and true);
+  bool-or: boolean(true or false);
+  bool-not: boolean(not false);
+  bool-comparison: boolean(5 > 3);
+  bool-equal: boolean(5 = 5);
+
+  // If function
+  if-true: if(true, "yes", "no");
+  if-false: if(false, "yes", "no");
+  if-comparison: if((10 > 5), "greater", "lesser");
+  if-color-check: if(iscolor(red), "is-color", "not-color");
+  if-no-else: if(true, "only-true");
+
+  // Nested conditions
+  @val: 15;
+  if-nested: if((@val > 10), if((@val > 20), "large", "medium"), "small");
+}
+
+#contrast-function {
+  // Contrast with different backgrounds
+  contrast-white: contrast(#ffffff);
+  contrast-black: contrast(#000000);
+  contrast-gray: contrast(#808080);
+  contrast-custom: contrast(#333333, #ffffff, #000000);
+  contrast-threshold: contrast(#555555, #ffffff, #000000, 0.5);
+}
+
+#blend-modes {
+  @base: #ff6600;
+  @blend: #0066ff;
+
+  multiply: multiply(@base, @blend);
+  screen: screen(@base, @blend);
+  overlay: overlay(@base, @blend);
+  softlight: softlight(@base, #ffffff);
+  hardlight: hardlight(@base, @blend);
+  difference: difference(@base, @blend);
+  exclusion: exclusion(@base, @blend);
+  average: average(@base, @blend);
+  negation: negation(@base, @blend);
+}
+
+#hsv-functions {
+  // HSV color creation
+  hsv-color: hsv(200, 60%, 80%);
+  hsva-color: hsva(200, 60%, 80%, 0.5);
+
+  // HSV extraction
+  @hsv-test: hsv(120, 50%, 75%);
+  hsv-hue: hsvhue(@hsv-test);
+  hsv-sat: hsvsaturation(@hsv-test);
+  hsv-val: hsvvalue(@hsv-test);
+}
+
+#luma-luminance {
+  luma-white: luma(#ffffff);
+  luma-black: luma(#000000);
+  luma-red: luma(#ff0000);
+  luma-green: luma(#00ff00);
+  luma-blue: luma(#0000ff);
+  luminance-test: luminance(#808080);
+}

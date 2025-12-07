@@ -1,0 +1,14 @@
+.dark-theme {
+  background: #222;
+  color: #eee;
+}
+.themed-box {
+  background: #222;
+  color: #eee;
+  padding: 20px;
+}
+.centered-element {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}

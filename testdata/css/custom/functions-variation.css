@@ -1,0 +1,136 @@
+#color-functions {
+  lighten-5: #3973ac;
+  lighten-25: #79a6d2;
+  lighten-50: #d9e6f2;
+  darken-5: #b85c2e;
+  darken-25: #663319;
+  darken-50: #000000;
+  saturate-10: #967e7e;
+  saturate-50: #c45050;
+  desaturate-10: #f2690d;
+  desaturate-50: #bf7340;
+  spin-30: #ff8000;
+  spin-90: #80ff00;
+  spin-180: #00ffff;
+  spin-neg-45: #bfff00;
+  mix-default: #800080;
+  mix-25: #4000bf;
+  mix-75: #bf0040;
+  tint-10: #1988ff;
+  tint-50: #80bdff;
+  shade-10: #006fe6;
+  shade-50: #003e80;
+  fade-50: rgba(255, 0, 0, 0.5);
+  fadeout-25: rgba(255, 0, 0, 0.75);
+  fadein-25: rgba(255, 0, 0, 0.75);
+  hue-val: 210;
+  sat-val: 50%;
+  light-val: 40%;
+  red-val: 100;
+  green-val: 150;
+  blue-val: 200;
+  alpha-val: 0.7;
+}
+#math-functions {
+  round-default: 4;
+  round-decimals: 3.14;
+  ceil-val: 5;
+  floor-val: 4;
+  abs-negative: 25;
+  abs-positive: 25;
+  pow-2: 9;
+  pow-3: 8;
+  sqrt-val: 4;
+  sqrt-decimal: 1.41421356;
+  sin-0: 0;
+  sin-90: 1;
+  cos-0: 1;
+  cos-90: 0;
+  tan-45: 1;
+  min-numbers: 1;
+  max-numbers: 9;
+  min-units: 5px;
+  max-units: 20px;
+  mod-positive: 2;
+  mod-negative: -2;
+  percent-1: 50%;
+  percent-2: 33.33333333%;
+}
+#string-functions {
+  escaped: -webkit-filter: blur(5px);
+  replace-simple: "hello universe";
+  replace-regex: "foo-XXX-bar";
+  replace-global: "ccc-bbb-ccc";
+  replace-case: "hi hi";
+  format-d: "value: 42";
+  format-s: "name: test";
+  format-multi: "coords: 10, 20";
+  format-a: "color: red";
+}
+#unit-functions {
+  unit-strip: 50;
+  unit-convert: 50em;
+  unit-get: vh;
+  unit-get-empty: ;
+  convert-cm-mm: 20mm;
+  convert-in-cm: 2.54cm;
+  convert-rad-deg: 179.99984796deg;
+}
+#type-checking .is-checks {
+  is-color-hex: true;
+  is-color-name: true;
+  is-color-rgb: true;
+  is-number: true;
+  is-string: true;
+  is-keyword: true;
+  is-pixel: true;
+  is-em: true;
+  is-percent: true;
+  is-unit-rem: true;
+}
+#boolean-and-if {
+  bool-and: true;
+  bool-or: true;
+  bool-not: false;
+  bool-comparison: true;
+  bool-equal: true;
+  if-true: "yes";
+  if-false: "no";
+  if-comparison: "greater";
+  if-color-check: "is-color";
+  if-no-else: "only-true";
+  if-nested: "medium";
+}
+#contrast-function {
+  contrast-white: #000000;
+  contrast-black: #ffffff;
+  contrast-gray: #ffffff;
+  contrast-custom: #ffffff;
+  contrast-threshold: #ffffff;
+}
+#blend-modes {
+  multiply: #002900;
+  screen: #ffa3ff;
+  overlay: #ff5200;
+  softlight: #ffa100;
+  hardlight: #0052ff;
+  difference: #ff00ff;
+  exclusion: #ff7aff;
+  average: #806680;
+  negation: #ffccff;
+}
+#hsv-functions {
+  hsv-color: #52a3cc;
+  hsva-color: rgba(82, 163, 204, 0.5);
+  hsv-hue: 120;
+  hsv-sat: 50%;
+  hsv-val: 75%;
+}
+#luma-luminance {
+  luma-white: 100%;
+  luma-black: 0%;
+  luma-red: 21.26%;
+  luma-green: 71.52%;
+  luma-blue: 7.22%;
+  luminance-test: 50.19607843%;
+}

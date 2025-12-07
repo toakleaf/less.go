@@ -1,0 +1,97 @@
+.base-alert,
+.custom-alert {
+  padding: 10px;
+  margin: 5px;
+}
+.base-alert.warning,
+.custom-alert.warning {
+  color: orange;
+}
+.base-alert .icon,
+.custom-alert .icon {
+  display: inline-block;
+}
+.custom-alert {
+  border: 1px solid;
+}
+a[href],
+.link-styled {
+  text-decoration: underline;
+}
+a[href].external,
+.link-styled.external {
+  color: blue;
+}
+button:hover,
+.btn-hover-effect {
+  opacity: 0.8;
+}
+button:hover:focus,
+.btn-hover-effect:focus {
+  outline: 2px solid blue;
+}
+.shadow,
+.card {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+.rounded,
+.card {
+  border-radius: 4px;
+}
+.card {
+  padding: 20px;
+}
+li:nth-child(odd),
+.striped-item {
+  background: #f5f5f5;
+}
+li:nth-child(even) {
+  background: #fff;
+}
+.parent > .child,
+.flex-container {
+  display: flex;
+}
+.parent + .sibling,
+.spaced-sibling {
+  margin-top: 10px;
+}
+.parent ~ .any-sibling {
+  opacity: 0.5;
+}
+.responsive,
+.tablet-layout {
+  width: 100%;
+}
+@media (min-width: 768px) {
+  .responsive,
+  .tablet-layout {
+    width: 50%;
+  }
+}
+.btn-primary,
+.main-button {
+  background: blue;
+  color: white;
+}
+.btn-primary:hover,
+.main-button:hover {
+  background: darkblue;
+}
+.main-button {
+  padding: 10px 20px;
+}
+.foo,
+.bar,
+.baz,
+.baz {
+  font-weight: bold;
+}
+.alpha,
+.gamma {
+  color: red;
+}
+.beta,
+.gamma {
+  color: blue;
+}
