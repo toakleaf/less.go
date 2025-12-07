@@ -818,11 +818,14 @@ func isPluginTest(testName string) bool {
 	if strings.HasPrefix(testName, "plugin") {
 		return true
 	}
+	// Tests that contain "javascript" in the name (e.g., "javascript", "var-javascript")
+	if strings.Contains(testName, "javascript") {
+		return true
+	}
 	// Other tests that use @plugin directive or require Node.js runtime
 	pluginTests := map[string]bool{
 		"import":     true, // Uses @plugin "../../plugin/plugin-simple"
 		"bootstrap4": true, // Uses @plugin directives for breakpoints, map-get, color-yiq, etc.
-		"javascript": true, // Uses inline JavaScript evaluation which requires Node.js runtime
 	}
 	return pluginTests[testName]
 }

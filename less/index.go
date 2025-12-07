@@ -357,6 +357,9 @@ func createRender(env any, parseTree any, importManager any) func(string, ...any
 					if processImports, ok := opts["processImports"].(bool); ok {
 						toCSSOptions.ProcessImports = processImports
 					}
+					if javascriptEnabled, ok := opts["javascriptEnabled"].(bool); ok {
+						toCSSOptions.JavascriptEnabled = javascriptEnabled
+					}
 				}
 
 				func() {
