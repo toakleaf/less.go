@@ -8,7 +8,8 @@ import (
 // Paren represents a parenthesized value in the Less AST
 type Paren struct {
 	*Node
-	Value any // This will store the node value
+	Value     any  // This will store the node value
+	NoSpacing bool // When true, no space should be added before this paren
 }
 
 // NewParen creates a new Paren instance with the provided node as value
@@ -49,7 +50,12 @@ func (p *Paren) Eval(context any) any {
 		}
 	}
 
-	return NewParen(evaluatedValue)
+	newParen := NewParen(evaluatedValue)
+	// Preserve NoSpacing through evaluation
+	if p.NoSpacing {
+		newParen.NoSpacing = true
+	}
+	return newParen
 }
 
 func (p *Paren) ToCSS(context any) string {

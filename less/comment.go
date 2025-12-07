@@ -9,9 +9,12 @@ type Comment struct {
 }
 
 func NewComment(value string, isLineComment bool, index int, currentFileInfo map[string]any) *Comment {
+	node := NewNode()
+	node.TypeIndex = GetTypeIndexForNodeType("Comment")
+
 	comment := &Comment{
-		Node:         NewNode(),
-		Value:        value,
+		Node:          node,
+		Value:         value,
 		IsLineComment: isLineComment,
 	}
 	comment.Index = index

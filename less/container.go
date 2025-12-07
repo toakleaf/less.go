@@ -166,6 +166,9 @@ func (c *Container) Eval(context any) (any, error) {
 			return nil, err
 		}
 
+		// Combine Keyword + Paren patterns with NoSpacing for function-like constructs (e.g., scroll-state(stuck: top))
+		evaluated = combineKeywordParenPatterns(evaluated)
+
 		if featuresValue, ok := evaluated.(*Value); ok {
 			media.Features = featuresValue
 		} else {

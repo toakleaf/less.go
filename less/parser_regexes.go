@@ -87,6 +87,12 @@ var (
 	reWordIdent     = regexp.MustCompile(`^[\w-]+`)
 )
 
+// Media feature patterns
+var (
+	// Matches when there's whitespace before opening paren, used to detect spacing for function-like syntax
+	reSpacingBeforeParen = regexp.MustCompile(`^[0-9a-z-]*\s+\(`)
+)
+
 // Combinator patterns
 var (
 	reCombinatorSlashed = regexp.MustCompile(`^\/[a-z]+\/`)

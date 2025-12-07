@@ -1933,6 +1933,13 @@ func (p *Parsers) AtRule() any {
 	case "@document", "@supports":
 		hasUnknown = true
 		isRooted = false
+	case "@starting-style":
+		// @starting-style should stay nested (CSS native nesting), not bubble up
+		isRooted = false
+	case "@layer":
+		// @layer should allow selector bubbling when nested inside rulesets
+		hasUnknown = true
+		isRooted = false
 	default:
 		hasUnknown = true
 	}
@@ -2219,10 +2226,19 @@ func (p *Parsers) MediaFeature(syntaxOptions map[string]any) any {
 	var e any
 	var prop any
 	var rangeProp any
+	spacing := false // Tracks if there's whitespace before '('
 
 	p.parser.parserInput.Save()
 
 	for {
+		// Check if there's whitespace before a potential '('
+		// This matches JavaScript: parserInput.$re(/^[0-9a-z-]*\s+\(/)
+		p.parser.parserInput.Save()
+		if p.parser.parserInput.Re(reSpacingBeforeParen) != nil {
+			spacing = true
+		}
+		p.parser.parserInput.Restore("")
+
 		e = entities.DeclarationCall()
 		if e == nil {
 			e = entities.Keyword()
@@ -2269,6 +2285,7 @@ func (p *Parsers) MediaFeature(syntaxOptions map[string]any) any {
 			}
 
 			if p.parser.parserInput.Char(')') != nil {
+				var paren *Paren
 				if prop != nil && e == nil {
 					// Create QueryInParens node
 					var queryInParens any
@@ -2283,15 +2300,28 @@ func (p *Parsers) MediaFeature(syntaxOptions map[string]any) any {
 						}
 						queryInParens = NewQueryInParens(condition.Op, condition.Lvalue, condition.Rvalue, rangeOp, rangeValue, condition.Index)
 					}
-					nodes = append(nodes, NewParen(queryInParens))
+					paren = NewParen(queryInParens)
 					e = prop
 				} else if prop != nil && e != nil {
 					decl, _ := NewDeclaration(prop, e, nil, false, p.parser.parserInput.GetIndex()+p.parser.currentIndex, p.parser.fileInfo, true, false)
-					nodes = append(nodes, NewParen(decl))
+					paren = NewParen(decl)
+					// When there's no spacing before paren, set NoSpacing
+					if !spacing {
+						paren.NoSpacing = true
+					}
+					spacing = false // Reset for next iteration
 				} else if e != nil {
-					nodes = append(nodes, NewParen(e))
+					paren = NewParen(e)
+					// When there's no spacing before paren, set NoSpacing
+					if !spacing {
+						paren.NoSpacing = true
+					}
+					spacing = false // Reset for next iteration
 				} else {
 					p.parser.error("badly formed media feature definition", "")
+				}
+				if paren != nil {
+					nodes = append(nodes, paren)
 				}
 			} else {
 				p.parser.error("Missing closing ')'", "Parse")
