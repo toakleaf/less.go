@@ -2509,9 +2509,11 @@ func (p *Parsers) Sub() any {
 				p.parser.parserInput.Forget()
 				expr, err := NewExpression(entities, false)
 				if err == nil {
-					// Only wrap in Paren if it contains a colon (media query feature)
-					// Otherwise use Expression with Parens=true (for math)
-					if hasColon {
+					// Wrap in Paren to preserve parentheses in output when:
+					// 1. Contains a colon (media query feature like (min-width: 480px))
+					// 2. Contains multiple entities (list value like (a b c))
+					// Only use Expression with Parens=true for single math operands
+					if hasColon || len(entities) > 1 {
 						return NewParen(expr)
 					} else {
 						expr.Parens = true
