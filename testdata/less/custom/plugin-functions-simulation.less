@@ -1,0 +1,62 @@
+// Variation testing built-in functions (simulating plugin function concepts)
+// Tests various built-in functions that work like plugin-provided functions
+
+// Color functions (like plugins could provide)
+.color-funcs {
+  @base: #3498db;
+  color: @base;
+  light: lighten(@base, 20%);
+  dark: darken(@base, 20%);
+  saturated: saturate(@base, 20%);
+  desaturated: desaturate(@base, 20%);
+  complement: spin(@base, 180);
+}
+
+// Math functions
+.math-funcs {
+  pi: pi();
+  ceil: ceil(4.2);
+  floor: floor(4.8);
+  round: round(4.5);
+  sqrt: sqrt(16);
+  pow: pow(2, 3);
+  mod: mod(10, 3);
+  min: min(1px, 2px, 3px);
+  max: max(1px, 2px, 3px);
+  percentage: percentage(0.5);
+}
+
+// String functions
+.string-funcs {
+  @str: "hello world";
+  escaped: e(@str);
+  replaced: replace(@str, "world", "less");
+  length: length(@str);
+}
+
+// Type checking functions
+.type-funcs {
+  @color: red;
+  @number: 42;
+  @string: "text";
+  @unit: 10px;
+  is-color: iscolor(@color);
+  is-number: isnumber(@number);
+  is-string: isstring(@string);
+  is-pixel: ispixel(@unit);
+}
+
+// List functions
+.list-funcs {
+  @list: a, b, c, d;
+  length: length(@list);
+  first: extract(@list, 1);
+  last: extract(@list, length(@list));
+}
+
+// Conditional logic (like smart plugins)
+.conditional {
+  @size: 20px;
+  font-size: if(@size > 16px, large, normal);
+  display: if(true, block, none);
+}

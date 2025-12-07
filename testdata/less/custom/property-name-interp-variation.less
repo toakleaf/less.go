@@ -1,0 +1,67 @@
+// Variation of property-name-interp test
+// Tests @{variable} interpolation in property names in different contexts
+
+// Basic interpolation with different variable types
+.interp-basic {
+  @prop: margin;
+  @side: left;
+  @{prop}: 10px;
+  @{prop}-@{side}: 20px;
+}
+
+// Multiple interpolations in one property name
+.interp-multiple {
+  @prefix: webkit;
+  @prop: transform;
+  -@{prefix}-@{prop}: rotate(45deg);
+  -moz-@{prop}: rotate(45deg);
+  @{prop}: rotate(45deg);
+}
+
+// Interpolation with number in variable
+.interp-with-number {
+  @n: 3;
+  @base: col;
+  grid-@{base}umn: span @n;
+}
+
+// Interpolation with variable dereferencing
+.interp-nested-var {
+  @ref: size;
+  @size: font-size;
+  // Use @@ for variable name lookup, then interpolate
+  @prop-name: @@ref;
+  @{prop-name}: 14px;
+}
+
+// Interpolation in mixin definition
+.make-prop(@name, @val) {
+  @{name}: @val;
+}
+
+.interp-mixin-call {
+  .make-prop(background-color, red);
+  .make-prop(color, white);
+}
+
+// Interpolation with special characters preserved
+.interp-special {
+  @vendor: ms;
+  -@{vendor}-filter: none;
+  *@{vendor}-prop: value;
+}
+
+// Interpolation combined with merge
+.interp-merge {
+  @base: background;
+  @{base}+: url(a.png);
+  @{base}+: url(b.png);
+}
+
+// Empty-ish interpolation edge case
+.interp-edge {
+  @empty: ~'';
+  @dash: ~'-';
+  prop@{empty}erty: works;
+  border@{dash}color: blue;
+}

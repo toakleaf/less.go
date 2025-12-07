@@ -1,0 +1,86 @@
+// Variation testing module-like patterns (inspired by plugin-module concepts)
+// Tests namespace and modular code organization
+
+// Namespace pattern
+#theme {
+  @primary: #007bff;
+  @secondary: #6c757d;
+  @success: #28a745;
+  @danger: #dc3545;
+
+  .colors() {
+    primary: @primary;
+    secondary: @secondary;
+  }
+
+  .button() {
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+}
+
+// Using namespace
+.themed-element {
+  color: #theme[@primary];
+  background: #theme[@secondary];
+}
+
+.themed-button {
+  #theme.button();
+  background: #theme[@success];
+}
+
+// Multiple namespaces
+#typography {
+  @base-size: 16px;
+  @line-height: 1.5;
+
+  .heading() {
+    font-weight: bold;
+    line-height: 1.2;
+  }
+
+  .body() {
+    font-size: @base-size;
+    line-height: @line-height;
+  }
+}
+
+#spacing {
+  @unit: 8px;
+  @small: @unit;
+  @medium: @unit * 2;
+  @large: @unit * 4;
+}
+
+.card {
+  #typography.body();
+  padding: #spacing[@medium];
+  margin: #spacing[@small];
+}
+
+.card-title {
+  #typography.heading();
+  font-size: #typography[@base-size] * 1.25;
+}
+
+// Nested namespace access
+#utils {
+  #color {
+    .darken(@c, @amount: 10%) {
+      color: darken(@c, @amount);
+    }
+  }
+
+  #size {
+    .double(@val) {
+      result: @val * 2;
+    }
+  }
+}
+
+.use-nested {
+  @base: #ff0000;
+  #utils > #color > .darken(@base, 20%);
+}

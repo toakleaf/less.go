@@ -1,0 +1,65 @@
+// Variation of property-accessors test
+// Tests the $property syntax for accessing property values in different contexts
+
+// Basic $property access with different property types
+.accessor-basic {
+  font-size: 16px;
+  line-height: $font-size * 1.5;
+  margin: 10px;
+  padding: $margin;
+}
+
+// $property with color manipulation
+.accessor-colors {
+  color: #ff6600;
+  border-color: darken($color, 20%);
+  background: lighten($color, 30%);
+}
+
+// $property in nested rules - different nesting depth
+.accessor-nested {
+  width: 100px;
+  .level-1 {
+    height: $width / 2;
+    .level-2 {
+      margin: $height;
+    }
+  }
+}
+
+// $property with multiple values of same property
+.accessor-override {
+  opacity: 0.5;
+  opacity: 0.8;
+  .child {
+    // Using the opacity value in a calculation
+    @op: $opacity;
+    calculated-opacity: @op * 100;
+  }
+}
+
+// $property in mixin context
+.accessor-mixin(@base-size) {
+  font-size: @base-size;
+  padding: $font-size / 4;
+}
+
+.use-accessor-mixin {
+  .accessor-mixin(20px);
+}
+
+// $property with hyphenated names
+.accessor-hyphenated {
+  border-width: 2px;
+  outline-width: $border-width * 2;
+  box-shadow: 0 0 $border-width black;
+}
+
+// $property accessing merged properties
+.accessor-merged {
+  transform+: rotate(45deg);
+  transform+: scale(1.5);
+  .result {
+    animation-transform: $transform;
+  }
+}

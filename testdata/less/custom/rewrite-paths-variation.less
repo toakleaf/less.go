@@ -1,0 +1,63 @@
+// Variation testing path rewriting concepts
+// Tests different relative path patterns
+
+// Different relative path styles
+.path-styles {
+  // Same directory
+  same-dir: url("./file.png");
+  same-dir-implicit: url("file.png");
+
+  // Parent directory
+  parent: url("../file.png");
+  grandparent: url("../../file.png");
+
+  // Subdirectory
+  sub: url("./sub/file.png");
+  deep: url("./a/b/c/file.png");
+
+  // Mixed paths
+  mixed: url("./sub/../other/file.png");
+}
+
+// Path with variable interpolation
+.path-interp {
+  @dir: images;
+  @subdir: icons;
+  @file: logo;
+  background: url("@{dir}/@{subdir}/@{file}.png");
+}
+
+// Paths in different CSS contexts
+.path-contexts {
+  // background shorthand
+  background: url("bg.png") center / cover;
+
+  // src for fonts
+  // Note: Not using @font-face here to keep it simple
+  font-src: url("font.woff2");
+
+  // cursor
+  cursor: url("pointer.cur"), auto;
+
+  // mask
+  mask-image: url("mask.svg");
+}
+
+// Edge cases
+.path-edge {
+  // URL with protocol should not be rewritten
+  absolute: url("https://example.com/file.png");
+  protocol-relative: url("//cdn.example.com/file.png");
+
+  // Root-relative should not be rewritten
+  root-relative: url("/absolute/path/file.png");
+
+  // Data URI should not be rewritten
+  data: url("data:image/png;base64,ABC123");
+}
+
+// Empty and whitespace in URLs
+.url-whitespace {
+  normal: url("file.png");
+  quoted-spaces: url(" file.png ");
+}

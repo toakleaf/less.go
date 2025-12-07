@@ -1,0 +1,53 @@
+// Variation testing concepts similar to pre/post processor tests
+// Tests variable injection and output transformation patterns
+
+// Variable defined then used (simulating preprocessor injection)
+@injected-color: #336699;
+@injected-size: 14px;
+
+.preprocessor-like {
+  color: @injected-color;
+  font-size: @injected-size;
+}
+
+// Multiple variable layers
+@base-theme: dark;
+@primary: if(@base-theme = dark, #ffffff, #000000);
+@secondary: if(@base-theme = dark, #cccccc, #333333);
+
+.theme-vars {
+  color: @primary;
+  background: @secondary;
+}
+
+// Computed properties (showing transformation capabilities)
+.computed {
+  @width: 200px;
+  width: @width;
+  height: @width * 0.75;
+  padding: @width / 10;
+}
+
+// String manipulation (post-processing concept)
+.string-transform {
+  @name: button;
+  @modifier: primary;
+  content: "@{name}--@{modifier}";
+}
+
+// CSS output that could be post-processed
+.ready-for-postprocess {
+  /* marker: start */
+  color: inherit;
+  /* marker: end */
+}
+
+// Detached ruleset (shows code block manipulation)
+@block: {
+  display: flex;
+  align-items: center;
+};
+
+.use-block {
+  @block();
+}

@@ -1,0 +1,24 @@
+.from-root {
+  color: navy;
+  font-size: 16px;
+  line-height: 24px;
+}
+.scope-test {
+  color: red;
+}
+.scope-test .inner {
+  background: red;
+}
+.hoisting {
+  prop: hoisted-value;
+}
+.forward-ref {
+  value: final;
+}
+:root {
+  --primary: navy;
+  --size: 16px;
+}
+.use-custom-props {
+  color: var(--primary);
+}

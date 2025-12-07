@@ -1,0 +1,24 @@
+.themed-element {
+  color: #007bff;
+  background: #6c757d;
+}
+.themed-button {
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  background: #28a745;
+}
+.card {
+  font-size: 16px;
+  line-height: 1.5;
+  padding: 16px;
+  margin: 8px;
+}
+.card-title {
+  font-weight: bold;
+  line-height: 1.2;
+  font-size: 20px;
+}
+.use-nested {
+  color: #990000;
+}

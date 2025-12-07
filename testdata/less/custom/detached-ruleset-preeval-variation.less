@@ -1,0 +1,86 @@
+// Variation testing detached rulesets (inspired by plugin-preeval concepts)
+// Tests detached ruleset evaluation and scoping
+
+// Basic detached ruleset
+@base-rules: {
+  color: blue;
+  font-size: 14px;
+};
+
+.use-base {
+  @base-rules();
+}
+
+// Detached ruleset with parameter
+.with-param(@rules: {}) {
+  .wrapper {
+    @rules();
+  }
+}
+
+.apply-param {
+  .with-param({
+    background: yellow;
+    padding: 10px;
+  });
+}
+
+// Nested detached ruleset calls
+.outer-mixin(@outer-rules) {
+  .inner-mixin(@inner-rules) {
+    .inner {
+      @inner-rules();
+    }
+  }
+  .outer {
+    @outer-rules();
+  }
+}
+
+.nested-use {
+  .outer-mixin({
+    border: 1px solid;
+  });
+  .inner-mixin({
+    margin: 5px;
+  });
+}
+
+// Detached ruleset with local variable access
+.scope-access {
+  @local-var: green;
+  @ruleset: {
+    color: @local-var;
+  };
+  @ruleset();
+}
+
+// Detached ruleset passed through mixin
+.pass-through(@rs) {
+  .container & {
+    @rs();
+  }
+}
+
+.element {
+  .pass-through({
+    display: flex;
+    --custom: value;
+  });
+}
+
+// Conditional detached ruleset
+.conditional-rs(@cond) {
+  @rs: if(@cond, { color: red; }, { color: blue; });
+}
+
+// Variable reference in detached ruleset
+@color-var: purple;
+@referencing-rules: {
+  background: @color-var;
+  border-color: darken(@color-var, 10%);
+};
+
+.use-ref {
+  @referencing-rules();
+}

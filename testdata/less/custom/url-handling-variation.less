@@ -1,0 +1,55 @@
+// Variation testing URL handling (inspired by rewrite-urls tests)
+// Tests URL functions and data URIs without external imports
+
+// Basic url() with different quote styles
+.url-quotes {
+  background: url("image.png");
+  background: url('image.png');
+  background: url(image.png);
+}
+
+// URL with special characters
+.url-special {
+  background: url("path/to/image.png");
+  background: url("path with spaces/image.png");
+  background: url("image.png?v=1.0&cache=true");
+  background: url("image.png#fragment");
+}
+
+// Data URIs
+.url-data {
+  background: url("data:image/svg+xml,%3Csvg%3E%3C/svg%3E");
+}
+
+// URL in variable
+.url-variable {
+  @img-path: "assets/images";
+  background: url("@{img-path}/logo.png");
+}
+
+// Multiple URLs
+.url-multiple {
+  background: url("a.png"), url("b.png");
+  cursor: url("custom.cur"), pointer;
+}
+
+// URL with interpolation
+.url-interpolation {
+  @file: logo;
+  @ext: png;
+  background: url("images/@{file}.@{ext}");
+}
+
+// Relative paths (testing path normalization concepts)
+.url-relative {
+  background-image: url("./same-dir/file.png");
+  background-image: url("../parent-dir/file.png");
+  background-image: url("sub/dir/file.png");
+}
+
+// Protocol-relative and absolute URLs
+.url-absolute {
+  background: url("//cdn.example.com/image.png");
+  background: url("https://example.com/image.png");
+  background: url("/absolute/path/image.png");
+}

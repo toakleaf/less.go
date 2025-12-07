@@ -1,0 +1,25 @@
+.preprocessor-like {
+  color: #336699;
+  font-size: 14px;
+}
+.theme-vars {
+  color: #ffffff;
+  background: #cccccc;
+}
+.computed {
+  width: 200px;
+  height: 150px;
+  padding: 200px / 10;
+}
+.string-transform {
+  content: "button--primary";
+}
+.ready-for-postprocess {
+  /* marker: start */
+  color: inherit;
+  /* marker: end */
+}
+.use-block {
+  display: flex;
+  align-items: center;
+}

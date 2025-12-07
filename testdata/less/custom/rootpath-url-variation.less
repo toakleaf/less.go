@@ -1,0 +1,54 @@
+// Variation testing rootpath and URL concepts
+// Tests various URL scenarios without external file dependencies
+
+// Simulating different path scenarios
+.rootpath-sim {
+  // These test URL string handling
+  @root: "/cdn/v1";
+
+  // Variable-based paths
+  img: url("@{root}/images/logo.png");
+  icon: url("@{root}/icons/star.svg");
+}
+
+// URL with query strings and hashes
+.url-params {
+  background: url("image.png?version=2");
+  cursor: url("cursor.cur#pointer");
+  font: url("font.woff2?v=1.2.3#iefix");
+}
+
+// Multiple background URLs
+.multi-bg {
+  background:
+    url("layer1.png") no-repeat top left,
+    url("layer2.png") repeat-x bottom,
+    url("layer3.png") center center;
+}
+
+// URL in @font-face
+@font-face {
+  font-family: 'CustomFont';
+  src: url('fonts/custom.woff2') format('woff2'),
+       url('fonts/custom.woff') format('woff');
+}
+
+// URL in list-style
+.styled-list {
+  list-style-image: url("bullet.png");
+}
+
+// URL in border-image
+.fancy-border {
+  border-image: url("border-pattern.png") 30 round;
+}
+
+// URL in content property
+.with-content::before {
+  content: url("icon.svg");
+}
+
+// URL in filter
+.filtered {
+  filter: url("filters.svg#blur");
+}

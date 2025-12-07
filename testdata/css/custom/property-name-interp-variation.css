@@ -1,0 +1,30 @@
+.interp-basic {
+  margin: 10px;
+  margin-left: 20px;
+}
+.interp-multiple {
+  -webkit-transform: rotate(45deg);
+  -moz-transform: rotate(45deg);
+  transform: rotate(45deg);
+}
+.interp-with-number {
+  grid-column: span 3;
+}
+.interp-nested-var {
+  font-size: 14px;
+}
+.interp-mixin-call {
+  background-color: red;
+  color: white;
+}
+.interp-special {
+  -ms-filter: none;
+  *ms-prop: value;
+}
+.interp-merge {
+  background: url(a.png), url(b.png);
+}
+.interp-edge {
+  property: works;
+  border-color: blue;
+}

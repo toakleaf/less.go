@@ -1,0 +1,42 @@
+.accessor-basic {
+  font-size: 16px;
+  line-height: 24px;
+  margin: 10px;
+  padding: 10px;
+}
+.accessor-colors {
+  color: #ff6600;
+  border-color: #993d00;
+  background: #ffc299;
+}
+.accessor-nested {
+  width: 100px;
+}
+.accessor-nested .level-1 {
+  height: 100px / 2;
+}
+.accessor-nested .level-1 .level-2 {
+  margin: 100px / 2;
+}
+.accessor-override {
+  opacity: 0.5;
+  opacity: 0.8;
+}
+.accessor-override .child {
+  calculated-opacity: 80;
+}
+.use-accessor-mixin {
+  font-size: 20px;
+  padding: 20px / 4;
+}
+.accessor-hyphenated {
+  border-width: 2px;
+  outline-width: 4px;
+  box-shadow: 0 0 2px black;
+}
+.accessor-merged {
+  transform: rotate(45deg), scale(1.5);
+}
+.accessor-merged .result {
+  animation-transform: rotate(45deg), scale(1.5);
+}
