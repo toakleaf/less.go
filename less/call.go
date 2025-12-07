@@ -681,11 +681,42 @@ func (c *Call) Eval(context any) (any, error) {
 		evalContext.EnterCalc()
 	}
 
+	// When entering calc context with a map-based context, we need to update the isMathOn
+	// function to respect the map's mathOn and inCalc values. The original isMathOn closure
+	// from CopyEvalToMap captures the *Eval pointer and doesn't see the map's updated values.
+	var originalIsMathOn func(string) bool
+	if c.Calc {
+		if ctxMap, ok := context.(map[string]any); ok {
+			// Save original isMathOn for restoration
+			if fn, exists := ctxMap["isMathOn"].(func(string) bool); exists {
+				originalIsMathOn = fn
+			}
+			// Replace with a calc-aware isMathOn that checks the map's state
+			ctxMap["isMathOn"] = func(op string) bool {
+				// In calc context, math is disabled (mathOn was set to false above)
+				if mathOn, exists := ctxMap["mathOn"].(bool); exists && !mathOn {
+					return false
+				}
+				// Fallback to original if mathOn is somehow true
+				if originalIsMathOn != nil {
+					return originalIsMathOn(op)
+				}
+				return false
+			}
+		}
+	}
+
 	exitCalc := func() {
 		if c.Calc || evalContext.IsInCalc() {
 			evalContext.ExitCalc()
 		}
 		evalContext.SetMathOn(currentMathContext)
+		// Restore original isMathOn function if we replaced it
+		if originalIsMathOn != nil {
+			if ctxMap, ok := context.(map[string]any); ok {
+				ctxMap["isMathOn"] = originalIsMathOn
+			}
+		}
 	}
 
 	var result any
