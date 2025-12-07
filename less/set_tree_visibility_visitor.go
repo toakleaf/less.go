@@ -76,11 +76,22 @@ func (v *SetTreeVisibilityVisitor) Run(root any) {
 	v.Visit(root)
 }
 
-// VisitArray visits an array of nodes using type assertions
-func (v *SetTreeVisibilityVisitor) VisitArray(nodes []any) {
+// VisitArray visits an array of nodes using type assertions.
+// This method matches the interface expected by Ruleset.Accept: VisitArray([]any) []any
+func (v *SetTreeVisibilityVisitor) VisitArray(nodes []any) []any {
 	for _, node := range nodes {
 		v.Visit(node)
 	}
+	return nodes
+}
+
+// VisitArrayAny visits an array passed as any type.
+// This is needed for compatibility with some Accept implementations that pass any instead of []any.
+func (v *SetTreeVisibilityVisitor) visitArrayAny(nodes any) any {
+	if arr, ok := nodes.([]any); ok {
+		return v.VisitArray(arr)
+	}
+	return nodes
 }
 
 // Visit visits a single node using type assertions for fast dispatch
@@ -96,26 +107,52 @@ func (v *SetTreeVisibilityVisitor) Visit(node any) any {
 	}
 
 	// Check if node blocks visibility using interface assertion (no reflection)
-	if visNode, ok := node.(interface{ BlocksVisibility() bool }); ok {
+	// Note: Some nodes (like Dimension, Unit) embed *Node which may be nil.
+	// We need to check if the node has a valid embedded Node before calling BlocksVisibility.
+	if nodeWithNode, ok := node.(interface{ GetNode() *Node }); ok {
+		if n := nodeWithNode.GetNode(); n != nil {
+			if n.BlocksVisibility() {
+				// Match JavaScript behavior: if node blocks visibility, return early without visiting children
+				return node
+			}
+		}
+		// If n is nil, skip BlocksVisibility check - treat as not blocking
+	} else if visNode, ok := node.(interface{ BlocksVisibility() bool }); ok {
+		// Fallback for nodes that don't have GetNode() but do have BlocksVisibility()
 		if visNode.BlocksVisibility() {
-			// Match JavaScript behavior: if node blocks visibility, return early without visiting children
 			return node
 		}
 	}
 
 	// Set visibility based on visitor's visible flag
+	// Same nil check pattern for EnsureVisibility/EnsureInvisibility
 	if v.visible {
-		if visNode, ok := node.(interface{ EnsureVisibility() }); ok {
+		if nodeWithNode, ok := node.(interface{ GetNode() *Node }); ok {
+			if n := nodeWithNode.GetNode(); n != nil {
+				n.EnsureVisibility()
+			}
+		} else if visNode, ok := node.(interface{ EnsureVisibility() }); ok {
 			visNode.EnsureVisibility()
 		}
 	} else {
-		if visNode, ok := node.(interface{ EnsureInvisibility() }); ok {
+		if nodeWithNode, ok := node.(interface{ GetNode() *Node }); ok {
+			if n := nodeWithNode.GetNode(); n != nil {
+				n.EnsureInvisibility()
+			}
+		} else if visNode, ok := node.(interface{ EnsureInvisibility() }); ok {
 			visNode.EnsureInvisibility()
 		}
 	}
 
-	// Call accept method if it exists
-	if acceptNode, ok := node.(interface{ Accept(any) }); ok {
+	// Call accept method if it exists to visit children
+	// Check for nil Node before calling Accept to avoid panic
+	if nodeWithNode, ok := node.(interface{ GetNode() *Node }); ok {
+		if n := nodeWithNode.GetNode(); n != nil {
+			if acceptNode, ok := node.(interface{ Accept(any) }); ok {
+				acceptNode.Accept(v)
+			}
+		}
+	} else if acceptNode, ok := node.(interface{ Accept(any) }); ok {
 		acceptNode.Accept(v)
 	}
 

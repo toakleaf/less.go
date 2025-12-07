@@ -70,23 +70,26 @@ func (n *Node) SetParent(nodes any, parent *Node) {
 		// Handle nil case gracefully
 	default:
 		// Handle single item that might have a Node field
-		if nodeContainer, ok := nodes.(interface{ GetNode() *Node }); ok {
-			if node := nodeContainer.GetNode(); node != nil {
-				node.Parent = parent
+		// First check explicit types to avoid calling GetNode() on nil pointers
+		if selector, ok := nodes.(*Selector); ok {
+			// Handle *Selector which embeds *Node
+			if selector != nil && selector.Node != nil {
+				selector.Node.Parent = parent
 			}
 		} else if ruleset, ok := nodes.(*Ruleset); ok {
 			if ruleset != nil && ruleset.Node != nil {
 				ruleset.Node.Parent = parent
 			}
-		} else if selector, ok := nodes.(*Selector); ok {
-			// Handle *Selector which embeds *Node
-			if selector != nil && selector.Node != nil {
-				selector.Node.Parent = parent
-			}
 		} else if elemNode, ok := nodes.(*Element); ok {
 			// Handle *Element which embeds *Node
 			if elemNode != nil && elemNode.Node != nil {
 				elemNode.Node.Parent = parent
+			}
+		} else if nodeContainer, ok := nodes.(interface{ GetNode() *Node }); ok {
+			// Generic GetNode() check - safe because explicit nil pointer types
+			// are handled above
+			if node := nodeContainer.GetNode(); node != nil {
+				node.Parent = parent
 			}
 		}
 		// For any other type that embeds *Node, try reflection as last resort
@@ -413,6 +416,11 @@ func (n *Node) EnsureInvisibility() {
 // IsVisible returns the node's visibility state
 func (n *Node) IsVisible() *bool {
 	return n.NodeVisible
+}
+
+// GetNode returns the Node itself (used for interface compliance in types that embed *Node)
+func (n *Node) GetNode() *Node {
+	return n
 }
 
 // ClearVisibilityBlocks sets visibility blocks to 0

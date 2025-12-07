@@ -507,9 +507,13 @@ func isLastRule(context any) bool {
 	return false
 }
 
-func (d *Declaration) IsVisible() bool {
-	return true
-}
+// Note: Declaration intentionally does NOT override IsVisible() from Node.
+// This allows the SetTreeVisibilityVisitor to properly control declaration visibility.
+// - For normal declarations: EnsureVisibility() is called, so IsVisible() returns *true
+// - For declarations from reference imports: EnsureVisibility() is NOT called (parent blocks visibility),
+//   so IsVisible() returns nil, which means no newline is added after them in CSS output.
+// This matches the Less.js behavior where declarations from reference imports appear
+// on the same line (e.g., "display: block;position: relative;").
 
 func (d *Declaration) MakeImportant() any {
 	// If already important, preserve the existing important value

@@ -2260,8 +2260,10 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 					}
 					// else: invisible, don't add newline
 				} else {
-					// Node doesn't block visibility - check simple IsVisible
-					if vis2, ok2 := rule.(interface{ IsVisible() bool }); ok2 && vis2.IsVisible() {
+					// Node doesn't block visibility - check IsVisible *bool
+					// A nil return from IsVisible() means not visible (e.g., from reference imports that were skipped)
+					nodeVisible := visNode.IsVisible()
+					if nodeVisible != nil && *nodeVisible {
 						shouldAddNewline = true
 					}
 				}
