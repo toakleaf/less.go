@@ -1,0 +1,128 @@
+// Variation of extend-nest test - testing extend with deeply nested selectors
+
+// Standard nesting pattern
+.panel {
+  padding: 20px;
+  border: 1px solid gray;
+
+  .header {
+    background: #f5f5f5;
+    padding: 10px;
+  }
+
+  .body {
+    padding: 15px;
+
+    .content {
+      line-height: 1.6;
+    }
+  }
+
+  .footer {
+    border-top: 1px solid #ddd;
+    padding: 10px;
+  }
+}
+
+.card {
+  &:extend(.panel all);
+  border-radius: 8px;
+}
+
+.modal {
+  &:extend(.panel all);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+// Nested type selectors
+.article {
+  h1 {
+    font-size: 2em;
+  }
+  h2 {
+    font-size: 1.5em;
+  }
+  p {
+    margin-bottom: 1em;
+  }
+}
+
+.blog-post {
+  &:extend(.article all);
+  max-width: 800px;
+}
+
+// Pseudo-class inside nesting
+.interactive {
+  cursor: pointer;
+  &:hover {
+    background: #eee;
+  }
+  &:active {
+    background: #ddd;
+  }
+  &:focus {
+    outline: 2px solid blue;
+  }
+}
+
+.clickable {
+  &:extend(.interactive);
+  &:hover:extend(.interactive:hover) {}
+  &:active:extend(.interactive:active) {}
+}
+
+// Whitespace in extend should not match
+.hover-spacey {
+  :hover {
+    spaced: hover;
+  }
+}
+.hover-spacey :hover {
+  not-spaced: hover;
+}
+
+.spacey-extend :extend(.hover-spacey:hover) {} // Should not match
+
+// Complex ampersand combinations
+.complex-a,
+.complex-b {
+  .complex-c &.complex-d&.complex-e {
+    .complex-f&+&.complex-g:extend(.complex-target) {}
+  }
+}
+.complex-target {
+  extended-by: complex-selectors;
+}
+
+// Parent reference with modifier
+.widget {
+  display: block;
+  &--large {
+    font-size: 1.2em;
+  }
+  &--small {
+    font-size: 0.9em;
+  }
+}
+
+.component {
+  &:extend(.widget);
+  &--large:extend(.widget--large) {}
+}
+
+// Nested with parent selector combination
+.nav {
+  display: flex;
+  .item {
+    padding: 10px;
+    & + & {
+      border-left: 1px solid #ccc;
+    }
+  }
+}
+
+.menu {
+  &:extend(.nav all);
+  background: #333;
+}

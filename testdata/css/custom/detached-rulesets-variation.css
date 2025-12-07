@@ -1,0 +1,73 @@
+.content-area {
+  color: blue;
+  padding: 8px;
+  context-check: from-mixin;
+  local-var: local-value;
+  fallback-var: default-value;
+}
+.content-area {
+  default: applied;
+  local-var: local-value;
+  fallback-var: default-value;
+}
+.content-area {
+  font-size: 16px;
+  line-height: 1.5;
+  local-var: local-value;
+  fallback-var: default-value;
+}
+nav {
+  background: navy;
+}
+@media screen and (max-width: 768px) {
+  nav {
+    background: lightblue;
+    padding: 10px;
+  }
+}
+html.no-media nav {
+  background: lightblue;
+  padding: 10px;
+}
+.content-area {
+  test: level-one;
+  local-var: local-value;
+  fallback-var: default-value;
+}
+.content-area .content-area {
+  test: level-two;
+  local-var: local-value;
+  fallback-var: default-value;
+}
+.content-area {
+  width: 50;
+  height: 16px;
+  local-var: local-value;
+  fallback-var: default-value;
+}
+.direct-call {
+  direct: invoked;
+}
+@media (print) and (screen) {
+  .selector-inside {
+    background: black;
+  }
+}
+@media (print) and screen and (max-width: 768px) and (tv) {
+  .deeply-nested {
+    deep: true;
+  }
+}
+@media (print) and (tv) {
+  html.no-media  .deeply-nested {
+    deep: true;
+  }
+}
+.use-unlocked {
+  reusable: yes;
+}
+.defaults-test {
+  fallback: yes;
+  explicit: first;
+  explicit: second;
+}

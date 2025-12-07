@@ -1,0 +1,80 @@
+.base1,
+.level2,
+.level3 {
+  font-size: 14px;
+}
+.back1,
+.back2,
+.back3 {
+  font-weight: bold;
+}
+.compound.selector,
+.extend-compound.extra.selector,
+.chain-compound.extra.selector {
+  text-decoration: underline;
+}
+.extend-compound.extra,
+.chain-compound.extra {
+  text-transform: uppercase;
+}
+.chain-a,
+.chain-b,
+.chain-c,
+.chain-d,
+.chain-e,
+.chain-f,
+.chain-g,
+.chain-h {
+  opacity: 1;
+}
+.self-ref,
+.ref.self-ref.ref {
+  position: relative;
+}
+.circular,
+.ref.circular.ref {
+  z-index: 1;
+}
+.tri-x,
+.tri-y,
+.tri-z {
+  color: red;
+}
+.tri-y,
+.tri-z,
+.tri-x {
+  color: green;
+}
+.tri-z,
+.tri-x,
+.tri-y {
+  color: blue;
+}
+.ruleset-a,
+.ruleset-b,
+.ruleset-c {
+  border: 1px solid;
+}
+.ruleset-b,
+.ruleset-c {
+  border-color: black;
+}
+@media (screen) {
+  .media-target,
+  .outside-media,
+  .also-outside {
+    display: block;
+  }
+  .media-internal,
+  .media-target,
+  .outside-media,
+  .also-outside {
+    display: inline;
+  }
+}
+@media (screen) and (color) {
+  .nested-media,
+  .another-nested {
+    background: red;
+  }
+}

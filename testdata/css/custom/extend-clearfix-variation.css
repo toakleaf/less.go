@@ -1,0 +1,86 @@
+.floated-container,
+.card-list,
+.gallery,
+.navigation {
+  overflow: hidden;
+}
+.floated-container::before,
+.card-list::before,
+.gallery::before,
+.navigation::before {
+  content: '';
+  display: table;
+}
+.floated-container::after,
+.card-list::after,
+.gallery::after,
+.navigation::after {
+  content: '';
+  display: table;
+  clear: both;
+}
+.card-list {
+  margin: 20px 0;
+}
+.gallery {
+  padding: 10px;
+}
+.navigation {
+  background: #f0f0f0;
+}
+.tooltip,
+.info-tip,
+.warning-tip {
+  position: relative;
+}
+.tooltip:hover,
+.info-tip:hover,
+.warning-tip:hover {
+  opacity: 1;
+}
+.tooltip:hover::before,
+.info-tip:hover::before,
+.warning-tip:hover::before {
+  visibility: visible;
+}
+.tooltip::before,
+.info-tip::before,
+.warning-tip::before {
+  content: attr(data-tip);
+  position: absolute;
+  visibility: hidden;
+}
+.info-tip {
+  color: blue;
+}
+.warning-tip {
+  color: orange;
+}
+.form-group,
+.search-group,
+.filter-group {
+  margin-bottom: 15px;
+}
+.form-group .label,
+.search-group .label,
+.filter-group .label {
+  display: block;
+  margin-bottom: 5px;
+}
+.form-group .input,
+.search-group .input,
+.filter-group .input {
+  width: 100%;
+  padding: 8px;
+}
+.form-group .input:focus,
+.search-group .input:focus,
+.filter-group .input:focus {
+  outline: 2px solid blue;
+}
+.search-group {
+  display: flex;
+}
+.filter-group {
+  background: #fafafa;
+}

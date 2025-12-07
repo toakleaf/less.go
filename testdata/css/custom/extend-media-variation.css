@@ -1,0 +1,70 @@
+.base-style .inner-style,
+.outside-extender .inner-style {
+  color: navy;
+}
+@media (screen) {
+  .base-style .screen-style,
+  .screen-extender .screen-style,
+  .outside-extender .screen-style {
+    font-size: 16px;
+  }
+  .screen-extender {
+    background: white;
+  }
+}
+@media (screen) and (min-width: 1024px) {
+  .base-style .desktop-style,
+  .desktop-extender .desktop-style,
+  .outside-extender .desktop-style {
+    font-size: 18px;
+  }
+  .desktop-extender {
+    background: gray;
+  }
+}
+@media print {
+  .print-base .child,
+  .print-extender .child {
+    font-size: 12pt;
+  }
+}
+@media (color) {
+  .color-base .child,
+  .color-extender .child {
+    color: inherit;
+  }
+}
+@media (hover: hover) {
+  .hoverable {
+    cursor: pointer;
+  }
+  .hoverable:hover {
+    opacity: 0.8;
+  }
+}
+@media (hover: hover) and (pointer: fine) {
+  .precise,
+  .combined-extender {
+    padding: 5px;
+  }
+}
+@media (orientation: portrait) {
+  .portrait-layout,
+  .mobile-layout,
+  .global-extender {
+    flex-direction: column;
+  }
+  .portrait-layout .sidebar,
+  .mobile-layout .sidebar,
+  .global-extender .sidebar {
+    width: 100%;
+  }
+  .portrait-layout .main,
+  .mobile-layout .main,
+  .global-extender .main {
+    flex: 1;
+  }
+  .mobile-layout {
+    padding: 10px;
+  }
+}
