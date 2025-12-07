@@ -1,0 +1,101 @@
+// Test variations for URL handling
+// Tests url(), data URIs, and URL construction
+
+// Test 1: Various URL formats
+.url-formats {
+  // Unquoted
+  background: url(images/bg.png);
+  // Double quoted
+  background-image: url("images/icon.png");
+  // Single quoted
+  border-image: url('images/border.png');
+}
+
+// Test 2: URL with spaces
+.url-spaces {
+  background: url("my folder/my image.png");
+}
+
+// Test 3: URL with special characters
+.url-special {
+  background: url("image?size=100&format=png");
+  src: url("font.woff2#iefix");
+}
+
+// Test 4: Absolute URLs
+.absolute-urls {
+  background: url(https://example.com/image.png);
+  background-image: url("//cdn.example.com/asset.jpg");
+  src: url(http://fonts.example.com/font.woff);
+}
+
+// Test 5: URL with variable interpolation
+@assets-path: ../assets;
+@image-name: hero;
+
+.interpolated-url {
+  background: url("@{assets-path}/images/@{image-name}.jpg");
+}
+
+// Test 6: URL in variable
+@bg-url: url(background.png);
+
+.url-variable {
+  background: @bg-url;
+}
+
+// Test 7: Multiple URLs
+.multiple-urls {
+  background: url(bg1.png), url(bg2.png), url(bg3.png);
+}
+
+// Test 8: URL in @font-face
+@font-face {
+  font-family: 'TestFont';
+  src: url('fonts/test.woff2') format('woff2'),
+       url('fonts/test.woff') format('woff');
+}
+
+// Test 9: URL with mixin
+.bg-image(@path) {
+  background-image: url("@{path}");
+}
+
+.with-mixin-url {
+  .bg-image("custom/bg.png");
+}
+
+// Test 10: Protocol-relative URL
+.protocol-relative {
+  background: url(//static.example.com/image.png);
+}
+
+// Test 11: Data URL (small inline data)
+.data-url {
+  background: url(data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7);
+}
+
+// Test 12: URL with fragment
+.url-fragment {
+  src: url(sprite.svg#icon-home);
+}
+
+// Test 13: Empty path
+.empty-url {
+  background: url("");
+}
+
+// Test 14: Complex path with variable
+@base: /static;
+@ver: v1;
+@file: main;
+@ext: css;
+
+.complex-path {
+  src: url("@{base}/@{ver}/styles/@{file}.@{ext}");
+}
+
+// Test 15: URL in list value
+.url-list {
+  cursor: url(cursor.cur), pointer;
+}

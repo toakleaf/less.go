@@ -1,0 +1,151 @@
+// Test variations for variable handling
+// Tests definitions, operations, indirect references, and units
+
+// Test 1: Basic variable operations
+@base-size: 16px;
+@scale-factor: 1.5;
+@large-size: (@base-size * @scale-factor);
+
+.sizes {
+  base: @base-size;
+  large: @large-size;
+  double: (@base-size * 2);
+}
+
+// Test 2: Variable redefinition (last wins)
+@color: red;
+@color: blue;
+@color: green;
+
+.final-color {
+  color: @color;
+}
+
+// Test 3: Indirect variable reference (@@)
+@property-name: background;
+@background: navy;
+
+.indirect {
+  color: @@property-name;
+}
+
+// Test 4: Variable with important
+@important-val: 10px !important;
+
+.important-test {
+  margin: @important-val;
+}
+
+// Test 5: Variables in calculations
+@width: 100px;
+@padding: 10px;
+@content-width: (@width - (2 * @padding));
+
+.calculated {
+  width: @width;
+  padding: @padding;
+  content-width: @content-width;
+}
+
+// Test 6: String variable
+@font-stack: "Helvetica Neue", Helvetica, Arial, sans-serif;
+
+.typography {
+  font-family: @font-stack;
+}
+
+// Test 7: Color variable operations
+@primary: #3498db;
+@dark-primary: darken(@primary, 20%);
+@light-primary: lighten(@primary, 20%);
+
+.color-ops {
+  primary: @primary;
+  dark: @dark-primary;
+  light: @light-primary;
+}
+
+// Test 8: List variable
+@borders: 1px solid black;
+
+.bordered {
+  border: @borders;
+}
+
+// Test 9: Variable in selector (interpolation)
+@element: header;
+
+.@{element} {
+  display: block;
+}
+
+.@{element}-title {
+  font-size: 24px;
+}
+
+// Test 10: Variables with unit conversions
+@in-px: 96px;
+@in-cm: 2.54cm;
+@in-mm: 25.4mm;
+
+.units-test {
+  px-val: @in-px;
+  cm-val: @in-cm;
+  mm-val: @in-mm;
+}
+
+// Test 11: Percentage calculations
+@total: 100%;
+@half: (@total / 2);
+@third: (@total / 3);
+
+.percentages {
+  total: @total;
+  half: @half;
+  third: @third;
+}
+
+// Test 12: Nested variable definitions
+.outer-scope {
+  @outer-var: outer-value;
+
+  .inner-scope {
+    @inner-var: inner-value;
+    outer: @outer-var;
+    inner: @inner-var;
+  }
+}
+
+// Test 13: Variable in property name
+@prop: margin;
+
+.dynamic-prop {
+  @{prop}: 10px;
+  @{prop}-top: 20px;
+}
+
+// Test 14: Default parameter using variable
+@default-size: 14px;
+
+.with-default(@size: @default-size) {
+  font-size: @size;
+}
+
+.using-default {
+  .with-default();
+}
+
+.overriding-default {
+  .with-default(18px);
+}
+
+// Test 15: Variable referencing another variable
+@primary-color: blue;
+@secondary-color: @primary-color;
+@tertiary-color: @secondary-color;
+
+.color-chain {
+  primary: @primary-color;
+  secondary: @secondary-color;
+  tertiary: @tertiary-color;
+}

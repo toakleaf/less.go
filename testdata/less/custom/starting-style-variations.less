@@ -1,0 +1,103 @@
+// Test variations for @starting-style at-rule
+// Tests nested and top-level usage
+
+// Test 1: Basic popover with starting-style
+.modal {
+  opacity: 1;
+  transform: translateY(0);
+
+  @starting-style {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+}
+
+// Test 2: Top-level @starting-style
+@starting-style {
+  .fade-in {
+    opacity: 0;
+  }
+}
+
+.fade-in {
+  opacity: 1;
+  transition: opacity 0.5s;
+}
+
+// Test 3: Multiple properties in starting-style
+.dropdown {
+  opacity: 1;
+  max-height: 500px;
+  visibility: visible;
+
+  @starting-style {
+    opacity: 0;
+    max-height: 0;
+    visibility: hidden;
+  }
+}
+
+// Test 4: @starting-style with variables
+@initial-opacity: 0;
+@initial-scale: 0.8;
+
+.zoom-in {
+  opacity: 1;
+  transform: scale(1);
+
+  @starting-style {
+    opacity: @initial-opacity;
+    transform: scale(@initial-scale);
+  }
+}
+
+// Test 5: Nested selector with @starting-style
+.container {
+  .tooltip {
+    opacity: 1;
+
+    @starting-style {
+      opacity: 0;
+    }
+  }
+}
+
+// Test 6: Top-level with multiple rules
+@starting-style {
+  .slide-left {
+    transform: translateX(-100%);
+  }
+  .slide-right {
+    transform: translateX(100%);
+  }
+}
+
+.slide-left, .slide-right {
+  transform: translateX(0);
+  transition: transform 0.3s;
+}
+
+// Test 7: Complex selector in @starting-style
+.panel[open] {
+  display: block;
+  opacity: 1;
+
+  @starting-style {
+    opacity: 0;
+  }
+}
+
+// Test 8: Mixin with @starting-style
+.animate-entry(@from-opacity: 0, @from-scale: 0.9) {
+  opacity: 1;
+  transform: scale(1);
+
+  @starting-style {
+    opacity: @from-opacity;
+    transform: scale(@from-scale);
+  }
+}
+
+.animated-element {
+  .animate-entry(0.2, 0.95);
+}

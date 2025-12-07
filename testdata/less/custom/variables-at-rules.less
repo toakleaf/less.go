@@ -1,0 +1,124 @@
+// Test variations for variables in at-rules
+// Tests @keyframes, @media, @supports, and other at-rules with variables
+
+// Test 1: @keyframes with variable name
+@anim-name: fadeIn;
+
+@keyframes @anim-name {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+// Test 2: @keyframes with variable values
+@start-opacity: 0;
+@end-opacity: 1;
+@mid-scale: 1.2;
+
+@keyframes pulse {
+  0% { opacity: @start-opacity; }
+  50% { opacity: @end-opacity; transform: scale(@mid-scale); }
+  100% { opacity: @start-opacity; }
+}
+
+// Test 3: Multiple @keyframes with variable names
+@slide-name: slideIn;
+@bounce-name: bounceEffect;
+
+@keyframes @slide-name {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes @bounce-name {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+// Test 4: @media with variable (escaped)
+@min-width: 768px;
+
+@media (min-width: @min-width) {
+  .responsive {
+    display: block;
+  }
+}
+
+// Test 5: @supports with properties
+.feature-test {
+  @supports (display: grid) {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+// Test 6: @keyframes inside mixin
+.define-animation(@name, @from-val, @to-val) {
+  @keyframes @name {
+    from { opacity: @from-val; }
+    to { opacity: @to-val; }
+  }
+}
+
+.define-animation(customFade, 0.2, 0.8);
+
+// Test 7: Vendor-prefixed keyframes with variable
+@rotate-name: spin;
+
+@-webkit-keyframes @rotate-name {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes @rotate-name {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+// Test 8: @font-face with variables
+@font-name: 'CustomFont';
+@font-weight: 400;
+
+@font-face {
+  font-family: @font-name;
+  font-weight: @font-weight;
+  src: local('Arial');
+}
+
+// Test 9: @page with properties
+@margin-size: 2cm;
+
+@page {
+  margin: @margin-size;
+}
+
+// Test 10: @layer with variable name
+@layer-name: utilities;
+
+@layer @layer-name {
+  .hidden {
+    display: none;
+  }
+}
+
+// Test 11: Nested @media with variables
+@small: 480px;
+@medium: 768px;
+
+.nested-media {
+  width: 100%;
+
+  @media (min-width: @small) {
+    width: 50%;
+  }
+
+  @media (min-width: @medium) {
+    width: 33.33%;
+  }
+}
+
+// Test 12: Animation property using variable
+@duration: 0.3s;
+
+.animated {
+  animation: @anim-name @duration ease-in-out;
+}

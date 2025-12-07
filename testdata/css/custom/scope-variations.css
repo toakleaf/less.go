@@ -1,0 +1,50 @@
+.hoisting-test {
+  value: hoisted-value;
+}
+.level-1 {
+  level-1-value: level1;
+}
+.level-1 .level-2 .level-3 {
+  level-value: level2;
+}
+.level-1 .level-2 .level-2b {
+  level-value: level2;
+}
+.use-introduced {
+  result: introduced-value;
+}
+.multi-scope-1 {
+  value: first;
+}
+.multi-scope-2 {
+  value: second;
+}
+.detached-scope {
+  color: detached-blue;
+  outer-color: outer-red;
+}
+.guarded-scope-1 {
+  result: one;
+}
+.guarded-scope-2 {
+  result: two;
+}
+.recursive-output .level-3 {
+  depth: 3;
+}
+.recursive-output .level-2 {
+  depth: 2;
+}
+.recursive-output .level-1 {
+  depth: 1;
+}
+.widget {
+  value: inner-value;
+}
+.late-definition {
+  first: late-value;
+  second: late-value;
+}
+.namespace-caller {
+  value: namespace-value;
+}
