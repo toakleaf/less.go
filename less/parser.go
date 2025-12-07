@@ -444,8 +444,8 @@ func (p *Parser) parseInternal(str string, callback func(*LessError, *Ruleset), 
 	// Optionally disable @plugin parsing
 	if data.DisablePluginRule {
 		p.parsers.plugin = func() any {
-			dir := p.parserInput.Re(rePluginDirective)
-			if dir != nil {
+			dir := p.parserInput.ReString(rePluginDirective)
+			if dir != "" {
 				p.error("@plugin statements are not allowed when disablePluginRule is set to true", "")
 			}
 			return nil
@@ -1015,19 +1015,12 @@ func (p *Parsers) Declaration() any {
 // Variable parses variable entities - @fink
 func (e *EntityParsers) Variable() any {
 	var ch byte
-	var name string
 	index := e.parsers.parser.parserInput.GetIndex()
 
 	e.parsers.parser.parserInput.Save()
 	if e.parsers.parser.parserInput.CurrentChar() == '@' {
-		nameMatch := e.parsers.parser.parserInput.Re(reVariableAt)
-		if nameMatch != nil {
-			// Handle both string and []string cases
-			if matches, ok := nameMatch.([]string); ok {
-				name = matches[0]
-			} else if match, ok := nameMatch.(string); ok {
-				name = match
-			}
+		name := e.parsers.parser.parserInput.ReString(reVariableAt)
+		if name != "" {
 			ch = e.parsers.parser.parserInput.CurrentChar()
 			if ch == '(' || (ch == '[' && !e.parsers.parser.parserInput.IsWhitespace(-1)) {
 				// This may be a VariableCall lookup - pass the parsed name to indicate value context
@@ -1040,15 +1033,8 @@ func (e *EntityParsers) Variable() any {
 				e.parsers.parser.parserInput.Restore("")
 				e.parsers.parser.parserInput.Save()
 				// Re-parse the variable name
-				nameMatch = e.parsers.parser.parserInput.Re(reVariableAt)
-				if nameMatch != nil {
-					// Handle both string and []string cases
-					if matches, ok := nameMatch.([]string); ok {
-						name = matches[0]
-					} else if match, ok := nameMatch.(string); ok {
-						name = match
-					}
-				} else {
+				name = e.parsers.parser.parserInput.ReString(reVariableAt)
+				if name == "" {
 					// If re-parsing failed, we can't create a variable
 					e.parsers.parser.parserInput.Restore("")
 					return nil
@@ -1702,20 +1688,13 @@ func (e *EntityParsers) Color() any {
 func (e *EntityParsers) ColorKeyword() any {
 	e.parsers.parser.parserInput.Save()
 	// Note: autoCommentAbsorb access would need to be implemented in ParserInput
-	k := e.parsers.parser.parserInput.Re(reIdentifier)
+	kStr := e.parsers.parser.parserInput.ReString(reIdentifier)
 
-	if k == nil {
+	if kStr == "" {
 		e.parsers.parser.parserInput.Forget()
 		return nil
 	}
 	e.parsers.parser.parserInput.Restore("")
-
-	var kStr string
-	if matches, ok := k.([]string); ok {
-		kStr = matches[0]
-	} else if match, ok := k.(string); ok {
-		kStr = match
-	}
 
 	color := FromKeyword(kStr)
 	if color != nil {
@@ -2041,13 +2020,8 @@ func (p *Parsers) AtRule() any {
 // Important parses !important
 func (p *Parsers) Important() any {
 	if p.parser.parserInput.CurrentChar() == '!' {
-		result := p.parser.parserInput.Re(reImportant)
-		if result != nil {
-			if matches, ok := result.([]string); ok {
-				return matches[0]
-			} else if match, ok := result.(string); ok {
-				return match
-			}
+		if result := p.parser.parserInput.ReString(reImportant); result != "" {
+			return result
 		}
 	}
 	return nil
@@ -2658,18 +2632,10 @@ func (p *Parsers) ColorOperand() any {
 	p.parser.parserInput.Save()
 
 	// Match color channel identifiers followed by whitespace
-	match := p.parser.parserInput.Re(reColorOperand)
-	if match != nil {
-		var matchStr string
-		if matches, ok := match.([]string); ok && len(matches) > 0 {
-			matchStr = matches[0]
-		} else if str, ok := match.(string); ok {
-			matchStr = str
-		}
-		if matchStr != "" {
-			// Trim whitespace - the regex requires trailing whitespace but we don't want it in the output
-			return NewKeyword(strings.TrimSpace(matchStr))
-		}
+	matchStr := p.parser.parserInput.ReString(reColorOperand)
+	if matchStr != "" {
+		// Trim whitespace - the regex requires trailing whitespace but we don't want it in the output
+		return NewKeyword(strings.TrimSpace(matchStr))
 	}
 
 	p.parser.parserInput.Restore("")
@@ -3235,7 +3201,9 @@ func (p *Parsers) Element() any {
 		e = p.Attribute()
 	}
 	if e == nil {
-		e = p.parser.parserInput.Re(reSelectorParens)
+		if s := p.parser.parserInput.ReString(reSelectorParens); s != "" {
+			e = s
+		}
 	}
 	if e == nil {
 		// Handle [.#:] followed by @ (for variable interpolation)
@@ -3243,7 +3211,9 @@ func (p *Parsers) Element() any {
 		if p.parser.parserInput.CurrentChar() == '.' || p.parser.parserInput.CurrentChar() == '#' || p.parser.parserInput.CurrentChar() == ':' {
 			nextChar := p.parser.parserInput.PeekChar(1)
 			if nextChar == '@' {
-				e = p.parser.parserInput.Re(reSelectorPrefixes)
+				if s := p.parser.parserInput.ReString(reSelectorPrefixes); s != "" {
+					e = s
+				}
 			}
 		}
 	}
@@ -3621,13 +3591,9 @@ func (p *Parsers) ImportOptions() map[string]any {
 	options := make(map[string]any)
 
 	for {
-		opt := p.parser.parserInput.Re(reImportOptions)
-		if opt != nil {
-			optionName := ""
+		_, optionName, ok := p.parser.parserInput.ReTwoCapture(reImportOptions)
+		if ok {
 			value := true
-			if matches, ok := opt.([]string); ok && len(matches) > 1 {
-				optionName = matches[1]
-			}
 
 			switch optionName {
 			case "css":
@@ -3698,12 +3664,9 @@ func (p *Parsers) Combinator() *Combinator {
 
 	if c == '/' {
 		p.parser.parserInput.Save()
-		slashedCombinator := p.parser.parserInput.Re(reCombinatorSlashed)
-		if slashedCombinator != nil {
+		if slashedCombinator := p.parser.parserInput.ReString(reCombinatorSlashed); slashedCombinator != "" {
 			p.parser.parserInput.Forget()
-			if matches, ok := slashedCombinator.([]string); ok {
-				return NewCombinator(matches[0])
-			}
+			return NewCombinator(slashedCombinator)
 		}
 		p.parser.parserInput.Restore("")
 	}
@@ -3743,60 +3706,40 @@ func (p *Parsers) Attribute() any {
 	entities := p.entities
 	var key any
 	var val any
-	var op any
+	var op string
 	var cif string
 
 	key = entities.VariableCurly()
 	if key == nil {
-		keyMatch := p.parser.parserInput.Re(reSelectorAttribute)
-		if keyMatch != nil {
-			if matches, ok := keyMatch.([]string); ok && len(matches) > 0 {
-				key = matches[0]
-			} else if match, ok := keyMatch.(string); ok {
-				key = match
-			}
+		if keyStr := p.parser.parserInput.ReString(reSelectorAttribute); keyStr != "" {
+			key = keyStr
 		}
 	}
 
-	opMatch := p.parser.parserInput.Re(reOperatorAttr)
-	if opMatch != nil {
-		if matches, ok := opMatch.([]string); ok && len(matches) > 0 {
-			op = matches[0]
-		} else if match, ok := opMatch.(string); ok {
-			op = match
-		}
+	if opStr := p.parser.parserInput.ReString(reOperatorAttr); opStr != "" {
+		op = opStr
 		val = entities.Quoted(false)
 		if val == nil {
-			val = p.parser.parserInput.Re(rePercentSimple)
+			if valStr := p.parser.parserInput.ReString(rePercentSimple); valStr != "" {
+				val = valStr
+			}
 		}
 		if val == nil {
-			val = p.parser.parserInput.Re(reWordIdent)
+			if valStr := p.parser.parserInput.ReString(reWordIdent); valStr != "" {
+				val = valStr
+			}
 		}
 		if val == nil {
 			val = entities.VariableCurly()
 		}
 		if val != nil {
-			cifMatch := p.parser.parserInput.Re(reCaseFlag)
-			if cifMatch != nil {
-				if matches, ok := cifMatch.([]string); ok && len(matches) > 0 {
-					cif = matches[0]
-				} else if match, ok := cifMatch.(string); ok {
-					cif = match
-				}
-			}
+			cif = p.parser.parserInput.ReString(reCaseFlag)
 		}
 	}
 
 	p.parser.expectChar(']', "")
 
-	var opStr string
-	if op != nil {
-		if str, ok := op.(string); ok {
-			opStr = str
-		}
-	}
-
-	return NewAttribute(key, opStr, val, cif)
+	return NewAttribute(key, op, val, cif)
 }
 
 // Args parses mixin arguments
@@ -4146,14 +4089,14 @@ func (e *EntityParsers) Assignment() any {
 	e.parsers.parser.parserInput.Save()
 
 	// Instead of using positive lookahead (?=\s?=), parse the word and check for = separately
-	key := e.parsers.parser.parserInput.Re(reKeyword)
-	if key == nil {
+	key := e.parsers.parser.parserInput.ReString(reKeyword)
+	if key == "" {
 		e.parsers.parser.parserInput.Restore("")
 		return nil
 	}
 
 	// Skip optional whitespace and check for equals sign
-	e.parsers.parser.parserInput.Re(reWhitespace) // Skip whitespace
+	e.parsers.parser.parserInput.ReString(reWhitespace) // Skip whitespace
 	if e.parsers.parser.parserInput.Char('=') == nil {
 		e.parsers.parser.parserInput.Restore("")
 		return nil
@@ -4162,35 +4105,22 @@ func (e *EntityParsers) Assignment() any {
 	value := e.parsers.Entity()
 	if value != nil {
 		e.parsers.parser.parserInput.Forget()
-		if matches, ok := key.([]string); ok && len(matches) > 0 {
-			return NewAssignment(matches[0], value)
-		} else if keyStr, ok := key.(string); ok {
-			return NewAssignment(keyStr, value)
-		}
-	} else {
-		e.parsers.parser.parserInput.Restore("")
+		return NewAssignment(key, value)
 	}
+	e.parsers.parser.parserInput.Restore("")
 	return nil
 }
 
 // IeAlpha parses IE alpha function
 func (p *Parsers) IeAlpha() []any {
-	if p.parser.parserInput.Re(reAlphaOpacity) == nil {
+	if p.parser.parserInput.ReString(reAlphaOpacity) == "" {
 		return nil
 	}
-	
+
 	// First try to parse a number
-	value := p.parser.parserInput.Re(reNumber)
-	var valueStr string
-	
-	if value != nil {
-		// We have a numeric value
-		if matches, ok := value.([]string); ok && len(matches) > 0 {
-			valueStr = matches[0]
-		} else if str, ok := value.(string); ok {
-			valueStr = str
-		}
-	} else {
+	valueStr := p.parser.parserInput.ReString(reNumber)
+
+	if valueStr == "" {
 		// Try to parse a variable
 		variable := p.parser.expect(p.entities.Variable, "Could not parse alpha")
 		if variable != nil {

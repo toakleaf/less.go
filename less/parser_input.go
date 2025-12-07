@@ -203,19 +203,126 @@ func (p *ParserInput) Re(tok *regexp.Regexp) any {
 		p.currentPos = p.i
 	}
 
-	match := tok.FindStringSubmatch(p.current)
-	if match == nil {
+	// Optimization: use FindStringSubmatchIndex to avoid allocating []string
+	// Instead, we extract substrings directly from p.current using indices
+	indices := tok.FindStringSubmatchIndex(p.current)
+	if indices == nil {
 		return nil
 	}
 
-	matchLen := len(match[0])
+	// indices[0], indices[1] = full match start, end
+	// indices[2], indices[3] = first capture group start, end (if exists)
+	// etc.
+	// IMPORTANT: Extract all substrings BEFORE modifying p.current via syncCurrent
+	current := p.current // Save reference before it changes
+	matchLen := indices[1] - indices[0]
+	fullMatch := current[indices[0]:indices[1]]
+
+	// If no capture groups, advance position and return just the full match string
+	numSubexp := len(indices)/2 - 1
+	if numSubexp == 0 {
+		p.i += matchLen
+		p.skipWhitespace(0)
+		p.syncCurrent()
+		return fullMatch
+	}
+
+	// Build []string result from indices BEFORE advancing position
+	// This must happen before syncCurrent() modifies p.current
+	match := make([]string, numSubexp+1)
+	match[0] = fullMatch
+	for i := 1; i <= numSubexp; i++ {
+		start, end := indices[i*2], indices[i*2+1]
+		if start >= 0 && end >= 0 {
+			match[i] = current[start:end]
+		}
+		// else match[i] remains empty string for non-participating groups
+	}
+
 	p.i += matchLen
 	p.skipWhitespace(0)
-	p.syncCurrent()     // Sync current field
-	if len(match) == 1 {
-		return match[0]
-	}
+	p.syncCurrent()
 	return match
+}
+
+// ReString matches a regex with no capture groups and returns the matched string.
+// This is more efficient than Re() as it uses FindString() which doesn't allocate a slice.
+// Returns empty string if no match.
+func (p *ParserInput) ReString(tok *regexp.Regexp) string {
+	// Ensure p.current is always synced with the current position
+	if p.i < len(p.input) {
+		p.current = p.input[p.i:]
+		p.currentPos = p.i
+	}
+
+	match := tok.FindString(p.current)
+	if match == "" {
+		return ""
+	}
+
+	p.i += len(match)
+	p.skipWhitespace(0)
+	p.syncCurrent()
+	return match
+}
+
+// ReTwoCapture matches a regex with exactly 1 capture group.
+// Returns (fullMatch, captureGroup1, ok). Uses FindStringSubmatchIndex
+// to avoid allocating a []string slice.
+func (p *ParserInput) ReTwoCapture(tok *regexp.Regexp) (string, string, bool) {
+	// Ensure p.current is always synced with the current position
+	if p.i < len(p.input) {
+		p.current = p.input[p.i:]
+		p.currentPos = p.i
+	}
+
+	indices := tok.FindStringSubmatchIndex(p.current)
+	if indices == nil {
+		return "", "", false
+	}
+
+	// indices layout: [fullStart, fullEnd, cap1Start, cap1End]
+	fullMatch := p.current[indices[0]:indices[1]]
+	var cap1 string
+	if len(indices) >= 4 && indices[2] >= 0 && indices[3] >= 0 {
+		cap1 = p.current[indices[2]:indices[3]]
+	}
+
+	p.i += indices[1] - indices[0]
+	p.skipWhitespace(0)
+	p.syncCurrent()
+	return fullMatch, cap1, true
+}
+
+// ReThreeCapture matches a regex with exactly 2 capture groups.
+// Returns (fullMatch, captureGroup1, captureGroup2, ok). Uses FindStringSubmatchIndex
+// to avoid allocating a []string slice.
+func (p *ParserInput) ReThreeCapture(tok *regexp.Regexp) (string, string, string, bool) {
+	// Ensure p.current is always synced with the current position
+	if p.i < len(p.input) {
+		p.current = p.input[p.i:]
+		p.currentPos = p.i
+	}
+
+	indices := tok.FindStringSubmatchIndex(p.current)
+	if indices == nil {
+		return "", "", "", false
+	}
+
+	// indices layout: [fullStart, fullEnd, cap1Start, cap1End, cap2Start, cap2End]
+	fullMatch := p.current[indices[0]:indices[1]]
+	var cap1, cap2 string
+	if len(indices) >= 4 && indices[2] >= 0 && indices[3] >= 0 {
+		cap1 = p.current[indices[2]:indices[3]]
+	}
+	if len(indices) >= 6 && indices[4] >= 0 && indices[5] >= 0 {
+		cap2 = p.current[indices[4]:indices[5]]
+	}
+
+	p.i += indices[1] - indices[0]
+	p.skipWhitespace(0)
+	p.syncCurrent()
+	return fullMatch, cap1, cap2, true
 }
 
 func (p *ParserInput) Char(tok byte) any {
