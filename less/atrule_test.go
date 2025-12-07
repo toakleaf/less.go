@@ -112,7 +112,8 @@ func TestAtRule(t *testing.T) {
 		t.Run("should convert single rule to array and add empty selectors", func(t *testing.T) {
 			rule := NewRuleset(nil, nil, false, nil)
 			fileInfo := map[string]any{"filename": "test.less"}
-			atRule := NewAtRule("@media", nil, rule, 1, fileInfo, nil, false, nil)
+			// Pass a non-nil value (typical for @media) to avoid triggering SimpleBlock path
+			atRule := NewAtRule("@media", "screen", rule, 1, fileInfo, nil, false, nil)
 
 			if len(atRule.Rules) != 1 {
 				t.Errorf("Expected rules length to be 1, got %d", len(atRule.Rules))
@@ -173,8 +174,8 @@ func TestAtRule(t *testing.T) {
 		t.Run("should visit rules when present", func(t *testing.T) {
 			rule := NewRuleset(nil, nil, false, nil)
 			visitedRule := NewRuleset(nil, nil, false, nil)
-			// Use @supports which is a bubblable at-rule that visits its children
-			atRule := NewAtRule("@supports", nil, []any{rule}, 0, nil, nil, false, nil)
+			// Use @supports with a value to avoid triggering SimpleBlock path
+			atRule := NewAtRule("@supports", "(display: grid)", []any{rule}, 0, nil, nil, false, nil)
 
 			visitArrayCalled := false
 			visitor := &atRuleMockVisitor{
@@ -246,7 +247,8 @@ func TestAtRule(t *testing.T) {
 	t.Run("isRulesetLike", func(t *testing.T) {
 		t.Run("should return rules array when rules exist", func(t *testing.T) {
 			rules := []any{NewRuleset(nil, nil, false, nil)}
-			atRule := NewAtRule("@media", nil, rules, 0, nil, nil, false, nil)
+			// Pass a non-nil value to avoid triggering SimpleBlock path
+			atRule := NewAtRule("@media", "screen", rules, 0, nil, nil, false, nil)
 			result := atRule.IsRulesetLike()
 			if !reflect.DeepEqual(result, rules) {
 				t.Error("Expected IsRulesetLike to return rules array")
@@ -271,7 +273,8 @@ func TestAtRule(t *testing.T) {
 
 		t.Run("should return rules array when charset rule with rules", func(t *testing.T) {
 			rules := []any{NewRuleset(nil, nil, false, nil)}
-			atRule := NewAtRule("@charset", nil, rules, 0, nil, nil, false, nil)
+			// Pass a non-nil value to avoid triggering SimpleBlock path
+			atRule := NewAtRule("@charset", "utf-8", rules, 0, nil, nil, false, nil)
 			result := atRule.IsRulesetLike()
 			if !reflect.DeepEqual(result, rules) {
 				t.Error("Expected IsRulesetLike to return rules array")
@@ -467,7 +470,8 @@ func TestAtRule(t *testing.T) {
 			rule := &mockRulesetEvaluatable{
 				evalResult: NewRuleset(nil, nil, false, nil),
 			}
-			atRule := NewAtRule("@media", nil, []any{rule}, 0, nil, nil, false, nil)
+			// Pass a non-nil value to avoid triggering SimpleBlock path
+			atRule := NewAtRule("@media", "screen", []any{rule}, 0, nil, nil, false, nil)
 			context := map[string]any{
 				"mediaPath":   []any{"existing"},
 				"mediaBlocks": []any{"existing"},
