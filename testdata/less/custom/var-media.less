@@ -1,0 +1,159 @@
+// Variations of media.less
+// Tests @media queries in different contexts
+
+// Basic media query
+@media screen {
+  .screen-only {
+    display: block;
+  }
+}
+
+// Media query with variable
+@breakpoint-sm: 576px;
+@breakpoint-md: 768px;
+@breakpoint-lg: 992px;
+
+@media (min-width: @breakpoint-sm) {
+  .col-sm {
+    flex: 1;
+  }
+}
+
+@media (min-width: @breakpoint-md) {
+  .col-md {
+    flex: 2;
+  }
+}
+
+// Nested media queries
+@media screen {
+  .responsive {
+    width: 100%;
+
+    @media (min-width: @breakpoint-lg) {
+      width: 50%;
+    }
+  }
+}
+
+// Media query inside selector (bubbling)
+.component {
+  padding: 20px;
+
+  @media print {
+    padding: 10px;
+    border: 1px solid black;
+  }
+
+  @media (max-width: 600px) {
+    padding: 10px;
+  }
+}
+
+// Complex media conditions
+@media screen and (min-width: 768px) and (max-width: 1024px) {
+  .tablet-only {
+    display: block;
+  }
+}
+
+@media (orientation: portrait) {
+  .portrait-layout {
+    flex-direction: column;
+  }
+}
+
+// Media query with logical operators
+@media not print {
+  .no-print {
+    display: block;
+  }
+}
+
+// Range syntax
+@media (200px <= width <= 500px) {
+  .range-width {
+    background: yellow;
+  }
+}
+
+@media (height > 600px) {
+  .tall-screen {
+    min-height: 80vh;
+  }
+}
+
+// Mixin with media queries
+.responsive-text(@size, @max-size) {
+  font-size: @size;
+
+  @media (min-width: 768px) {
+    font-size: (@size * 1.2);
+  }
+
+  @media (min-width: 1024px) {
+    font-size: @max-size;
+  }
+}
+
+.title {
+  .responsive-text(16px, 24px);
+}
+
+.subtitle {
+  .responsive-text(14px, 18px);
+}
+
+// Variable in media query string
+@aspect-x: 16;
+@aspect-y: 9;
+
+@media all and (aspect-ratio: ~'@{aspect-x} / @{aspect-y}') {
+  .widescreen {
+    padding: 0 5%;
+  }
+}
+
+// Multiple media features
+@media handheld and (color), screen and (color) {
+  .color-device {
+    color: rgb(255, 0, 0);
+  }
+}
+
+// @page rules inside media
+@media print {
+  @page {
+    margin: 1in;
+  }
+
+  @page :first {
+    margin-top: 2in;
+  }
+}
+
+// Deeply nested media
+.outer {
+  background: white;
+
+  @media screen {
+    .inner {
+      background: lightgray;
+
+      @media (min-width: 800px) {
+        .deep {
+          background: darkgray;
+        }
+      }
+    }
+  }
+}
+
+// Escaped variable in media
+@print-media: ~"print";
+
+@media @print-media {
+  .print-style {
+    color: black;
+  }
+}

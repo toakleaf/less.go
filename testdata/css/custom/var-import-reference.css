@@ -1,0 +1,55 @@
+.extended-card {
+  display: block;position: relative;
+}
+.primary-button {
+  display: inline-block;
+  padding: 8px 16px;
+  border-radius: 4px;
+  background: blue;
+  color: white;
+}
+.secondary-button {
+  display: inline-block;
+  padding: 8px 16px;
+  border-radius: 4px;
+  background: gray;
+  color: black;
+}
+.page-layout {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  gap: 1rem;
+}
+.extended-card {
+  background: #fff;
+  border: 1px solid #eee;
+}
+.animated {
+  transition: all 0.3s ease;
+}
+.complex-component {
+  display: flex;
+  display: inline-block;
+  padding: 8px 16px;
+  border-radius: 4px;
+  padding: 20px;
+}
+.form {
+  display: grid;
+  gap: 1rem;
+}
+.form .form-row {
+  display: flex;
+  gap: 10px;
+}
+.form .submit {
+  display: inline-block;
+  padding: 8px 16px;
+  border-radius: 4px;
+  background: blue;
+  color: white;
+}
+.standalone {
+  color: black;
+}

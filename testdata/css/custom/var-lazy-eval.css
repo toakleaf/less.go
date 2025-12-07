@@ -1,0 +1,22 @@
+.lazy-basic {
+  color: #ff0000;
+}
+.lazy-calc {
+  width: 200px;
+}
+.lazy-scope {
+  color: blue;
+}
+.lazy-scope .nested {
+  color: green;
+}
+.lazy-mixin {
+  width: 100px;
+  height: 100px;
+}
+.lazy-chain {
+  padding: 42px;
+}
+.lazy-string {
+  content: "hello" "-world";
+}

@@ -1,0 +1,99 @@
+// Variations of mixin-noparens.less
+// Tests calling mixins without parentheses in different contexts
+
+// Basic mixin without parens using namespace
+#buttons {
+  .primary {
+    background-color: blue;
+    color: white;
+    padding: 10px 20px;
+  }
+
+  .secondary {
+    background-color: gray;
+    color: black;
+    padding: 8px 16px;
+  }
+}
+
+// Using the namespace mixin without parens
+.btn-primary {
+  #buttons > .primary;
+}
+
+.btn-secondary {
+  #buttons > .secondary;
+}
+
+// Nested namespace mixins
+#forms {
+  #inputs {
+    .text {
+      border: 1px solid #ccc;
+      padding: 8px;
+    }
+
+    .checkbox {
+      width: 16px;
+      height: 16px;
+    }
+  }
+}
+
+.input-text {
+  #forms > #inputs > .text;
+}
+
+// Multiple namespace calls in same ruleset
+.form-group {
+  #buttons > .primary;
+  margin: 10px 0;
+}
+
+// Class-based mixin with child selectors
+.icons {
+  .arrow {
+    width: 10px;
+    height: 10px;
+    border: solid currentColor;
+    border-width: 0 2px 2px 0;
+  }
+}
+
+.arrow-icon {
+  .icons > .arrow;
+}
+
+// Simple mixin defined as class
+.clearfix {
+  &::after {
+    content: "";
+    display: table;
+    clear: both;
+  }
+}
+
+.container {
+  .clearfix;
+  max-width: 1200px;
+}
+
+// Mixin with properties and nested selector
+.card-base {
+  border: 1px solid #ddd;
+  border-radius: 4px;
+
+  .header {
+    padding: 10px;
+    background: #f5f5f5;
+  }
+
+  .body {
+    padding: 15px;
+  }
+}
+
+.my-card {
+  .card-base;
+  margin-bottom: 20px;
+}

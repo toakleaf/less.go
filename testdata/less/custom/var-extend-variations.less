@@ -1,0 +1,113 @@
+// Additional extend tests beyond the original tests
+// Tests extend in various contexts
+
+// Basic extend
+.message {
+  padding: 10px 15px;
+  border-radius: 4px;
+  margin-bottom: 10px;
+}
+
+.success:extend(.message) {
+  background-color: #d4edda;
+  border-color: #c3e6cb;
+  color: #155724;
+}
+
+.error:extend(.message) {
+  background-color: #f8d7da;
+  border-color: #f5c6cb;
+  color: #721c24;
+}
+
+.warning:extend(.message) {
+  background-color: #fff3cd;
+  border-color: #ffeeba;
+  color: #856404;
+}
+
+// Extend all
+.btn {
+  display: inline-block;
+  padding: 8px 16px;
+}
+
+.btn-large {
+  padding: 12px 24px;
+}
+
+.btn-small {
+  padding: 4px 8px;
+}
+
+.my-button:extend(.btn all) {
+  background: blue;
+}
+
+// Extend nested selectors
+.nav {
+  .item {
+    display: inline-block;
+    padding: 10px;
+  }
+
+  .item.active {
+    font-weight: bold;
+  }
+}
+
+.main-nav .current:extend(.nav .item.active) {
+  color: blue;
+}
+
+// Extend with pseudo-classes
+.link {
+  color: blue;
+  text-decoration: none;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+.nav-link:extend(.link all) {
+  font-weight: 500;
+}
+
+// Multiple extends
+.box {
+  border: 1px solid #ddd;
+}
+
+.rounded {
+  border-radius: 4px;
+}
+
+.shadowed {
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.card-box:extend(.box):extend(.rounded):extend(.shadowed) {
+  padding: 20px;
+}
+
+// Extend inside media query
+@media screen and (min-width: 768px) {
+  .desktop-container {
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+}
+
+.page-container:extend(.desktop-container) {
+  padding: 20px;
+}
+
+// Extend with combinators
+.parent > .child {
+  margin-left: 20px;
+}
+
+.my-child:extend(.parent > .child) {
+  color: red;
+}

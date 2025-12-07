@@ -1,0 +1,63 @@
+// Variations of lazy-eval.less
+// Tests lazy evaluation of variables in different contexts
+
+// Basic lazy evaluation - variable references another variable defined later
+@primary: @secondary;
+@secondary: @tertiary;
+@tertiary: #ff0000;
+
+.lazy-basic {
+  color: @primary;
+}
+
+// Lazy evaluation with calculations
+@width: @base-size * 2;
+@base-size: 100px;
+
+.lazy-calc {
+  width: @width;
+}
+
+// Lazy evaluation in nested scopes - variable override
+.lazy-scope {
+  @inner: blue;
+  @outer: @inner;
+  color: @outer;
+
+  .nested {
+    @inner: green;
+    @local-outer: @inner;
+    color: @local-outer;
+  }
+}
+
+// Lazy evaluation with mixin parameters
+.make-box(@size) {
+  @computed: @size * @multiplier;
+  width: @computed;
+  height: @computed;
+}
+
+@multiplier: 2;
+
+.lazy-mixin {
+  .make-box(50px);
+}
+
+// Multiple levels of indirection
+@a: @b;
+@b: @c;
+@c: @d;
+@d: 42px;
+
+.lazy-chain {
+  padding: @a;
+}
+
+// Lazy evaluation with string concatenation
+@prefix: "hello";
+@suffix: @prefix + "-world";
+
+.lazy-string {
+  content: @suffix;
+}

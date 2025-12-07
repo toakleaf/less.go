@@ -1,0 +1,99 @@
+// Variations of operations
+// Tests mathematical and color operations
+
+// Basic math operations
+.math-basic {
+  addition: (10px + 5px);
+  subtraction: (20px - 8px);
+  multiplication: (5px * 3);
+  division: (30px / 2);
+}
+
+// Mixed unit operations
+.math-units {
+  em-calc: (1em * 2);
+  percent-calc: (100% / 4);
+  rem-calc: (2rem + 0.5rem);
+}
+
+// Negative values
+.math-negative {
+  neg-margin: (-10px);
+  neg-calc: (5px - 15px);
+  neg-mult: (10px * -2);
+}
+
+// Color operations
+@base-color: #4488cc;
+
+.color-ops {
+  lighten: lighten(@base-color, 20%);
+  darken: darken(@base-color, 20%);
+  saturate: saturate(@base-color, 30%);
+  desaturate: desaturate(@base-color, 30%);
+  spin: spin(@base-color, 45);
+  fade: fade(@base-color, 50%);
+  mix: mix(@base-color, #ff0000, 50%);
+}
+
+// Color arithmetic
+.color-math {
+  add: (#111 + #222);
+  subtract: (#fff - #111);
+  multiply: (#222 * 2);
+}
+
+// Operations with variables
+@base-size: 16px;
+@scale: 1.5;
+@spacing: 8px;
+
+.var-ops {
+  font-size: (@base-size * @scale);
+  padding: (@spacing * 2) (@spacing * 3);
+  margin: (@spacing / 2);
+  line-height: (@base-size * @scale / @base-size);
+}
+
+// Complex expressions
+.complex-ops {
+  calc: ((100px - 20px) / 2 + 5px);
+  nested: (((@base-size * 2) + 10px) / 3);
+}
+
+// String concatenation
+@prefix: "prefix";
+@suffix: "suffix";
+
+.string-ops {
+  content: ~"@{prefix}-@{suffix}";
+  background: url("path/@{prefix}.png");
+}
+
+// Unit conversion
+.unit-convert {
+  // Same units
+  same: (10px + 5px);
+  // Unitless treated as same
+  unitless: (10px * 2);
+}
+
+// Comparison operations via mixin guards
+@test-val: 50;
+
+.gt-mixin() when (@test-val > 40) { result: greater; }
+.lt-mixin() when (@test-val < 60) { result: lesser; }
+.eq-mixin() when (@test-val = 50) { result: equal; }
+
+.comparisons {
+  .gt-mixin();
+  .lt-mixin();
+  .eq-mixin();
+}
+
+// Percentage operations
+.percent-ops {
+  half: (100% / 2);
+  quarter: (100% / 4);
+  double: (25% * 2);
+}
