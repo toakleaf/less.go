@@ -160,15 +160,34 @@ func TransformTree(root any, options map[string]any) any {
 	//
 	// Handle variables exactly like JavaScript (including the null bug)
 	// In JavaScript: typeof null === 'object' && !Array.isArray(null) === true
-	if (variables != nil && reflect.TypeOf(variables).Kind() == reflect.Map && !isArray(variables)) || 
-	   (variables != nil && reflect.TypeOf(variables).Kind() == reflect.Ptr && reflect.ValueOf(variables).IsNil()) {
-		// Check for the JavaScript null bug case
-		if reflect.TypeOf(variables).Kind() == reflect.Ptr && reflect.ValueOf(variables).IsNil() {
-			// Reproduce JavaScript's Object.keys(null) error
-			panic("Cannot convert undefined or null to object")
+	// Optimized: Use type switch first to avoid reflection in common cases
+	var varsMap map[string]any
+	processVariables := false
+
+	switch v := variables.(type) {
+	case nil:
+		// nil passes through without processing
+	case map[string]any:
+		// Direct map type - most common case, no reflection needed
+		varsMap = v
+		processVariables = true
+	default:
+		// Fallback to reflection for other types (rare)
+		varType := reflect.TypeOf(variables)
+		varKind := varType.Kind()
+		if varKind == reflect.Map && !isArray(variables) {
+			varsMap = variables.(map[string]any)
+			processVariables = true
+		} else if varKind == reflect.Ptr {
+			varVal := reflect.ValueOf(variables)
+			if varVal.IsNil() {
+				// Reproduce JavaScript's Object.keys(null) error
+				panic("Cannot convert undefined or null to object")
+			}
 		}
-		
-		varsMap := variables.(map[string]any)
+	}
+
+	if processVariables {
 		declarations := make([]any, 0, len(varsMap))
 
 		for k, value := range varsMap {

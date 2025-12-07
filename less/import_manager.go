@@ -499,24 +499,29 @@ func (im *ImportManager) handlePromise(promise any, loadFileCallback func(*Loade
 
 func (im *ImportManager) tryReflectionPromise(promise any, loadFileCallback func(*LoadedFile), fileParsedFunc func(error, any, string)) bool {
 	v := reflect.ValueOf(promise)
-	if v.Kind() == reflect.Ptr {
+	kind := v.Kind()
+	// Dereference pointer if needed
+	if kind == reflect.Ptr {
 		v = v.Elem()
+		kind = v.Kind() // Cache new kind after dereferencing
 	}
 
+	// Check for Then method (Promise-like types)
 	thenMethod := v.MethodByName("Then")
 	if thenMethod.IsValid() && thenMethod.Type().NumIn() == 2 {
 		successCallback := reflect.ValueOf(loadFileCallback)
 		errorCallback := reflect.ValueOf(func(err error) {
 			fileParsedFunc(err, nil, "")
 		})
-		
+
 		go func() {
 			thenMethod.Call([]reflect.Value{successCallback, errorCallback})
 		}()
 		return true
 	}
 
-	if v.Kind() == reflect.Chan {
+	// Check for channel types (using cached kind)
+	if kind == reflect.Chan {
 		go func() {
 			chosen, recv, recvOK := reflect.Select([]reflect.SelectCase{
 				{Dir: reflect.SelectRecv, Chan: v},

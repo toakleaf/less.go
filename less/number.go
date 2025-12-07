@@ -146,12 +146,28 @@ func minMax(isMin bool, args []interface{}) (interface{}, error) {
 		current := args[i]
 		dim, ok := current.(*Dimension)
 		if !ok {
+			// Optimized: Use type switches for known types to avoid reflection
+			// Check for types with GetValue() []any method first
+			// Note: []any is identical to []interface{} since any is a type alias for interface{}
+			switch v := current.(type) {
+			case *Expression:
+				args = append(args, v.Value...)
+				continue
+			case *Value:
+				args = append(args, v.Value...)
+				continue
+			case interface{ GetValue() []any }:
+				args = append(args, v.GetValue()...)
+				continue
+			}
+			// Fallback: Check interface returning interface{} (for compatibility)
 			if valuer, ok := current.(interface{ GetValue() interface{} }); ok {
 				if arr, ok := valuer.GetValue().([]interface{}); ok {
 					args = append(args, arr...)
 					continue
 				}
 			}
+			// Last resort: Use reflection for unknown types with Value field
 			currentVal := reflect.ValueOf(current)
 			if currentVal.Kind() == reflect.Ptr {
 				currentVal = currentVal.Elem()
