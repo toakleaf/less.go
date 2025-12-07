@@ -1,0 +1,57 @@
+// Variations of import-reference.less
+// Tests import (reference) with namespaces and extend
+
+// Import library by reference - should not output unless used
+@import (reference) "import/namespace-lib.less";
+@import (reference) "import/reference-only.less";
+
+// Using namespace mixins from referenced import
+.primary-button {
+  #UI > .button-primary();
+}
+
+.secondary-button {
+  #UI > .button-secondary();
+}
+
+.page-layout {
+  #Layout > .container();
+  #Layout > .grid();
+}
+
+// Extend from referenced file
+.extended-card:extend(.ref-extend-base all) {
+  background: #fff;
+  border: 1px solid #eee;
+}
+
+// Mixin from referenced file
+.animated {
+  .ref-mixin();
+}
+
+// Combine multiple namespace calls
+.complex-component {
+  #Layout > .flex();
+  #UI > .button();
+  padding: 20px;
+}
+
+// Nested use of referenced mixins
+.form {
+  #Layout > .grid();
+
+  .form-row {
+    #Layout > .flex();
+    gap: 10px;
+  }
+
+  .submit {
+    #UI > .button-primary();
+  }
+}
+
+// This class should appear but ref-card should NOT appear
+.standalone {
+  color: black;
+}

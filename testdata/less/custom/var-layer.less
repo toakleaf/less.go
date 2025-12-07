@@ -1,0 +1,132 @@
+// Variations of layer.less
+// Tests CSS @layer at-rule in different contexts
+
+// Simple layer statement
+@layer reset, base, components, utilities;
+
+// Anonymous layer with nested rules
+@layer {
+  * {
+    margin: 0;
+    padding: 0;
+  }
+}
+
+// Named layer with variable
+@theme-layer: theme;
+
+@layer @theme-layer {
+  :root {
+    --primary: blue;
+    --secondary: green;
+  }
+}
+
+// Nested selectors within layer
+@layer base {
+  body {
+    font-family: system-ui, sans-serif;
+    line-height: 1.5;
+
+    h1, h2, h3 {
+      margin-top: 1em;
+      margin-bottom: 0.5em;
+    }
+
+    p {
+      margin-bottom: 1em;
+    }
+  }
+}
+
+// Nested layer
+@layer framework {
+  @layer core {
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+  }
+
+  @layer utilities {
+    .hidden {
+      display: none;
+    }
+
+    .visible {
+      display: block;
+    }
+  }
+}
+
+// Dotted layer name
+@layer framework.components {
+  .button {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+
+    &.primary {
+      background: blue;
+      color: white;
+    }
+
+    &.secondary {
+      background: gray;
+      color: black;
+    }
+  }
+}
+
+// Layer with media queries
+@layer responsive {
+  @media (max-width: 768px) {
+    .container {
+      padding: 0 10px;
+    }
+
+    .sidebar {
+      display: none;
+    }
+  }
+
+  @media (min-width: 769px) {
+    .sidebar {
+      width: 300px;
+      float: left;
+    }
+  }
+}
+
+// Anonymous layer inside selector
+.component {
+  @layer {
+    &::before {
+      content: '';
+      display: block;
+    }
+
+    &::after {
+      content: '';
+      clear: both;
+    }
+  }
+}
+
+// Multiple dotted layers
+@layer ui.forms.inputs {
+  input[type="text"] {
+    border: 1px solid #ccc;
+    padding: 8px;
+  }
+}
+
+@layer ui.forms.buttons {
+  button {
+    border: none;
+    padding: 10px 20px;
+  }
+}

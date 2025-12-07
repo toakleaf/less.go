@@ -1,0 +1,58 @@
+.math-basic {
+  addition: 15px;
+  subtraction: 12px;
+  multiplication: 15px;
+  division: 15px;
+}
+.math-units {
+  em-calc: 2em;
+  percent-calc: 25%;
+  rem-calc: 2.5rem;
+}
+.math-negative {
+  neg-margin: -10px;
+  neg-calc: -10px;
+  neg-mult: -20px;
+}
+.color-ops {
+  lighten: #94bbe2;
+  darken: #245586;
+  saturate: #2088f0;
+  desaturate: #6888a8;
+  spin: #6644cc;
+  fade: rgba(68, 136, 204, 0.5);
+  mix: #a24466;
+}
+.color-math {
+  add: #333333;
+  subtract: #eeeeee;
+  multiply: #444444;
+}
+.var-ops {
+  font-size: 24px;
+  padding: 16px 24px;
+  margin: 4px;
+  line-height: 1.5px;
+}
+.complex-ops {
+  calc: 45px;
+  nested: 14px;
+}
+.string-ops {
+  content: prefix-suffix;
+  background: url("path/prefix.png");
+}
+.unit-convert {
+  same: 15px;
+  unitless: 20px;
+}
+.comparisons {
+  result: greater;
+  result: lesser;
+  result: equal;
+}
+.percent-ops {
+  half: 50%;
+  quarter: 25%;
+  double: 50%;
+}

@@ -1,0 +1,56 @@
+.box {
+  padding: 10px;
+  margin: 5px;
+  border: 1px solid #ccc;
+  background: white;
+}
+.themed-element {
+  background: #333;
+  color: #fff;
+}
+.element {
+  font-size: 16px;
+  line-height: 1.5;
+}
+.my-card {
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+.my-card .header {
+  font-size: 18px;
+  font-weight: bold;
+}
+.my-card .body {
+  padding: 16px;
+}
+.column {
+  width: 100%;
+  padding: 10px;
+}
+@media (min-width: 768px) {
+  .column {
+    width: 50%;
+  }
+}
+@media (min-width: 1024px) {
+  .column {
+    width: 33.33%;
+  }
+}
+.final-element {
+  display: block;
+  position: relative;
+  overflow: hidden;
+}
+.gradient-box {
+  background: linear-gradient(to right, #f00, #00f);
+  color: white;
+}
+.scoped-element {
+  color: blue;
+  border-color: blue;
+}
+.wrapper {
+  color: green;
+  border: 1px solid green;
+}

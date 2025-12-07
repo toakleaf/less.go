@@ -1,0 +1,86 @@
+#buttons .primary {
+  background-color: blue;
+  color: white;
+  padding: 10px 20px;
+}
+#buttons .secondary {
+  background-color: gray;
+  color: black;
+  padding: 8px 16px;
+}
+.btn-primary {
+  background-color: blue;
+  color: white;
+  padding: 10px 20px;
+}
+.btn-secondary {
+  background-color: gray;
+  color: black;
+  padding: 8px 16px;
+}
+#forms #inputs .text {
+  border: 1px solid #ccc;
+  padding: 8px;
+}
+#forms #inputs .checkbox {
+  width: 16px;
+  height: 16px;
+}
+.input-text {
+  border: 1px solid #ccc;
+  padding: 8px;
+}
+.form-group {
+  background-color: blue;
+  color: white;
+  padding: 10px 20px;
+  margin: 10px 0;
+}
+.icons .arrow {
+  width: 10px;
+  height: 10px;
+  border: solid currentColor;
+  border-width: 0 2px 2px 0;
+}
+.arrow-icon {
+  width: 10px;
+  height: 10px;
+  border: solid currentColor;
+  border-width: 0 2px 2px 0;
+}
+.clearfix::after {
+  content: "";
+  display: table;
+  clear: both;
+}
+.container {
+  max-width: 1200px;
+}
+.container::after {
+  content: "";
+  display: table;
+  clear: both;
+}
+.card-base {
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+.card-base .header {
+  padding: 10px;
+  background: #f5f5f5;
+}
+.card-base .body {
+  padding: 15px;
+}
+.my-card {
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  margin-bottom: 20px;
+}
+.my-card .header {
+  padding: 10px;
+  background: #f5f5f5;
+}
+.my-card .body {
+  padding: 15px;
+}

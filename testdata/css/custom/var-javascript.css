@@ -1,0 +1,47 @@
+.js-basic {
+  answer: 42;
+  math: 4;
+  string: "hello";
+  boolean: true;
+}
+.js-expressions {
+  calc: 25;
+  ternary: "yes";
+  concat: "hello-world";
+}
+.js-variables {
+  computed: 200;
+  color-type: "object";
+}
+.js-escaped {
+  value: 10px;
+  another: 20em;
+}
+.js-mixin-call {
+  items: "5 items";
+}
+.js-multiline {
+  complex: 30;
+}
+.js-arrays {
+  joined: "a-b-c";
+  length: 3;
+}
+.js-strings {
+  lower: "hello world";
+  upper: "HELLO WORLD";
+  length: 11;
+}
+.js-datetime {
+  year: 2025;
+}
+.js-math {
+  rounded: 4;
+  floored: 3;
+  ceiled: 4;
+  maxval: 10;
+  minval: 3;
+}
+.js-interpolation {
+  classname: "btn-primary";
+}
