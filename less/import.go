@@ -110,6 +110,25 @@ func (i *Import) GetIndex() int {
 	return i._index
 }
 
+// GetRoot returns the root ruleset of this import for variable hoisting.
+// This is needed for variable lookup to traverse into imported files.
+func (i *Import) GetRoot() interface {
+	Variables() map[string]any
+	Variable(string) any
+} {
+	if i.root == nil {
+		return nil
+	}
+	// Try to return the root as the expected interface type
+	if rootWithVars, ok := i.root.(interface {
+		Variables() map[string]any
+		Variable(string) any
+	}); ok {
+		return rootWithVars
+	}
+	return nil
+}
+
 func (i *Import) FileInfo() map[string]any {
 	return i._fileInfo
 }

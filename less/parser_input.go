@@ -234,6 +234,14 @@ func (p *ParserInput) PeekChar(tok byte) any {
 	return tok
 }
 
+// Remaining returns the remaining unparsed input
+func (p *ParserInput) Remaining() string {
+	if p.i >= len(p.input) {
+		return ""
+	}
+	return p.input[p.i:]
+}
+
 func (p *ParserInput) Str(tok string) any {
 	tokLength := len(tok)
 	if p.i+tokLength > len(p.input) {

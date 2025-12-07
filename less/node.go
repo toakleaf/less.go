@@ -99,11 +99,21 @@ func (n *Node) SetParent(nodes any, parent *Node) {
 
 // GetIndex returns the node's index
 func (n *Node) GetIndex() int {
+	return n.getIndexWithDepth(0)
+}
+
+// getIndexWithDepth returns the node's index with cycle detection
+func (n *Node) getIndexWithDepth(depth int) int {
 	if n.Index != 0 {
 		return n.Index
 	}
+	// Prevent infinite recursion from circular parent references
+	// (e.g., in nested media queries where EvalTop creates a cycle)
+	if depth > 100 {
+		return 0
+	}
 	if n.Parent != nil {
-		return n.Parent.GetIndex()
+		return n.Parent.getIndexWithDepth(depth + 1)
 	}
 	return 0
 }
@@ -126,11 +136,20 @@ func (n *Node) CurrentFileInfo() map[string]any {
 
 // FileInfo returns the node's file information
 func (n *Node) FileInfo() map[string]any {
+	return n.fileInfoWithDepth(0)
+}
+
+// fileInfoWithDepth returns the node's file information with cycle detection
+func (n *Node) fileInfoWithDepth(depth int) map[string]any {
 	if len(n.fileInfo) > 0 {
 		return n.fileInfo
 	}
+	// Prevent infinite recursion from circular parent references
+	if depth > 100 {
+		return make(map[string]any)
+	}
 	if n.Parent != nil {
-		return n.Parent.FileInfo()
+		return n.Parent.fileInfoWithDepth(depth + 1)
 	}
 	return make(map[string]any)
 }

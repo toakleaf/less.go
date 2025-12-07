@@ -144,10 +144,7 @@ func (m *MockImport) Eval(context any) (any, error) {
 	}, nil
 }
 
-func (m *MockImport) GetRoot() interface {
-	Variables() map[string]any
-	Variable(string) any
-} {
+func (m *MockImport) GetRoot() any {
 	return m.root
 }
 
