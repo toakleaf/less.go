@@ -1,0 +1,117 @@
+// Variations of parse-interpolation.less - testing selector interpolation
+
+// Basic variable interpolation in selectors
+@componentName: button;
+@state: active;
+@prefix: my-app;
+
+.@{prefix}-@{componentName} {
+  display: inline-block;
+
+  &.@{state} {
+    background: blue;
+  }
+
+  &--disabled {
+    opacity: 0.5;
+  }
+}
+
+// Interpolation with element selectors
+@element: div;
+@{element}.container {
+  width: 100%;
+}
+
+// Multiple interpolations in selector chain
+@ns: ui;
+@comp: card;
+@mod: large;
+
+.@{ns}-@{comp} {
+  &--@{mod} {
+    padding: 20px;
+  }
+}
+
+// Interpolation in attribute selectors
+@attrName: data-state;
+@attrValue: open;
+
+[@{attrName}="@{attrValue}"] {
+  display: block;
+}
+
+// Interpolation in pseudo-selectors
+@pseudo: hover;
+.interactive {
+  &:@{pseudo} {
+    color: red;
+  }
+}
+
+// Complex nested interpolation
+@layer1: outer;
+@layer2: inner;
+@layer3: deep;
+
+.@{layer1} {
+  .@{layer2} {
+    .@{layer3} {
+      content: "deeply nested";
+    }
+  }
+}
+
+// Selector list with interpolation
+@items: first, second, third;
+.list-@{items} {
+  margin: 0;
+}
+
+// Combinator with interpolation
+@child: item;
+.parent {
+  > .@{child} {
+    padding: 5px;
+  }
+
+  + .@{child} {
+    margin-left: 10px;
+  }
+
+  ~ .@{child} {
+    color: gray;
+  }
+}
+
+// ID selector interpolation
+@idName: main-content;
+#@{idName} {
+  min-height: 100vh;
+}
+
+// Escaped interpolation values
+@escapedSelector: ~'.special[data-id="123"]';
+@{escapedSelector} {
+  border: 1px solid red;
+}
+
+// Interpolation with numbers
+@num: 2;
+.grid-col-@{num} {
+  flex: 0 0 calc(100% / @num);
+}
+
+// Keyframe reference with variable (interpolation in keyframes name not supported)
+@animName: fadeIn;
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animated {
+  // Using variable in animation property value
+  animation-name: @animName;
+  animation-duration: 1s;
+}

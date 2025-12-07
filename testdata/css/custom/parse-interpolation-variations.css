@@ -1,0 +1,59 @@
+.my-app-button {
+  display: inline-block;
+}
+.my-app-button.active {
+  background: blue;
+}
+.my-app-button--disabled {
+  opacity: 0.5;
+}
+div.container {
+  width: 100%;
+}
+.ui-card--large {
+  padding: 20px;
+}
+[data-state="open"] {
+  display: block;
+}
+.interactive:hover {
+  color: red;
+}
+.outer .inner .deep {
+  content: "deeply nested";
+}
+.list-first,
+second,
+third {
+  margin: 0;
+}
+.parent > .item {
+  padding: 5px;
+}
+.parent + .item {
+  margin-left: 10px;
+}
+.parent ~ .item {
+  color: gray;
+}
+#main-content {
+  min-height: 100vh;
+}
+.special[data-id="123"] {
+  border: 1px solid red;
+}
+.grid-col-2 {
+  flex: 0 0 calc(100% / 2);
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animated {
+  animation-name: fadeIn;
+  animation-duration: 1s;
+}

@@ -1,0 +1,95 @@
+// Variations of permissive-parse.less - testing custom properties and permissive parsing
+
+// Custom properties with various value types
+.custom-props-basic {
+  --color-primary: #3366ff;
+  --spacing-unit: 8px;
+  --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto;
+  --transition: all 0.3s ease-in-out;
+}
+
+// Custom properties with Less functions
+.custom-props-with-functions {
+  @baseColor: #ff6600;
+  --color-light: lighten(@baseColor, 20%);
+  --color-dark: darken(@baseColor, 20%);
+  --color-alpha: fade(@baseColor, 50%);
+}
+
+// Custom properties with calc
+.custom-props-calc {
+  --base-size: 16px;
+  --computed: calc(var(--base-size) * 2);
+}
+
+// Custom properties with complex values
+.custom-props-complex {
+  --gradient: linear-gradient(to right, red, blue);
+  --shadow: 0 2px 4px rgba(0, 0, 0, 0.1), 0 4px 8px rgba(0, 0, 0, 0.05);
+  --transform: translateX(10px) rotate(45deg) scale(1.1);
+}
+
+// Using custom properties
+.use-custom-props {
+  color: var(--color-primary);
+  padding: var(--spacing-unit);
+  font-family: var(--font-stack);
+}
+
+// Custom property with fallback
+.custom-prop-fallback {
+  color: var(--undefined-color, #333);
+  padding: var(--undefined-spacing, 10px);
+}
+
+// Media query with variable
+@breakpoint: 768px;
+@tablet: (min-width: @breakpoint);
+@media @tablet {
+  .responsive {
+    display: flex;
+  }
+}
+
+// Different breakpoints
+@mobile: (max-width: 767px);
+@desktop: (min-width: 1024px);
+
+@media @mobile {
+  .mobile-only {
+    display: block;
+  }
+}
+
+@media @desktop {
+  .desktop-only {
+    display: block;
+  }
+}
+
+// Custom property without trailing semicolon edge cases
+.no-semicolon { --value: test }
+.no-semicolon-space { --value: test }
+
+// Custom property with special characters in value
+.special-chars {
+  --url-value: url("image.png");
+  --content-value: "hello 'world'";
+  --parens-value: (foo, bar, baz);
+}
+
+// Nested custom properties
+.nested-custom {
+  --outer: 1;
+
+  .inner {
+    --inner: 2;
+    value: var(--outer) var(--inner);
+  }
+}
+
+// Custom properties with Less variable interpolation
+@propName: theme-color;
+.interpolated-prop {
+  --@{propName}: blue;
+}

@@ -1,0 +1,60 @@
+.float-operations {
+  width: 6.28318px;
+  height: 3.5px;
+  margin: 6.6;
+}
+.unit-conversions {
+  font-size: 13px;
+  width: 50%;
+  margin: 2.5cm;
+}
+.negative-numbers {
+  top: -5px;
+  left: 15px;
+  bottom: 10px;
+  right: 5px;
+}
+.precedence {
+  result1: 14;
+  result2: 20;
+  result3: 8;
+  result4: 2;
+}
+.color-ops {
+  color1: #4477aa;
+  color2: #114477;
+  color3: #66ccff;
+  color4: #808080;
+  color5: #6ea0d2;
+}
+.shorthand-ops {
+  padding: 10px 20px 5px 15px;
+  margin: -10px 10px;
+  border: 2px solid #333;
+}
+.var-operations {
+  size1: 24px;
+  size2: 10.66666667px;
+  size3: 24px;
+  nested: 30px;
+}
+.percentage-ops {
+  width: 80%;
+  height: 100%;
+  margin: 15%;
+}
+.rem-em-ops {
+  font-size: 2rem;
+  line-height: 2em;
+  padding: 0.5rem;
+}
+.zero-cases {
+  result1: 10px;
+  result2: 10px;
+  result3: 0px;
+  result4: 0px;
+}
+.large-numbers {
+  big: 10000px;
+  bigger: 1000000;
+}
