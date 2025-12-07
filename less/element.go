@@ -203,19 +203,18 @@ func (e *Element) Eval(context any) (any, error) {
 	endUnwrap:
 
 	// Handle potential nil Node
-	index := 0
+	// OPTIMIZATION: Only allocate maps when e.Node is nil.
+	// When e.Node is not nil, use the existing FileInfo and VisibilityInfo.
+	var index int
+	var fileInfo map[string]any
+	var visibilityInfo map[string]any
 	if e.Node != nil {
 		index = e.GetIndex()
-	}
-
-	fileInfo := make(map[string]any)
-	if e.Node != nil {
 		fileInfo = e.FileInfo()
-	}
-
-	visibilityInfo := make(map[string]any)
-	if e.Node != nil {
 		visibilityInfo = e.VisibilityInfo()
+	} else {
+		fileInfo = make(map[string]any)
+		visibilityInfo = make(map[string]any)
 	}
 
 	// Set IsVariable to true if interpolation occurred, otherwise use original value
@@ -254,9 +253,11 @@ func (e *Element) GenCSS(context any, output *CSSOutput) {
 
 func (e *Element) ToCSS(context any) string {
 	// Match JavaScript logic: context = context || {}
-	ctx := make(map[string]any)
-	if c, ok := context.(map[string]any); ok {
-		ctx = c
+	// OPTIMIZATION: Only allocate a new map if context is not already a map[string]any.
+	// This avoids allocating a map that gets immediately reassigned.
+	ctx, ok := context.(map[string]any)
+	if !ok {
+		ctx = make(map[string]any)
 	}
 
 	var valueCSS string

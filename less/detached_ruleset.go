@@ -155,7 +155,9 @@ func (dr *DetachedRuleset) CallEval(context any) any {
 			evalContext = newEval
 		case map[string]any:
 			// Copy context keys EXCEPT mediaBlocks and mediaPath (see comment above)
-			contextMap := make(map[string]any, len(ctx))
+			// Use pool to reduce allocations
+			contextMap := GetContextMapFromPool()
+			defer ReleaseContextMap(contextMap)
 			for k, v := range ctx {
 				// Skip mediaBlocks and mediaPath - child context should start fresh
 				if k == "mediaBlocks" || k == "mediaPath" {

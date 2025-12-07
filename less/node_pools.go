@@ -1071,3 +1071,40 @@ func getNodePointer(node any) uintptr {
 		return 0
 	}
 }
+
+// contextMapPool is a pool for reusing map[string]any contexts in evaluation.
+// Maps are pre-allocated with capacity 16 which is typical for eval contexts.
+// This reduces allocation pressure in hot paths like:
+// - MixinDefinition.EvalCall (mixinEnv creation)
+// - DetachedRuleset.CallEval (context creation)
+// - Ruleset.Eval (context passing)
+var contextMapPool = sync.Pool{
+	New: func() any {
+		return make(map[string]any, 16)
+	},
+}
+
+// GetContextMapFromPool gets a map from the pool and clears it for reuse.
+// The returned map has capacity 16 but length 0.
+func GetContextMapFromPool() map[string]any {
+	m := contextMapPool.Get().(map[string]any)
+	// Clear the map for reuse
+	for k := range m {
+		delete(m, k)
+	}
+	return m
+}
+
+// ReleaseContextMap returns a map to the pool.
+// The map should not be used after calling this function.
+// Pass nil safely - it will be ignored.
+func ReleaseContextMap(m map[string]any) {
+	if m == nil {
+		return
+	}
+	// Clear references to allow GC of values
+	for k := range m {
+		delete(m, k)
+	}
+	contextMapPool.Put(m)
+}
