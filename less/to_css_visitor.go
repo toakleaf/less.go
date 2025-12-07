@@ -143,6 +143,11 @@ func (u *CSSVisitorUtils) IsEmpty(owner any) bool {
 				if r == nil {
 					continue
 				}
+				// Skip Extend rules - they don't produce CSS output
+				// This ensures rulesets that only contain extends are considered empty
+				if _, isExtend := r.(*Extend); isExtend {
+					continue
+				}
 				// Check if rule blocks visibility (reference imports)
 				// BUT if the rule has been explicitly made visible (IsVisible() == true),
 				// it's significant even if it blocks visibility
