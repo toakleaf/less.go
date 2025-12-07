@@ -1,0 +1,46 @@
+// Variations of colors2.less to test for overfitting
+// Tests modern CSS color syntax (space-separated)
+
+.modern-rgb {
+  // rgb without commas
+  color: rgb(128 64 192);
+  color: rgb(255 128 0);
+  color: rgb(0 200 100);
+}
+
+.modern-rgb-alpha {
+  // rgb with alpha using slash
+  color: rgb(128 64 192 / 25%);
+  color: rgb(255 128 0 / 75%);
+  color: rgb(0 200 100 / 0.5);
+}
+
+.modern-hsl {
+  // hsl without commas
+  color: hsl(120deg 50% 60%);
+  color: hsl(240deg 75% 40%);
+  color: hsl(30deg 100% 50%);
+}
+
+.modern-hsl-alpha {
+  // hsl with alpha using slash
+  color: hsl(120deg 50% 60% / 25%);
+  color: hsl(240deg 75% 40% / 75%);
+  color: hsl(30deg 100% 50% / 0.5);
+}
+
+.mixed-formats {
+  // Mix of comma and space formats
+  background: rgb(100, 100, 100);
+  color: rgb(200 200 200);
+  border-color: hsl(0deg, 0%, 50%);
+  outline-color: hsl(180deg 50% 50%);
+}
+
+.edge-cases {
+  // Edge case values
+  color: rgb(0 0 0);
+  color: rgb(255 255 255);
+  color: rgb(0 0 0 / 0%);
+  color: rgb(255 255 255 / 100%);
+}

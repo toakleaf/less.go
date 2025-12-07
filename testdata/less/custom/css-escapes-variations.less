@@ -1,0 +1,48 @@
+// Variations of css-escapes.less to test for overfitting
+// Tests CSS escapes in selectors and values
+
+@highlight: lime;
+
+.escape\&special\&chars {
+  color: blue;
+}
+
+.mixin\@test {
+  font-style: italic;
+}
+
+// class="500"
+.\35 00 {
+  background: blue;
+
+  em {
+    color: @highlight;
+    .mixin\@test();
+  }
+}
+
+.trailingChar\* {
+  color: green;
+}
+
+// Selector "paragraph" using hex escapes
+\70\61\72 \61 \67 \0072 \000061p\68 {
+  color: gold;
+}
+
+[ng\:model],
+ng\:bind {
+  visibility: visible;
+}
+
+// IE hack pattern
+.ie-hack {
+  background-color: #fff \9;
+  color: #000 \9;
+}
+
+code {
+  font-family: 'source code pro', 'consolas', \5B8B\4F53, monospace;
+}
+
+e('something escaped');

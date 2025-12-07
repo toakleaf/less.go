@@ -1,0 +1,72 @@
+// Variations of comments.less to test for overfitting
+// Tests various comment styles and positions
+
+/***********************
+ *                     *
+ *  Multi-line Header  *
+ *                     *
+ ***********************/
+
+/* Single line block comment */
+
+// Single line comment
+
+@comment-var: "test value";
+
+/* Variable with comments
+ * @var: value
+ */
+
+// Comment before selector
+.selector-with-comments /* inline */, .another /* also inline */ {
+  // Property comment
+  color: red; /* after value */ /* another */
+  background: blue; // end of line
+  font-size: 14px;
+
+  /* Mid-block comment */ padding: 10px;
+  margin: @comment-var;
+
+  // Multiple line comments
+  // continuing here
+  // and here
+  border: 1px solid black;
+}
+
+// Mixin with comments
+.mixin-comments(@color: blue, // default
+                @size: 12px // also default
+               ) // end of params
+               when (@color = blue) {
+  .inner-rule {
+    color: @color;
+    font-size: @size;
+  }
+}
+.mixin-comments();
+
+/* Block comment
+   with multiple lines
+   spanning several rows
+*/
+
+// Comment before keyframes
+@keyframes /* inline */ slide /* another */ {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(100px);
+  }
+}
+
+#final-selector { color: green }
+//
+
+/* Multiple empty comments *//* *//* *//* */#empty-test { color: #888; }/* end */
+
+// Line followed by block
+/*block after line*/
+@escaped-comment: ~"/* not a real comment */";
+#escaped-output { content: @escaped-comment; }
+/*last comment*/
