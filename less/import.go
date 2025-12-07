@@ -637,6 +637,8 @@ func (i *Import) DoEval(context any) (any, error) {
 	}
 
 	if i.css {
+		// Combine Keyword + Paren patterns with NoSpacing for function-like constructs (e.g., layer(foo))
+		features = combineKeywordParenPatterns(features)
 		newImport := NewImport(i.EvalPath(context), features, i.options, i._index, nil, nil)
 		if !newImport.css && i.error != nil {
 			return nil, i.error
@@ -719,4 +721,70 @@ func (i *Import) GetTypeIndex() int {
 		return i.Node.TypeIndex
 	}
 	return GetTypeIndexForNodeType("Import")
+}
+
+// combineKeywordParenPatterns detects Keyword + Paren patterns where the Paren has NoSpacing
+// and combines them into a single Expression with NoSpacing=true. This is used for CSS functions
+// like layer(foo), scroll-state(stuck: top), etc. that should not have a space before the parenthesis.
+func combineKeywordParenPatterns(features any) any {
+	if features == nil {
+		return features
+	}
+
+	// Handle Value wrapper
+	if val, ok := features.(*Value); ok && val != nil && len(val.Value) > 0 {
+		// Process each item in the Value
+		for i := range val.Value {
+			if expr, ok := val.Value[i].(*Expression); ok && expr != nil {
+				combineKeywordParenInExpression(expr)
+			}
+		}
+		return val
+	}
+
+	// Handle direct Expression
+	if expr, ok := features.(*Expression); ok && expr != nil {
+		combineKeywordParenInExpression(expr)
+		return expr
+	}
+
+	return features
+}
+
+// combineKeywordParenInExpression modifies an Expression in-place to combine
+// Keyword + Paren patterns with NoSpacing into a single sub-Expression.
+func combineKeywordParenInExpression(expr *Expression) {
+	if expr == nil || len(expr.Value) < 2 {
+		return
+	}
+
+	// Iterate through values looking for Keyword + Paren patterns
+	newValues := make([]any, 0, len(expr.Value))
+	i := 0
+	for i < len(expr.Value) {
+		// Check if current is a Keyword and next is a Paren with NoSpacing
+		if kw, isKeyword := expr.Value[i].(*Keyword); isKeyword && i+1 < len(expr.Value) {
+			if paren, isParen := expr.Value[i+1].(*Paren); isParen && paren.NoSpacing {
+				// Check if keyword is "layer" or "scroll-state" or similar function-like keywords
+				kwValue := ""
+				if kw != nil {
+					kwValue = kw.GetValue()
+				}
+				if kwValue == "layer" || kwValue == "scroll-state" || kwValue == "size" || kwValue == "style" {
+					// Combine into a single Expression with NoSpacing
+					combinedExpr, _ := NewExpression([]any{kw, paren}, true)
+					combinedExpr.NoSpacing = true
+					newValues = append(newValues, combinedExpr)
+					i += 2 // Skip both keyword and paren
+					continue
+				}
+			}
+		}
+		// No pattern match, add current value as-is
+		newValues = append(newValues, expr.Value[i])
+		i++
+	}
+
+	// Update the expression's values
+	expr.Value = newValues
 } 

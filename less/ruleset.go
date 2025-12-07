@@ -1314,6 +1314,24 @@ func atRuleHasOnlySilentContent(a *AtRule) bool {
 // hasNoVisibleContent checks if a ruleset has no visible CSS content.
 // This includes rulesets where all children have bubbled up to the parent,
 // or rulesets that only contain variable declarations, comments, or other invisible content.
+// allSelectorsMediaEmpty checks if all selectors in a slice are MediaEmpty selectors
+// Used to identify container rulesets created for bubblable at-rules like @layer
+func allSelectorsMediaEmpty(selectors []any) bool {
+	if len(selectors) == 0 {
+		return false // Empty means not a MediaEmpty container
+	}
+	for _, sel := range selectors {
+		if s, ok := sel.(*Selector); ok {
+			if !s.MediaEmpty {
+				return false
+			}
+		} else {
+			return false // Unknown type, not MediaEmpty
+		}
+	}
+	return true
+}
+
 func hasNoVisibleContent(rs *Ruleset) bool {
 	if rs == nil {
 		return true
@@ -1904,23 +1922,25 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 		tabLevel++
 		ctx["tabLevel"] = tabLevel
 	}
-	
+
+	// For top-level rulesets, calculate effectiveTabLevel and set it in context
+	// This ensures nested at-rules (like @starting-style) get correct indentation
+	effectiveTabLevel := tabLevel
+	if !r.Root && isTopLevel {
+		effectiveTabLevel = tabLevel + 1
+		ctx["tabLevel"] = effectiveTabLevel
+	}
+
 	compress := false
 	if c, ok := ctx["compress"].(bool); ok {
 		compress = c
 	}
-	
+
 	var tabRuleStr, tabSetStr string
 	if compress {
 		tabRuleStr = ""
 		tabSetStr = ""
 	} else {
-		// For top-level rulesets, calculate tabRuleStr as if we had incremented tabLevel
-		// This ensures declarations inside have correct indentation (2 spaces)
-		effectiveTabLevel := tabLevel
-		if !r.Root && isTopLevel {
-			effectiveTabLevel = tabLevel + 1
-		}
 
 		// JavaScript: Array(tabLevel + 1).join('  ') produces (tabLevel) * 2 spaces
 		// JavaScript: Array(tabLevel).join('  ') produces (tabLevel - 1) * 2 spaces (minimum 0)
@@ -2280,7 +2300,8 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 				} else {
 					// Only add newline if parent ruleset has no selectors (is a container)
 					// and we're not at the file-level root (tabLevel > 0)
-					isParentContainer := (r.Paths == nil || len(r.Paths) == 0) && (r.Selectors == nil || len(r.Selectors) == 0)
+					// Also consider rulesets where all selectors are MediaEmpty (like @layer inner rulesets)
+					isParentContainer := (r.Paths == nil || len(r.Paths) == 0) && (r.Selectors == nil || len(r.Selectors) == 0 || allSelectorsMediaEmpty(r.Selectors))
 					if isParentContainer && tabLevel > 0 {
 						shouldAddNewline = true
 					}

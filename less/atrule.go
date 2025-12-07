@@ -8,13 +8,15 @@ import (
 
 type AtRule struct {
 	*Node
-	Name        string
-	Value       any
-	Rules       []any
-	IsRooted    bool
-	AllowRoot   bool
-	DebugInfo   any
-	AllExtends  []*Extend // For storing extends found by ExtendFinderVisitor
+	Name         string
+	Value        any
+	Rules        []any
+	Declarations []any // Used for simple blocks (like @starting-style with only declarations)
+	SimpleBlock  bool  // True when at-rule contains only declarations (CSS native nesting)
+	IsRooted     bool
+	AllowRoot    bool
+	DebugInfo    any
+	AllExtends   []*Extend // For storing extends found by ExtendFinderVisitor
 }
 
 func NewAtRule(name string, value any, rules any, index int, currentFileInfo map[string]any, debugInfo any, isRooted bool, visibilityInfo map[string]any) *AtRule {
@@ -47,21 +49,73 @@ func NewAtRule(name string, value any, rules any, index int, currentFileInfo map
 
 	// Handle rules
 	if rules != nil {
-		if rulesSlice, ok := rules.([]any); ok {
-			atRule.Rules = rulesSlice
+		var rulesSlice []any
+		if rs, ok := rules.([]any); ok {
+			rulesSlice = rs
 		} else {
 			// Single rule - convert to array
-			atRule.Rules = []any{rules}
+			rulesSlice = []any{rules}
 		}
 
-		// Check if this is a bubblable at-rule (@supports or @document)
-		// Only these at-rules need empty selectors for selector joining
+		// Check if this is a bubblable at-rule (@supports, @document, or @layer)
+		// These at-rules need empty selectors for selector joining
 		nonVendorName := stripVendorPrefix(name)
-		isBubblable := nonVendorName == "@supports" || nonVendorName == "@document"
+		isBubblable := nonVendorName == "@supports" || nonVendorName == "@document" || nonVendorName == "@layer"
 
-		// Set allowImports and Root for ALL at-rules
-		// Only create empty selectors for bubblable at-rules (@supports/@document)
-		for _, rule := range atRule.Rules {
+		// Check for simple block (declarations only) - like @starting-style with CSS native nesting
+		// These should NOT use Rules (to avoid extraction by ToCSSVisitor)
+		// Use mergeable=true because merge-marked declarations are allowed and will be merge-processed later
+		allDeclarations := atRuleDeclarationsBlock(rulesSlice, true)
+		allRulesetDeclarations := true
+		for _, rule := range rulesSlice {
+			if rs, ok := rule.(*Ruleset); ok && rs.Rules != nil {
+				if !atRuleDeclarationsBlock(rs.Rules, true) {
+					allRulesetDeclarations = false
+					break
+				}
+			}
+		}
+
+		if os.Getenv("LESS_GO_DEBUG") == "1" && name == "@starting-style" {
+			fmt.Fprintf(os.Stderr, "[NewAtRule @starting-style] rulesLen=%d, allDeclarations=%v, allRulesetDeclarations=%v, isRooted=%v, value=%v\n",
+				len(rulesSlice), allDeclarations, allRulesetDeclarations, isRooted, value)
+			for i, r := range rulesSlice {
+				if d, ok := r.(*Declaration); ok {
+					fmt.Fprintf(os.Stderr, "  rule[%d] type=%T, merge=%v (type=%T)\n", i, r, d.merge, d.merge)
+				} else {
+					fmt.Fprintf(os.Stderr, "  rule[%d] type=%T\n", i, r)
+				}
+			}
+		}
+
+		if len(rulesSlice) == 0 {
+			// Empty rules - leave Rules and Declarations as nil for semicolon output
+		} else if allDeclarations && !isRooted {
+			// Simple block with only declarations - use Declarations, not Rules
+			atRule.SimpleBlock = true
+			atRule.Declarations = rulesSlice
+		} else if allRulesetDeclarations && len(rulesSlice) == 1 && !isRooted && value == nil {
+			// Single ruleset with only declarations - use Declarations
+			atRule.SimpleBlock = true
+			if rs, ok := rulesSlice[0].(*Ruleset); ok && rs.Rules != nil {
+				atRule.Declarations = rs.Rules
+			} else {
+				atRule.Declarations = rulesSlice
+			}
+		} else {
+			// Normal case - use Rules
+			atRule.Rules = rulesSlice
+		}
+
+		// Set allowImports and Root for ALL at-rules (on Rules or the Ruleset in Declarations)
+		// Only create empty selectors for bubblable at-rules (@supports/@document/@layer)
+		rulesToProcess := atRule.Rules
+		if atRule.SimpleBlock && len(atRule.Declarations) > 0 {
+			// For simple blocks, check if there's a Ruleset wrapping the declarations
+			// (This happens when we extract from rules[0].Rules above)
+			// Otherwise, declarations are already flat
+		}
+		for _, rule := range rulesToProcess {
 			if ruleset, ok := rule.(*Ruleset); ok {
 				// These settings are needed for all at-rules
 				ruleset.AllowImports = true
@@ -82,7 +136,12 @@ func NewAtRule(name string, value any, rules any, index int, currentFileInfo map
 				}
 			}
 		}
-		atRule.SetParent(atRule.Rules, atRule.Node)
+		if atRule.Rules != nil {
+			atRule.SetParent(atRule.Rules, atRule.Node)
+		}
+		if atRule.Declarations != nil {
+			atRule.SetParent(atRule.Declarations, atRule.Node)
+		}
 	}
 
 	// Set node properties
@@ -146,6 +205,13 @@ func (a *AtRule) Accept(visitor any) {
 			// Fallback to non-variadic signature for compatibility
 			a.Rules = v.VisitArray(a.Rules)
 		}
+	} else if a.Declarations != nil {
+		// For simple blocks, visit declarations instead
+		if v, ok := visitor.(interface{ VisitArray([]any, ...bool) []any }); ok {
+			a.Declarations = v.VisitArray(a.Declarations)
+		} else if v, ok := visitor.(interface{ VisitArray([]any) []any }); ok {
+			a.Declarations = v.VisitArray(a.Declarations)
+		}
 	}
 
 	if v, ok := visitor.(interface{ Visit(any) any }); ok {
@@ -156,6 +222,11 @@ func (a *AtRule) Accept(visitor any) {
 }
 
 func (a *AtRule) IsRulesetLike() any {
+	// For simple blocks, return false to prevent extraction by ToCSSVisitor
+	// Simple blocks (like @starting-style with only declarations) should stay nested
+	if a.SimpleBlock {
+		return !a.IsCharset()
+	}
 	if a.Rules != nil {
 		return a.Rules
 	}
@@ -178,6 +249,34 @@ func stripVendorPrefix(name string) string {
 		}
 	}
 	return name
+}
+
+// atRuleDeclarationsBlock checks if rules only contain declarations and comments
+// When mergeable is true, it allows merge-marked declarations (for property merging)
+// Returns true if all rules are Declaration or Comment types (with proper merge handling)
+func atRuleDeclarationsBlock(rules []any, mergeable bool) bool {
+	for _, rule := range rules {
+		switch r := rule.(type) {
+		case *Declaration:
+			// Check if this declaration has a merge marker
+			if !mergeable {
+				// merge can be bool (false = no merge) or string ('+' or '+_' for merge)
+				switch m := r.merge.(type) {
+				case string:
+					if m != "" {
+						return false
+					}
+				case bool:
+					// false means no merge, that's fine
+				}
+			}
+		case *Comment:
+			// Comments are allowed
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func (a *AtRule) GenCSS(context any, output *CSSOutput) {
@@ -246,7 +345,16 @@ func (a *AtRule) GenCSS(context any, output *CSSOutput) {
 		}
 	}
 
-	if a.Rules != nil {
+	// For simple blocks, output declarations directly
+	// Otherwise output rules
+	if a.SimpleBlock {
+		if os.Getenv("LESS_GO_DEBUG") == "1" && a.Name == "@starting-style" {
+			if ctx, ok := context.(map[string]any); ok {
+				fmt.Fprintf(os.Stderr, "[AtRule.GenCSS @starting-style] Calling OutputRuleset, context tabLevel=%v\n", ctx["tabLevel"])
+			}
+		}
+		a.OutputRuleset(context, output, a.Declarations)
+	} else if a.Rules != nil {
 		a.OutputRuleset(context, output, a.Rules)
 	} else {
 		// Add semicolon only (parent will add newline between rules)
@@ -256,7 +364,7 @@ func (a *AtRule) GenCSS(context any, output *CSSOutput) {
 
 func (a *AtRule) Eval(context any) (any, error) {
 	if os.Getenv("LESS_GO_DEBUG") == "1" {
-		fmt.Printf("[DEBUG AtRule.Eval] name=%q, hasRules=%v, isRooted=%v\n", a.Name, len(a.Rules) > 0, a.IsRooted)
+		fmt.Printf("[DEBUG AtRule.Eval] name=%q, hasRules=%v, simpleBlock=%v, isRooted=%v\n", a.Name, len(a.Rules) > 0, a.SimpleBlock, a.IsRooted)
 	}
 
 	// Standard directives use regular evaluation
@@ -264,7 +372,14 @@ func (a *AtRule) Eval(context any) (any, error) {
 	// by JoinSelectorVisitor later (NOT via mediaBlocks bubbling like @media)
 	var mediaPathBackup, mediaBlocksBackup any
 	var value any = a.Value
-	var rules []any = a.Rules
+
+	// Get rules from either Rules or Declarations (for simple blocks)
+	var rules []any
+	if a.Rules != nil {
+		rules = a.Rules
+	} else if a.Declarations != nil {
+		rules = a.Declarations
+	}
 
 	// Media stored inside other atrule should not bubble over it
 	// Backup media bubbling information
@@ -292,7 +407,22 @@ func (a *AtRule) Eval(context any) (any, error) {
 		}
 	}
 
-	if len(rules) > 0 {
+	if a.SimpleBlock && len(rules) > 0 {
+		// For simple blocks, evaluate each declaration individually
+		evaluatedRules := make([]any, 0, len(rules))
+		for _, rule := range rules {
+			if eval, ok := rule.(interface{ Eval(any) (any, error) }); ok {
+				evaluated, err := eval.Eval(context)
+				if err != nil {
+					return nil, err
+				}
+				evaluatedRules = append(evaluatedRules, evaluated)
+			} else {
+				evaluatedRules = append(evaluatedRules, rule)
+			}
+		}
+		rules = evaluatedRules
+	} else if len(rules) > 0 {
 		// Assuming that there is only one rule at this point - that is how parser constructs the rule
 		if eval, ok := rules[0].(interface{ Eval(any) (any, error) }); ok {
 			evaluated, err := eval.Eval(context)
@@ -511,6 +641,10 @@ func (a *AtRule) OutputRuleset(context any, output *CSSOutput, rules []any) {
 	}
 	tabLevel = tabLevel + 1
 	ctx["tabLevel"] = tabLevel
+
+	if os.Getenv("LESS_GO_DEBUG") == "1" && a.Name == "@starting-style" {
+		fmt.Fprintf(os.Stderr, "[OutputRuleset @starting-style] tabLevel=%d, ruleCnt=%d, SimpleBlock=%v\n", tabLevel, ruleCnt, a.SimpleBlock)
+	}
 
 	compress := false
 	if c, ok := ctx["compress"].(bool); ok {

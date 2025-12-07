@@ -609,19 +609,19 @@ func (v *ToCSSVisitor) VisitComment(commentNode any, visitArgs *VisitArgs) any {
 	if commentNode == nil {
 		return nil
 	}
-	
+
 	if blockedNode, hasBlocked := commentNode.(interface{ BlocksVisibility() bool }); hasBlocked {
 		if blockedNode.BlocksVisibility() {
 			return nil
 		}
 	}
-	
+
 	if silentNode, hasSilent := commentNode.(interface{ IsSilent(any) bool }); hasSilent {
 		if silentNode.IsSilent(v.context) {
 			return nil
 		}
 	}
-	
+
 	return commentNode
 }
 
@@ -720,7 +720,36 @@ func (v *ToCSSVisitor) VisitAtRule(atRuleNode any, visitArgs *VisitArgs) any {
 	if atRuleNode == nil {
 		return nil
 	}
-	
+
+	// Check for SimpleBlock AtRules (like @starting-style with only declarations)
+	// These use Declarations instead of Rules, so we need to handle them specially
+	if at, ok := atRuleNode.(*AtRule); ok && at.SimpleBlock && len(at.Declarations) > 0 {
+		// Process children (this will visit the declarations)
+		if acceptor, ok := atRuleNode.(interface{ Accept(any) }); ok {
+			acceptor.Accept(v.visitor)
+		}
+		visitArgs.VisitDeeper = false
+
+		// Run merge processing on declarations
+		at.Declarations = v.mergeRules(at.Declarations)
+
+		// Check visibility - but don't use ResolveVisibility since it checks GetRules()
+		// which returns nil for SimpleBlock AtRules (they use Declarations instead)
+		if at.Node != nil && at.Node.BlocksVisibility() {
+			vis := at.Node.IsVisible()
+			if vis == nil || !*vis {
+				return nil
+			}
+		}
+
+		// Check if all declarations were filtered out
+		if len(at.Declarations) == 0 {
+			return nil
+		}
+
+		return atRuleNode
+	}
+
 	if nodeWithRules, ok := atRuleNode.(interface{ GetRules() []any }); ok {
 		rules := nodeWithRules.GetRules()
 		if rules != nil && len(rules) > 0 {
