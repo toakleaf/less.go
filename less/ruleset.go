@@ -1418,18 +1418,33 @@ func (r *Ruleset) Variables() map[string]any {
 			}
 		}
 		// Handle import rules with variables like JavaScript version
-		if ruleType, ok := rule.(interface{ GetType() string }); ok && ruleType.GetType() == "Import" {
-			if importRule, ok := rule.(interface{
-				GetRoot() interface{
-					Variables() map[string]any
-					Variable(string) any
+		// "when evaluating variables in an import statement, imports have not been eval'd
+		// so we need to go inside import statements."
+		var importRoot any
+		if imp, ok := rule.(*Import); ok && imp.root != nil {
+			importRoot = imp.root
+		} else if ruleType, ok := rule.(interface{ GetType() string }); ok && ruleType.GetType() == "Import" {
+			// Handle mock imports for testing - use reflection-like interface access
+			if mockImport, ok := rule.(interface{ GetRoot() any }); ok {
+				if root := mockImport.GetRoot(); root != nil {
+					importRoot = root
 				}
+			}
+		}
+		if importRoot != nil {
+			if rootWithVars, ok := importRoot.(interface {
+				Variables() map[string]any
 			}); ok {
-				if root := importRule.GetRoot(); root != nil {
-					vars := root.Variables()
-					for name := range vars {
-						if vars[name] != nil {
-							r.variables[name] = root.Variable(name)
+				vars := rootWithVars.Variables()
+				if os.Getenv("LESS_GO_DEBUG") == "1" {
+					fmt.Fprintf(os.Stderr, "[Variables] Import root has %d variables\n", len(vars))
+				}
+				// Store declarations directly, same as for local variables
+				for name, decl := range vars {
+					if decl != nil {
+						r.variables[name] = decl
+						if os.Getenv("LESS_GO_DEBUG") == "1" {
+							fmt.Fprintf(os.Stderr, "[Variables] Found import variable: %s\n", name)
 						}
 					}
 				}

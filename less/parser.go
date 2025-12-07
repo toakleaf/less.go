@@ -1508,10 +1508,32 @@ func (p *Parsers) End() bool {
 // Variable parses variable declarations (@var:)
 func (p *Parsers) Variable() any {
 	if p.parser.parserInput.CurrentChar() == '@' {
+		// Save position to check if this is really a variable declaration
+		startIndex := p.parser.parserInput.GetIndex()
 		name := p.parser.parserInput.Re(reVariableAtName)
 		if name != nil {
 			if matches, ok := name.([]string); ok && len(matches) > 1 {
-				return matches[1] // Return just the variable name (e.g., "@my-color")
+				// Check if there was whitespace before the colon
+				// The regex is ^(@[\w-]+)\s*: so matches[0] is the full match (e.g., "@page :")
+				// and matches[1] is the captured name (e.g., "@page")
+				// If full match is longer than name + 1 (for the colon), there was whitespace
+				fullMatch := matches[0]
+				namePart := matches[1]
+				hasWhitespaceBeforeColon := len(fullMatch) > len(namePart)+1
+
+				// Check if what follows the colon looks like a pseudo-selector
+				// (e.g., @page :left should not match as a variable)
+				// This only applies when there was whitespace before the colon
+				// e.g., "@page :left" vs "@prefix: my"
+				nextChar := p.parser.parserInput.CurrentChar()
+				isLetter := (nextChar >= 'a' && nextChar <= 'z') || (nextChar >= 'A' && nextChar <= 'Z')
+				if hasWhitespaceBeforeColon && isLetter {
+					// This looks like a pseudo-selector (e.g., ":left", ":right", ":first")
+					// Restore and return nil to let AtRule handle it
+					p.parser.parserInput.SetIndex(startIndex)
+					return nil
+				}
+				return namePart // Return just the variable name (e.g., "@my-color")
 			}
 		}
 	}
