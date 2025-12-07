@@ -1,0 +1,85 @@
+// Variation of mixins-guards.less
+// Tests mixin guards with different comparison and logic patterns
+
+// Test 1: Comparison with different unit types
+.unit-compare(@a, @b) when (@a > @b) { comparison: greater; }
+.unit-compare(@a, @b) when (@a < @b) { comparison: lesser; }
+.unit-compare(@a, @b) when (@a = @b) { comparison: equal; }
+
+.unit-tests {
+    &-px-gt { .unit-compare(100px, 50px); }
+    &-px-lt { .unit-compare(20px, 80px); }
+    &-em-eq { .unit-compare(2em, 2em); }
+    &-mixed { .unit-compare(100px, 96px); }
+}
+
+// Test 2: Boolean guard combinations
+.bool-combo(@a, @b, @c) when (@a) and (@b) { ab: true; }
+.bool-combo(@a, @b, @c) when (@b) and (@c) { bc: true; }
+.bool-combo(@a, @b, @c) when (@a) and (@c) { ac: true; }
+.bool-combo(@a, @b, @c) when (@a), (@b), (@c) { any: true; }
+
+.bool-tests {
+    &-ttt { .bool-combo(true, true, true); }
+    &-tff { .bool-combo(true, false, false); }
+    &-ftf { .bool-combo(false, true, false); }
+    &-fft { .bool-combo(false, false, true); }
+    &-fff { .bool-combo(false, false, false); }
+}
+
+// Test 3: Guards with string comparison
+.str-guard(@s) when (@s = "active") { state: activated; }
+.str-guard(@s) when (@s = "disabled") { state: deactivated; }
+.str-guard(@s) { base: applied; }
+
+.str-tests {
+    &-active { .str-guard("active"); }
+    &-disabled { .str-guard("disabled"); }
+    &-other { .str-guard("pending"); }
+}
+
+// Test 4: Guards with isunit()
+.unit-type(@val) when (isunit(@val, px)) { unit-type: pixels; }
+.unit-type(@val) when (isunit(@val, em)) { unit-type: ems; }
+.unit-type(@val) when (isunit(@val, "%")) { unit-type: percent; }
+.unit-type(@val) { value: @val; }
+
+.unit-type-tests {
+    &-px { .unit-type(10px); }
+    &-em { .unit-type(2em); }
+    &-pct { .unit-type(50%); }
+    &-rem { .unit-type(1rem); }
+}
+
+// Test 5: Nested guards in namespace
+@global-flag: 1;
+
+#guarded-ns when (@global-flag = 1) {
+    .inner-mixin(@x) when (@x > 0) {
+        positive: @x;
+    }
+    .inner-mixin(@x) when (@x < 0) {
+        negative: @x;
+    }
+    .inner-mixin(@x) when (@x = 0) {
+        zero: true;
+    }
+}
+
+.ns-guard-test {
+    &-pos { #guarded-ns > .inner-mixin(5); }
+    &-neg { #guarded-ns > .inner-mixin(-3); }
+    &-zero { #guarded-ns > .inner-mixin(0); }
+}
+
+// Test 6: Guard with ispixel, isem, etc.
+.dimension-check(@val) when (ispixel(@val)) { is-pixel: true; }
+.dimension-check(@val) when (isem(@val)) { is-em: true; }
+.dimension-check(@val) when (ispercentage(@val)) { is-percent: true; }
+.dimension-check(@val) { dim-value: @val; }
+
+.dim-tests {
+    &-px { .dimension-check(15px); }
+    &-em { .dimension-check(1.5em); }
+    &-pct { .dimension-check(75%); }
+}

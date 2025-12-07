@@ -1,0 +1,61 @@
+.num-test-zero {
+  result: zero;
+}
+.num-test-one {
+  result: one;
+}
+.num-test-five {
+  result: other- 5;
+}
+.num-test-negative {
+  result: other- -10;
+}
+.color-test-white {
+  theme: light;
+}
+.color-test-black {
+  theme: dark;
+}
+.color-test-red {
+  theme: custom;
+  base-color: red;
+}
+.color-test-hex {
+  theme: custom;
+  base-color: #ff5500;
+}
+.type-test-num {
+  type: number;
+  value: 42px;
+}
+.type-test-color {
+  type: color;
+  value: #abc;
+}
+.type-test-string {
+  type: string;
+  value: "hello";
+}
+.type-test-keyword {
+  type: unknown;
+  raw: auto;
+}
+.inverse-test-true {
+  matched: true;
+  not-default: true;
+}
+.multi-test-1-2 {
+  a-is-one: yes;
+  b-is-two: yes;
+}
+.multi-test-1-9 {
+  a-is-one: yes;
+}
+.multi-test-9-2 {
+  b-is-two: yes;
+}
+.multi-test-9-9 {
+  neither: true;
+  a: 9;
+  b: 9;
+}

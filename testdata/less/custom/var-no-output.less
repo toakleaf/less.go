@@ -1,0 +1,50 @@
+// Variation of no-output.less
+// Tests various scenarios that should produce no output
+
+// Empty mixin definition - should not output
+.empty-mixin() {
+}
+
+// Mixin with only variables - should not output
+.vars-only() {
+    @internal: 42;
+}
+
+// Mixin with only comments - should not output
+.comments-only() {
+    // This is a comment
+    /* This is also a comment */
+}
+
+// Mixin with only nested mixins - should not output
+.nested-empty() {
+    .inner-empty() {
+    }
+}
+
+// Namespace with only mixins - should not output
+#no-output-ns {
+    .helper() {
+        @x: 1;
+    }
+    .another() {
+    }
+}
+
+// Calling empty mixins should produce no output
+.caller-of-empty {
+    .empty-mixin();
+}
+
+// Mixin guard that never matches - should not output
+.never-match(@x) when (@x = impossible-value-12345) {
+    content: should-never-appear;
+}
+
+// Variable definition only - should not output
+@standalone-var: 100px;
+
+// Detached ruleset not called - should not output
+@uncalled-ruleset: {
+    content: never-used;
+};

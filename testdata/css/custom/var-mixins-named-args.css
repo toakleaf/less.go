@@ -1,0 +1,66 @@
+.named-basic-all-named {
+  width: 200px;
+  height: 150px;
+  background-color: red;
+}
+.named-basic-partial {
+  width: 100px;
+  height: 50px;
+  background-color: gray;
+}
+.named-basic-mixed {
+  width: 300px;
+  height: 100px;
+  background-color: blue;
+}
+.named-arguments-var-default {
+  border: 1px solid black;
+}
+.named-arguments-var-named {
+  border: 1px dashed red;
+}
+.named-arguments-var-all {
+  border: 2px dotted green;
+}
+.named-guarded-above {
+  result: above;
+  value: 20;
+}
+.named-guarded-below {
+  result: at-or-below;
+  value: 10;
+}
+.named-guarded-at {
+  result: at-or-below;
+  value: 5;
+}
+.named-multi-skip-some {
+  a: 1;
+  b: 2;
+  c: 30;
+  d: 4;
+  e: 50;
+}
+.named-multi-reverse {
+  a: 1;
+  b: 2;
+  c: 3;
+  d: 4;
+  e: 5;
+}
+.named-multi-first-last {
+  a: 100;
+  b: 2;
+  c: 3;
+  d: 4;
+  e: 500;
+}
+.use-vars-named {
+  width: 250px;
+  height: 100px;
+  background-color: purple;
+}
+.named-expressions {
+  margin: 20px 0 10px 0;
+  margin: 0 15px 0 15px;
+}

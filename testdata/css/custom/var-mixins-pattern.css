@@ -1,0 +1,81 @@
+.align-test-left {
+  margin-right: auto;
+  text-align: left;
+}
+.align-test-right {
+  margin-left: auto;
+  text-align: right;
+}
+.align-test-center {
+  margin: 0 auto;
+  text-align: center;
+}
+.align-test-justify {
+  text-align: justify;
+}
+.grid-test-1 {
+  flex: 0 0 100%;
+}
+.grid-test-2 {
+  flex: 0 0 50%;
+}
+.grid-test-3 {
+  flex: 0 0 33.333%;
+  flex: 0 0 33.33333333%;
+}
+.grid-test-6 {
+  flex: 0 0 16.66666667%;
+}
+.shadow-test-two {
+  box-shadow: 2px 2px;
+  box-shadow: 2px 2px 0 black;
+}
+.shadow-test-three {
+  box-shadow: 3px 3px 5px;
+  box-shadow: 3px 3px 5px black;
+}
+.shadow-test-four {
+  box-shadow: 4px 4px 10px rgba(0, 0, 0, 0.5);
+}
+.shadow-test-many {
+  box-shadow: 0 0 5px red 0 0 10px blue;
+  box-shadow: 0 0 5px red 0 0 10px blue 0 black;
+}
+.button-test-default {
+  display: inline-block;
+}
+.button-test-primary-medium {
+  display: inline-block;
+}
+.button-test-primary-large {
+  display: inline-block;
+  background: blue;
+  padding: 0.75rem 1.5rem;
+  padding: large;
+}
+.button-test-danger-small {
+  display: inline-block;
+  background: red;
+  padding: 0.25rem 0.5rem;
+  padding: small;
+}
+.transition-test-two {
+  transition: opacity 0.3s;
+  transition: opacity 0.3s ease;
+}
+.transition-test-three {
+  transition: transform 0.5s linear;
+}
+.transition-test-multi {
+  transition: opacity 0.3s transform 0.5s;
+  transition: opacity 0.3s transform 0.5s ease;
+}
+.empty-test-none {
+  matched-empty: true;
+}
+.empty-test-one {
+  matched-one: first;
+}
+.empty-test-two {
+  matched-two: first second;
+}

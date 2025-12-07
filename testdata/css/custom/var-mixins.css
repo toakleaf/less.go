@@ -1,0 +1,68 @@
+.shared-style {
+  font-family: sans-serif;
+  line-height: 1.6;
+}
+.use-shared {
+  font-family: sans-serif;
+  line-height: 1.6;
+  color: black;
+}
+.layout-container::after {
+  content: "";
+  display: table;
+  clear: both;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+.clickable-item {
+  cursor: pointer;
+}
+.clickable-item:hover {
+  opacity: 0.8;
+}
+.clickable-item:active {
+  transform: scale(0.98);
+}
+.a,
+.b {
+  shared-ab: true;
+}
+.a {
+  only-a: true;
+}
+.b {
+  only-b: true;
+}
+.combined-test {
+  only-a: true;
+  shared-ab: true;
+  only-b: true;
+}
+.parent-with-mixin .nested {
+  child-style: applied;
+}
+.external-caller {
+  child-style: applied;
+}
+.recursive-container .recursive-safe {
+  recursive: defined;
+}
+.parent-element > .child-element {
+  nested: true;
+}
+.complex-selector-test > .child-element {
+  nested: true;
+}
+.calc-test {
+  width: 150px;
+  height: 66.66666667px;
+  area: 10000px;
+  width: 400px;
+  height: 100px;
+  area: 40000px;
+}
