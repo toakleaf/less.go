@@ -1,0 +1,83 @@
+// Variation of mixins-nested with different structures
+.inner-helper (@value) {
+    padding: @value;
+}
+
+.outer (@factor: 5) {
+    .child {
+        width: (@factor * 20);
+
+        .grandchild {
+            height: @factor;
+            .inner-helper((@factor * 3));
+        }
+    }
+}
+
+.block1 {
+    .outer(15);
+}
+
+.block2 {
+    .outer(25);
+}
+
+// Deeper nesting
+.deep-mixin (@x: 1) {
+    .level1 {
+        l1: @x;
+        .level2 {
+            l2: (@x * 2);
+            .level3 {
+                l3: (@x * 3);
+                .level4 {
+                    l4: (@x * 4);
+                }
+            }
+        }
+    }
+}
+
+.deep-test {
+    .deep-mixin(10);
+}
+
+// Multiple nested mixins
+.mixin-a(@n) {
+    a: @n;
+}
+
+.mixin-b(@n) {
+    .nested {
+        .mixin-a(@n);
+        b: (@n + 1);
+    }
+}
+
+.mixin-c(@n) {
+    .wrapper {
+        .mixin-b(@n);
+        c: (@n + 2);
+    }
+}
+
+.combined-test {
+    .mixin-c(100);
+}
+
+// Sibling nested rules
+.sibling-mixin(@val) {
+    .first-sibling {
+        prop1: @val;
+    }
+    .second-sibling {
+        prop2: (@val * 2);
+    }
+    .third-sibling {
+        prop3: (@val * 3);
+    }
+}
+
+.sibling-test {
+    .sibling-mixin(5px);
+}

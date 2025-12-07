@@ -1,0 +1,19 @@
+.calculate {
+  width: 20px;
+  fallback: value;
+}
+.configured {
+  property: configured;
+}
+.retrieval {
+  processed: stored;
+}
+.test-clamp {
+  a: 10px;
+  b: 50px;
+  c: 100px;
+}
+.math-test {
+  doubled: 10;
+  tripled: 15;
+}

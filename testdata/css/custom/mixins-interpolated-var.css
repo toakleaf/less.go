@@ -1,0 +1,42 @@
+.widget {
+  display: block;
+}
+.456 {
+  display: inline;
+}
+.widget {
+  visibility: visible;
+}
+#widget {
+  overflow: hidden;
+}
+#container {
+  position: relative;
+}
+interp-call-a {
+  display: block;
+  visibility: visible;
+  display: inline;
+  overflow: hidden;
+}
+.outer .inner.widget-suffix .prefix-widget#container .widget.nested-child {
+  color: blue;
+}
+interp-call-b {
+  color: blue;
+}
+#widget-wrapper > .component .element {
+  z-index: 100;
+}
+interp-call-c-first > .component .element {
+  z-index: 100;
+}
+interp-call-c-second .element {
+  z-index: 100;
+}
+interp-call-c-third {
+  z-index: 100;
+}
+interp-call-d {
+  type: "electronics";
+}

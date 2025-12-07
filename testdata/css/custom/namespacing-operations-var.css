@@ -1,0 +1,10 @@
+.computed {
+  result: 7.28318;
+}
+.grid-cell {
+  margin: 96px;
+  padding: 18px;
+}
+.message {
+  content: hello-world;
+}

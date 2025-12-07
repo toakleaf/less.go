@@ -1,0 +1,52 @@
+// Variation of namespacing-4 with guards and nested lookups
+#services {
+    .getConfig(@mode) when (@mode = production) {
+        @debug: false;
+    }
+    .getConfig(@mode) when (@mode = development) {
+        @debug: true;
+    }
+}
+
+.shortcut() {
+    #services.getConfig(production);
+}
+
+#framework {
+    .core() {
+        .theme() {
+            main: green;
+            text: inherit;
+        }
+    }
+}
+
+#framework {
+    .core() {
+        .theme() {
+            main: teal;
+        }
+    }
+}
+
+.app {
+    .theme() { #framework.core.theme(); }
+    width: .shortcut[@debug];
+    background: .theme[main];
+    color: .theme[text];
+}
+
+// Deep namespace with multiple levels
+#a {
+    #b {
+        #c {
+            .mixin() {
+                @result: deep-value;
+            }
+        }
+    }
+}
+
+.deep-lookup {
+    val: #a#b#c.mixin[@result];
+}

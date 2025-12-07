@@ -1,0 +1,47 @@
+button:active,
+input:active,
+textarea:active {
+  cursor: pointer;
+}
+.primary + .separator,
+.secondary + .separator,
+.tertiary + .separator {
+  margin: 0 8px;
+}
+.container .prefix.primary,
+.container .secondary,
+.tertiary.container:active,
+.container .fallback {
+  opacity: 1;
+}
+.alpha ~ .epsilon,
+.beta.gamma ~ .epsilon,
+.delta ~ .epsilon {
+  display: block;
+}
+.component[data-state="active"],
+.component.active {
+  visibility: visible;
+}
+.wrapper .variant-1,
+.wrapper .variant-2 {
+  font-weight: bold;
+}
+.product-orange,
+.product-grape,
+.product-mango,
+.product-kiwi {
+  content: "Product item";
+}
+.btn-primary {
+  background: blue;
+}
+#btn-primary {
+  background: green;
+}
+[data-type="special"] {
+  font-style: italic;
+}
+.header-nav-link {
+  text-decoration: none;
+}

@@ -1,0 +1,83 @@
+// Variation of parse-interpolation with different selectors
+@elements: button, input, textarea;
+
+@{elements} {
+    &:active {
+        cursor: pointer;
+    }
+}
+
+@categories: ~".primary, .secondary, .tertiary";
+
+@{categories} {
+    + .separator {
+        margin: 0 8px;
+    }
+}
+
+.container {
+    .prefix@{categories}&:active, .fallback {
+        opacity: 1;
+    }
+}
+
+@x: ~'.alpha, .beta';
+@y: ~'.gamma, .delta';
+@z: ~' ~ .epsilon';
+
+@{x}@{y} {
+    @{z} {
+        display: block;
+    }
+}
+
+@stateClasses: ~'&[data-state="active"], &.active';
+
+.component {
+    @{stateClasses} {
+        visibility: visible;
+    }
+}
+
+@custom-selector: ~'.variant-1, .variant-2';
+.wrapper {
+    @{custom-selector} {
+        font-weight: bold;
+    }
+}
+
+@items: orange, grape, mango, kiwi;
+@{items} {
+    .product-& {
+        content: "Product item";
+    }
+}
+
+// Additional interpolation patterns
+@prefix: btn;
+@suffix: primary;
+
+.@{prefix}-@{suffix} {
+    background: blue;
+}
+
+#@{prefix}-@{suffix} {
+    background: green;
+}
+
+// Interpolation in attribute selectors
+@attr-name: data-type;
+@attr-value: special;
+
+[@{attr-name}="@{attr-value}"] {
+    font-style: italic;
+}
+
+// Multiple interpolations in single selector
+@a: header;
+@b: nav;
+@c: link;
+
+.@{a}-@{b}-@{c} {
+    text-decoration: none;
+}

@@ -1,0 +1,57 @@
+// Variation of namespacing-3 with maps and media queries
+@layout: {
+    @maxWidth: 1200px;
+    @spacing: {
+        padding: 16px;
+        margin: 24px;
+    }
+};
+
+#helpers {
+    .sizes() {
+        @headerHeight: 60px;
+    }
+}
+
+@screens: {
+    phone: 480px;
+    tablet: 768px;
+    desktop: 1024px;
+};
+
+@media (min-width: @screens[phone]) {
+    .header {
+        width: @layout[@maxWidth];
+        height: #helpers.sizes[@headerHeight];
+        padding: @layout[@spacing][padding];
+        margin: @layout[@spacing][margin];
+    }
+}
+
+// Important after map usage
+@gaps: {
+    none: 0;
+    small: 8px;
+    medium: 16px;
+    large: 24px;
+};
+
+.grid-item {
+    gap: @gaps[none] (@gaps[small] / 2) !important;
+}
+
+.flex-mixin(@gap: 8px; @justify: center; @align: stretch) {
+    display: flex;
+    gap: @gap;
+    justify-content: @justify;
+    align-items: @align;
+    padding: @gaps[none] !important
+}
+
+.row1 {
+    .flex-mixin(@justify: flex-start; @gap: 16px) !important;
+}
+
+.row2 {
+    .flex-mixin(12px; @align: center);
+}

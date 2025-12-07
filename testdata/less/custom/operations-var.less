@@ -1,0 +1,79 @@
+// Variation of operations with different values and calculations
+#calculations {
+    color: (#220000 + #000022 + #002200); // #222222
+    tint: (cyan - #0a0a0a);
+    height: (20px / 4px + 8px - 2px * 3); // 7px
+    width: (3 * 5 - 8em); // 7em
+    .nested {
+        height: (20px / 4px+8px-2px*3);
+        width: (3  * 5-8em);
+    }
+    subtraction: (100 - 25 - 25 - 50); // 0
+    division: (100 / 4 / 5); // 5
+}
+
+@m: 8;
+@n: 24em;
+
+.variable-math {
+    height: (@m + @n); // 32em
+    width: (24 + @n); // 48em
+    size: (10cm - @m); // 2cm
+}
+
+.function-colors {
+    color: (rgb(100, 100, 100) / 4);
+    color: (4 * hsl(120, 25%, 25%));
+    color: (rgb(20, 20, 20) + hsl(120, 25%, 25%));
+}
+
+@neg: -4;
+
+.negation {
+    height: (4px + @neg); // 0px
+    width: (4px - @neg); // 8px
+}
+
+.shorthand-vals {
+    margin: -2px 4px 0 -8px;
+}
+
+.rem-calcs {
+    font-size: (40rem / 4 + 2.5rem); // 12.5rem
+}
+
+.color-ops {
+    color: #456; // #445566
+    border-color: (#567 + #222222); // #778899
+    background-color: (#444444 - #fff); // #000000
+    .nested {
+        color: (4 * #222); // #888888
+        border-color: (#666666 / 2 + #222); // #555555
+    }
+}
+
+.negation-exprs {
+    @value: 8px;
+    neg-variable: (-@value); // -8px
+    neg-add-var: (-@value + @value); // 0
+    var-add-neg: (@value + -@value); // 0
+    var-sub-neg: (@value - -@value); // 16px
+    neg-sub-neg: (-@value - -@value); // 0
+    paren-neg: (-(@value)); // -8px
+    complex: (-(4 + 4) * -@value); // 64
+}
+
+// Additional operation tests
+.percentage-math {
+    @base: 50%;
+    half: (@base / 2);
+    double: (@base * 2);
+    offset: (@base + 10%);
+}
+
+.unit-conversions {
+    // Same units
+    same: (10px + 5px);
+    // Different but compatible
+    mixed: (1cm + 10mm);
+}

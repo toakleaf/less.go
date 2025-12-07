@@ -1,0 +1,50 @@
+// Variation of namespacing-operations with mixed operations
+#math {
+    .constants() {
+        pi: 3.14159;
+        e: 2.71828;
+    }
+}
+
+@constants: {
+    @values: {
+        multiplier: 2;
+    }
+};
+
+.computed {
+    result: #math.constants[pi] * @constants[@values][multiplier] + 1;
+}
+
+// Complex nested operations
+#layout {
+    .spacing() {
+        base: 8px;
+        scale: 1.5;
+    }
+}
+
+@grid: {
+    @columns: {
+        count: 12;
+    }
+};
+
+.grid-cell {
+    margin: #layout.spacing[base] * @grid[@columns][count];
+    padding: (#layout.spacing[base] + 4px) * #layout.spacing[scale];
+}
+
+// String concat with lookups
+#strings {
+    .parts() {
+        prefix: hello;
+        suffix: world;
+    }
+}
+
+.message {
+    content: ~"@{prefix}-@{suffix}";
+    @prefix: #strings.parts[prefix];
+    @suffix: #strings.parts[suffix];
+}

@@ -1,0 +1,122 @@
+// Variation of mixins-pattern with different patterns and values
+.pattern-mixin (...) {
+    is-variadic: yes;
+}
+.pattern-mixin (@args...) {
+    has-named-variadic: yes;
+}
+.pattern-mixin () {
+    no-args: true;
+}
+.pattern-mixin (@first: 5px) {
+    has-one: true;
+}
+.pattern-mixin (@first) {
+    requires-one: true;
+}
+.pattern-mixin (@first: 5px, @second: 10px) {
+    has-two: true;
+}
+.pattern-mixin (@a, @b, @c) {
+    requires-three: true;
+}
+.pattern-mixin (@a: 1, @b: 2, @c: 3) {
+    has-three: true;
+}
+
+.call-zero {
+    .pattern-mixin();
+}
+
+.call-one {
+    .pattern-mixin(10);
+}
+
+.call-two {
+    .pattern-mixin(10, 20);
+}
+
+.call-three {
+    .pattern-mixin(10, 20, 30);
+}
+
+// String pattern matching
+.direction ('up') {
+    top: 0;
+}
+.direction ('down') {
+    bottom: 0;
+}
+.direction ('left') {
+    left: 0;
+}
+.direction ('right') {
+    right: 0;
+}
+
+.go-up {
+    .direction('up');
+}
+.go-down {
+    .direction('down');
+}
+.go-left {
+    .direction('left');
+}
+.go-right {
+    .direction('right');
+}
+
+// Two-arg pattern matching
+.position (@dir, @amount) {
+    position: absolute;
+    .edge(@dir, @amount);
+}
+.edge (top, @n) {
+    top: @n;
+}
+.edge (bottom, @n) {
+    bottom: @n;
+}
+.edge (left, @n) {
+    left: @n;
+}
+.edge (right, @n) {
+    right: @n;
+}
+
+.pos-top {
+    .position(top, 10px);
+}
+.pos-bottom {
+    .position(bottom, 20px);
+}
+.pos-left {
+    .position(left, 5px);
+}
+.pos-right {
+    .position(right, 15px);
+}
+
+// Pattern with optional second arg
+.radius (@value) {
+    border-radius: @value;
+}
+.radius (@value, top) {
+    border-top-left-radius: @value;
+    border-top-right-radius: @value;
+}
+.radius (@value, bottom) {
+    border-bottom-left-radius: @value;
+    border-bottom-right-radius: @value;
+}
+
+.radius-all {
+    .radius(8px);
+}
+.radius-top {
+    .radius(8px, top);
+}
+.radius-bottom {
+    .radius(8px, bottom);
+}

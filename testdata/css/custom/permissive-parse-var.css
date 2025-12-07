@@ -1,0 +1,57 @@
+@-moz-document regexp("(\w{0,20})") {
+  span {
+    color: blue;
+  }
+}
+.css-properties {
+  --handler: () => {
+        process this content until semicolon;
+        including nested; // comments;
+    };
+  --processed: () => {
+        process this content until semicolon;
+        including nested; // comments;
+    };
+  --themed-color: #0000e6 #0000e6;
+  themed-color: #0000e6 #0000e6;
+}
+.counter-var {
+  --formula: calculate(value, index=42);
+}
+@-moz-whatever (anim: "(" bam ")") {
+  step: one;
+}
+#x,
+.y,
+div[role="button"] {
+  content: "matched";
+}
+@media (min-width: 800px) {
+  .responsive-element {
+    display: grid;
+  }
+}
+@media (min-width: 800px) {
+  .interpolated-query {
+    display: flex;
+  }
+}
+.edge-case-rules {
+  --complex: a /* { nested; } */;
+  --parenthetical: ( /* inline comment; here */ );
+}
+.no-semicolon-test {
+  --value: value;
+}
+.compact-rule {
+  --compact: value;
+}
+.spaced-rule {
+  --spaced: value;
+}
+.grid-template {
+  --template: [header] 1fr [content] auto [footer] 100px;
+}
+.unicode-range {
+  --range: U+0025-00FF;
+}

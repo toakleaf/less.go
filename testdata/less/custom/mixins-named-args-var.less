@@ -1,0 +1,74 @@
+// Variation of mixins-named-args with different parameter names and values
+.component (@size: 2px, @opacity: 80%) {
+    min-width: (@size * 10);
+    max-height: (@opacity - 5%);
+    args: @arguments;
+}
+
+.component (@size: 2px, @opacity: 80%) when (@opacity > 90%) {
+    vertical-align: middle;
+}
+
+.using-named-arg {
+    background: white;
+    .component(@opacity: 95%);
+}
+
+.using-var {
+    @local: 30%;
+    .component(@opacity: @local);
+}
+
+.swapped-args {
+    .component(@opacity: 25%, @size: 4px);
+}
+
+.component2 (@x: 5px, @y: 60%, @z: 75) {
+    padding: (@x * 3);
+    margin: (@y + 5%);
+    opacity: @z;
+}
+
+.named-two {
+    .component2(6px, @z: 50);
+}
+
+.named-three {
+    .component2(@y: 40%, @z: 25);
+}
+
+// Additional tests for edge cases
+.complex-mixin(@width: 100px, @height: 50px, @color: #333) {
+    width: @width;
+    height: @height;
+    background-color: @color;
+}
+
+.all-default {
+    .complex-mixin();
+}
+
+.first-only {
+    .complex-mixin(200px);
+}
+
+.first-and-last {
+    .complex-mixin(150px, @color: #fff);
+}
+
+.last-only {
+    .complex-mixin(@color: #000);
+}
+
+.middle-only {
+    .complex-mixin(@height: 100px);
+}
+
+// Named args with expressions
+.expr-mixin(@val: 10px) {
+    computed: (@val * 2 + 5px);
+}
+
+.with-expr-arg {
+    .expr-mixin(@val: (15px - 5px));
+}
