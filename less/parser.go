@@ -899,14 +899,39 @@ func (p *Parsers) Declaration() any {
 				// Unlike regular values where !important is parsed separately,
 				// anonymous values don't have their !important extracted.
 				// The important parameter is set to false for anonymous values.
+				//
+				// HOWEVER, for variable declarations, we need to extract !important
+				// from the value so it can be applied when the variable is used.
+				// This matches Less.js behavior where @var: 10px !important; results
+				// in .foo { margin: @var; } outputting .foo { margin: 10px !important; }
 				p.parser.parserInput.Forget()
+
+				// For variables, extract !important from the value if present
+				if isVariable {
+					if anon, ok := value.(*Anonymous); ok {
+						if valStr, ok := anon.Value.(string); ok {
+							// Check for !important pattern at end of value
+							// Pattern: optional whitespace, !, optional whitespace, "important"
+							importantMatch := reImportantSuffix.FindStringSubmatch(valStr)
+							if importantMatch != nil {
+								// Extract the !important string (preserve original formatting)
+								important = importantMatch[1]
+								// Create new Anonymous with trimmed value
+								trimmedVal := strings.TrimSuffix(valStr, importantMatch[0])
+								trimmedVal = strings.TrimRight(trimmedVal, " \t")
+								value = NewAnonymous(trimmedVal, anon.Index, anon.FileInfo, anon.MapLines, anon.RulesetLike, nil)
+							}
+						}
+					}
+				}
+
 				// Pass merge as-is (string "+" or "+_")
-			var mergeFlag any
-			if merge != "" {
-				mergeFlag = merge
-			} else {
-				mergeFlag = false
-			}
+				var mergeFlag any
+				if merge != "" {
+					mergeFlag = merge
+				} else {
+					mergeFlag = false
+				}
 				// Create declaration
 				decl, err := NewDeclaration(name, value, important, mergeFlag, index+p.parser.currentIndex, p.parser.fileInfo, false, isVariable)
 				if err != nil {
