@@ -1,0 +1,113 @@
+// Variations of property-accessors.less - testing $property syntax
+
+// Basic property accessor
+.basic-accessor {
+  color: blue;
+  background-color: $color;
+}
+
+// Property accessor with calculation
+.accessor-with-calc {
+  width: 200px;
+  height: ($width / 2);
+  min-height: ($width * 0.25);
+}
+
+// Property accessor from nested rules
+.parent-accessor {
+  color: red;
+
+  .child {
+    background: $color;
+  }
+
+  &:hover {
+    border-color: $color;
+  }
+}
+
+// Multiple property accessors
+.multi-accessor {
+  font-size: 16px;
+  line-height: 1.5;
+  padding: $font-size;
+  margin: ($font-size * 2);
+}
+
+// Property accessor with color functions
+.color-accessor {
+  color: #336699;
+  border-color: lighten($color, 20%);
+  background-color: darken($color, 10%);
+  outline-color: fade($color, 50%);
+}
+
+// Property accessor in shorthand
+.shorthand-accessor {
+  border-width: 2px;
+  border-style: solid;
+  border-color: red;
+  outline: $border-width $border-style $border-color;
+}
+
+// Property accessor with later redefinition
+.late-binding {
+  color: green;
+  .nested {
+    bg: $color; // should get green
+  }
+  color: purple; // redefined
+}
+
+// Property accessor from mixin
+.prop-mixin() {
+  base-color: orange;
+}
+
+.uses-mixin {
+  .prop-mixin();
+  background: $base-color;
+}
+
+// Property accessor with merged properties
+.merged-props {
+  box-shadow+: 0 1px 2px black;
+  box-shadow+: 0 2px 4px gray;
+
+  .uses-merged {
+    shadow: $box-shadow;
+  }
+}
+
+// String containing $ (should not be interpreted as accessor)
+.string-dollar {
+  content: "$not-a-property";
+  escaped: ~"$also-not";
+}
+
+// Property accessor with hyphenated name
+.hyphenated-accessor {
+  border-color: green;
+  outline-color: $border-color;
+}
+
+// Accessor in variable value
+.accessor-in-var {
+  color: #123456;
+  @savedColor: $color;
+  background: @savedColor;
+}
+
+// Nested accessor scopes
+.scope-test {
+  color: blue;
+
+  .level1 {
+    color: red;
+
+    .level2 {
+      // Should get red from nearest scope
+      background: $color;
+    }
+  }
+}

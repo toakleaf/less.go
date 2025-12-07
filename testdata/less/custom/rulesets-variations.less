@@ -1,0 +1,188 @@
+// Variations of rulesets.less - testing nested rulesets and selectors
+
+// Basic nesting
+.container {
+  width: 100%;
+
+  .header {
+    height: 60px;
+  }
+
+  .content {
+    padding: 20px;
+  }
+
+  .footer {
+    margin-top: auto;
+  }
+}
+
+// Deep nesting with parent selector
+.component {
+  display: block;
+
+  &__element {
+    position: relative;
+
+    &--modifier {
+      color: red;
+
+      &:hover {
+        color: blue;
+      }
+    }
+  }
+}
+
+// Multiple selectors at each level
+.card,
+.panel {
+  border: 1px solid #ccc;
+
+  .title,
+  .heading {
+    font-weight: bold;
+
+    span,
+    em {
+      font-style: normal;
+    }
+  }
+}
+
+// Child and sibling combinators
+.nav {
+  > li {
+    display: inline-block;
+
+    + li {
+      margin-left: 10px;
+    }
+
+    ~ li {
+      color: gray;
+    }
+
+    > a {
+      text-decoration: none;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+  }
+}
+
+// Complex selector chains
+#app > .main {
+  > .sidebar + .content {
+    .article {
+      &:first-child {
+        margin-top: 0;
+
+        .title {
+          font-size: 24px;
+        }
+      }
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+  }
+}
+
+// Nesting with media queries
+.responsive-component {
+  width: 100%;
+
+  @media (min-width: 768px) {
+    width: 50%;
+
+    .inner {
+      padding: 20px;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    width: 33.333%;
+  }
+}
+
+// Parent selector variations
+.btn {
+  padding: 10px;
+
+  // Append to parent
+  &-primary {
+    background: blue;
+  }
+
+  // Prepend parent
+  .theme-dark & {
+    color: white;
+  }
+
+  // Multiple parent references
+  & + & {
+    margin-left: 5px;
+  }
+
+  // Parent in complex selector
+  .form &:disabled {
+    opacity: 0.5;
+  }
+}
+
+// Nesting with attribute selectors
+.form-control {
+  [type="text"],
+  [type="email"],
+  [type="password"] {
+    border: 1px solid #ccc;
+
+    &:focus {
+      border-color: blue;
+
+      & + .label {
+        color: blue;
+      }
+    }
+  }
+}
+
+// Pseudo-elements nesting
+.icon {
+  position: relative;
+
+  &::before {
+    content: "";
+    position: absolute;
+  }
+
+  &::after {
+    content: "";
+    display: block;
+  }
+
+  &:hover {
+    &::before {
+      opacity: 1;
+    }
+  }
+}
+
+// Mixed ID and class nesting
+#page {
+  .section {
+    #sidebar {
+      .widget {
+        padding: 10px;
+
+        .widget-title {
+          border-bottom: 1px solid;
+        }
+      }
+    }
+  }
+}

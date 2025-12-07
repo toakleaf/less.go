@@ -1,0 +1,74 @@
+.basic-accessor {
+  color: blue;
+  background-color: blue;
+}
+.accessor-with-calc {
+  width: 200px;
+  height: 100px;
+  min-height: 50px;
+}
+.parent-accessor {
+  color: red;
+}
+.parent-accessor .child {
+  background: red;
+}
+.parent-accessor:hover {
+  border-color: red;
+}
+.multi-accessor {
+  font-size: 16px;
+  line-height: 1.5;
+  padding: 16px;
+  margin: 32px;
+}
+.color-accessor {
+  color: #336699;
+  border-color: #6699cc;
+  background-color: #264c73;
+  outline-color: rgba(51, 102, 153, 0.5);
+}
+.shorthand-accessor {
+  border-width: 2px;
+  border-style: solid;
+  border-color: red;
+  outline: 2px solid red;
+}
+.late-binding {
+  color: green;
+  color: purple;
+}
+.late-binding .nested {
+  bg: purple;
+}
+.uses-mixin {
+  base-color: orange;
+  background: orange;
+}
+.merged-props {
+  box-shadow: 0 1px 2px black, 0 2px 4px gray;
+}
+.merged-props .uses-merged {
+  shadow: 0 1px 2px black, 0 2px 4px gray;
+}
+.string-dollar {
+  content: "$not-a-property";
+  escaped: $also-not;
+}
+.hyphenated-accessor {
+  border-color: green;
+  outline-color: green;
+}
+.accessor-in-var {
+  color: #123456;
+  background: #123456;
+}
+.scope-test {
+  color: blue;
+}
+.scope-test .level1 {
+  color: red;
+}
+.scope-test .level1 .level2 {
+  background: red;
+}

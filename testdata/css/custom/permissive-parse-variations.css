@@ -1,0 +1,65 @@
+.custom-props-basic {
+  --color-primary: #3366ff;
+  --spacing-unit: 8px;
+  --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto;
+  --transition: all 0.3s ease-in-out;
+}
+.custom-props-with-functions {
+  --color-light: #ffa366;
+  --color-dark: #993d00;
+  --color-alpha: rgba(255, 102, 0, 0.5);
+}
+.custom-props-calc {
+  --base-size: 16px;
+  --computed: calc(var(--base-size) * 2);
+}
+.custom-props-complex {
+  --gradient: linear-gradient(to right, red, blue);
+  --shadow: 0 2px 4px rgba(0, 0, 0, 0.1), 0 4px 8px rgba(0, 0, 0, 0.05);
+  --transform: translateX(10px) rotate(45deg) scale(1.1);
+}
+.use-custom-props {
+  color: var(--color-primary);
+  padding: var(--spacing-unit);
+  font-family: var(--font-stack);
+}
+.custom-prop-fallback {
+  color: var(--undefined-color, #333);
+  padding: var(--undefined-spacing, 10px);
+}
+@media (min-width: 768px) {
+  .responsive {
+    display: flex;
+  }
+}
+@media (max-width: 767px) {
+  .mobile-only {
+    display: block;
+  }
+}
+@media (min-width: 1024px) {
+  .desktop-only {
+    display: block;
+  }
+}
+.no-semicolon {
+  --value: test;
+}
+.no-semicolon-space {
+  --value: test;
+}
+.special-chars {
+  --url-value: url("image.png");
+  --content-value: "hello 'world'";
+  --parens-value: (foo, bar, baz);
+}
+.nested-custom {
+  --outer: 1;
+}
+.nested-custom .inner {
+  --inner: 2;
+  value: var(--outer) var(--inner);
+}
+.interpolated-prop {
+  --theme-color: blue;
+}

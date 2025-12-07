@@ -1,0 +1,89 @@
+// Variations of operations.less - testing math operations in different contexts
+
+// Edge case: floating point operations
+.float-operations {
+  width: (3.14159 * 2px);
+  height: (10.5px / 3);
+  margin: (1.1 + 2.2 + 3.3);
+}
+
+// Multiple unit operations
+.unit-conversions {
+  font-size: (12px + 1em); // mixed units
+  width: (100% / 2);
+  margin: (2cm + 5mm);
+}
+
+// Operations with negative numbers in different positions
+.negative-numbers {
+  top: (-10px + 5px);
+  left: (5px - -10px);
+  bottom: (-5px * -2);
+  right: (-20px / -4);
+}
+
+// Chained operations with varying precedence
+.precedence {
+  result1: (2 + 3 * 4);     // 14
+  result2: ((2 + 3) * 4);   // 20
+  result3: (10 / 2 + 3);    // 8
+  result4: (10 / (2 + 3));  // 2
+}
+
+// Color operations - different formats
+.color-ops {
+  @base: #336699;
+  color1: (@base + #111);
+  color2: (@base - #222);
+  color3: (@base * 2);
+  color4: (#fff / 2);
+  color5: (rgb(100, 150, 200) + 10);
+}
+
+// Operations in shorthand properties
+.shorthand-ops {
+  @base: 10px;
+  padding: @base (@base * 2) (@base / 2) (@base + 5px);
+  margin: (-@base) @base;
+  border: (@base / 5) solid #333;
+}
+
+// Variables in operations
+@factor: 1.5;
+@baseSize: 16px;
+@multiplier: 3;
+
+.var-operations {
+  size1: (@baseSize * @factor);
+  size2: (@baseSize / @factor);
+  size3: (@baseSize * @multiplier / 2);
+  nested: ((@baseSize + 4px) * @factor);
+}
+
+// Percentage operations
+.percentage-ops {
+  width: (100% - 20%);
+  height: (50% * 2);
+  margin: (10% + 5%);
+}
+
+// Rem and em operations
+.rem-em-ops {
+  font-size: (1rem * 2);
+  line-height: (1.5em + 0.5em);
+  padding: (2rem / 4);
+}
+
+// Zero edge cases
+.zero-cases {
+  result1: (0 + 10px);
+  result2: (10px - 0);
+  result3: (0 * 100px);
+  result4: (0px / 5);
+}
+
+// Large number operations
+.large-numbers {
+  big: (9999px + 1px);
+  bigger: (1000 * 1000);
+}

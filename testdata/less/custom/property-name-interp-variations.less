@@ -1,0 +1,108 @@
+// Variations of property-name-interp.less - testing property name interpolation
+
+// Basic property name interpolation
+.basic-interp {
+  @prop: color;
+  @{prop}: red;
+}
+
+// Multi-part property name
+.multi-part {
+  @prefix: background;
+  @suffix: color;
+  @{prefix}-@{suffix}: blue;
+}
+
+// Common CSS property patterns
+.border-props {
+  @side: left;
+  @type: width;
+  border-@{side}-@{type}: 2px;
+  border-@{side}-color: red;
+  border-@{side}-style: solid;
+}
+
+// Vendor prefix interpolation
+.vendor-prefix {
+  @vendor: webkit;
+  @prop: transform;
+  -@{vendor}-@{prop}: rotate(45deg);
+}
+
+// Property interpolation with values
+.values-test {
+  @prop: margin;
+  @{prop}: 10px;
+  @{prop}-top: 20px;
+  @{prop}-bottom: 30px;
+}
+
+// Multiple properties with same variable
+.same-var-multi {
+  @axis: x;
+  overflow-@{axis}: hidden;
+  scroll-snap-type-@{axis}: mandatory;
+}
+
+// Property from variable containing property
+.indirect {
+  @a: font;
+  @b: size;
+  @full: @a;
+  @{full}-@{b}: 16px;
+}
+
+// Interpolation in merged properties
+.merge-interp {
+  @prop: shadow;
+  box-@{prop}+: 0 1px 2px black;
+  box-@{prop}+: 0 2px 4px gray;
+}
+
+// Empty/partial interpolation edge cases
+.edge-cases {
+  @empty: ~'';
+  color@{empty}: red;  // should just be "color"
+}
+
+// Complex property names
+.complex-props {
+  @part1: grid;
+  @part2: template;
+  @part3: columns;
+  @{part1}-@{part2}-@{part3}: 1fr 1fr 1fr;
+}
+
+// Interpolation in nested rules
+.nested-interp {
+  @prop: background;
+
+  .child {
+    @{prop}-color: white;
+    @{prop}-image: none;
+  }
+}
+
+// Mixin with property interpolation
+.prop-mixin(@name, @value) {
+  @{name}: @value;
+}
+
+.uses-prop-mixin {
+  .prop-mixin(color, green);
+  .prop-mixin(font-size, 14px);
+}
+
+// Animation property interpolation
+.animation-props {
+  @timing: duration;
+  @name: animation;
+  @{name}-@{timing}: 0.3s;
+  @{name}-timing-function: ease;
+}
+
+// CSS custom property with interpolation in name
+.custom-with-interp {
+  @varName: primary;
+  --color-@{varName}: #3366ff;
+}
