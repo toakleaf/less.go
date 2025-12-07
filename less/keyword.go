@@ -13,10 +13,11 @@ type Keyword struct {
 
 func NewKeyword(value string) *Keyword {
 	internedValue := Intern(value)
-	k := GetKeywordFromPool()
-	k.Node = NewNode()
-	k.value = internedValue
-	k.type_ = "Keyword"
+	k := &Keyword{
+		Node:  NewNode(),
+		value: internedValue,
+		type_: "Keyword",
+	}
 	k.Value = internedValue
 	return k
 }

@@ -64,19 +64,6 @@ var unitPool = sync.Pool{
 	},
 }
 
-// dimensionPool is a pool for reusing Dimension objects.
-var dimensionPool = sync.Pool{
-	New: func() any {
-		return &Dimension{}
-	},
-}
-
-// keywordPool is a pool for reusing Keyword objects.
-var keywordPool = sync.Pool{
-	New: func() any {
-		return &Keyword{}
-	},
-}
 
 func GetNodeFromPool() *Node {
 	return nodePool.Get().(*Node)
@@ -304,57 +291,6 @@ func ReleaseUnit(u *Unit) {
 
 func (u *Unit) Release() {
 	ReleaseUnit(u)
-}
-
-func resetDimension(d *Dimension) {
-	d.Node = nil
-	d.Value = 0
-	d.Unit = nil
-}
-
-func GetDimensionFromPool() *Dimension {
-	d := dimensionPool.Get().(*Dimension)
-	resetDimension(d)
-	return d
-}
-
-func ReleaseDimension(d *Dimension) {
-	if d == nil {
-		return
-	}
-	resetDimension(d)
-	dimensionPool.Put(d)
-}
-
-func (d *Dimension) Release() {
-	ReleaseDimension(d)
-}
-
-func resetKeyword(k *Keyword) {
-	if k.Node != nil {
-		k.Node.Value = nil // Reset the inherited Value field from Node
-	}
-	k.Node = nil
-	k.value = ""
-	k.type_ = ""
-}
-
-func GetKeywordFromPool() *Keyword {
-	k := keywordPool.Get().(*Keyword)
-	resetKeyword(k)
-	return k
-}
-
-func ReleaseKeyword(k *Keyword) {
-	if k == nil {
-		return
-	}
-	resetKeyword(k)
-	keywordPool.Put(k)
-}
-
-func (k *Keyword) Release() {
-	ReleaseKeyword(k)
 }
 
 // Static units for common cases to avoid allocations in hot paths.
