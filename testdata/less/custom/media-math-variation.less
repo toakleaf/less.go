@@ -1,0 +1,72 @@
+// Variation test inspired by math/strict/media-math
+// Tests math operations and variable substitution in media queries
+
+@base-width: 768;
+@breakpoint-sm: 576;
+@breakpoint-md: 768;
+@breakpoint-lg: 992;
+@breakpoint-xl: 1200;
+
+// Test 1: Variable in media query
+@media (min-width: @breakpoint-md) {
+  .responsive-1 { display: block; }
+}
+
+// Test 2: Math in media query - addition
+@media (min-width: (@breakpoint-sm + 1)) {
+  .responsive-2 { display: flex; }
+}
+
+// Test 3: Math in media query - subtraction
+@media (max-width: (@breakpoint-md - 1)) {
+  .responsive-3 { display: none; }
+}
+
+// Test 4: Math in media query - multiplication
+@media (min-width: (@base-width * 1.5)) {
+  .responsive-4 { width: 100%; }
+}
+
+// Test 5: Division in media query (with parens for strict mode compat)
+@media (min-width: (@breakpoint-xl / 2)) {
+  .responsive-5 { margin: auto; }
+}
+
+// Test 6: Complex math expression
+@media (min-width: ((@breakpoint-sm + @breakpoint-md) / 2)) {
+  .responsive-6 { padding: 20px; }
+}
+
+// Test 7: Unit conversion in media
+@em-base: 16px;
+@media (min-width: (48 * @em-base)) {
+  .responsive-7 { font-size: 1.2em; }
+}
+
+// Test 8: Multiple conditions with math
+@media (min-width: (@breakpoint-sm + 1)) and (max-width: (@breakpoint-md - 1)) {
+  .responsive-8 { color: blue; }
+}
+
+// Test 9: Nested media with math
+.container {
+  width: 100%;
+
+  @media (min-width: (@breakpoint-md + 100)) {
+    max-width: (@breakpoint-md + 100 - 30);
+  }
+}
+
+// Test 10: Media query in mixin with variable
+.respond-above(@bp, @content) {
+  @media (min-width: @bp) {
+    @content();
+  }
+}
+
+.element {
+  display: none;
+  .respond-above(@breakpoint-lg, {
+    display: block;
+  });
+}

@@ -1,0 +1,61 @@
+// Variation test for import-reference-issues
+// Tests reference imports, extend within reference, and mixin scope issues
+
+// Test 1: Reference import should not output CSS
+@import (reference) "import-support/ref-issue-base.less";
+
+// Test 2: Visible selector that uses extend on referenced class
+.extended-class {
+  &:extend(.extendable-class);
+  extra-prop: added;
+}
+
+// Test 3: Use mixin from reference import (mixin with & selector issue #1968)
+.button {
+  .mixin-with-ampersand();
+}
+
+// Test 4: Namespace imported by reference
+#RefNamespace {
+  @import (reference) "import-support/ref-issue-mixin.less";
+}
+
+// Test 5: Use namespaced mixin from reference import (issue #1896)
+.use-namespaced-mixin {
+  #RefNamespace > .reference-mixin();
+  should-have: mixin-above;
+}
+
+// Test 6: Nested reference import pattern
+#hidden-wrapper {
+  @import (reference) "import-support/ref-issue-nested.less";
+}
+
+// Test 7: Extend from nested reference import
+.extends-deep {
+  &:extend(.deep-extendable all);
+  own-prop: value;
+}
+
+// Test 8: Multiple import with and without reference
+@import (reference, multiple) "import-support/ref-issue-base.less";
+.multiple-ref-test {
+  testing: multiple;
+}
+
+// Test 9: Normal import after reference (should work independently)
+.normal-after-ref {
+  @import "import-support/ref-issue-nested.less";
+}
+
+// Test 10: Mixin with import by reference inside (issue #2162)
+// The mixin should be able to include a reference import
+.mixin-containing-reference() {
+  first-prop: before-reference;
+  @import (reference) "import-support/ref-issue-nested.less";
+}
+
+.call-mixin-with-reference {
+  .mixin-containing-reference();
+  after-mixin: property;
+}

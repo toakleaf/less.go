@@ -1,0 +1,25 @@
+.config-enabled {
+  status: enabled;
+}
+.config-enabled-exact {
+  status: exactly-true;
+}
+.high-level {
+  level: high;
+}
+.exact-level {
+  level: three;
+}
+.theme-is-blue {
+  confirmed: yes;
+}
+.access-deep {
+  prop: deep-value;
+}
+.development-mode {
+  mode: development;
+}
+.styled {
+  color: red;
+  level: 3;
+}

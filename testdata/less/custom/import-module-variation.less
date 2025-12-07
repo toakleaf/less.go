@@ -1,0 +1,27 @@
+// Variation test for import-module
+// Tests NPM module imports with different patterns
+
+// Test: Import with .less extension
+@import "@less/test-import-module/one/1.less";
+
+// Test: Import without extension (should resolve to .less)
+@import "@less/test-import-module/one/two/2";
+
+// Test: Import from deep nested path
+@import "@less/test-import-module/one/two/three/3.less";
+
+// Test: Import the same file twice should be deduplicated
+@import "@less/test-import-module/one/1.less";
+
+// Test: Use a mixin after import (ensure scope is correct)
+.imported-content {
+  // Reference imported classes via extend
+  &:extend(.one);
+  additional-property: test;
+}
+
+// Test: Define variable and use after imports
+@my-var: imported-module-test;
+.var-after-import {
+  content: @my-var;
+}

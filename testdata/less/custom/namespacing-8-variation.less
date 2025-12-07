@@ -1,0 +1,92 @@
+// Variation test for namespacing-8
+// Tests each() with detached rulesets and $ lookups (contrast function)
+
+// Test 1: Basic each with detached ruleset generating CSS variables
+@colors: {
+  primary: #3366ff;
+  secondary: #ff6633;
+  success: #33cc66;
+  warning: #ffcc00;
+};
+
+:root {
+  each(@colors, {
+    --color-@{key}: @value;
+  });
+}
+
+// Test 2: Using contrast() with $ lookup in each
+@buttons: {
+  bg-light: white;
+  bg-dark: black;
+  bg-blue: blue;
+};
+
+.buttons {
+  each(@buttons, {
+    &-@{key} {
+      background: @value;
+      color: contrast(@value, #000, #fff);
+    }
+  });
+}
+
+// Test 3: Nested each loops
+@sizes: {
+  sm: 12px;
+  md: 16px;
+  lg: 24px;
+};
+
+@weights: {
+  normal: 400;
+  bold: 700;
+};
+
+.typography {
+  each(@sizes, .(@size-value, @size-key) {
+    each(@weights, .(@weight-value, @weight-key) {
+      &-@{size-key}-@{weight-key} {
+        font-size: @size-value;
+        font-weight: @weight-value;
+      }
+    });
+  });
+}
+
+// Test 4: Using $ lookup within each (like namespacing-8 contrast example)
+@theme-config: {
+  card-bg: #f5f5f5;
+  card-text: contrast($card-bg, #222, #eee);
+};
+
+.card {
+  each(@theme-config, {
+    --@{key}: @value;
+  });
+}
+
+// Test 5: Each with index
+@breakpoints: sm, md, lg, xl;
+
+.grid {
+  each(@breakpoints, {
+    &-@{value} {
+      order: @index;
+    }
+  });
+}
+
+// Test 6: Computed properties in DR
+@spacing: {
+  margin-top: 10px;
+  margin-bottom: 20px;
+  padding-left: 15px;
+  padding-right: 15px;
+};
+
+.spaced-element {
+  each(@spacing, {
+    @{key}: @value;
+  });
+}
