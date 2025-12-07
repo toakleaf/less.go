@@ -1,0 +1,43 @@
+.calc-basic {
+  width: calc(80% - 15px);
+  height: calc(100vh - 20px);
+}
+.calc-nested {
+  width: calc(calc(100% - 10px) / 2);
+  margin: calc((20px / 2) + 10%);
+}
+.calc-with-functions {
+  width: calc(3 * 10px);
+  height: calc(4 * 5%);
+}
+.calc-complex {
+  width: calc(100% - (25px + 50px) - 5px);
+  height: calc(100vh - 25px);
+  padding: calc((25px * 2) + (50px / 2));
+}
+.calc-unit-conversion {
+  width: calc(100% - 50px);
+}
+.calc-unit-conversion .nested-unit {
+  width: 100px;
+}
+.calc-with-min-max {
+  width: calc(100% - 30px);
+  height: calc(100vh - 40px);
+}
+.calc-escaped-content {
+  width: calc(100vw - 20px);
+  height: calc(50vh - (2 * 10px));
+}
+.calc-multiple-values {
+  box-shadow: 0 calc(1px + 1px) calc(3px * 2) rgba(0, 0, 0, 0.5);
+}
+.calc-map-after {
+  width: calc(200px - 50px);
+}
+.calc-map-after .inner {
+  width: 5em;
+}
+.calc-map-after h1 {
+  color: blue;
+}

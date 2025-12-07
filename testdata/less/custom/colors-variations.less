@@ -1,0 +1,84 @@
+// Variations of colors.less to test for overfitting
+// Tests color functions with different values
+
+// Basic color operations with different hex values
+#red-tests {
+  #short { color: #f00; }
+  #long { color: #ff0000; }
+  #rgba { color: rgba(255, 0, 0, 0.5); }
+  #argb { color: argb(rgba(255, 0, 0, 0.5)); }
+}
+
+#green-tests {
+  #short { color: #0f0; }
+  #long { color: #00ff00; }
+  #rgba { color: rgba(0, 255, 0, 0.3); }
+  #argb { color: argb(rgba(0, 255, 0, 0.3)); }
+}
+
+// Color overflow tests with different values
+#color-overflow {
+  .sub { color: (#222222 - #555555); }
+  .add { color: (#ddd + #fff); }
+  .mult { color: (#bbb * 2); }
+  .combined { color: (#00cc00 + #00aa00); }
+  .negative-clamp { color: rgba(-50, 280, 127.5, 0.8); }
+}
+
+// HSL with different values
+#hsl-tests {
+  .angle-deg { color: hsl(45deg, 50%, 75%); }
+  .angle-deg-2 { color: hsl(180deg, 100%, 25%); }
+  .with-alpha { color: hsla(270, 60%, 40%, 0.7); }
+}
+
+// Lighten/darken with different colors
+.color-functions {
+  .lighten-red { color: lighten(red, 15%); }
+  .darken-green { color: darken(green, 15%); }
+  .lighten-custom { color: lighten(#663399, 20%); }
+  .darken-custom { color: darken(#ff6600, 10%); }
+}
+
+// Alpha extraction
+#alpha-tests {
+  @custom-color: rgba(100, 150, 200, 0.45);
+
+  #from-var { opacity: alpha(@custom-color); }
+  #short { opacity: alpha(#ccc); }
+  #long { opacity: alpha(#c0c0c0); }
+  #rgba { opacity: alpha(rgba(200, 100, 50, 0.6)); }
+  #hsl { opacity: alpha(hsl(240, 50%, 50%)); }
+}
+
+// Percentage in rgb
+#percentage-colors {
+  color: red(rgb(50%, 0, 0));
+  border-color: rgba(50%, 50%, 50%, 75%);
+}
+
+// 8-digit hex colors
+#hex8-tests {
+  test-1: #88FF8877;
+  test-2: #8F87;
+  test-3: lighten(#88FF8877, 5%);
+  test-4: fade(#8F87, 20%);
+  test-5: rgba(#88FF8877);
+  test-6: rgba(#8F87);
+  test-7: rgba(#8F87, 0.75);
+  test-8: rgba(var(--accent-color), 0.5);
+  --custom-alpha-color: #002200dd;
+}
+
+// Grey scales
+#grey-variations {
+  light: rgb(220, 220, 220);
+  medium: rgb(128, 128, 128);
+  dark: rgb(50, 50, 50);
+}
+
+// Transparent
+.alpha-zero {
+  color: transparent;
+  background: rgba(128, 128, 128, 0);
+}

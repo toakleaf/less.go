@@ -1,0 +1,54 @@
+/***********************
+ *                     *
+ *  Multi-line Header  *
+ *                     *
+ ***********************/
+/* Single line block comment */
+/* Variable with comments
+ * @var: value
+ */
+.selector-with-comments,
+.another {
+  color: red;
+  /* after value */
+  /* another */
+  background: blue;
+  font-size: 14px;
+  /* Mid-block comment */
+  padding: 10px;
+  margin: "test value";
+  border: 1px solid black;
+}
+.inner-rule {
+  color: blue;
+  font-size: 12px;
+}
+/* Block comment
+   with multiple lines
+   spanning several rows
+*/
+@keyframes slide {
+  /* another */
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(100px);
+  }
+}
+#final-selector {
+  color: green;
+}
+/* Multiple empty comments */
+/* */
+/* */
+/* */
+#empty-test {
+  color: #888;
+}
+/* end */
+/*block after line*/
+#escaped-output {
+  content: /* not a real comment */;
+}
+/*last comment*/

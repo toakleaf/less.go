@@ -1,0 +1,43 @@
+// Variations of comments2.less to test for overfitting
+// Tests comments in unusual/tricky positions
+
+@media screen and/*! preserved */(min-width:768px) {}
+@keyframes bounce /* animation name comment */{  }
+
+.gradient-comment {
+  background: linear-gradient(#666 /*{midpoint}*/, #222);
+}
+
+#selector1,
+/*between*//*selectors*/
+.selector2,/*inline*//*again*/.selector3 {
+  padding: 20px;
+  computed: @computed-val;
+}
+
+// Variable declarations with comments
+@base                        :   2;
+@gutter                      :   1.5em;                       //      Spacing              */
+@cols                        :   8;                           //      Columns              */
+@grid-width                  :   (@gutter *                   //      Total calculation    */
+                                     @cols) + (                   //      Part 1               */
+                                     @base *                      //      Part 2               */
+                                     @cols);                      //      Part 3               */
+@computed-val                :   @grid-width;                 //      Result               */
+
+// .............................................................................
+
+.inline-comment-test {
+  x: yes /* preserved */;
+  y: blue /* also preserved */;
+  @z: no /* in var */;
+  @w: green /* in var 2 */;
+  z: @z;
+  w: @w;
+}
+
+// Comment before closing brace
+.closing-brace-test {
+  color: red;
+  // this is before close
+}

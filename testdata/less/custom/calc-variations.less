@@ -1,0 +1,80 @@
+// Variations of calc.less to test for overfitting
+// Tests calc() function with different values and structures
+
+@base: 20px;
+
+.calc-basic {
+  // Simple calc with variables
+  @offset: 15px;
+  width: calc(80% - @offset);
+  height: calc(100vh - @base);
+}
+
+.calc-nested {
+  // Nested calc expressions
+  @inner: 5px + 5px;
+  width: calc(calc(100% - @inner) / 2);
+  margin: calc((@base / 2) + 10%);
+}
+
+.calc-with-functions {
+  // calc with LESS functions
+  @rounded: round(2.7);
+  @ceiling: ceil(3.2);
+  width: calc(@rounded * 10px);
+  height: calc(@ceiling * 5%);
+}
+
+.calc-complex {
+  @x: 25px;
+  @y: 50px;
+
+  // Multiple operations inside calc
+  width: calc(100% - (@x + @y) - 5px);
+  height: calc(100vh - ((min(@x, @y))));
+  padding: calc((@x * 2) + (@y / 2));
+}
+
+.calc-unit-conversion {
+  @val: 100;
+  // Using unit function and calc together
+  .nested-unit {
+    width: unit(@val, px);
+  }
+  width: calc(100% - 50px);
+}
+
+.calc-with-min-max {
+  @a: 30px;
+  @b: 40px;
+  // min/max inside calc
+  width: calc(100% - min(@a));
+  height: calc(100vh - max(@b));
+}
+
+.calc-escaped-content {
+  // Calc with escaped strings
+  width: calc(e('100vw') - 20px);
+  height: calc(~'50vh' - (2 * 10px));
+}
+
+.calc-multiple-values {
+  // Multiple values with calc
+  box-shadow: 0 calc(1px + 1px) calc(3px * 2) rgba(0,0,0,0.5);
+}
+
+.calc-map-after {
+  @a: 5;
+  .inner { width: unit(@a, em); }
+
+  width: calc(200px - 50px);
+
+  .create-map() {
+    primary: blue;
+    secondary: green;
+  }
+
+  @colors: .create-map();
+
+  h1 { color: @colors[primary]; }
+}

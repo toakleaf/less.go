@@ -1,0 +1,44 @@
+.grid-container {
+  display: grid;
+  grid-template-columns: [start] 8fr [middle] 20px [sidebar] 4fr [end];
+  grid-template-rows: auto;
+}
+.grid-layout {
+  display: grid;
+  grid-template-columns: [margin-left] auto [content-left] 960px [content-right] auto [margin-right];
+  grid-template-rows: [header-start] 80px [nav-start] 60px [main-start] minmax(400px, 1fr) [footer-start] 100px;
+}
+.grid-12-col {
+  display: grid;
+  z-index: 10;
+  grid-column: content-left / span 1;
+  grid-row: 1;
+  grid-template-columns: [col-1-start] 1fr [col-1-end] 10px [col-2-start] 1fr [col-2-end] 10px [col-3-start] 1fr [col-3-end] 10px [col-4-start] 1fr [col-4-end] 10px [col-5-start] 1fr [col-5-end] 10px [col-6-start] 1fr [col-6-end];
+  grid-template-rows: repeat(6, [gap] 5px [item] 40px);
+}
+.grid-areas {
+  display: grid;
+  grid-template-columns: 8fr 2em 4fr;
+  grid-template-rows: auto;
+  grid-template-areas: "nav nav nav" "main . aside" "foot foot foot";
+}
+.grid-complex {
+  display: grid;
+  grid-template-columns: 100px repeat(3, 1fr) 100px;
+  grid-template-rows: 50px auto 50px;
+  gap: 10px;
+  grid-auto-flow: row dense;
+}
+.grid-named-lines {
+  display: grid;
+  grid-template-columns: [full-start] minmax(1em, 1fr) [main-start] minmax(0, 50em) [main-end] minmax(1em, 1fr) [full-end];
+}
+.grid-item-placement {
+  grid-column: main-start / main-end;
+  grid-row: 2 / span 2;
+}
+.grid-auto {
+  display: grid;
+  grid-auto-columns: minmax(100px, auto);
+  grid-auto-rows: minmax(50px, auto);
+}

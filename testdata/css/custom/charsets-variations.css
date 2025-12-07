@@ -1,0 +1,7 @@
+@charset "UTF-8";
+.charset-test {
+  content: "UTF-8 content: äöü ñ 中文";
+}
+.unicode-content {
+  font-family: "Helvetica Neue", "微软雅黑", sans-serif;
+}
