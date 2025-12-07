@@ -379,7 +379,9 @@ func EachWithContext(list any, rs any, ctx *Context) any {
 		if sourceRuleset != nil {
 			// Add the source ruleset to the frames for property resolution
 			if contextMap, ok := evalContext.(map[string]any); ok {
-				newContextMap := make(map[string]any, len(contextMap))
+				// Use pool to reduce allocations
+				newContextMap := GetContextMapFromPool()
+				defer ReleaseContextMap(newContextMap)
 				for k, v := range contextMap {
 					newContextMap[k] = v
 				}

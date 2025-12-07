@@ -514,7 +514,9 @@ func (mc *MixinCall) Eval(context any) ([]any, error) {
 										// Create new context with incremented depth
 										callContext := context
 										if ctx, ok := context.(map[string]any); ok {
-											newCtx := make(map[string]any, len(ctx)+1)
+											// Use pool to reduce allocations
+											newCtx := GetContextMapFromPool()
+											defer ReleaseContextMap(newCtx)
 											for k, v := range ctx {
 												newCtx[k] = v
 											}
