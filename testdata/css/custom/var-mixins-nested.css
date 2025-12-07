@@ -1,0 +1,31 @@
+.deep-nest-test {
+  a: 10;
+  b: 20;
+  c: 30;
+  sum: 60;
+}
+.component-test {
+  display: block;
+}
+.component-test .widget {
+  display: block;
+}
+.recursive-test {
+  depth-3: 103;
+  depth-2: 102;
+  depth-1: 101;
+  done: true;
+}
+.scoped-test {
+  outer: 25px;
+  local: 50px;
+}
+.multi-level {
+  combined: 1 2 3;
+}
+.nested-guard-test-enabled {
+  enabled: on;
+}
+.nested-guard-test-disabled {
+  disabled: off;
+}

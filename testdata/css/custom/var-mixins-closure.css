@@ -1,0 +1,20 @@
+.use-deep-closure {
+  height: 100px;
+  width: 50px;
+}
+.compare-closures-a {
+  color: red;
+}
+.compare-closures-b {
+  color: blue;
+}
+.late-binding-caller {
+  content: initial;
+}
+.call-dual-capture {
+  margin: 20em;
+  padding: 10em;
+}
+.call-computed {
+  size: 30px;
+}

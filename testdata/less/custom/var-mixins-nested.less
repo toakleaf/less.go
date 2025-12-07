@@ -1,0 +1,98 @@
+// Variation of mixins-nested.less
+// Tests nested mixins with different structures
+
+// Test 1: Deep nesting
+.level1(@a) {
+    .level2(@b) {
+        .level3(@c) {
+            a: @a;
+            b: @b;
+            c: @c;
+            sum: @a + @b + @c;
+        }
+    }
+}
+
+.deep-nest-test {
+    .level1(10);
+    .level2(20);
+    .level3(30);
+}
+
+// Test 2: Nested mixin producing selectors (simplified)
+.component(@name) {
+    .@{name} {
+        display: block;
+    }
+}
+
+.component-test {
+    .component(widget);
+    .widget();
+}
+
+// Test 3: Recursive nested mixins
+.recursive-outer(@depth) {
+    .recursive-inner(@n) when (@n > 0) {
+        depth-@{n}: @depth + @n;
+        .recursive-inner(@n - 1);
+    }
+    .recursive-inner(@n) when (@n = 0) {
+        done: true;
+    }
+}
+
+.recursive-test {
+    .recursive-outer(100);
+    .recursive-inner(3);
+}
+
+// Test 4: Nested mixin with its own scope
+.scoped-outer(@outer-val) {
+    @local: @outer-val * 2;
+    .scoped-inner() {
+        outer: @outer-val;
+        local: @local;
+    }
+}
+
+.scoped-test {
+    .scoped-outer(25px);
+    .scoped-inner();
+}
+
+// Test 5: Multiple nested mixin levels called at once
+.a(@x) {
+    .b(@y) {
+        .c(@z) {
+            combined: @x @y @z;
+        }
+        .c(@y + 1);
+    }
+    .b(@x + 1);
+}
+
+.multi-level {
+    .a(1);
+}
+
+// Test 6: Nested mixin with guards
+.outer-guard(@flag) {
+    .inner-guarded(@val) when (@flag = true) {
+        enabled: @val;
+    }
+    .inner-guarded(@val) when (@flag = false) {
+        disabled: @val;
+    }
+}
+
+.nested-guard-test {
+    &-enabled {
+        .outer-guard(true);
+        .inner-guarded(on);
+    }
+    &-disabled {
+        .outer-guard(false);
+        .inner-guarded(off);
+    }
+}

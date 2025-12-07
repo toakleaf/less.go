@@ -1,0 +1,39 @@
+.simple-important {
+  font-size: 10px !important;
+  color: black !important;
+  line-height: 1.5 !important;
+}
+.simple-mixed {
+  font-size: 12px;
+  color: black;
+  line-height: 1.5;
+  font-size: 14px !important;
+  color: red !important;
+  line-height: 1.5 !important;
+}
+.nested-important-call {
+  margin: 20px !important;
+  padding: 20px / 2 !important;
+}
+.guarded-important {
+  size: small !important;
+  width: 5px !important;
+  size: large !important;
+  width: 15px !important;
+}
+.pattern-important {
+  shape: round !important;
+  border-radius: 50% !important;
+  shape: circle !important;
+}
+.deep-important {
+  a: 100px !important;
+  b: 100px !important;
+  c: 100px !important;
+}
+.multi-selector-important {
+  font-weight: bold !important;
+}
+.multi-selector-important .child {
+  font-style: italic !important;
+}

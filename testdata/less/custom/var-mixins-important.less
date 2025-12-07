@@ -1,0 +1,92 @@
+// Variation of mixins-important.less
+// Tests !important suffix when calling mixins in different contexts
+
+// Test 1: Simple mixin with !important
+.simple-props(@size: 10px, @color: black) {
+    font-size: @size;
+    color: @color;
+    line-height: 1.5;
+}
+
+.simple-important {
+    .simple-props() !important;
+}
+
+.simple-mixed {
+    .simple-props(12px);
+    .simple-props(14px, red) !important;
+}
+
+// Test 2: Nested mixin with !important
+.outer-mixin(@val) {
+    .inner-setup(@v) {
+        margin: @v;
+        padding: @v / 2;
+    }
+    .inner-setup(@val);
+}
+
+.nested-important-call {
+    .outer-mixin(20px) !important;
+}
+
+// Test 3: !important with guards
+.guarded(@x) when (@x > 10) {
+    size: large;
+    width: @x * 1px;
+}
+.guarded(@x) when (@x <= 10) {
+    size: small;
+    width: @x * 1px;
+}
+
+.guarded-important {
+    .guarded(5) !important;
+    .guarded(15) !important;
+}
+
+// Test 4: !important with pattern matching
+.pattern(circle) {
+    shape: round;
+    border-radius: 50%;
+}
+.pattern(square) {
+    shape: rectangular;
+    border-radius: 0;
+}
+.pattern(@other) {
+    shape: @other;
+}
+
+.pattern-important {
+    .pattern(circle) !important;
+}
+
+// Test 5: Deeply nested !important
+.deep-outer(@a) {
+    .deep-middle(@b) {
+        .deep-inner(@c) {
+            a: @a;
+            b: @b;
+            c: @c;
+        }
+        .deep-inner(@b);
+    }
+    .deep-middle(@a);
+}
+
+.deep-important {
+    .deep-outer(100px) !important;
+}
+
+// Test 6: !important with multiple selectors in mixin
+.multi-selector() {
+    font-weight: bold;
+    .child {
+        font-style: italic;
+    }
+}
+
+.multi-selector-important {
+    .multi-selector() !important;
+}

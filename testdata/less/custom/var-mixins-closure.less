@@ -1,0 +1,80 @@
+// Variation of mixins-closure.less
+// Tests closure behavior with different scoping scenarios
+
+// Test 1: Deep nesting with closures
+.deep-scope {
+    @depth-var: 100px;
+    .level-one {
+        @level-var: 50px;
+        .closure-mixin () {
+            height: @depth-var;
+            width: @level-var;
+        }
+    }
+}
+
+.use-deep-closure {
+    .deep-scope > .level-one > .closure-mixin();
+}
+
+// Test 2: Multiple closures with same variable name in different scopes
+.scope-a {
+    @shared: red;
+    .get-color () {
+        color: @shared;
+    }
+}
+
+.scope-b {
+    @shared: blue;
+    .get-color () {
+        color: @shared;
+    }
+}
+
+.compare-closures {
+    &-a { .scope-a > .get-color(); }
+    &-b { .scope-b > .get-color(); }
+}
+
+// Test 3: Closure with variable that changes after mixin definition
+.late-binding {
+    @val: initial;
+    .capture () {
+        content: @val;
+    }
+}
+
+.late-binding-caller {
+    @val: overridden;
+    .late-binding > .capture();
+}
+
+// Test 4: Closure in nested ruleset
+.outer-ruleset {
+    @outer-val: 20em;
+    .inner-ruleset {
+        @inner-val: 10em;
+        .dual-capture () {
+            margin: @outer-val;
+            padding: @inner-val;
+        }
+    }
+}
+
+.call-dual-capture {
+    .outer-ruleset > .inner-ruleset > .dual-capture();
+}
+
+// Test 5: Closure with computed values
+.computed-scope {
+    @base: 10;
+    @multiplied: (@base * 3);
+    .get-computed () {
+        size: @multiplied * 1px;
+    }
+}
+
+.call-computed {
+    .computed-scope > .get-computed();
+}
