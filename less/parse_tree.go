@@ -360,6 +360,17 @@ func (pt *ParseTree) ToCSS(options *ToCSSOptions) (*ToCSSResult, error) {
 	return result, nil
 }
 
+// Release releases all AST nodes in the parse tree back to their pools.
+// Call this method when you're completely done with the parse tree and won't
+// use it again. This helps reduce memory allocations for subsequent compilations.
+// Note: After calling Release, the ParseTree should not be used again.
+func (pt *ParseTree) Release() {
+	if pt.Root != nil {
+		ReleaseTree(pt.Root)
+		pt.Root = nil
+	}
+}
+
 // NewParseTreeFactory creates a factory function for ParseTree
 func NewParseTreeFactory(sourceMapBuilder any) ParseTreeFactory {
 	return func(builder any) *ParseTreeClass {
