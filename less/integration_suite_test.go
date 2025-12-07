@@ -29,7 +29,13 @@ var (
 	jsonOutput   = os.Getenv("LESS_GO_JSON") == "1"    // Output results as JSON
 	skipCustom   = os.Getenv("LESS_GO_SKIP_CUSTOM") == "1"  // Skip custom integration tests
 	customOnly   = os.Getenv("LESS_GO_CUSTOM_ONLY") == "1"  // Run only custom integration tests
+	isCI         = os.Getenv("CI") == "true"               // Running in CI environment (GitHub Actions, etc.)
 )
+
+// Tests that require network access and should be skipped in CI
+var networkDependentTests = map[string]bool{
+	"import-remote": true,
+}
 
 // addTestResult safely adds a test result to the global results slice
 func addTestResult(result TestResult) {
@@ -345,6 +351,12 @@ func runTestSuite(t *testing.T, suite TestSuite, lessRoot, cssRoot string) {
 		testName := strings.TrimSuffix(fileName, ".less")
 
 		t.Run(testName, func(t *testing.T) {
+			// Skip network-dependent tests in CI environments
+			if isCI && networkDependentTests[testName] {
+				t.Skipf("Skipping %s in CI (requires network access)", testName)
+				return
+			}
+
 			result := TestResult{
 				Suite:       suite.Name,
 				TestName:    testName,
