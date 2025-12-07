@@ -1,0 +1,129 @@
+// Variation of math/parens-division/parens
+// Tests parentheses behavior in parens-division mode
+// Custom tests run with default math mode (parens-division)
+
+// Basic math in parentheses (should be calculated)
+.basic-parens-math {
+  add: (10 + 5);
+  subtract: (20 - 8);
+  multiply: (4 * 5);
+  divide: (100 / 4);
+}
+
+// Math without parentheses (only addition/subtraction calculated)
+.no-parens-math {
+  // Addition and subtraction happen
+  add: 10 + 5;
+  subtract: 20 - 8;
+  // Multiplication and division preserved
+  multiply: 4 * 5;
+  divide: 100 / 4;
+}
+
+// Variables with math
+@base-val: 10;
+
+.variable-math {
+  parens: (@base-val * 3);
+  parens-complex: ((@base-val + 5) * 2);
+  no-parens-mul: @base-val * 3;
+  no-parens-add: @base-val + 3;
+}
+
+// Nested parentheses
+.nested-parens {
+  single: (5 * 5);
+  double: ((6 * 6));
+  triple: (((7 * 7)));
+  deep: ((((8 * 8))));
+}
+
+// Complex nested expressions
+.complex-nested {
+  calc1: ((10 + 5) * (3 + 2));
+  calc2: (((100 / 4) + 10) * 2);
+  calc3: ((5 * 5) + (6 * 6));
+  calc4: (((2 + 3) * 4) / 2);
+}
+
+// Units with parentheses
+.units-parens {
+  px: (10px + 5px);
+  em: (2em * 3);
+  percent: (50% + 25%);
+  rem: (1.5rem + 0.5rem);
+  vh: (50vh + 10vh);
+}
+
+// Mixed units (first unit wins)
+.mixed-units-parens {
+  mix1: (10px + 5);
+  mix2: (20 + 10px);
+  mix3: (100% - 10);
+}
+
+// Negative values
+.negative-parens {
+  neg1: (-5);
+  neg2: (10 + -5);
+  neg3: (10 - -5);
+  neg4: (-10 + 5);
+  neg5: (-(5 + 5));
+}
+
+// Spaces around operators
+.spacing-parens {
+  tight: (10+5);
+  normal: (10 + 5);
+  wide: (10  +  5);
+}
+
+// Multiple values with parens (like margin shorthand)
+.multiple-values {
+  margin: (10 + 5) (20 - 5) (15 * 2) (100 / 4);
+  padding: (5 * 2)px (10 + 10)px;
+}
+
+// Calc function (preserved)
+.calc-function {
+  width: calc(100% - (50px * 2));
+  height: calc((100vh - 60px) / 2);
+  margin: calc(100% / 3);
+}
+
+// The if function with math
+.if-function-math {
+  result1: if(true, (10 + 5), (20 - 5));
+  result2: if(false, (100 * 2), (50 / 2));
+  result3: if((5 > 3), yes, no);
+}
+
+// Edge case: expression that looks like a list
+@list-var: 1, 2, 3;
+.list-vs-expression {
+  list: @list-var;
+  expr: (1 + 2 + 3);
+}
+
+// Edge case: color math in parens
+.color-parens {
+  lighten: (#336699 + #112233);
+  darken: (#ffffff - #111111);
+}
+
+// Edge case: very long expression
+.long-expression {
+  result: ((1 + 2) * (3 + 4) + (5 * 6) - (7 - 8) + ((9 + 10) * 2));
+}
+
+// Comparison with strict mode output
+// In parens-division: outer * and / without parens are preserved
+.strict-comparison {
+  // These differ from strict mode
+  outer-mult: 5 * 5;
+  outer-div: 100 / 4;
+
+  // These are same as strict mode
+  inner-mult: (5 * 5);
+  inner-div: (100 / 4);
+}

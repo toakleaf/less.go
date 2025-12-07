@@ -1,0 +1,79 @@
+.font-variations {
+  font: 16px/1.5 Arial;
+  font: bold 14px/20px Helvetica, sans-serif;
+  font: italic 12px/1.2 "Times New Roman", serif;
+  font: 1.2em/1.6;
+  font: 100%/1.8 system-ui;
+}
+.viewport-units-slash {
+  size: 10vw/12vw;
+  size: 50vh/60vh;
+  size: 8vmin/10vmin;
+  size: 15vmax/20vmax;
+  size: 3dvw/4dvw;
+  size: 5dvh/6dvh;
+}
+.relative-units-slash {
+  size: 1.5rem/2rem;
+  size: 2em/2.5em;
+  size: 1ch/1.5ch;
+  size: 2ex/3ex;
+  size: 3cap/4cap;
+}
+.forced-division-basic {
+  result: 5;
+  result: 25px;
+  result: 25%;
+}
+.forced-division-vars {
+  result: 25;
+  result: 50;
+}
+.forced-division-nested {
+  result: 25;
+  result: 10;
+}
+.regular-parens-division {
+  result: 25;
+  result: 25px;
+  result: 20%;
+}
+.regular-no-parens-division {
+  size: 100 / 4;
+  ratio: 16 / 9;
+}
+.mixed-operations {
+  a: 20;
+  b: 20;
+  c: 50;
+}
+.forced-division-decimal {
+  result: 3.33333333;
+  result: 14.28571429;
+  result: 0.33333333;
+}
+.forced-division-chain {
+  result: 25;
+}
+.comparison {
+  regular-slash-1: 100 / 50;
+  regular-slash-2: 16px / 9px;
+  parens-div-1: 2;
+  parens-div-2: 2px;
+  forced-div-1: 2;
+  forced-div-2: 2px;
+}
+.grid-slash {
+  grid-column: 1 / 3;
+  grid-row: 2 / 4;
+  grid-area: 1 / 1 / 3 / 3;
+}
+.border-radius-slash {
+  border-radius: 10px / 20px;
+  border-radius: 5px 10px / 15px 20px;
+  border-radius: 1em 2em 3em 4em / 0.5em 1em 1.5em 2em;
+}
+.complex-mixed {
+  font: 16 px / 1.5;
+  width: 25;
+}

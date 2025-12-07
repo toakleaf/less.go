@@ -1,0 +1,85 @@
+.basic-parens-math {
+  add: 15;
+  subtract: 12;
+  multiply: 20;
+  divide: 25;
+}
+.no-parens-math {
+  add: 15;
+  subtract: 12;
+  multiply: 20;
+  divide: 100 / 4;
+}
+.variable-math {
+  parens: 30;
+  parens-complex: 30;
+  no-parens-mul: 30;
+  no-parens-add: 13;
+}
+.nested-parens {
+  single: 25;
+  double: 36;
+  triple: 49;
+  deep: 64;
+}
+.complex-nested {
+  calc1: 75;
+  calc2: 70;
+  calc3: 61;
+  calc4: 10;
+}
+.units-parens {
+  px: 15px;
+  em: 6em;
+  percent: 75%;
+  rem: 2rem;
+  vh: 60vh;
+}
+.mixed-units-parens {
+  mix1: 15px;
+  mix2: 30px;
+  mix3: 90%;
+}
+.negative-parens {
+  neg1: -5;
+  neg2: 5;
+  neg3: 15;
+  neg4: -5;
+  neg5: -10;
+}
+.spacing-parens {
+  tight: 15;
+  normal: 15;
+  wide: 15;
+}
+.multiple-values {
+  margin: 15 15 30 25;
+  padding: 10 px 20 px;
+}
+.calc-function {
+  width: calc(100% - (50px * 2));
+  height: calc((100vh - 60px) / 2);
+  margin: calc(100% / 3);
+}
+.if-function-math {
+  result1: 15;
+  result2: 25;
+  result3: yes;
+}
+.list-vs-expression {
+  list: 1, 2, 3;
+  expr: 6;
+}
+.color-parens {
+  lighten: #4488cc;
+  darken: #eeeeee;
+}
+.long-expression {
+  result: 90;
+}
+.strict-comparison {
+  outer-mult: 25;
+  outer-div: 100 / 4;
+  inner-mult: 25;
+  inner-div: 25;
+}

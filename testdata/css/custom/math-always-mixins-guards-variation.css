@@ -1,0 +1,54 @@
+.guard-basic-add {
+  result: pass;
+}
+.guard-multiply {
+  result: pass;
+}
+.guard-subtract {
+  result: pass;
+}
+.guard-division {
+  result: pass;
+}
+.guard-nested {
+  result: pass;
+}
+.guard-and {
+  result: both-pass;
+}
+.guard-or {
+  result: one-passes;
+}
+.guard-not {
+  result: negation-works;
+}
+.guard-with-var {
+  result: pass;
+}
+.guard-two-expressions {
+  result: equal-expressions;
+}
+.use-mixin-guard-1 {
+  size: large;
+}
+.use-mixin-guard-2 {
+  size: small;
+}
+.test-calc-default {
+  result: pass;
+}
+.guard-units {
+  result: units-work;
+}
+.guard-percent {
+  result: percent-works;
+}
+.guard-complex {
+  result: complex-pass;
+}
+.guard-zero {
+  result: zero-works;
+}
+.guard-negative {
+  result: negative-works;
+}

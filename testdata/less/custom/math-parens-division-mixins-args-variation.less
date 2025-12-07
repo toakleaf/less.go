@@ -1,0 +1,174 @@
+// Variation of math/parens-division/mixins-args
+// Tests mixin arguments with math operations in parens-division mode
+// Custom tests run with default math mode (parens-division)
+
+// Basic mixin with math in default args
+.simple-math-mixin(@a: (10 + 5), @b: (20 * 2)) {
+  first: @a;
+  second: @b;
+}
+
+.test-simple-math-mixin {
+  .simple-math-mixin();
+}
+
+.test-simple-math-mixin-override {
+  .simple-math-mixin((3 * 3), (4 + 4));
+}
+
+// Mixin with division - slash should be preserved in default
+.division-default-mixin(@ratio: 16/9) {
+  aspect-ratio: @ratio;
+}
+
+.test-division-default {
+  .division-default-mixin();
+}
+
+.test-division-default-override {
+  .division-default-mixin(4/3);
+}
+
+// Division in parens should be calculated
+.division-parens-mixin(@val: (100 / 4)) {
+  width: @val;
+}
+
+.test-division-parens {
+  .division-parens-mixin();
+}
+
+// Mixin with multiple types of args
+.complex-args-mixin(@px: 10px, @calc: (20 / 2), @color: blue) {
+  padding: @px;
+  margin: @calc;
+  color: @color;
+}
+
+.test-complex-args {
+  .complex-args-mixin();
+}
+
+.test-complex-args-partial {
+  .complex-args-mixin(@color: red);
+}
+
+// Mixin with expression using other args
+.dependent-args-mixin(@base: 10, @double: (@base * 2)) {
+  base: @base;
+  double: @double;
+}
+
+.test-dependent-args {
+  .dependent-args-mixin();
+}
+
+.test-dependent-args-override {
+  .dependent-args-mixin(25);
+}
+
+// Mixin with units in expressions
+.unit-expression-mixin(@width: (100px - 20px), @height: (50% + 10%)) {
+  width: @width;
+  height: @height;
+}
+
+.test-unit-expression {
+  .unit-expression-mixin();
+}
+
+// Rest arguments with math
+.rest-with-math-mixin(@first, @rest...) {
+  first: @first;
+  rest: @rest;
+  all: @arguments;
+}
+
+.test-rest-with-math {
+  .rest-with-math-mixin((5 + 5), (10 * 2), (30 / 3));
+}
+
+// Semicolon separator with math
+.semi-separator-mixin(@a; @b; @c: (1 + 1)) {
+  a: @a;
+  b: @b;
+  c: @c;
+}
+
+.test-semi-separator {
+  .semi-separator-mixin(first; second);
+}
+
+.test-semi-separator-full {
+  .semi-separator-mixin(one; two; (3 * 3));
+}
+
+// Mixin expansion with math
+.expand-test {
+  @vals: (1 + 1), (2 + 2), (3 + 3);
+
+  .expand-inner(@x, @y, @z) {
+    x: @x;
+    y: @y;
+    z: @z;
+  }
+
+  .expand-inner(@vals...);
+}
+
+// Nested mixin calls with math
+.outer-math-mixin(@outer: (100 / 2)) {
+  outer: @outer;
+}
+
+.inner-math-mixin(@val: (50 / 2)) {
+  inner: @val;
+}
+
+.test-nested-math-mixin {
+  .outer-math-mixin();
+  .inner-math-mixin();
+}
+
+// Mixin with calc in default
+.calc-default-mixin(@width: calc(100% - 40px)) {
+  width: @width;
+}
+
+.test-calc-default {
+  .calc-default-mixin();
+}
+
+// Edge case: negative values in args
+.negative-args-mixin(@neg: (-5), @pos: (10 + 5)) {
+  negative: @neg;
+  positive: @pos;
+}
+
+.test-negative-args {
+  .negative-args-mixin();
+}
+
+// Edge case: string that looks like math
+.string-arg-mixin(@str: "10 + 5") {
+  content: @str;
+}
+
+.test-string-arg {
+  .string-arg-mixin();
+}
+
+// Pattern matching with math results
+.pattern-mixin(small) {
+  size: small;
+}
+
+.pattern-mixin(large) {
+  size: large;
+}
+
+// This should not match pattern - math should be evaluated
+.pattern-test-1 {
+  @size: small;
+  .pattern-mixin(@size);
+}
