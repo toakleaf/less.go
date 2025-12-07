@@ -1,0 +1,53 @@
+// Variation of namespacing-1 with different map structures and lookups
+@lookupKey: primary-color;
+.test {
+    val1: @config[@primary-color];
+    val2: @config[@deep][@accent];
+    val3: @settings[background];
+    val4: @settings[@deep][background];
+    val5: @config[@@lookupKey];
+    prop: #module[value];
+    varRef: #module[@value];
+    sub: #module.helpers[$result];
+}
+
+@config: {
+    @primary-color: blue;
+    @deep: {
+        @accent: orange;
+    }
+};
+
+@settings: {
+    background: gray;
+    @deep: {
+        background: white;
+    }
+};
+
+#module {
+    value: 100px;
+    @value: 200px;
+    .helpers() {
+        result: computed;
+    }
+}
+
+// Override test - multiple definitions should merge
+#module {
+    value: 150px;
+    @value: 250px;
+    .helpers() {
+        result: overridden;
+    }
+}
+
+// Mixin with lookup
+#LIB() {
+    .dimensions() { width: 800px; }
+}
+
+.widget {
+    size: #LIB.dimensions[width];
+    border: #999 #BBB;
+}

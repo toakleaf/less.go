@@ -1,0 +1,20 @@
+.site-header {
+  background: coral;
+  value: result;
+}
+.alternate-header {
+  background: coral !important;
+}
+.inverted-header {
+  background: white;
+  border: 1px solid darkgray;
+}
+.formatted-number {
+  val: 42;
+}
+.formatted-string {
+  val: hello;
+}
+.formatted-color {
+  val: #ff0;
+}

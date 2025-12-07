@@ -1,0 +1,56 @@
+// Variation of namespacing-6 with wrapper patterns
+.execute(@ruleset) {
+    @ruleset();
+}
+
+.something(bar) {
+    height: 20px;
+}
+
+.output-width() {
+    width: 20px;
+}
+
+.test-1 {
+    @shorthand: .something(bar);
+    @shorthand();
+}
+
+.test-2 {
+    @shorthand: .something(bar);
+    .execute(@shorthand);
+}
+
+.test-3 {
+    .execute(.something(bar));
+    .execute(.output-width());
+}
+
+// Additional wrapper patterns
+.apply(@fn, @arg) {
+    result: @fn;
+    arg: @arg;
+}
+
+.identity(@x) {
+    @return: @x;
+}
+
+.test-4 {
+    @val: .identity(test)[@return];
+    computed: @val;
+}
+
+// Chained wrappers
+.outer-wrap(@inner) {
+    @inner();
+}
+
+.middle-wrap(@fn) {
+    .outer-wrap(@fn);
+}
+
+.test-5 {
+    @fn: { display: block; };
+    .middle-wrap(@fn);
+}

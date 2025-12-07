@@ -1,0 +1,76 @@
+// Variation of namespacing-media with different breakpoint patterns
+#breakpoints {
+    .values() {
+        @mobile: 480px;
+    }
+    .query(@name) {
+        @size: #breakpoints.values[@@name];
+        @min: ~"(min-width: @{size})";
+        @max: ~"not all and @{min}";
+    }
+}
+
+#breakpoints {
+    .values() {
+        @mobile: 320px;
+    }
+}
+
+.getSizeKey() {
+    keyword: mobile;
+}
+
+@media #breakpoints.query(.getSizeKey[])[@max] {
+    .responsive {
+        display: block;
+    }
+}
+
+// Simpler media patterns - direct map lookups
+@screens: {
+    small: 576px;
+    medium: 768px;
+    large: 992px;
+    xlarge: 1200px;
+};
+
+// Direct map lookups in media
+@media (min-width: @screens[small]) {
+    .visible-small-up {
+        visibility: visible;
+    }
+}
+
+@media (max-width: @screens[medium]) {
+    .hidden-medium-up {
+        display: none;
+    }
+}
+
+// Map in mixin with explicit size
+.responsive-styles(@size) {
+    @media (min-width: @size) {
+        display: flex;
+    }
+}
+
+.card {
+    .responsive-styles(@screens[medium]);
+}
+
+.sidebar {
+    .responsive-styles(@screens[large]);
+}
+
+// Nested media with maps
+@layout: {
+    maxWidth: 1200px;
+    gutter: 20px;
+};
+
+@media screen and (min-width: @screens[large]) {
+    .container {
+        max-width: @layout[maxWidth];
+        padding: 0 @layout[gutter];
+    }
+}

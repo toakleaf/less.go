@@ -1,0 +1,65 @@
+// Variation of namespacing-functions with different function patterns
+.multiply(@a, @b) {
+    @r: @a * @b;
+}
+
+.calculate {
+    width: .multiply(5px, 4)[];
+    fallback: @fallback[];
+}
+
+@fallback: {
+    default: value;
+};
+
+// Issue variant - property lookup
+#config {
+    @setting: configured;
+}
+
+.apply (@val) {
+    property: @val;
+}
+
+.configured {
+    .apply(#config[@setting]);
+}
+
+// Issue variant - mixin in lookup
+.processor (@input) {
+    processed: @input;
+}
+
+#store {
+    @fn: .processor(stored);
+}
+
+.retrieval {
+    @handler: #store[@fn];
+    @handler();
+}
+
+// Additional function patterns - simple clamp
+.clamp-simple(@min, @val, @max) {
+    @result: if(@val < @min, @min, if(@val > @max, @max, @val));
+}
+
+.test-clamp {
+    a: .clamp-simple(10px, 5px, 100px)[@result];
+    b: .clamp-simple(10px, 50px, 100px)[@result];
+    c: .clamp-simple(10px, 150px, 100px)[@result];
+}
+
+// Chained function calls (not recursive)
+.double(@n) {
+    @result: @n * 2;
+}
+
+.triple(@n) {
+    @result: @n * 3;
+}
+
+.math-test {
+    doubled: .double(5)[@result];
+    tripled: .triple(5)[@result];
+}

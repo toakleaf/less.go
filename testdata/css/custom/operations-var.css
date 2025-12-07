@@ -1,0 +1,59 @@
+#calculations {
+  color: #222222;
+  tint: #00f5f5;
+  height: 7px;
+  width: 7em;
+  subtraction: 0;
+  division: 5;
+}
+#calculations .nested {
+  height: 7px;
+  width: 7em;
+}
+.variable-math {
+  height: 32em;
+  width: 48em;
+  size: 2cm;
+}
+.function-colors {
+  color: #191919;
+  color: #bfffbf;
+  color: #446444;
+}
+.negation {
+  height: 0px;
+  width: 8px;
+}
+.shorthand-vals {
+  margin: -2px 4px 0 -8px;
+}
+.rem-calcs {
+  font-size: 12.5rem;
+}
+.color-ops {
+  color: #456;
+  border-color: #778899;
+  background-color: #000000;
+}
+.color-ops .nested {
+  color: #888888;
+  border-color: #555555;
+}
+.negation-exprs {
+  neg-variable: -8px;
+  neg-add-var: 0px;
+  var-add-neg: 0px;
+  var-sub-neg: 16px;
+  neg-sub-neg: 0px;
+  paren-neg: -8px;
+  complex: 64px;
+}
+.percentage-math {
+  half: 25%;
+  double: 100%;
+  offset: 60%;
+}
+.unit-conversions {
+  same: 15px;
+  mixed: 2cm;
+}

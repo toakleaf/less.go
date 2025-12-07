@@ -1,0 +1,78 @@
+// Variation of mixins-interpolated with different variable names and values
+@prefix1: widget;
+@prefix2: 456;
+@prefix3: ~".widget";
+@prefix4: ~"#container";
+
+.@{prefix1} {
+    display: block;
+}
+
+.@{prefix2} {
+    display: inline;
+}
+
+@{prefix3} {
+    visibility: visible;
+}
+
+#@{prefix1} {
+    overflow: hidden;
+}
+
+@{prefix4} {
+    position: relative;
+}
+
+interp-call-a {
+    .widget();
+    .456();
+    #widget();
+}
+
+// Nested interpolated selectors
+.outer .inner {
+    &.@{prefix1}-suffix .prefix-@{prefix1}@{prefix4} {
+        & @{prefix3}.nested-child {
+            color: blue;
+        }
+    }
+}
+
+interp-call-b {
+    .outer.inner.widget-suffix.prefix-widget#container.widget.nested-child();
+}
+
+// Chained variable references
+@chain1: @prefix1;
+@chain2: component;
+@chain3: element;
+
+#@{chain1}-wrapper {
+    > .@{chain2} {
+        .@{chain3} {
+            z-index: 100;
+        }
+    }
+}
+
+interp-call-c {
+    &-first {#widget-wrapper();}
+    &-second {#widget-wrapper > .component();}
+    &-third {#widget-wrapper > .component.element();}
+}
+
+// Person-like pattern with different names
+.Factory(@name, @type_) {
+    .@{name} {
+        @typeVal: @type_;
+        .getType() {
+            type: @typeVal;
+        }
+    }
+}
+
+interp-call-d {
+    .Factory(product, "electronics");
+    .product.getType();
+}

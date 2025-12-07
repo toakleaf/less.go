@@ -1,0 +1,146 @@
+// Variation of the main mixins test with different selectors and values
+.base-style { margin: 10px solid blue; }
+.secondary { border-width: 2px; }
+.utility { box-sizing: border-box; }
+.base-style > * { margin: should not match; }
+
+#utils {
+    .utility {
+        display: flex;
+    }
+    .module {
+        content: "loaded";
+        .inner {
+            visibility: visible;
+        }
+    }
+}
+#skin {
+    > .base-style {
+        color: darkgray;
+    }
+}
+#wrapper {
+    background: white;
+    .base-style();
+    .secondary ();
+    #skin > .base-style();
+}
+
+#main {
+    .section {
+        font-size: inherit;
+        .base-style();
+        #skin > .base-style();
+    }
+    #subsection {
+        .items {
+            #utils .utility();
+            .details {
+                #wrapper();
+            }
+        }
+        .utility();
+    }
+}
+.safe-area { #utils .module .inner(); }
+.direct-call {
+    #utils > .utility();
+}
+
+.x, .y {
+    height: 100%;
+}
+.x {
+    border-width: 2px;
+}
+.a.x.z {
+    background: black;
+}
+.p.q {
+    display: none;
+}
+.parent {
+    &.child {
+        color: blue;
+        .deeper {
+            margin: 0;
+        }
+        &.deepest {
+            padding: auto;
+        }
+    }
+}
+.combo {
+    .x();
+    .p.q();
+    .parent.child();
+    .parent.child.deeper();
+    .parent.child.deepest();
+}
+.a .b .c .d {
+    .e .f {
+        .g {
+            color: magenta;
+        }
+    }
+}
+.selector-chain {
+    .a.b.c.d.e.f.g();
+}
+.outer .inner {
+    .secondary();
+}
+.generates_children() {
+    & .childElement {
+        color: green;
+    }
+}
+.generates_children();
+.container {
+    .generates_children();
+}
+.spacing(@above, @below) {
+    * + & { margin-top: @above; }
+    legend + & { margin-top: 0; }
+    & + * { margin-top: @below; }
+}
+h4 { .spacing(30px, 12px); }
+h5 { .spacing(25px, 10px); }
+h6 { .spacing(20px, 8px); }
+
+.background_mixin(@path, @pos){
+    background-image: @path;
+    background-position: @pos;
+}
+.banner {
+    @base: "images/";
+    .background_mixin("@{base}hero.png", top left);
+}
+.loop() {
+    color: white;
+}
+.test-self-ref {
+    .loop {
+        .loop();
+    }
+}
+.paddingCalc(@amount) { padding: @amount; }
+
+.btn {
+    .paddingCalc(((5px + 10) * 3));
+
+    &.small { .paddingCalc(((5em * 1) * 2)); }
+}
+.reset() {
+    // empty
+}
+.reset {
+    .reset();
+}
+.reset {
+    .reset();
+}
+.element {
+    .reset();
+}

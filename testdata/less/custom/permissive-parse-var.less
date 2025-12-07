@@ -1,0 +1,71 @@
+// Variation of permissive-parse
+// BUG FOUND: Go port fails with @variable: (params) => {...} but works with () =>
+@function-name: regexp;
+@d-value: 20;
+@-moz-document @function-name("(\w{0,@{d-value}})") {
+    span {
+        color: blue;
+    }
+}
+
+.css-properties {
+    --handler: () => {
+        process this content until semicolon;
+        including nested; // comments;
+    };
+    @handler: () => {
+        process this content until semicolon;
+        including nested; // comments;
+    };
+    --processed: @handler;
+    @blue: darken(blue, 5%);
+    --themed-color: @blue darken(blue, 5%);
+    themed-color: $--themed-color;
+}
+
+@counter: 42;
+.counter-var {
+    --formula: calculate(value, index=@counter);
+}
+
+@value-ref: bam;
+@-moz-whatever (anim: "(" @value-ref ")") {
+    step: one;
+}
+
+@selectorGroup: #x, .y, div[role="button"];
+@{selectorGroup} {
+    content: "matched";
+}
+
+@breakpoint: 800px;
+@screen: (min-width: @breakpoint);
+@media @screen {
+    .responsive-element {
+        display: grid;
+    }
+}
+@screen2: (min-width: @{breakpoint});
+@media @screen2 {
+    .interpolated-query {
+        display: flex;
+    }
+}
+
+.edge-case-rules {
+    --complex: a/* { nested; } */;
+    --parenthetical: ( /* inline comment; here */ );
+}
+.no-semicolon-test {
+    --value: value
+}
+.compact-rule {--compact: value}
+.spaced-rule { --spaced: value }
+
+.grid-template {
+    --template: [header] 1fr [content] auto [footer] 100px;
+}
+
+.unicode-range {
+    --range: U+0025-00FF;
+}

@@ -1,0 +1,50 @@
+// Variation of namespacing-2 with import and override
+// Using inline definition since we can't import
+
+#theme {
+    .dimensions() {
+        @width: 1024px;
+    }
+    .compute-height(@x) {
+        @return: @x;
+    }
+}
+
+.card {
+    width: #theme.dimensions[@width];
+    height: #theme.compute-height(100px)[@return];
+}
+
+// Override dimensions
+#theme {
+    .dimensions() {
+        @width: 1280px;
+    }
+}
+
+.panel {
+    width: #theme.dimensions[@width];
+}
+
+.meals() {
+    @lunch: sandwich;
+}
+
+@meal-key: lunch;
+
+.cafeteria {
+    food: .meals[@@meal-key];
+}
+
+// Nested namespace access
+#app {
+    #components {
+        .button() {
+            @padding: 10px;
+        }
+    }
+}
+
+.my-button {
+    padding: #app#components.button[@padding];
+}

@@ -1,0 +1,42 @@
+.block1 .child {
+  width: 300;
+}
+.block1 .child .grandchild {
+  height: 15;
+  padding: 45;
+}
+.block2 .child {
+  width: 500;
+}
+.block2 .child .grandchild {
+  height: 25;
+  padding: 75;
+}
+.deep-test .level1 {
+  l1: 10;
+}
+.deep-test .level1 .level2 {
+  l2: 20;
+}
+.deep-test .level1 .level2 .level3 {
+  l3: 30;
+}
+.deep-test .level1 .level2 .level3 .level4 {
+  l4: 40;
+}
+.combined-test .wrapper {
+  c: 102;
+}
+.combined-test .wrapper .nested {
+  a: 100;
+  b: 101;
+}
+.sibling-test .first-sibling {
+  prop1: 5px;
+}
+.sibling-test .second-sibling {
+  prop2: 10px;
+}
+.sibling-test .third-sibling {
+  prop3: 15px;
+}

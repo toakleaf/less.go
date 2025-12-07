@@ -1,0 +1,67 @@
+.call-zero {
+  is-variadic: yes;
+  has-named-variadic: yes;
+  no-args: true;
+  has-one: true;
+  has-two: true;
+  has-three: true;
+}
+.call-one {
+  is-variadic: yes;
+  has-named-variadic: yes;
+  has-one: true;
+  requires-one: true;
+  has-two: true;
+  has-three: true;
+}
+.call-two {
+  is-variadic: yes;
+  has-named-variadic: yes;
+  has-two: true;
+  has-three: true;
+}
+.call-three {
+  is-variadic: yes;
+  has-named-variadic: yes;
+  requires-three: true;
+  has-three: true;
+}
+.go-up {
+  top: 0;
+}
+.go-down {
+  bottom: 0;
+}
+.go-left {
+  left: 0;
+}
+.go-right {
+  right: 0;
+}
+.pos-top {
+  position: absolute;
+  top: 10px;
+}
+.pos-bottom {
+  position: absolute;
+  bottom: 20px;
+}
+.pos-left {
+  position: absolute;
+  left: 5px;
+}
+.pos-right {
+  position: absolute;
+  right: 15px;
+}
+.radius-all {
+  border-radius: 8px;
+}
+.radius-top {
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+.radius-bottom {
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+}

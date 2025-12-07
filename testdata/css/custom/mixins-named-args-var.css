@@ -1,0 +1,55 @@
+.using-named-arg {
+  background: white;
+  min-width: 20px;
+  max-height: 90%;
+  args: 2px 95%;
+  vertical-align: middle;
+}
+.using-var {
+  min-width: 20px;
+  max-height: 25%;
+  args: 2px 30%;
+}
+.swapped-args {
+  min-width: 40px;
+  max-height: 20%;
+  args: 4px 25%;
+}
+.named-two {
+  padding: 18px;
+  margin: 65%;
+  opacity: 50;
+}
+.named-three {
+  padding: 15px;
+  margin: 45%;
+  opacity: 25;
+}
+.all-default {
+  width: 100px;
+  height: 50px;
+  background-color: #333;
+}
+.first-only {
+  width: 200px;
+  height: 50px;
+  background-color: #333;
+}
+.first-and-last {
+  width: 150px;
+  height: 50px;
+  background-color: #fff;
+}
+.last-only {
+  width: 100px;
+  height: 50px;
+  background-color: #000;
+}
+.middle-only {
+  width: 100px;
+  height: 100px;
+  background-color: #333;
+}
+.with-expr-arg {
+  computed: 25px;
+}

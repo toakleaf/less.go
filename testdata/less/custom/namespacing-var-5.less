@@ -1,0 +1,55 @@
+// Variation of namespacing-5 with detached rulesets in namespaces
+#brand.dark.header {
+    .palette() {
+        accent: coral;
+    }
+    .palette(inverted) {
+        accent: white;
+        secondary: darkgray;
+    }
+    .output() {
+        value: result;
+    }
+}
+
+.site-header {
+    #brand.dark.header();
+    background: .palette[accent];
+    .output();
+}
+
+.alternate-header {
+    @colors: #brand.dark.header.palette() !important;
+    background: @colors[accent];
+}
+
+.inverted-header {
+    @colors: #brand.dark.header.palette(inverted);
+    background: @colors[accent];
+    border: 1px solid @colors[secondary];
+}
+
+// Pattern matching in namespace
+#utils {
+    .format(number, @val) {
+        result: @val + 0;
+    }
+    .format(string, @val) {
+        result: ~"@{val}";
+    }
+    .format(color, @val) {
+        result: @val;
+    }
+}
+
+.formatted-number {
+    val: #utils.format(number, 42)[result];
+}
+
+.formatted-string {
+    val: #utils.format(string, hello)[result];
+}
+
+.formatted-color {
+    val: #utils.format(color, #ff0)[result];
+}

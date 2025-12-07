@@ -1,0 +1,20 @@
+.test {
+  val1: blue;
+  val2: orange;
+  val3: gray;
+  val4: white;
+  val5: blue;
+  prop: 150px;
+  varRef: 250px;
+  sub: overridden;
+}
+#module {
+  value: 100px;
+}
+#module {
+  value: 150px;
+}
+.widget {
+  size: 800px;
+  border: #999 #BBB;
+}

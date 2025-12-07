@@ -1,0 +1,16 @@
+.test-1 {
+  height: 20px;
+}
+.test-2 {
+  height: 20px;
+}
+.test-3 {
+  height: 20px;
+  width: 20px;
+}
+.test-4 {
+  computed: test;
+}
+.test-5 {
+  display: block;
+}

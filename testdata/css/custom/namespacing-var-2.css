@@ -1,0 +1,13 @@
+.card {
+  width: 1280px;
+  height: 100px;
+}
+.panel {
+  width: 1280px;
+}
+.cafeteria {
+  food: sandwich;
+}
+.my-button {
+  padding: 10px;
+}
