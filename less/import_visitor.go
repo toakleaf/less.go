@@ -211,9 +211,14 @@ func (iv *ImportVisitor) processImportNode(importNode any, context *Eval, import
 		fmt.Fprintf(os.Stderr, "[ImportVisitor.processImportNode] importNode=%p, inlineCSS=%v\n", importNode, inlineCSS)
 	}
 
-	if iv.isVariableImport(importNode) {
-		context.Frames = CopyArray(iv.context.Frames)
-	}
+	// NOTE: We intentionally do NOT overwrite context.Frames here.
+	// For variable imports, the context passed in already has the correct frames
+	// from when the import was visited in VisitImport(). Variable imports are
+	// deferred via the sequencer and processed after the AST visit completes,
+	// at which point iv.context.Frames is empty. Overwriting context.Frames
+	// with iv.context.Frames would lose the variable definitions needed for
+	// interpolation (e.g., @import "@{prefix}-@{suffix}.less" would fail to
+	// resolve @prefix and @suffix).
 
 	func() {
 		defer func() {
