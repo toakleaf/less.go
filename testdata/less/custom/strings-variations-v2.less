@@ -1,0 +1,90 @@
+// Variations of string tests
+// Tests different string handling patterns
+
+// Test 1: Basic string types
+.string-types {
+    double-quoted: "double quoted string";
+    single-quoted: 'single quoted string';
+    empty-double: "";
+    empty-single: '';
+}
+
+// Test 2: String with special characters
+.special-chars {
+    brackets: "{ } [ ] ( )";
+    symbols: "# @ $ % ^ & * !";
+    punctuation: ", . ; : ? /";
+    quotes-in-double: "he said \"hello\"";
+    quotes-in-single: 'she said "hi"';
+    apostrophe: "it's working";
+}
+
+// Test 3: String interpolation
+.interpolation {
+    @name: world;
+    @num: 42;
+    greeting: "hello @{name}";
+    message: "the answer is @{num}";
+
+    @path: /images;
+    url-like: "http://example.com@{path}/logo.png";
+}
+
+// Test 4: Multiple interpolations in one string
+.multi-interp {
+    @first: John;
+    @last: Doe;
+    @age: 30;
+    full: "@{first} @{last} is @{age} years old";
+}
+
+// Test 5: Escape sequences
+.escapes {
+    newline: "line1\nline2";
+    tab: "col1\tcol2";
+    backslash: "path\\to\\file";
+    unicode: "\2665";
+}
+
+// Test 6: Strings in different contexts
+.context-usage {
+    content-prop: "::before content";
+    font-family: "Helvetica Neue", Arial;
+    quotes-prop: "\201C" "\201D";
+}
+
+// Test 7: Escaped strings (raw output)
+.escaped-strings {
+    filter-like: ~"progid:DXImageTransform.Microsoft.Alpha(Opacity=80)";
+    calc-like: ~"calc(100% - 20px)";
+    custom: ~"custom-value(123)";
+}
+
+// Test 8: String concatenation via interpolation
+.concatenation {
+    @prefix: pre;
+    @suffix: fix;
+    combined: "@{prefix}-@{suffix}";
+
+    @base: hello;
+    extended: "@{base}-extended-@{base}";
+}
+
+// Test 9: Strings with numeric interpolation
+.numeric-strings {
+    @width: 100;
+    @height: 50;
+    size: "@{width}x@{height}";
+
+    @version: 2;
+    ver: "version-@{version}.0.0";
+}
+
+// Test 10: Nested interpolation edge cases
+.nested-edge {
+    @outer: inner;
+    @inner: value;
+    // Double variable reference
+    result: @@outer;
+    string-result: "@@{outer}";
+}

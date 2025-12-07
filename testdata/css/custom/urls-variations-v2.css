@@ -1,0 +1,54 @@
+.basic-urls {
+  background-image: url(images/bg.png);
+  background-image: url("images/bg.png");
+  background-image: url('images/bg.png');
+}
+.protocol-urls {
+  http-url: url(http://example.com/image.jpg);
+  https-url: url(https://example.com/image.jpg);
+  protocol-relative: url(//cdn.example.com/image.jpg);
+}
+.url-variables-direct {
+  bg: url('images/logo.png');
+  src: url("fonts/custom.woff");
+}
+.query-urls {
+  versioned: url(image.png?v=123);
+  multi-param: url(image.png?width=100&height=50);
+  quoted-query: url("font.woff?family=Open+Sans");
+}
+.fragment-urls {
+  svg-ref: url(sprites.svg#icon-home);
+  font-svg: url("font.svg#myfont");
+}
+.data-urls {
+  inline-svg: url("data:image/svg+xml,<svg></svg>");
+  base64-gif: url(data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7);
+}
+.shorthand-urls {
+  background: url(bg.jpg) no-repeat center center;
+  background: #fff url("pattern.png") repeat-x top left;
+  list-style: square url(bullet.png) inside;
+}
+.multi-urls {
+  background-image: url(layer1.png), url(layer2.png), url(layer3.png);
+  cursor: url(custom.cur), url(fallback.cur), pointer;
+}
+@font-face {
+  font-family: "CustomFont";
+  src: url("fonts/custom.woff2") format("woff2"), url("fonts/custom.woff") format("woff");
+}
+.special-urls {
+  encoded: url(path/to/file%20with%20spaces.png);
+  parens: url("image(1).jpg");
+  unicode-path: url("fonts/\e001.woff");
+}
+.url-full-variable {
+  bg: url("https://cdn.example.com/images/hero.jpg");
+  icon: url("https://cdn.example.com/icons/arrow.svg");
+}
+.edge-case-urls {
+  relative-up: url(../images/bg.png);
+  deep-relative: url(../../assets/images/bg.png);
+  root-relative: url(/absolute/path/image.png);
+}

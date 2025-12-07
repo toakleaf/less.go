@@ -1,0 +1,176 @@
+// Variations of nested rulesets tests
+// Tests different nesting patterns and combinations
+
+// Test 1: Deep nesting with various selectors
+.level-one {
+    color: red;
+
+    .level-two {
+        color: blue;
+
+        .level-three {
+            color: green;
+
+            .level-four {
+                color: yellow;
+            }
+        }
+    }
+}
+
+// Test 2: Multiple siblings at same level
+.container {
+    .first-child {
+        order: 1;
+    }
+    .second-child {
+        order: 2;
+    }
+    .third-child {
+        order: 3;
+    }
+}
+
+// Test 3: Mixed element and class selectors in nesting
+article {
+    padding: 20px;
+
+    header {
+        margin-bottom: 10px;
+
+        h1 {
+            font-size: 2em;
+        }
+    }
+
+    .content {
+        p {
+            line-height: 1.6;
+        }
+    }
+
+    footer {
+        margin-top: 10px;
+    }
+}
+
+// Test 4: Adjacent and sibling combinators
+.nav {
+    > .nav-item {
+        display: inline-block;
+
+        + .nav-item {
+            margin-left: 10px;
+        }
+
+        ~ .nav-item-last {
+            float: right;
+        }
+    }
+}
+
+// Test 5: Nested pseudo-classes and pseudo-elements
+.link {
+    color: blue;
+
+    &:hover {
+        color: red;
+
+        &::after {
+            content: " *";
+        }
+    }
+
+    &:focus {
+        outline: 2px solid orange;
+    }
+
+    &:visited {
+        color: purple;
+    }
+}
+
+// Test 6: Attribute selectors in nesting
+.form {
+    [type="text"] {
+        border: 1px solid gray;
+
+        &[required] {
+            border-color: red;
+        }
+    }
+
+    [type="submit"] {
+        cursor: pointer;
+    }
+}
+
+// Test 7: Multiple selectors in group with nesting
+.alert,
+.warning,
+.error {
+    padding: 10px;
+
+    .icon {
+        margin-right: 5px;
+    }
+
+    .message {
+        font-weight: bold;
+    }
+}
+
+// Test 8: Nested media-like structure (without @media for simplicity)
+.responsive {
+    width: 100%;
+
+    .sidebar {
+        width: 25%;
+    }
+
+    .main {
+        width: 75%;
+    }
+}
+
+// Test 9: ID selectors nested
+#main {
+    #header {
+        height: 60px;
+    }
+
+    #content {
+        min-height: 400px;
+
+        #sidebar {
+            width: 200px;
+        }
+    }
+
+    #footer {
+        height: 40px;
+    }
+}
+
+// Test 10: Complex selector chains
+.table {
+    > thead {
+        > tr {
+            > th {
+                font-weight: bold;
+            }
+        }
+    }
+
+    > tbody {
+        > tr {
+            > td {
+                padding: 5px;
+            }
+
+            &:nth-child(odd) {
+                background: #f5f5f5;
+            }
+        }
+    }
+}

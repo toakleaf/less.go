@@ -1,0 +1,129 @@
+// Variations of scope tests
+// Tests different variable scoping patterns
+
+// Test 1: Basic scope override
+@base-color: red;
+
+.scope-basic {
+    @base-color: blue;
+    color: @base-color;
+}
+
+.uses-global {
+    color: @base-color;
+}
+
+// Test 2: Nested scope with multiple overrides
+@size: 10px;
+
+.scope-nested {
+    @size: 20px;
+    font-size: @size;
+
+    .inner {
+        @size: 30px;
+        font-size: @size;
+
+        .innermost {
+            @size: 40px;
+            font-size: @size;
+        }
+    }
+
+    .sibling {
+        font-size: @size; // Should be 20px
+    }
+}
+
+// Test 3: Mixin scope isolation
+.define-mixin() {
+    @mixin-var: from-mixin;
+}
+
+.scope-mixin {
+    @mixin-var: before-mixin;
+    .define-mixin();
+    prop: @mixin-var;
+}
+
+// Test 4: Mixin parameter scope
+.param-mixin(@param) {
+    local: @param;
+}
+
+.scope-param {
+    @param: outer-value;
+    .param-mixin(mixin-value);
+    outer: @param;
+}
+
+// Test 5: Variable reference before definition (lazy evaluation)
+.lazy-scope {
+    used-first: @lazy-var;
+    @lazy-var: defined-after;
+}
+
+// Test 6: Namespace scope
+#namespace-scope {
+    @ns-var: namespace-value;
+
+    .get-value() {
+        value: @ns-var;
+    }
+}
+
+.use-namespace {
+    #namespace-scope.get-value();
+}
+
+// Test 7: Scope with detached ruleset
+@detached: {
+    @inner-var: detached-value;
+    inner: @inner-var;
+};
+
+.scope-detached {
+    @detached();
+}
+
+// Test 8: Multiple mixins affecting same scope
+.mixin-a() {
+    @shared: from-a;
+}
+
+.mixin-b() {
+    @shared: from-b;
+}
+
+.scope-multi-mixin {
+    .mixin-a();
+    .mixin-b();
+    result: @shared; // Should be from-b (last wins)
+}
+
+// Test 9: Guard with scope
+@guard-val: 10;
+
+.guarded-mixin(@x) when (@x > 5) {
+    pass: yes;
+}
+
+.guarded-mixin(@x) when (@x <= 5) {
+    pass: no;
+}
+
+.scope-guard {
+    .guarded-mixin(@guard-val);
+}
+
+// Test 10: Recursive scope
+.recursive(@n) when (@n > 0) {
+    .level-@{n} {
+        depth: @n;
+    }
+    .recursive(@n - 1);
+}
+
+.scope-recursive {
+    .recursive(3);
+}

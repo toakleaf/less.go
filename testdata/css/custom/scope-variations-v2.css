@@ -1,0 +1,49 @@
+.scope-basic {
+  color: blue;
+}
+.uses-global {
+  color: red;
+}
+.scope-nested {
+  font-size: 20px;
+}
+.scope-nested .inner {
+  font-size: 30px;
+}
+.scope-nested .inner .innermost {
+  font-size: 40px;
+}
+.scope-nested .sibling {
+  font-size: 20px;
+}
+.scope-mixin {
+  prop: before-mixin;
+}
+.scope-param {
+  local: mixin-value;
+  outer: outer-value;
+}
+.lazy-scope {
+  used-first: defined-after;
+}
+.use-namespace {
+  value: namespace-value;
+}
+.scope-detached {
+  inner: detached-value;
+}
+.scope-multi-mixin {
+  result: from-a;
+}
+.scope-guard {
+  pass: yes;
+}
+.scope-recursive .level-3 {
+  depth: 3;
+}
+.scope-recursive .level-2 {
+  depth: 2;
+}
+.scope-recursive .level-1 {
+  depth: 1;
+}

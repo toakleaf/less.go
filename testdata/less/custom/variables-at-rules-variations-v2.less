@@ -1,0 +1,94 @@
+// Variations of variables in at-rules tests
+// Tests variable interpolation in different at-rule contexts
+
+// Test 1: @charset with variable
+@encoding: UTF-8;
+@charset "@{encoding}";
+
+// Test 2: @namespace with variable
+@ns-prefix: svg;
+@ns-url: "http://www.w3.org/2000/svg";
+@namespace @ns-prefix @ns-url;
+
+// Test 3: @keyframes with variable name
+@anim-name: fadeIn;
+@keyframes @anim-name {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+// Test 4: Multiple @keyframes with variables
+@slide: slideIn;
+@bounce: bounceIn;
+
+@keyframes @slide {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(0); }
+}
+
+@keyframes @bounce {
+    0% { transform: scale(0); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+}
+
+// Test 5: Vendor-prefixed keyframes with variable
+@rotate: spin;
+@-webkit-keyframes @rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+// Test 6: Keyframes with variable values
+@start-opacity: 0;
+@end-opacity: 1;
+@mid-scale: 1.5;
+
+@keyframes grow {
+    0% {
+        opacity: @start-opacity;
+        transform: scale(0);
+    }
+    50% {
+        opacity: 0.5;
+        transform: scale(@mid-scale);
+    }
+    100% {
+        opacity: @end-opacity;
+        transform: scale(1);
+    }
+}
+
+// Test 7: Mixin generating @keyframes
+.make-keyframes(@name, @prop, @from, @to) {
+    @keyframes @name {
+        from { @{prop}: @from; }
+        to { @{prop}: @to; }
+    }
+}
+
+.make-keyframes(colorChange, background-color, red, blue);
+
+// Test 8: @supports with CSS custom properties (less just passes through)
+@supports (display: grid) {
+    .grid-container {
+        display: grid;
+    }
+}
+
+// Test 9: @page with variable
+@page-margin: 2cm;
+@page {
+    margin: @page-margin;
+}
+
+// Test 10: @font-face with variables
+@font-name: "MyFont";
+@font-path: "../fonts";
+
+@font-face {
+    font-family: @font-name;
+    src: url("@{font-path}/myfont.woff2") format("woff2");
+    font-weight: normal;
+    font-style: normal;
+}

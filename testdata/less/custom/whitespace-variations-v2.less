@@ -1,0 +1,118 @@
+// Variations of whitespace tests
+// Tests different whitespace handling patterns
+
+// Test 1: Different brace positions
+.brace-same-line { color: red; }
+
+.brace-next-line
+{
+    color: blue;
+}
+
+.brace-indented
+    { color: green; }
+
+// Test 2: Various spacing around colons
+.colon-spacing {
+    no-space:black;
+    space-before :white;
+    space-after: gray;
+    both-spaces : silver;
+}
+
+// Test 3: Multiple spaces
+.multi-space {
+    margin:     10px;
+    padding:  20px   ;
+}
+
+// Test 4: Tab vs space indentation (using spaces here)
+.tab-indent {
+    prop1: val1;
+        prop2: val2;
+            prop3: val3;
+}
+
+// Test 5: No semicolon on last property
+.no-final-semi {
+    color: red;
+    background: blue
+}
+
+// Test 6: Single property no semicolon
+.single-no-semi { display: block }
+
+// Test 7: Empty rulesets
+.empty-normal {
+}
+
+.empty-inline {}
+
+.empty-spaced {    }
+
+// Test 8: Newlines in values
+.newline-values {
+    font-family: Arial,
+                 Helvetica,
+                 sans-serif;
+    background: linear-gradient(
+        to bottom,
+        red,
+        blue
+    );
+}
+
+// Test 9: Selector on multiple lines
+.selector-one,
+.selector-two,
+.selector-three {
+    color: purple;
+}
+
+// Test 10: Mixed whitespace in selectors
+.mixed   .spaces     .selectors { color: cyan; }
+
+.with
+.newlines
+.between { color: magenta; }
+
+// Test 11: Properties with no value spacing
+.compact-props{margin:0;padding:0;border:none}
+
+// Test 12: Excessive newlines
+.many-newlines {
+
+
+    color: orange;
+
+
+    background: pink;
+
+
+}
+
+// Test 13: Nested with varying whitespace
+.outer-ws {
+    .inner-compact{color:red}
+
+    .inner-spaced    {    color:    blue    ;    }
+
+    .inner-normal {
+        color: green;
+    }
+}
+
+// Test 14: Comments affecting whitespace
+.with-comments {
+    /* comment before */ color: red; /* comment after */
+    // line comment
+    background: blue;
+}
+
+// Test 15: Property value spanning lines
+.multiline-value {
+    box-shadow:
+        0 1px 2px rgba(0,0,0,0.1),
+        0 2px 4px rgba(0,0,0,0.1),
+        0 4px 8px rgba(0,0,0,0.1);
+}

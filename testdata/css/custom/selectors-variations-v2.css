@@ -1,0 +1,120 @@
+.button {
+  background: blue;
+}
+.button-primary {
+  background: green;
+}
+.button-secondary {
+  background: gray;
+}
+.button--large {
+  font-size: 20px;
+}
+.button__icon {
+  margin-right: 5px;
+}
+.input {
+  border: 1px solid gray;
+}
+.input:focus {
+  border-color: blue;
+}
+.input:disabled {
+  opacity: 0.5;
+}
+.input:valid {
+  border-color: green;
+}
+.input:invalid {
+  border-color: red;
+}
+.child .parent {
+  position: relative;
+}
+.parent + .parent {
+  margin-top: 10px;
+}
+.parent > .parent {
+  padding: 5px;
+}
+.parent ~ .parent {
+  border-top: 1px solid;
+}
+.foo,
+.bar {
+  padding: 10px;
+}
+.foo:hover,
+.bar:hover,
+.foo:focus,
+.bar:focus {
+  outline: 1px solid;
+}
+.container .foo,
+.container .bar,
+.wrapper .foo,
+.wrapper .bar {
+  margin: auto;
+}
+.header {
+  height: 60px;
+}
+.header.active {
+  background: yellow;
+}
+[data-type] {
+  display: block;
+}
+[data-value="test"] {
+  color: red;
+}
+[data-name^="prefix"] {
+  font-weight: bold;
+}
+[data-name$="suffix"] {
+  font-style: italic;
+}
+[data-name*="contains"] {
+  text-decoration: underline;
+}
+.pseudo-el::before {
+  content: "before";
+}
+.pseudo-el::after {
+  content: "after";
+}
+.pseudo-el::first-letter {
+  font-size: 2em;
+}
+.pseudo-el::first-line {
+  font-weight: bold;
+}
+.modern-selectors:not(:first-child) {
+  margin-top: 10px;
+}
+.modern-selectors:not(.disabled):not(.hidden) {
+  display: block;
+}
+:is(h1, h2, h3) {
+  font-family: serif;
+}
+.header .card {
+  border: none;
+}
+body.dark .card {
+  background: #333;
+}
+.card.highlighted {
+  border: 2px solid gold;
+}
+.list .item,
+.list .element {
+  padding: 5px;
+}
+.list .item.selected,
+.list .element.selected,
+.list .item.active,
+.list .element.active {
+  background: blue;
+  color: white;
+}

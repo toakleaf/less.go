@@ -1,0 +1,49 @@
+.simple-interp {
+  color: red;
+  background-color: blue;
+  background-image: none;
+}
+.multi-interp {
+  border-left-color: green;
+  margin-top: 10px;
+}
+.numeric-interp {
+  --custom-var-1: 100px;
+  -webkit-transform: rotate(45deg);
+}
+.position-interp {
+  flex-basis: 50%;
+  flex-grow: 1;
+  flex-shrink: 0;
+}
+.edge-cases {
+  margin: 100px;
+  padding: 200px;
+}
+.nested-var-name {
+  display: block;
+}
+.repeated-interp {
+  margin-left: 5px;
+  padding-left: 10px;
+  border-left: 1px solid black;
+}
+.custom-props {
+  --theme-color: #333;
+  --theme-bg: #fff;
+  --theme-font: sans-serif;
+  color: var(--theme-color);
+}
+.use-mixin {
+  font-size: 14px;
+  font-size-extra: inherit;
+  line-height: 1.5;
+  line-height-extra: inherit;
+}
+.nested-context {
+  text-align: center;
+}
+.nested-context .inner {
+  font-weight: bold;
+  text-decoration: underline;
+}
