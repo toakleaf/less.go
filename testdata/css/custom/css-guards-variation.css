@@ -1,0 +1,43 @@
+.bright {
+  background: white;
+}
+.card {
+  background: white;
+}
+.banner {
+  background: white;
+}
+.passes-or {
+  status: pass;
+}
+.parent-guard .inner-rule {
+  visible: yes;
+}
+.parent-guard.modifier {
+  visible: also-yes;
+}
+.root-level-visible {
+  shown: true;
+}
+.show-when-small {
+  display: block;
+}
+.hide-when-small {
+  display: none;
+}
+.combined-guards {
+  base-width: 100px;
+  small-x: true;
+  large-y: true;
+}
+* .combined-guards {
+  sibling-match: true;
+}
+.scope-test {
+  inner-value: 10px;
+  outer-value: 5px;
+}
+.scope-test-caller {
+  inner-value: 10px;
+  outer-value: 5px;
+}

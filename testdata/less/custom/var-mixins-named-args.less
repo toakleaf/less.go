@@ -1,0 +1,76 @@
+// Variation of mixins-named-args.less
+// Tests named arguments when calling mixins
+
+// Test 1: Basic named arguments
+.box(@width: 100px, @height: 100px, @color: gray) {
+    width: @width;
+    height: @height;
+    background-color: @color;
+}
+
+.named-basic {
+    &-all-named { .box(@color: red, @width: 200px, @height: 150px); }
+    &-partial { .box(@height: 50px); }
+    &-mixed { .box(300px, @color: blue); }
+}
+
+// Test 2: Named args with @arguments
+.border-style(@width: 1px, @style: solid, @color: black) {
+    border: @arguments;
+}
+
+.named-arguments-var {
+    &-default { .border-style(); }
+    &-named { .border-style(@style: dashed, @color: red); }
+    &-all { .border-style(@color: green, @width: 2px, @style: dotted); }
+}
+
+// Test 3: Named args with guards
+.conditional(@val: 10, @threshold: 5) when (@val > @threshold) {
+    result: above;
+    value: @val;
+}
+.conditional(@val: 10, @threshold: 5) when (@val <= @threshold) {
+    result: at-or-below;
+    value: @val;
+}
+
+.named-guarded {
+    &-above { .conditional(@val: 20); }
+    &-below { .conditional(@threshold: 15); }
+    &-at { .conditional(@val: 5, @threshold: 5); }
+}
+
+// Test 4: Named args with many parameters
+.multi-param(@a: 1, @b: 2, @c: 3, @d: 4, @e: 5) {
+    a: @a;
+    b: @b;
+    c: @c;
+    d: @d;
+    e: @e;
+}
+
+.named-multi {
+    &-skip-some { .multi-param(@c: 30, @e: 50); }
+    &-reverse { .multi-param(@e: 5, @d: 4, @c: 3, @b: 2, @a: 1); }
+    &-first-last { .multi-param(@a: 100, @e: 500); }
+}
+
+// Test 5: Named args with variable values
+@my-width: 250px;
+@my-color: purple;
+
+.use-vars-named {
+    .box(@width: @my-width, @color: @my-color);
+}
+
+// Test 6: Named args with expressions
+.spacing(@top: 0, @right: 0, @bottom: 0, @left: 0) {
+    margin: @top @right @bottom @left;
+}
+
+.named-expressions {
+    @base: 10px;
+    .spacing(@top: @base * 2, @bottom: @base);
+    .spacing(@left: @base + 5, @right: @base + 5);
+}

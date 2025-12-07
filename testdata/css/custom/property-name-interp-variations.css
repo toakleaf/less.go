@@ -1,0 +1,50 @@
+.basic-interp {
+  color: red;
+}
+.multi-part {
+  background-color: blue;
+}
+.border-props {
+  border-left-width: 2px;
+  border-left-color: red;
+  border-left-style: solid;
+}
+.vendor-prefix {
+  -webkit-transform: rotate(45deg);
+}
+.values-test {
+  margin: 10px;
+  margin-top: 20px;
+  margin-bottom: 30px;
+}
+.same-var-multi {
+  overflow-x: hidden;
+  scroll-snap-type-x: mandatory;
+}
+.indirect {
+  font-size: 16px;
+}
+.merge-interp {
+  box-shadow: 0 1px 2px black, 0 2px 4px gray;
+}
+.edge-cases {
+  color: red;
+}
+.complex-props {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+.nested-interp .child {
+  background-color: white;
+  background-image: none;
+}
+.uses-prop-mixin {
+  color: green;
+  font-size: 14px;
+}
+.animation-props {
+  animation-duration: 0.3s;
+  animation-timing-function: ease;
+}
+.custom-with-interp {
+  --color-primary: #3366ff;
+}

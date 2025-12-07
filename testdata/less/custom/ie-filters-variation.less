@@ -1,0 +1,75 @@
+// IE filters variation tests
+
+@opacity-val: 50;
+@start-color: "#ff0000";
+@end-color: "#0000ff";
+@gradient-type: 1;
+
+// Basic opacity filter
+.opacity-test {
+  filter: progid:DXImageTransform.Microsoft.Alpha(opacity = 100);
+  filter: progid:DXImageTransform.Microsoft.Alpha(opacity = 50);
+  filter: progid:DXImageTransform.Microsoft.Alpha(opacity = 0);
+}
+
+// Opacity with variable
+.opacity-variable {
+  filter: progid:DXImageTransform.Microsoft.Alpha(opacity=@opacity-val);
+}
+
+// Gradient filters
+.gradient-test {
+  filter: progid:DXImageTransform.Microsoft.gradient(startColorstr="#ffffff", endColorstr="#000000", GradientType=0);
+  filter: progid:DXImageTransform.Microsoft.gradient(startColorstr="#ff6600", endColorstr="#006600", GradientType=1);
+}
+
+// Gradient with variables
+.gradient-variables {
+  filter: progid:DXImageTransform.Microsoft.gradient(startColorstr=@start-color, endColorstr=@end-color, GradientType=@gradient-type);
+}
+
+// Multiple filters
+.multiple-filters {
+  filter: progid:DXImageTransform.Microsoft.Alpha(opacity=80) progid:DXImageTransform.Microsoft.gradient(startColorstr="#cccccc", endColorstr="#333333", GradientType=0);
+}
+
+// Filter in mixin
+.ie-opacity(@val) {
+  filter: progid:DXImageTransform.Microsoft.Alpha(opacity=@val);
+}
+
+.mixin-opacity {
+  .ie-opacity(75);
+}
+
+.ie-gradient(@start, @end, @type: 0) {
+  filter: progid:DXImageTransform.Microsoft.gradient(startColorstr=@start, endColorstr=@end, GradientType=@type);
+}
+
+.mixin-gradient {
+  .ie-gradient("#aabbcc", "#112233");
+  .ie-gradient("#ffcc00", "#cc9900", 1);
+}
+
+// Filter with simple variable calculation
+.calc-opacity {
+  @base: 25;
+  @computed: (@base * 2);
+  filter: progid:DXImageTransform.Microsoft.Alpha(opacity=@computed);
+}
+
+// Shadow filter
+.shadow-filter {
+  filter: progid:DXImageTransform.Microsoft.Shadow(color="#333333", Direction=135, Strength=5);
+}
+
+// Blur filter
+.blur-filter {
+  filter: progid:DXImageTransform.Microsoft.Blur(pixelradius=5);
+}
+
+// Combined transformation
+.combined {
+  filter: progid:DXImageTransform.Microsoft.gradient(startColorstr="#f0f0f0", endColorstr="#c0c0c0", GradientType=0)
+          progid:DXImageTransform.Microsoft.Alpha(opacity=90);
+}

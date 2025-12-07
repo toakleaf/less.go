@@ -1,0 +1,19 @@
+.base-component {
+  display: block;
+  padding: 10px;
+}
+/* This is raw CSS for inline import testing */
+.inline-raw-style {
+  display: flex !important;
+  /* Some IE-specific hack: */
+  *zoom: 1;
+}
+
+.my-component {
+  background: #336699;
+}
+.my-component::after {
+  content: "";
+  display: table;
+  clear: both;
+}

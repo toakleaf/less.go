@@ -1,0 +1,114 @@
+.panel,
+.card,
+.modal {
+  padding: 20px;
+  border: 1px solid gray;
+}
+.panel .header,
+.card .header,
+.modal .header {
+  background: #f5f5f5;
+  padding: 10px;
+}
+.panel .body,
+.card .body,
+.modal .body {
+  padding: 15px;
+}
+.panel .body .content,
+.card .body .content,
+.modal .body .content {
+  line-height: 1.6;
+}
+.panel .footer,
+.card .footer,
+.modal .footer {
+  border-top: 1px solid #ddd;
+  padding: 10px;
+}
+.card {
+  border-radius: 8px;
+}
+.modal {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+.article h1,
+.blog-post h1 {
+  font-size: 2em;
+}
+.article h2,
+.blog-post h2 {
+  font-size: 1.5em;
+}
+.article p,
+.blog-post p {
+  margin-bottom: 1em;
+}
+.blog-post {
+  max-width: 800px;
+}
+.interactive,
+.clickable {
+  cursor: pointer;
+}
+.interactive:hover,
+.clickable:hover {
+  background: #eee;
+}
+.interactive:active,
+.clickable:active {
+  background: #ddd;
+}
+.interactive:focus {
+  outline: 2px solid blue;
+}
+.hover-spacey :hover {
+  spaced: hover;
+}
+.hover-spacey :hover {
+  not-spaced: hover;
+}
+.complex-target,
+.complex-f.complex-c .complex-a.complex-d.complex-a.complex-e + .complex-c .complex-a.complex-d.complex-a.complex-e.complex-g,
+.complex-f.complex-c .complex-a.complex-d.complex-a.complex-e + .complex-c .complex-a.complex-d.complex-b.complex-e.complex-g,
+.complex-f.complex-c .complex-a.complex-d.complex-a.complex-e + .complex-c .complex-b.complex-d.complex-a.complex-e.complex-g,
+.complex-f.complex-c .complex-a.complex-d.complex-a.complex-e + .complex-c .complex-b.complex-d.complex-b.complex-e.complex-g,
+.complex-f.complex-c .complex-a.complex-d.complex-b.complex-e + .complex-c .complex-a.complex-d.complex-a.complex-e.complex-g,
+.complex-f.complex-c .complex-a.complex-d.complex-b.complex-e + .complex-c .complex-a.complex-d.complex-b.complex-e.complex-g,
+.complex-f.complex-c .complex-a.complex-d.complex-b.complex-e + .complex-c .complex-b.complex-d.complex-a.complex-e.complex-g,
+.complex-f.complex-c .complex-a.complex-d.complex-b.complex-e + .complex-c .complex-b.complex-d.complex-b.complex-e.complex-g,
+.complex-f.complex-c .complex-b.complex-d.complex-a.complex-e + .complex-c .complex-a.complex-d.complex-a.complex-e.complex-g,
+.complex-f.complex-c .complex-b.complex-d.complex-a.complex-e + .complex-c .complex-a.complex-d.complex-b.complex-e.complex-g,
+.complex-f.complex-c .complex-b.complex-d.complex-a.complex-e + .complex-c .complex-b.complex-d.complex-a.complex-e.complex-g,
+.complex-f.complex-c .complex-b.complex-d.complex-a.complex-e + .complex-c .complex-b.complex-d.complex-b.complex-e.complex-g,
+.complex-f.complex-c .complex-b.complex-d.complex-b.complex-e + .complex-c .complex-a.complex-d.complex-a.complex-e.complex-g,
+.complex-f.complex-c .complex-b.complex-d.complex-b.complex-e + .complex-c .complex-a.complex-d.complex-b.complex-e.complex-g,
+.complex-f.complex-c .complex-b.complex-d.complex-b.complex-e + .complex-c .complex-b.complex-d.complex-a.complex-e.complex-g,
+.complex-f.complex-c .complex-b.complex-d.complex-b.complex-e + .complex-c .complex-b.complex-d.complex-b.complex-e.complex-g {
+  extended-by: complex-selectors;
+}
+.widget,
+.component {
+  display: block;
+}
+.widget--large {
+  font-size: 1.2em;
+}
+.widget--small {
+  font-size: 0.9em;
+}
+.nav,
+.menu {
+  display: flex;
+}
+.nav .item,
+.menu .item {
+  padding: 10px;
+}
+.nav .item + .nav .item,
+.menu .item + .menu .item {
+  border-left: 1px solid #ccc;
+}
+.menu {
+  background: #333;
+}

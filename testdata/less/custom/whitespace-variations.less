@@ -1,0 +1,134 @@
+// Test variations for whitespace handling
+// Tests various whitespace patterns in selectors, properties, and values
+
+// Test 1: Compact vs expanded
+.compact{color:red;background:blue}
+.expanded {
+  color: red;
+  background: blue;
+}
+
+// Test 2: Unusual spacing in selectors
+.selector   ,    .another    ,
+.third {
+  color: black;
+}
+
+// Test 3: Spacing around combinators
+.parent    >    .child { display: block; }
+.sibling   +   .next { margin-left: 5px; }
+.any   ~   .following { color: gray; }
+
+// Test 4: Property spacing variations
+.property-spacing {
+  color    :    red;
+  margin:10px;
+  padding :20px;
+  border: 1px solid black ;
+}
+
+// Test 5: Multi-line values
+.multiline-value {
+  background:
+    linear-gradient(
+      to bottom,
+      red,
+      blue
+    );
+  font-family:
+    "Helvetica Neue",
+    Helvetica,
+    Arial,
+    sans-serif;
+}
+
+// Test 6: Empty ruleset
+.empty-rule {}
+
+.also-empty {
+}
+
+// Test 7: Mixed indentation
+.mixed {
+	tab-indented: true;
+  space-indented: true;
+}
+
+// Test 8: No semicolon on last property
+.no-semi { color: red; background: blue }
+
+// Test 9: Multiple selectors on one line
+.a, .b, .c, .d { display: inline; }
+
+// Test 10: Selector on multiple lines
+.very
+.long
+.selector
+.chain {
+  content: "test";
+}
+
+// Test 11: Nested with various whitespace
+.parent {
+
+  .child {
+
+    .grandchild {
+      color: inherit;
+    }
+
+  }
+
+}
+
+// Test 12: Comments affecting whitespace
+.with-comments {
+  /* before */ color: red; /* after */
+  // line comment
+  background: blue;
+}
+
+// Test 13: Value list spacing
+.list-values {
+  margin: 10px    20px   30px    40px;
+  padding:1px 2px 3px 4px;
+  border-radius: 5px  10px;
+}
+
+// Test 14: Attribute selector spacing
+[ data-value ] { display: block; }
+[data-value] { color: red; }
+[ data-value = "test" ] { background: blue; }
+
+// Test 15: Mixin call spacing
+.mixin-def(@a, @b) {
+  margin: @a @b;
+}
+
+.mixin-caller {
+  .mixin-def(   10px   ,   20px   );
+}
+
+// Test 16: Variable definition spacing
+@var1:10px;
+@var2 :20px;
+@var3: 30px;
+@var4 : 40px;
+
+.var-usage {
+  a: @var1;
+  b: @var2;
+  c: @var3;
+  d: @var4;
+}
+
+// Test 17: Operator spacing
+@result1: (10+5);
+@result2: (10 + 5);
+@result3: ( 10 + 5 );
+
+.operators {
+  r1: @result1;
+  r2: @result2;
+  r3: @result3;
+}

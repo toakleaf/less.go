@@ -1,0 +1,34 @@
+// Mixin definitions for import testing
+
+.border-radius(@radius: 4px) {
+  border-radius: @radius;
+}
+
+.box-shadow(@shadow) {
+  box-shadow: @shadow;
+}
+
+.flex-center() {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.clearfix() {
+  &::after {
+    content: "";
+    display: table;
+    clear: both;
+  }
+}
+
+// Mixin with guard
+.text-size(@size) when (@size > 16px) {
+  font-size: @size;
+  line-height: 1.4;
+}
+
+.text-size(@size) when (@size <= 16px) {
+  font-size: @size;
+  line-height: 1.6;
+}

@@ -1,0 +1,86 @@
+.compact {
+  color: red;
+  background: blue;
+}
+.expanded {
+  color: red;
+  background: blue;
+}
+.selector,
+.another,
+.third {
+  color: black;
+}
+.parent > .child {
+  display: block;
+}
+.sibling + .next {
+  margin-left: 5px;
+}
+.any ~ .following {
+  color: gray;
+}
+.property-spacing {
+  color: red;
+  margin: 10px;
+  padding: 20px;
+  border: 1px solid black ;
+}
+.multiline-value {
+  background: linear-gradient(to bottom, red, blue);
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+.mixed {
+  tab-indented: true;
+  space-indented: true;
+}
+.no-semi {
+  color: red;
+  background: blue;
+}
+.a,
+.b,
+.c,
+.d {
+  display: inline;
+}
+.very .long .selector .chain {
+  content: "test";
+}
+.parent .child .grandchild {
+  color: inherit;
+}
+.with-comments {
+  /* before */
+  color: red;
+  /* after */
+  background: blue;
+}
+.list-values {
+  margin: 10px    20px   30px    40px;
+  padding: 1px 2px 3px 4px;
+  border-radius: 5px  10px;
+}
+[data-value] {
+  display: block;
+}
+[data-value] {
+  color: red;
+}
+[data-value="test"] {
+  background: blue;
+}
+.mixin-caller {
+  margin: 10px 20px;
+}
+.var-usage {
+  a: 10px;
+  b: 20px;
+  c: 30px;
+  d: 40px;
+}
+.operators {
+  r1: 15;
+  r2: 15;
+  r3: 15;
+}

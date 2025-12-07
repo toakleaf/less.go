@@ -1,0 +1,45 @@
+.box-large {
+  size: large;
+  padding: 20px;
+}
+.box-medium {
+  size: medium;
+  padding: 15px;
+}
+.box-small {
+  size: small;
+  padding: 10px;
+}
+.test-number {
+  type: number;
+  value: 42;
+}
+.test-color {
+  type: color;
+  background: #ff0000;
+}
+.test-string {
+  type: string;
+  content: "hello";
+}
+.shown {
+  display: block;
+}
+.hidden {
+  display: none;
+}
+.themed-red {
+  background: red;
+}
+.themed-default {
+  background: gray;
+}
+.mobile-view {
+  layout: mobile;
+}
+.tablet-view {
+  layout: tablet;
+}
+.desktop-view {
+  layout: desktop;
+}

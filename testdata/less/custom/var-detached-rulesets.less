@@ -1,0 +1,126 @@
+// Variations of detached rulesets
+// Tests detached rulesets in different contexts
+
+// Basic detached ruleset
+@base-styles: {
+  padding: 10px;
+  margin: 5px;
+  border: 1px solid #ccc;
+};
+
+.box {
+  @base-styles();
+  background: white;
+}
+
+// Detached ruleset with variables from outer scope
+@theme-bg: #333;
+@theme-color: #fff;
+@themed-styles: {
+  background: @theme-bg;
+  color: @theme-color;
+};
+
+.themed-element {
+  @themed-styles();
+}
+
+// Detached ruleset passed to mixin
+.apply-styles(@rules) {
+  @rules();
+}
+
+.element {
+  .apply-styles({
+    font-size: 16px;
+    line-height: 1.5;
+  });
+}
+
+// Detached ruleset with nested selectors
+@card-styles: {
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+
+  .header {
+    font-size: 18px;
+    font-weight: bold;
+  }
+
+  .body {
+    padding: 16px;
+  }
+};
+
+.my-card {
+  @card-styles();
+}
+
+// Detached ruleset with media queries
+@responsive-rules: {
+  width: 100%;
+
+  @media (min-width: 768px) {
+    width: 50%;
+  }
+
+  @media (min-width: 1024px) {
+    width: 33.33%;
+  }
+};
+
+.column {
+  @responsive-rules();
+  padding: 10px;
+}
+
+// Chained detached rulesets
+@base: {
+  display: block;
+};
+
+@extended: {
+  @base();
+  position: relative;
+};
+
+@final: {
+  @extended();
+  overflow: hidden;
+};
+
+.final-element {
+  @final();
+}
+
+// Detached ruleset returning value
+@make-gradient: {
+  background: linear-gradient(to right, #f00, #00f);
+};
+
+.gradient-box {
+  @make-gradient();
+  color: white;
+}
+
+// Detached ruleset with scope access
+@outer-var: blue;
+
+@scoped-rules: {
+  color: @outer-var;
+  border-color: @outer-var;
+};
+
+.scoped-element {
+  @scoped-rules();
+}
+
+// Variable within detached ruleset
+.wrapper {
+  @inner-rules: {
+    @local-color: green;
+    color: @local-color;
+    border: 1px solid @local-color;
+  };
+  @inner-rules();
+}

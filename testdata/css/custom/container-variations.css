@@ -1,0 +1,124 @@
+.card-component {
+  container-type: inline-size;
+}
+@container (max-width: 400px) {
+  .card-component .card-body .card-title {
+    font-size: 1rem;
+  }
+}
+@container (min-width: 600px) {
+  .panel h3 {
+    font-size: 1.5em;
+  }
+}
+@container main-area (min-width: 800px) {
+  .content {
+    padding: 2em;
+  }
+}
+@container (min-width: 80ch) {
+  .text-block:nth-child(even) > p {
+    margin: 1em 0;
+  }
+}
+@container size(min-width: 50ch) {
+  .post-header {
+    grid-template-areas: "icon title" "icon subtitle";
+    gap: 0.5rem;
+  }
+  .post-body {
+    grid-template-areas: "meta meta" ". content";
+    grid-auto-columns: 3rem 1fr;
+  }
+}
+.list-item {
+  container-type: inline-size;
+  padding: 5px;
+}
+@container (min-width: 300px) {
+  .list-item .item-content {
+    display: flex;
+    justify-content: space-between;
+  }
+}
+@container (width >= 400px) and (height >= 300px) {
+  .responsive-box {
+    padding: 1rem;
+  }
+}
+@container (width > 600px) not (height > 800px) {
+  .constrained-height {
+    max-height: 500px;
+  }
+}
+@container not (height <= 900px) {
+  .tall-only {
+    font-size: larger;
+  }
+}
+@container (width < 400px) or (height < 300px) {
+  .small-viewport {
+    padding: 0.5rem;
+  }
+}
+@container (width < 600px) or (height < 400px) and (inline-size >= 0px) {
+  .complex-1 p {
+    margin: 0;
+  }
+  .complex-1 p h3 {
+    font-size: 1em;
+  }
+}
+@container layout-box (width < 600px) or (height < 400px) and (block-size > 10em) {
+  .complex-2 p {
+    padding: 0.25rem;
+  }
+  .complex-2 p h3 {
+    margin: 0.25em 0;
+  }
+}
+@container my-card (inline-size > 25em) {
+  .card-inner {
+    gap: 1rem;
+  }
+}
+@container my-card (inline-size > 25em) and style(--compact: true) {
+  .card-inner .card-content {
+    padding: 0.5rem;
+  }
+}
+.wrapper-component {
+  container-name: my-wrapper;
+  container-type: size;
+}
+@container my-wrapper (width < 150) {
+  .link {
+    max-width: 150;
+  }
+}
+@container my-wrapper (width < 250) {
+  .link {
+    max-width: 250;
+  }
+}
+@media screen and (min-width: 1024px) {
+  @container (min-width: 400px) {
+    .nested-content {
+      font-size: 1.25rem;
+    }
+  }
+}
+.sticky-element {
+  position: sticky;
+  container-type: scroll-state;
+}
+@container scroll-state(stuck: bottom) {
+  .sticky-child {
+    opacity: 0.9;
+  }
+}
+@container scroll-state(snapped: y) {
+  .snap-child {
+    transform: scale(1.05);
+  }
+}

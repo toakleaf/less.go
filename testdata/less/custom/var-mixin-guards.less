@@ -1,0 +1,144 @@
+// Variations of mixin guards
+// Tests mixin guards in different contexts
+
+// Basic guard with comparison
+.size(@value) when (@value > 100) {
+  size: large;
+  padding: 20px;
+}
+
+.size(@value) when (@value <= 100) and (@value > 50) {
+  size: medium;
+  padding: 15px;
+}
+
+.size(@value) when (@value <= 50) {
+  size: small;
+  padding: 10px;
+}
+
+.box-large {
+  .size(150);
+}
+
+.box-medium {
+  .size(75);
+}
+
+.box-small {
+  .size(25);
+}
+
+// Guard with type checking
+.process(@value) when (isnumber(@value)) {
+  type: number;
+  value: @value;
+}
+
+.process(@value) when (iscolor(@value)) {
+  type: color;
+  background: @value;
+}
+
+.process(@value) when (isstring(@value)) {
+  type: string;
+  content: @value;
+}
+
+.test-number {
+  .process(42);
+}
+
+.test-color {
+  .process(#ff0000);
+}
+
+.test-string {
+  .process("hello");
+}
+
+// Guard with not operator
+.visible(@show) when (not (@show = false)) {
+  display: block;
+}
+
+.visible(@show) when (@show = false) {
+  display: none;
+}
+
+.shown {
+  .visible(true);
+}
+
+.hidden {
+  .visible(false);
+}
+
+// Guard with default function
+.themed(@color) when (iscolor(@color)) {
+  background: @color;
+}
+
+.themed(@color) when (default()) {
+  background: gray;
+}
+
+.themed-red {
+  .themed(red);
+}
+
+.themed-default {
+  .themed(invalid);
+}
+
+// Guard with or conditions
+.responsive(@width) when (@width < 576px), (@width = 0) {
+  layout: mobile;
+}
+
+.responsive(@width) when (@width >= 576px) and (@width < 992px) {
+  layout: tablet;
+}
+
+.responsive(@width) when (@width >= 992px) {
+  layout: desktop;
+}
+
+.mobile-view {
+  .responsive(400px);
+}
+
+.tablet-view {
+  .responsive(768px);
+}
+
+.desktop-view {
+  .responsive(1200px);
+}
+
+// Guard with unit checking
+.spacing(@value) when (unit(@value) = px) {
+  margin: @value;
+}
+
+.spacing(@value) when (unit(@value) = em) {
+  margin: @value;
+  line-height: @value;
+}
+
+.spacing(@value) when (unit(@value) = %) {
+  margin: 0;
+  width: @value;
+}
+
+.pixel-spacing {
+  .spacing(20px);
+}
+
+.em-spacing {
+  .spacing(1.5em);
+}
+
+.percent-spacing {
+  .spacing(50%);
+}

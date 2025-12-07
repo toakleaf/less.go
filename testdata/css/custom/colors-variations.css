@@ -1,0 +1,99 @@
+#red-tests #short {
+  color: #f00;
+}
+#red-tests #long {
+  color: #ff0000;
+}
+#red-tests #rgba {
+  color: rgba(255, 0, 0, 0.5);
+}
+#red-tests #argb {
+  color: #80ff0000;
+}
+#green-tests #short {
+  color: #0f0;
+}
+#green-tests #long {
+  color: #00ff00;
+}
+#green-tests #rgba {
+  color: rgba(0, 255, 0, 0.3);
+}
+#green-tests #argb {
+  color: #4d00ff00;
+}
+#color-overflow .sub {
+  color: #000000;
+}
+#color-overflow .add {
+  color: #ffffff;
+}
+#color-overflow .mult {
+  color: #ffffff;
+}
+#color-overflow .combined {
+  color: #00ff00;
+}
+#color-overflow .negative-clamp {
+  color: rgba(0, 255, 128, 0.8);
+}
+#hsl-tests .angle-deg {
+  color: hsl(45, 50%, 75%);
+}
+#hsl-tests .angle-deg-2 {
+  color: hsl(180, 100%, 25%);
+}
+#hsl-tests .with-alpha {
+  color: hsla(270, 60%, 40%, 0.7);
+}
+.color-functions .lighten-red {
+  color: #ff4d4d;
+}
+.color-functions .darken-green {
+  color: #003400;
+}
+.color-functions .lighten-custom {
+  color: #9966cc;
+}
+.color-functions .darken-custom {
+  color: #cc5200;
+}
+#alpha-tests #from-var {
+  opacity: 0.45;
+}
+#alpha-tests #short {
+  opacity: 1;
+}
+#alpha-tests #long {
+  opacity: 1;
+}
+#alpha-tests #rgba {
+  opacity: 0.6;
+}
+#alpha-tests #hsl {
+  opacity: 1;
+}
+#percentage-colors {
+  color: 127.5;
+  border-color: rgba(128, 128, 128, 0.75);
+}
+#hex8-tests {
+  test-1: #88FF8877;
+  test-2: #8F87;
+  test-3: rgba(162, 255, 162, 0.46666667);
+  test-4: rgba(136, 255, 136, 0.2);
+  test-5: rgba(136, 255, 136, 0.46666667);
+  test-6: rgba(136, 255, 136, 0.46666667);
+  test-7: rgba(136, 255, 136, 0.75);
+  test-8: rgba(var(--accent-color), 0.5);
+  --custom-alpha-color: #002200dd;
+}
+#grey-variations {
+  light: #dcdcdc;
+  medium: #808080;
+  dark: #323232;
+}
+.alpha-zero {
+  color: transparent;
+  background: rgba(128, 128, 128, 0);
+}

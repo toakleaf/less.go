@@ -1,0 +1,31 @@
+.escape\&special\&chars {
+  color: blue;
+}
+.mixin\@test {
+  font-style: italic;
+}
+.\35 00 {
+  background: blue;
+}
+.\35 00 em {
+  color: lime;
+  font-style: italic;
+}
+.trailingChar\* {
+  color: green;
+}
+\70\61\72 \61 \67 \0072 \000061p\68 {
+  color: gold;
+}
+[ng\:model],
+ng\:bind {
+  visibility: visible;
+}
+.ie-hack {
+  background-color: #fff \9;
+  color: #000 \9;
+}
+code {
+  font-family: 'source code pro', 'consolas', \5B8B\4F53, monospace;
+}
+something escaped

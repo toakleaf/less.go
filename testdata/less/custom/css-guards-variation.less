@@ -1,0 +1,116 @@
+// Variation of css-guards test - testing different guard conditions and values
+
+// Test with different lightness threshold
+.bright when (lightness(@primary) > 70%) {
+  background: white;
+}
+.dim when (lightness(@primary) <= 70%) {
+  background: black;
+}
+@primary: #aaccff;
+
+// Test with nested guards on different elements
+.card {
+  @primary: #333;
+  .bright();
+  .dim();
+}
+
+.banner {
+  .bright();
+  .dim();
+}
+
+// Multiple OR conditions with different operators
+.passes-or when (@x > 5), (@y < 10), (@z = 15) {
+  status: pass;
+}
+
+.fails-or when (@x > 50), (@y < 1), (@z = 100) {
+  status: fail;
+}
+
+@x: 3;
+@y: 20;
+@z: 15;
+
+// Guard inheritance with nested structures
+.parent-guard when (@flag = true) {
+  .inner-rule {
+    visible: yes;
+  }
+  &.modifier {
+    visible: also-yes;
+  }
+  .hidden-inner when (@flag = false) {
+    should: not-appear;
+  }
+  & when (@flag = false) {
+    shouldnt: appear;
+  }
+}
+
+.hidden-parent when (@flag = false) {
+  .some-rule {
+    never: shown;
+  }
+}
+
+@flag: true;
+
+// Root level guard
+& when (@flag = true) {
+  .root-level-visible {
+    shown: true;
+  }
+}
+
+// Mixin with guard parameter
+.conditional-style(@width) {
+  .show-when-small when (@width < 100px) {
+    display: block;
+  }
+  .hide-when-small when (@width >= 100px) {
+    display: none;
+  }
+}
+
+.conditional-style(50px);
+.conditional-style(200px);
+
+// Combined property guards within same selector
+.combined-guards {
+  base-width: 100px;
+  & when (@x < 10) {
+    small-x: true;
+  }
+  & when (@y > 15) {
+    large-y: true;
+  }
+  * & when (@z = 15) {
+    sibling-match: true;
+  }
+}
+
+// Scope check with different nesting
+.scope-test when (@z = 15) {
+  @local: 5px;
+  & when (@z = 15) {
+    @local: 10px;
+    inner-value: @local;
+  }
+  outer-value: @local;
+}
+
+.scope-test-caller {
+  .scope-test();
+  @local: 20px;
+}
+
+// Guard with expression that would error if called
+.never-called when (@flag = false) {
+  .undefined-mixin();
+}
+
+// Guard with boolean comparison
+invalid:pseudo when (5 = true) {wrong:-}

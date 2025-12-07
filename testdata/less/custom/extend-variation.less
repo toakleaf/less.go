@@ -1,0 +1,121 @@
+// Extend variation tests - testing extend functionality with different patterns
+
+// Basic extend with nested selectors
+.base-alert {
+  padding: 10px;
+  margin: 5px;
+}
+.base-alert.warning {
+  color: orange;
+}
+.base-alert .icon {
+  display: inline-block;
+}
+.custom-alert {
+  &:extend(.base-alert all);
+  border: 1px solid;
+}
+
+// Extend with attribute selectors
+a[href] {
+  text-decoration: underline;
+}
+a[href].external {
+  color: blue;
+}
+.link-styled {
+  &:extend(a[href] all);
+}
+
+// Extend with pseudo-classes
+button:hover {
+  opacity: 0.8;
+}
+button:hover:focus {
+  outline: 2px solid blue;
+}
+.btn-hover-effect {
+  &:extend(button:hover all);
+}
+
+// Multiple extends on same selector
+.shadow {
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.rounded {
+  border-radius: 4px;
+}
+.card {
+  &:extend(.shadow);
+  &:extend(.rounded);
+  padding: 20px;
+}
+
+// Extend with nth-child selectors
+li:nth-child(odd) {
+  background: #f5f5f5;
+}
+li:nth-child(even) {
+  background: #fff;
+}
+.striped-item {
+  &:extend(li:nth-child(odd));
+}
+
+// Extend with combinators
+.parent > .child {
+  display: flex;
+}
+.parent + .sibling {
+  margin-top: 10px;
+}
+.parent ~ .any-sibling {
+  opacity: 0.5;
+}
+.flex-container {
+  &:extend(.parent > .child);
+}
+.spaced-sibling {
+  &:extend(.parent + .sibling);
+}
+
+// Extend in media query context
+.responsive {
+  width: 100%;
+}
+@media (min-width: 768px) {
+  .responsive {
+    width: 50%;
+  }
+}
+.tablet-layout {
+  &:extend(.responsive);
+}
+
+// Extend with interpolated selector targets
+@prefix: btn;
+.@{prefix}-primary {
+  background: blue;
+  color: white;
+}
+.@{prefix}-primary:hover {
+  background: darkblue;
+}
+.main-button:extend(.btn-primary all) {
+  padding: 10px 20px;
+}
+
+// Extend matching multiple selectors
+.foo, .bar {
+  font-weight: bold;
+}
+.baz:extend(.foo, .bar) {}
+
+// Extend with comma-separated base
+.alpha {
+  color: red;
+}
+.beta {
+  color: blue;
+}
+.gamma:extend(.alpha, .beta) {}

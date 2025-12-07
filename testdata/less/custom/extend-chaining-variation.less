@@ -1,0 +1,89 @@
+// Variation of extend-chaining test - testing different chaining scenarios
+
+// Simple chaining - forward order
+.base1 {
+  font-size: 14px;
+}
+.level2:extend(.base1) {}
+.level3:extend(.level2) {}
+
+// Simple chaining - reverse order declaration
+.back3:extend(.back2) {}
+.back2:extend(.back1) {}
+.back1 {
+  font-weight: bold;
+}
+
+// Extend with all keyword
+.compound.selector {
+  text-decoration: underline;
+}
+.extend-compound.extra:extend(.compound all) {
+  text-transform: uppercase;
+}
+.chain-compound:extend(.extend-compound all) {}
+
+// Deep chain (8 levels)
+.chain-a {
+  opacity: 1;
+}
+.chain-b:extend(.chain-a){}
+.chain-c:extend(.chain-b){}
+.chain-d:extend(.chain-c){}
+.chain-e:extend(.chain-d){}
+.chain-f:extend(.chain-e){}
+.chain-g:extend(.chain-f){}
+.chain-h:extend(.chain-g){}
+
+// Self-referencing (should be ignored gracefully)
+.self-ref {
+  position: relative;
+}
+.ref.self-ref.ref:extend(.self-ref all){}
+
+// Circular reference - extend product matches existing extend
+.circular:extend(.circular) {
+  z-index: 1;
+}
+.ref.circular.ref:extend(.circular all){}
+
+// Classic triangle circular
+.tri-x:extend(.tri-z) {
+  color: red;
+}
+.tri-y:extend(.tri-x) {
+  color: green;
+}
+.tri-z:extend(.tri-y) {
+  color: blue;
+}
+
+// Chaining with extend inside ruleset
+.ruleset-a {
+  border: 1px solid;
+}
+.ruleset-b {
+  &:extend(.ruleset-a);
+  border-color: black;
+}
+.ruleset-c {
+  &:extend(.ruleset-b);
+}
+
+// Media query boundary - extend should not cross
+@media (screen) {
+  .media-target:extend(.base1,.level2,.level3,.back1,.back2,.back3,.chain-a,.chain-b,.chain-c,.chain-d,.chain-e,.media-internal) {
+    display: block;
+  }
+  .media-internal {
+    display: inline;
+  }
+  @media (color) {
+    .nested-media, .another-nested {
+      &:extend(.media-target,.media-internal);
+      background: red;
+    }
+  }
+}
+.outside-media:extend(.media-target) {};
+.also-outside:extend(.outside-media) {};

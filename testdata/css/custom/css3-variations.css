@@ -1,0 +1,136 @@
+.shadow-variations {
+  text-shadow: 1px 1px 2px blue, -1px -1px 2px green;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.3) inset, 0 2px 4px rgba(0, 0, 0, 0.2);
+  -webkit-transform: rotate(15deg);
+}
+@font-face {
+  font-family: CustomFont;
+  unicode-range: U+0100-024F, U+1E00-1EFF, U+0-FF;
+}
+.transforms {
+  -moz-transform: translate(10px, 5em) rotate(45deg);
+  transform: rotateY(30deg);
+  transform: scale(1.5) skewX(10deg);
+}
+.attribute-selectors .item[data-custom_attr-123=value] {
+  font-style: italic;
+}
+p:not([class*="special"]) {
+  font-weight: normal;
+}
+input[type="email"].form-control#email-field[required]:not(2) {
+  border: 1px solid blue;
+}
+div#wrapper.container[x=1][y=2].box:not(3) {
+  display: block;
+}
+ul.list > li:not(:first-child)::before {
+  content: "- ";
+}
+ol.numbered > li:nth-last-child(3)::after {
+  content: " (third from end)";
+}
+li:nth-child(3n+2),
+li:nth-child(-4n),
+li:nth-child(-n+3) {
+  background: #f0f0f0;
+}
+a[href^="https://"] {
+  color: green;
+}
+a[href$=".pdf"] {
+  color: red;
+}
+form[data-validated] {
+  border-color: green;
+}
+p::after {
+  content: ".";
+}
+#animation-test {
+  -webkit-animation: fadeIn 2s ease-out infinite;
+}
+@-webkit-keyframes fadeIn {
+  0% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes slideIn {
+  to {
+    transform: translateX(0);
+  }
+  from,
+  to {
+    opacity: 1;
+  }
+  0%,
+  100% {
+    visibility: visible;
+  }
+}
+@supports (display: flex) or (-webkit-display: flex) {
+  .flex-container {
+    display: flex;
+    -webkit-display: flex;
+  }
+}
+@viewport {
+  width: device-width;
+}
+@namespace bar url(http://www.example.org);
+bar|div {
+  color: purple;
+}
+bar|* {
+  font-family: sans-serif;
+}
+*|span {
+  color: inherit;
+}
+.case-test {
+  CamelCaseProperty: supported;
+}
+@host {
+  section {
+    padding: 1rem;
+  }
+}
+::slotted(input::placeholder) {
+  color: #999;
+}
+.parent > .child,
+body > .parent {
+  visibility: visible;
+}
+:host(.active .item),
+:host-context(.dark .theme),
+.theme > .item,
+::content .slot {
+  display: inline-block;
+}
+* span {
+  display: inline;
+}
+* span[hidden] {
+  display: none;
+}
+#background-shorthand {
+  background: url('/img/logo.png') center / cover;
+}
+@counter-style square-bullet {
+  system: cyclic;
+  symbols: ■;
+  suffix: " ";
+}
+@unknown directive 99 (test) {
+  a {
+    b: c;
+  }
+}
+@unknown single 100;

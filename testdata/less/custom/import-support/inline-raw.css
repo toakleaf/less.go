@@ -1,0 +1,6 @@
+/* This is raw CSS for inline import testing */
+.inline-raw-style {
+  display: flex !important;
+  /* Some IE-specific hack: */
+  *zoom: 1;
+}

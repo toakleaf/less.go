@@ -1,0 +1,78 @@
+// Variations of import.less
+// Tests @import in different contexts
+
+// Basic import
+@import "import/colors.less";
+@import "import/mixins.less";
+
+// Using imported variables and mixins
+.button {
+  background-color: @primary-color;
+  color: white;
+  .border-radius(6px);
+  .box-shadow(0 2px 4px rgba(0,0,0,0.1));
+}
+
+// Import base and extend
+@import "import/base.less";
+
+.container {
+  .base-container;
+  background-color: @background-color;
+}
+
+// Using imported mixin with guard
+.heading {
+  .text-size(24px);
+  color: @text-color;
+}
+
+.caption {
+  .text-size(12px);
+  color: @secondary-color;
+}
+
+// Nested import usage
+.card {
+  .border-radius(8px);
+  padding: 16px;
+
+  .title {
+    color: @accent-color;
+    .text-size(20px);
+  }
+
+  .actions {
+    .flex-center();
+    margin-top: 12px;
+  }
+}
+
+// Import reference - styles should not appear unless used
+@import (reference) "import/reference-only.less";
+
+// Use mixin from reference import
+.transition-element {
+  .ref-mixin();
+  opacity: 1;
+}
+
+// Extend from reference import
+.my-card:extend(.ref-extend-base) {
+  background: @background-color;
+}
+
+// Clearfix usage
+.float-container {
+  .clearfix();
+
+  .left {
+    float: left;
+    width: 50%;
+  }
+
+  .right {
+    float: right;
+    width: 50%;
+  }
+}

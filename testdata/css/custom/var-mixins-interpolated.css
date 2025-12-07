@@ -1,0 +1,64 @@
+.btn-primary {
+  background: blue;
+  color: white;
+}
+.use-interpolated-mixin {
+  background: blue;
+  color: white;
+}
+.card {
+  padding: 1rem;
+}
+.card .card-header {
+  font-weight: bold;
+}
+.card .card-body {
+  margin-top: 0.5rem;
+}
+.card-usage {
+  padding: 1rem;
+  font-weight: bold;
+}
+.card-usage .card-header {
+  font-weight: bold;
+}
+.card-usage .card-body {
+  margin-top: 0.5rem;
+}
+.error-404 {
+  status-code: 404;
+  message: "Not Found";
+}
+.show-error {
+  status-code: 404;
+  message: "Not Found";
+}
+.special-class {
+  special: true;
+}
+.use-escaped {
+  special: true;
+}
+.dynamic-ns {
+  display: block;
+  overflow: hidden;
+}
+.nav-bar {
+  display: flex;
+}
+.nav-bar .item {
+  padding: 0.5rem;
+}
+.use-chained {
+  display: flex;
+  padding: 0.5rem;
+}
+.use-chained .item {
+  padding: 0.5rem;
+}
+.create-states .button.active {
+  opacity: 1;
+}
+.create-states .button:not(.active) {
+  opacity: 0.5;
+}

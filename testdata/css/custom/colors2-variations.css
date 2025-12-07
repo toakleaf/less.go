@@ -1,0 +1,31 @@
+.modern-rgb {
+  color: #8040c0;
+  color: #ff8000;
+  color: #00c864;
+}
+.modern-rgb-alpha {
+  color: rgba(128, 64, 192, 0.25);
+  color: rgba(255, 128, 0, 0.75);
+  color: rgba(0, 200, 100, 0.5);
+}
+.modern-hsl {
+  color: hsl(120, 50%, 60%);
+  color: hsl(240, 75%, 40%);
+  color: hsl(30, 100%, 50%);
+}
+.modern-hsl-alpha {
+  color: hsla(120, 50%, 60%, 0.25);
+  color: hsla(240, 75%, 40%, 0.75);
+  color: hsla(30, 100%, 50%, 0.5);
+}
+.mixed-formats {
+  background: #646464;
+  color: #c8c8c8;
+  border-color: hsl(0, 0%, 50%);
+  outline-color: hsl(180, 50%, 50%);
+}
+.edge-cases {
+  color: #000000;
+  color: rgba(0, 0, 0, 0);
+  color: #ffffff;
+}

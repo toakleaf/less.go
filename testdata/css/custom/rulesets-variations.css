@@ -1,0 +1,134 @@
+.container {
+  width: 100%;
+}
+.container .header {
+  height: 60px;
+}
+.container .content {
+  padding: 20px;
+}
+.container .footer {
+  margin-top: auto;
+}
+.component {
+  display: block;
+}
+.component__element {
+  position: relative;
+}
+.component__element--modifier {
+  color: red;
+}
+.component__element--modifier:hover {
+  color: blue;
+}
+.card,
+.panel {
+  border: 1px solid #ccc;
+}
+.card .title,
+.panel .title,
+.card .heading,
+.panel .heading {
+  font-weight: bold;
+}
+.card .title span,
+.panel .title span,
+.card .heading span,
+.panel .heading span,
+.card .title em,
+.panel .title em,
+.card .heading em,
+.panel .heading em {
+  font-style: normal;
+}
+.nav > li {
+  display: inline-block;
+}
+.nav > li + li {
+  margin-left: 10px;
+}
+.nav > li ~ li {
+  color: gray;
+}
+.nav > li > a {
+  text-decoration: none;
+}
+.nav > li > a:hover {
+  text-decoration: underline;
+}
+#app > .main > .sidebar + .content .article:first-child {
+  margin-top: 0;
+}
+#app > .main > .sidebar + .content .article:first-child .title {
+  font-size: 24px;
+}
+#app > .main > .sidebar + .content .article:last-child {
+  margin-bottom: 0;
+}
+.responsive-component {
+  width: 100%;
+}
+@media (min-width: 768px) {
+  .responsive-component {
+    width: 50%;
+  }
+  .responsive-component .inner {
+    padding: 20px;
+  }
+}
+@media (min-width: 1024px) {
+  .responsive-component {
+    width: 33.333%;
+  }
+}
+.btn {
+  padding: 10px;
+}
+.btn-primary {
+  background: blue;
+}
+.theme-dark .btn {
+  color: white;
+}
+.btn + .btn {
+  margin-left: 5px;
+}
+.form .btn:disabled {
+  opacity: 0.5;
+}
+.form-control [type="text"],
+.form-control [type="email"],
+.form-control [type="password"] {
+  border: 1px solid #ccc;
+}
+.form-control [type="text"]:focus,
+.form-control [type="email"]:focus,
+.form-control [type="password"]:focus {
+  border-color: blue;
+}
+.form-control [type="text"]:focus + .label,
+.form-control [type="email"]:focus + .label,
+.form-control [type="password"]:focus + .label {
+  color: blue;
+}
+.icon {
+  position: relative;
+}
+.icon::before {
+  content: "";
+  position: absolute;
+}
+.icon::after {
+  content: "";
+  display: block;
+}
+.icon:hover::before {
+  opacity: 1;
+}
+#page .section #sidebar .widget {
+  padding: 10px;
+}
+#page .section #sidebar .widget .widget-title {
+  border-bottom: 1px solid;
+}

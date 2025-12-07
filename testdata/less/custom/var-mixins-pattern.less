@@ -1,0 +1,88 @@
+// Variation of mixins-pattern.less
+// Tests pattern matching in mixins with different patterns
+
+// Test 1: Keyword pattern matching
+.align(left) { text-align: left; margin-right: auto; }
+.align(right) { text-align: right; margin-left: auto; }
+.align(center) { text-align: center; margin: 0 auto; }
+.align(@other) { text-align: @other; }
+
+.align-test {
+    &-left { .align(left); }
+    &-right { .align(right); }
+    &-center { .align(center); }
+    &-justify { .align(justify); }
+}
+
+// Test 2: Numeric pattern matching
+.grid(1) { flex: 0 0 100%; }
+.grid(2) { flex: 0 0 50%; }
+.grid(3) { flex: 0 0 33.333%; }
+.grid(4) { flex: 0 0 25%; }
+.grid(@n) when (isnumber(@n)) { flex: 0 0 (100% / @n); }
+
+.grid-test {
+    &-1 { .grid(1); }
+    &-2 { .grid(2); }
+    &-3 { .grid(3); }
+    &-6 { .grid(6); }
+}
+
+// Test 3: Variadic patterns
+.shadow(...) { box-shadow: @arguments; }
+.shadow(@x, @y) { box-shadow: @x @y 0 black; }
+.shadow(@x, @y, @blur) { box-shadow: @x @y @blur black; }
+.shadow(@x, @y, @blur, @color) { box-shadow: @x @y @blur @color; }
+
+.shadow-test {
+    &-two { .shadow(2px, 2px); }
+    &-three { .shadow(3px, 3px, 5px); }
+    &-four { .shadow(4px, 4px, 10px, rgba(0,0,0,0.5)); }
+    &-many { .shadow(0 0 5px red, 0 0 10px blue); }
+}
+
+// Test 4: Mixed pattern with defaults
+.button(@type: default, @size: medium) {
+    display: inline-block;
+}
+.button(primary, @size) {
+    background: blue;
+    .button-size(@size);
+}
+.button(danger, @size) {
+    background: red;
+    .button-size(@size);
+}
+.button-size(small) { padding: 0.25rem 0.5rem; }
+.button-size(medium) { padding: 0.5rem 1rem; }
+.button-size(large) { padding: 0.75rem 1.5rem; }
+.button-size(@other) { padding: @other; }
+
+.button-test {
+    &-default { .button(); }
+    &-primary-medium { .button(primary); }
+    &-primary-large { .button(primary, large); }
+    &-danger-small { .button(danger, small); }
+}
+
+// Test 5: Pattern with rest arguments
+.transition(@props...) { transition: @props; }
+.transition(@prop, @duration) { transition: @prop @duration ease; }
+.transition(@prop, @duration, @timing) { transition: @prop @duration @timing; }
+
+.transition-test {
+    &-two { .transition(opacity, 0.3s); }
+    &-three { .transition(transform, 0.5s, linear); }
+    &-multi { .transition(opacity 0.3s, transform 0.5s); }
+}
+
+// Test 6: Empty match
+.empty-match() { matched-empty: true; }
+.empty-match(@a) { matched-one: @a; }
+.empty-match(@a, @b) { matched-two: @a @b; }
+
+.empty-test {
+    &-none { .empty-match(); }
+    &-one { .empty-match(first); }
+    &-two { .empty-match(first, second); }
+}

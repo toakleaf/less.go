@@ -1,0 +1,65 @@
+.sizes {
+  base: 16px;
+  large: 24px;
+  double: 32px;
+}
+.final-color {
+  color: green;
+}
+.indirect {
+  color: navy;
+}
+.important-test {
+  margin: 10px !important;
+}
+.calculated {
+  width: 100px;
+  padding: 10px;
+  content-width: 80px;
+}
+.typography {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+.color-ops {
+  primary: #3498db;
+  dark: #196090;
+  light: #8bc4ea;
+}
+.bordered {
+  border: 1px solid black;
+}
+.header {
+  display: block;
+}
+.header-title {
+  font-size: 24px;
+}
+.units-test {
+  px-val: 96px;
+  cm-val: 2.54cm;
+  mm-val: 25.4mm;
+}
+.percentages {
+  total: 100%;
+  half: 50%;
+  third: 33.33333333%;
+}
+.outer-scope .inner-scope {
+  outer: outer-value;
+  inner: inner-value;
+}
+.dynamic-prop {
+  margin: 10px;
+  margin-top: 20px;
+}
+.using-default {
+  font-size: 14px;
+}
+.overriding-default {
+  font-size: 18px;
+}
+.color-chain {
+  primary: blue;
+  secondary: blue;
+  tertiary: blue;
+}

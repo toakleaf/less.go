@@ -1,0 +1,86 @@
+// Variations of javascript.less
+// Tests inline JavaScript evaluation in different contexts
+
+// Basic JavaScript evaluation
+.js-basic {
+  answer: `42`;
+  math: `2 + 2`;
+  string: `"hello"`;
+  boolean: `true`;
+}
+
+// JavaScript with expressions
+.js-expressions {
+  calc: `(10 * 5) / 2`;
+  ternary: `(true ? "yes" : "no")`;
+  concat: `"hello" + "-" + "world"`;
+}
+
+// JavaScript accessing Less variables
+.js-variables {
+  @base: 100;
+  computed: `parseInt(this.base.toJS()) * 2`;
+
+  @color: #ff0000;
+  color-type: `typeof this.color`;
+}
+
+// JavaScript with escaped output
+.js-escaped {
+  value: ~`"10" + "px"`;
+  another: ~`5 * 4 + "em"`;
+}
+
+// JavaScript in mixin parameters
+.js-mixin(@count) {
+  items: `parseInt(@{count}) + " items"`;
+}
+
+.js-mixin-call {
+  .js-mixin(5);
+}
+
+// Multiline JavaScript
+.js-multiline {
+  complex: `(function() {
+    var x = 10;
+    var y = 20;
+    return x + y;
+  })()`;
+}
+
+// JavaScript with array operations
+.js-arrays {
+  @items: "a, b, c";
+  joined: `@{items}.split(', ').join('-')`;
+  length: `@{items}.split(', ').length`;
+}
+
+// JavaScript with string manipulation
+.js-strings {
+  @text: ~"Hello World";
+  lower: `"@{text}".toLowerCase()`;
+  upper: `"@{text}".toUpperCase()`;
+  length: `"@{text}".length`;
+}
+
+// JavaScript date/time (simplified)
+.js-datetime {
+  year: `new Date().getFullYear()`;
+}
+
+// JavaScript Math functions
+.js-math {
+  rounded: `Math.round(3.7)`;
+  floored: `Math.floor(3.7)`;
+  ceiled: `Math.ceil(3.2)`;
+  maxval: `Math.max(5, 10, 3)`;
+  minval: `Math.min(5, 10, 3)`;
+}
+
+// JavaScript with variable interpolation
+.js-interpolation {
+  @prefix: ~"btn";
+  @suffix: ~"primary";
+  classname: `"@{prefix}" + "-" + "@{suffix}"`;
+}

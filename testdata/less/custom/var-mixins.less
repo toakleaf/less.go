@@ -1,0 +1,118 @@
+// Variation of mixins.less
+// Tests general mixin functionality with different patterns
+
+// Test 1: Basic mixin with selector matching
+.shared-style {
+    font-family: sans-serif;
+    line-height: 1.6;
+}
+
+.use-shared {
+    .shared-style();
+    color: black;
+}
+
+// Test 2: Mixin in namespace
+#utilities {
+    .clearfix() {
+        &::after {
+            content: "";
+            display: table;
+            clear: both;
+        }
+    }
+    .visually-hidden() {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+    }
+}
+
+.layout-container {
+    #utilities > .clearfix();
+}
+
+.sr-only {
+    #utilities > .visually-hidden();
+}
+
+// Test 3: Mixin with parent selector
+.hoverable() {
+    cursor: pointer;
+    &:hover {
+        opacity: 0.8;
+    }
+    &:active {
+        transform: scale(0.98);
+    }
+}
+
+.clickable-item {
+    .hoverable();
+}
+
+// Test 4: Combined selectors becoming mixins
+.a, .b {
+    shared-ab: true;
+}
+.a {
+    only-a: true;
+}
+.b {
+    only-b: true;
+}
+
+.combined-test {
+    .a();
+    .b();
+}
+
+// Test 5: Mixin defined inside nested ruleset
+.parent-with-mixin {
+    .child-mixin() {
+        child-style: applied;
+    }
+    .nested {
+        .child-mixin();
+    }
+}
+
+.external-caller {
+    .parent-with-mixin > .child-mixin();
+}
+
+// Test 6: Recursive mixin call prevention
+.recursive-safe() {
+    recursive: defined;
+}
+
+.recursive-container {
+    .recursive-safe {
+        .recursive-safe();
+    }
+}
+
+// Test 7: Mixin with complex selectors (child combinator)
+.parent-element {
+    > .child-element {
+        nested: true;
+    }
+}
+
+.complex-selector-test {
+    .parent-element();
+}
+
+// Test 8: Parametric mixin with complex math
+.calculate(@base, @factor: 1.5) {
+    width: (@base * @factor);
+    height: (@base / @factor);
+    area: (@base * @factor) * (@base / @factor);
+}
+
+.calc-test {
+    .calculate(100px);
+    .calculate(200px, 2);
+}

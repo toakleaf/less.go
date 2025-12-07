@@ -1,0 +1,74 @@
+.unit-tests-px-gt {
+  comparison: greater;
+}
+.unit-tests-px-lt {
+  comparison: lesser;
+}
+.unit-tests-em-eq {
+  comparison: equal;
+}
+.unit-tests-mixed {
+  comparison: greater;
+}
+.bool-tests-ttt {
+  ab: true;
+  bc: true;
+  ac: true;
+  any: true;
+}
+.bool-tests-tff {
+  any: true;
+}
+.bool-tests-ftf {
+  any: true;
+}
+.bool-tests-fft {
+  any: true;
+}
+.str-tests-active {
+  state: activated;
+  base: applied;
+}
+.str-tests-disabled {
+  state: deactivated;
+  base: applied;
+}
+.str-tests-other {
+  base: applied;
+}
+.unit-type-tests-px {
+  unit-type: pixels;
+  value: 10px;
+}
+.unit-type-tests-em {
+  unit-type: ems;
+  value: 2em;
+}
+.unit-type-tests-pct {
+  unit-type: percent;
+  value: 50%;
+}
+.unit-type-tests-rem {
+  value: 1rem;
+}
+.ns-guard-test-pos {
+  positive: 5;
+}
+.ns-guard-test-neg {
+  negative: -3;
+}
+.ns-guard-test-zero {
+  zero: true;
+}
+.dim-tests-px {
+  is-pixel: true;
+  dim-value: 15px;
+}
+.dim-tests-em {
+  is-em: true;
+  dim-value: 1.5em;
+}
+.dim-tests-pct {
+  is-percent: true;
+  dim-value: 75%;
+}

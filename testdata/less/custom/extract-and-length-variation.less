@@ -1,0 +1,114 @@
+// Extract and length variation tests
+
+// Lists with different separators and types
+.different-separators {
+  @space-list: foo bar baz qux;
+  @comma-list: 10px, 20px, 30px, 40px;
+
+  space-length: length(@space-list);
+  comma-length: length(@comma-list);
+
+  space-first: extract(@space-list, 1);
+  space-last: extract(@space-list, 4);
+  comma-second: extract(@comma-list, 2);
+  comma-third: extract(@comma-list, 3);
+}
+
+// Extract with expressions
+.extract-expressions {
+  @values: 5 10 15 20;
+  @index: 2;
+
+  static-extract: extract(@values, 3);
+  dynamic-extract: extract(@values, @index);
+  computed-index: extract(@values, (1 + 1));
+}
+
+// Nested list extraction (simplified - parenthesized lists have parse issues)
+.nested-lists {
+  @inner1: a b c;
+  @inner2: 1 2 3;
+  @inner3: x y z;
+  @outer: @inner1, @inner2, @inner3;
+
+  outer-length: length(@outer);
+  first-inner: extract(@outer, 1);
+  second-inner: extract(@outer, 2);
+  inner-length: length(extract(@outer, 2));
+  deep-extract: extract(extract(@outer, 2), 2);
+}
+
+// Mixed type lists
+.mixed-types {
+  @mixed: hello 42px #ff0000 "string value" 50%;
+
+  list-length: length(@mixed);
+  keyword-item: extract(@mixed, 1);
+  dimension-item: extract(@mixed, 2);
+  color-item: extract(@mixed, 3);
+  string-item: extract(@mixed, 4);
+  percentage-item: extract(@mixed, 5);
+}
+
+// Empty and single item lists
+.edge-cases {
+  @single: only-one;
+  @empty-escaped: ~'';
+
+  single-length: length(@single);
+  single-extract: extract(@single, 1);
+  empty-length: length(@empty-escaped);
+  empty-extract: extract(@empty-escaped, 1);
+}
+
+// Length in calculations
+.calc-with-length {
+  @items: a b c d e;
+  @padding-values: 5px 10px 15px 20px;
+
+  item-count: length(@items);
+  calculated-width: (100% / length(@items));
+  total-padding: (extract(@padding-values, 1) + extract(@padding-values, 4));
+}
+
+// Extract in mixin
+.extract-mixin(@list, @idx) {
+  extracted-value: extract(@list, @idx);
+  list-length: length(@list);
+}
+
+.mixin-usage {
+  @my-list: small medium large xlarge;
+  .extract-mixin(@my-list, 2);
+}
+
+// Using extract in loops
+.loop-extract {
+  @sizes: 12px 14px 16px 18px;
+
+  each(@sizes, {
+    size-@{index}: @value;
+    at-index: extract(@sizes, @index);
+  });
+}
+
+// Variadic arguments
+.variadic-mixin(@head, @rest...) {
+  first-arg: @head;
+  rest-length: length(@rest);
+  rest-items: @rest;
+  second-from-rest: extract(@rest, 1);
+}
+
+.variadic-usage {
+  .variadic-mixin(first, second, third, fourth);
+}
+
+// Extract with fallback behavior
+.extract-bounds {
+  @short-list: a b;
+
+  within-bounds: extract(@short-list, 2);
+  out-of-bounds: extract(@short-list, 5);
+  negative-index: extract(@short-list, -1);
+}

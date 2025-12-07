@@ -1,0 +1,21 @@
+@keyframes bounce {
+  /* animation name comment */
+}
+.gradient-comment {
+  background: linear-gradient(#666 /*{midpoint}*/, #222);
+}
+#selector1,
+.selector2,
+.selector3 {
+  padding: 20px;
+  computed: 28em;
+}
+.inline-comment-test {
+  x: yes /* preserved */;
+  y: blue /* also preserved */;
+  z: no /* in var */;
+  w: green /* in var 2 */;
+}
+.closing-brace-test {
+  color: red;
+}

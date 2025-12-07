@@ -1,0 +1,180 @@
+// Test variations for selector behavior
+// Tests & parent selector, interpolation, and combinators
+
+// Test 1: Multiple parent selector uses
+.button {
+  color: blue;
+
+  &:hover {
+    color: darkblue;
+  }
+
+  &:focus {
+    outline: 1px solid blue;
+  }
+
+  &.primary {
+    background: blue;
+  }
+
+  &.secondary {
+    background: gray;
+  }
+}
+
+// Test 2: Parent selector in different positions
+.wrapper {
+  color: black;
+
+  .child & {
+    color: red;
+  }
+
+  .sibling + & {
+    color: green;
+  }
+
+  .parent > & {
+    color: blue;
+  }
+}
+
+// Test 3: Nested parent selectors
+.outer {
+  .middle {
+    .inner {
+      & + & {
+        margin-left: 10px;
+      }
+      & > & {
+        padding: 5px;
+      }
+    }
+  }
+}
+
+// Test 4: Selector interpolation with variable
+@component: card;
+@modifier: large;
+
+.@{component} {
+  padding: 10px;
+
+  &--@{modifier} {
+    padding: 20px;
+  }
+
+  &__header {
+    font-weight: bold;
+  }
+
+  &__footer {
+    border-top: 1px solid gray;
+  }
+}
+
+// Test 5: Attribute selectors with interpolation
+@attr: data-state;
+@val: active;
+
+[@{attr}] {
+  display: block;
+}
+
+[@{attr}="@{val}"] {
+  color: green;
+}
+
+[@{attr}^="@{val}"] {
+  font-weight: bold;
+}
+
+// Test 6: Pseudo-selectors with nesting
+.list-item {
+  color: black;
+
+  &:first-child {
+    margin-top: 0;
+  }
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+
+  &:nth-child(odd) {
+    background: #f5f5f5;
+  }
+
+  &:nth-child(even) {
+    background: white;
+  }
+}
+
+// Test 7: Complex combinator nesting
+.nav {
+  > .nav-item {
+    display: inline-block;
+
+    + .nav-item {
+      margin-left: 5px;
+    }
+
+    ~ .nav-item {
+      color: gray;
+    }
+  }
+}
+
+// Test 8: Multiple selectors with shared nesting
+.alert, .notification {
+  padding: 10px;
+
+  &.success {
+    background: green;
+  }
+
+  &.error {
+    background: red;
+  }
+
+  & + & {
+    margin-top: 5px;
+  }
+}
+
+// Test 9: :is() and :where() selectors
+.container :is(h1, h2, h3) {
+  color: navy;
+}
+
+.container :where(p, span) {
+  font-size: 14px;
+}
+
+// Test 10: :not() with nesting
+.input {
+  border: 1px solid gray;
+
+  &:not(:disabled) {
+    background: white;
+  }
+
+  &:not(:focus):not(:hover) {
+    opacity: 0.8;
+  }
+}
+
+// Test 11: Parent selector at end
+.theme-dark {
+  .text& {
+    color: white;
+  }
+}
+
+// Test 12: Complex selector interpolation
+@prefix: my-app;
+@num: 2;
+
+.@{prefix}-component:nth-child(@{num}) {
+  order: @num;
+}

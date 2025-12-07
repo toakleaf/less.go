@@ -1,0 +1,108 @@
+// Variation of extend-exact test - testing exact vs all extend matching
+
+// Compound selectors - exact match only
+.btn.primary,
+.link.primary + .primary {
+  .primary,
+  .link {
+    color: blue;
+  }
+}
+.ext-primary:extend(.btn.primary .primary) {}
+
+// Nested selectors - should not match
+.wrapper .content .text {
+  font-size: 14px;
+}
+
+.wrapper {
+  padding: 20px;
+  .content {
+    margin: 10px;
+  }
+  .content.highlighted {
+    background: yellow;
+  }
+}
+
+// Single selector from compound
+.group1, .group2 {
+  .item1, .item2 {
+    .label1, .label2 {
+      display: block;
+    }
+  }
+}
+
+.extend-target {
+  &:extend(.group1);
+  &:extend(.item1);
+  &:extend(.label1);
+}
+
+// Double ampersand pattern
+.double-amp {
+  && {
+    specificity: high;
+    &:hover {
+      hover-state: yes;
+    }
+  }
+}
+.match-double:extend(.double-amp.double-amp) {}
+
+// Attribute selectors - exact match
+.form {
+  [type="text"] {
+    border: 1px solid gray;
+  }
+  [type] {
+    outline: none;
+  }
+  @data-attr: "special";
+  [data-state=@{data-attr}] {
+    background: lightblue;
+  }
+}
+
+.form-extend {
+  &:extend([type="text"] all);
+}
+
+.form-extend-generic {
+  &:extend([type] all);
+}
+
+.form-extend-interpolated {
+  &:extend([data-state="special"] all);
+}
+
+// Descendant vs child combinator - must be exact
+.parent .child {
+  relationship: descendant;
+}
+
+.parent > .child {
+  relationship: direct-child;
+}
+
+.parent + .sibling {
+  relationship: adjacent;
+}
+
+.desc-extend:extend(.parent .child) {}
+.child-extend:extend(.parent > .child) {}
+.sibling-extend:extend(.parent + .sibling) {}
+
+// Issue pattern - extend inside nested selector
+.bordered-box {
+  border: 1px solid black;
+}
+
+.page {
+  .section:extend(.bordered-box) {
+    & > .content {
+      padding: 10px;
+    }
+  }
+}

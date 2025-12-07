@@ -1,0 +1,60 @@
+// Variation of mixins-guards-default-func.less
+// Tests the default() function in mixin guards with different patterns
+
+// Test 1: default() with numeric patterns
+.num-switch(@n) when (@n = 0) { result: zero; }
+.num-switch(@n) when (@n = 1) { result: one; }
+.num-switch(@n) when (default()) { result: other-@n; }
+
+.num-test {
+    &-zero { .num-switch(0); }
+    &-one { .num-switch(1); }
+    &-five { .num-switch(5); }
+    &-negative { .num-switch(-10); }
+}
+
+// Test 2: default() with color matching
+.color-handler(@c) when (@c = white) { theme: light; }
+.color-handler(@c) when (@c = black) { theme: dark; }
+.color-handler(@c) when (default()) { theme: custom; base-color: @c; }
+
+.color-test {
+    &-white { .color-handler(white); }
+    &-black { .color-handler(black); }
+    &-red { .color-handler(red); }
+    &-hex { .color-handler(#ff5500); }
+}
+
+// Test 3: default() with type checking
+.type-handler(@val) when (isnumber(@val)) { type: number; value: @val; }
+.type-handler(@val) when (iscolor(@val)) { type: color; value: @val; }
+.type-handler(@val) when (isstring(@val)) { type: string; value: @val; }
+.type-handler(@val) when (default()) { type: unknown; raw: @val; }
+
+.type-test {
+    &-num { .type-handler(42px); }
+    &-color { .type-handler(#abc); }
+    &-string { .type-handler("hello"); }
+    &-keyword { .type-handler(auto); }
+}
+
+// Test 4: default() combined with not()
+.inverse-match(@x) when (@x = true) { matched: true; }
+.inverse-match(@x) when not(default()) { not-default: @x; }
+
+.inverse-test {
+    &-true { .inverse-match(true); }
+    &-false { .inverse-match(false); }
+}
+
+// Test 5: Multiple default() in same mixin family
+.multi-default(@a, @b) when (@a = 1) { a-is-one: yes; }
+.multi-default(@a, @b) when (@b = 2) { b-is-two: yes; }
+.multi-default(@a, @b) when (default()) { neither: true; a: @a; b: @b; }
+
+.multi-test {
+    &-1-2 { .multi-default(1, 2); }
+    &-1-9 { .multi-default(1, 9); }
+    &-9-2 { .multi-default(9, 2); }
+    &-9-9 { .multi-default(9, 9); }
+}

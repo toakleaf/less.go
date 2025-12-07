@@ -1,0 +1,33 @@
+.basic-comma-merge {
+  box-shadow: 0 0 10px black, inset 0 0 5px gray;
+}
+.basic-space-merge {
+  font-family: Arial sans-serif;
+}
+.multi-comma-merge {
+  transition: opacity 0.3s, transform 0.2s, background 0.5s;
+}
+.merge-with-mixins {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1), 0 4px 8px rgba(0, 0, 0, 0.2), 0 0 0 3px rgba(0, 100, 255, 0.3);
+}
+.parent-merge {
+  transform: translateX(10px);
+}
+.parent-merge .child {
+  transform: scale(1.1);
+}
+.parent-merge:hover {
+  transform: rotate(5deg);
+}
+.mixed-merge {
+  background: url('img1.png'), no-repeat center;
+}
+.important-merge {
+  font-family: Georgia !important serif;
+}
+.order-test {
+  filter: blur(5px), brightness(1.2), contrast(1.1);
+}
+.empty-merge {
+  transform: translateY(0), scale(1);
+}

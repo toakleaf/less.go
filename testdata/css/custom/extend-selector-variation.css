@@ -1,0 +1,109 @@
+.alert,
+.critical-alert {
+  padding: 15px;
+  border: 1px solid;
+}
+.alert.warning,
+.critical-alert.warning {
+  border-color: orange;
+  background: #fff3cd;
+}
+.alert.error,
+.critical-alert.error {
+  border-color: red;
+  background: #f8d7da;
+}
+.critical-alert {
+  font-weight: bold;
+}
+.nav-item .link,
+.nav-item .button,
+.menu-entry .action .link,
+.menu-entry .action .button,
+.sidebar-link .link,
+.sidebar-link .button,
+.toolbar-link .link,
+.toolbar-link .button {
+  text-decoration: none;
+}
+div.container,
+.wrapper > .container,
+div.page-container,
+.wrapper > .page-container {
+  max-width: 1200px;
+}
+.base-component,
+.variant-a .child-component,
+.variant-b .child-component {
+  margin: 10px;
+}
+.variant-a,
+.variant-b {
+  padding: 5px;
+}
+.variant-a .child-component,
+.variant-b .child-component {
+  color: blue;
+}
+.variant-a .child-component .grandchild,
+.variant-b .child-component .grandchild {
+  font-size: 12px;
+}
+.old-class.old-class .old-class,
+.context.old-class + .old-class .old-class,
+.old-class.old-class .context,
+.context.old-class + .old-class .context,
+.new-class.new-class .new-class,
+.context.new-class + .new-class .new-class,
+.new-class.new-class .context,
+.context.new-class + .new-class .context {
+  legacy: style;
+}
+.attributes-section [role="button"],
+.attributes-section .attributes-section .attr-extend-button {
+  cursor: pointer;
+}
+.attributes-section [role],
+.attributes-section .attributes-section .attr-extend-generic {
+  display: inline-block;
+}
+.attributes-section [role="navigation"],
+.attributes-section .attributes-section .attr-extend-interpolated {
+  display: flex;
+}
+.tooltip-base .tooltip-content,
+.enhanced-tooltip .enhanced-content {
+  position: absolute;
+  visibility: hidden;
+}
+.tooltip-base .tooltip-content::before,
+.enhanced-tooltip .enhanced-content::before {
+  content: '';
+  border: 8px solid transparent;
+}
+.tooltip-base .tooltip-content::after,
+.enhanced-tooltip .enhanced-content::after {
+  content: attr(data-tooltip);
+}
+.bordered-element,
+.form-section .input-wrapper {
+  border: 2px solid currentColor;
+}
+.form-section .input-wrapper > .label {
+  font-weight: bold;
+}
+.form-section .input-wrapper > .help-text {
+  font-size: 12px;
+}
+.theme .primary-button,
+.theme .secondary-button {
+  background: blue;
+  color: white;
+}
+.theme .primary-button:hover,
+.theme .secondary-button:hover {
+  background: darkblue;
+}
+.theme .secondary-button {
+  background: gray;
+}

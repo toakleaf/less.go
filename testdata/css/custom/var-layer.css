@@ -1,0 +1,100 @@
+@layer reset, base, components, utilities;
+@layer {
+  * {
+    margin: 0;
+    padding: 0;
+  }
+}
+@layer theme {
+  :root {
+    --primary: blue;
+    --secondary: green;
+  }
+}
+@layer base {
+  body {
+    font-family: system-ui, sans-serif;
+    line-height: 1.5;
+  }
+  body h1,
+  body h2,
+  body h3 {
+    margin-top: 1em;
+    margin-bottom: 0.5em;
+  }
+  body p {
+    margin-bottom: 1em;
+  }
+}
+@layer framework {
+  @layer core {
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+  }
+  @layer utilities {
+    .hidden {
+      display: none;
+    }
+    .visible {
+      display: block;
+    }
+  }
+}
+@layer framework.components {
+  .button {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .button.primary {
+    background: blue;
+    color: white;
+  }
+  .button.secondary {
+    background: gray;
+    color: black;
+  }
+}
+@layer responsive {
+  @media (max-width: 768px) {
+    .container {
+      padding: 0 10px;
+    }
+    .sidebar {
+      display: none;
+    }
+  }
+  @media (min-width: 769px) {
+    .sidebar {
+      width: 300px;
+      float: left;
+    }
+  }
+}
+@layer {
+  .component::before {
+    content: '';
+    display: block;
+  }
+  .component::after {
+    content: '';
+    clear: both;
+  }
+}
+@layer ui.forms.inputs {
+  input[type="text"] {
+    border: 1px solid #ccc;
+    padding: 8px;
+  }
+}
+@layer ui.forms.buttons {
+  button {
+    border: none;
+    padding: 10px 20px;
+  }
+}

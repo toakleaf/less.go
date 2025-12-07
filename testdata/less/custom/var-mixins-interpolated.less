@@ -1,0 +1,108 @@
+// Variation of mixins-interpolated.less
+// Tests interpolation in mixin names with different patterns
+
+// Test 1: Simple interpolated mixin name
+@prefix: btn;
+@suffix: primary;
+
+.@{prefix}-@{suffix} {
+    background: blue;
+    color: white;
+}
+
+.use-interpolated-mixin {
+    .btn-primary();
+}
+
+// Test 2: Interpolation in class selector that becomes mixin
+@component: card;
+
+.@{component} {
+    padding: 1rem;
+    .@{component}-header {
+        font-weight: bold;
+    }
+    .@{component}-body {
+        margin-top: 0.5rem;
+    }
+}
+
+.card-usage {
+    .card();
+    .card-header();
+}
+
+// Test 3: Numeric interpolation
+@num: 404;
+
+.error-@{num} {
+    status-code: @num;
+    message: "Not Found";
+}
+
+.show-error {
+    .error-404();
+}
+
+// Test 4: Interpolation with escaped values
+@escaped-name: ~"special";
+
+.@{escaped-name}-class {
+    special: true;
+}
+
+.use-escaped {
+    .special-class();
+}
+
+// Test 5: Dynamic namespace with interpolation
+@ns-name: utils;
+
+#@{ns-name} {
+    .helper() {
+        display: block;
+    }
+    .clearfix() {
+        overflow: hidden;
+    }
+}
+
+.dynamic-ns {
+    #utils > .helper();
+    #utils > .clearfix();
+}
+
+// Test 6: Chained interpolation
+@part1: nav;
+@part2: bar;
+@part3: item;
+
+.@{part1}-@{part2} {
+    display: flex;
+    .@{part3} {
+        padding: 0.5rem;
+    }
+}
+
+.use-chained {
+    .nav-bar();
+    .nav-bar > .item();
+}
+
+// Test 7: Interpolation in mixin that returns selector
+@state: active;
+
+.state-mixin(@name) {
+    .@{name} {
+        &.@{state} {
+            opacity: 1;
+        }
+        &:not(.@{state}) {
+            opacity: 0.5;
+        }
+    }
+}
+
+.create-states {
+    .state-mixin(button);
+}

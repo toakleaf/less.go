@@ -1,0 +1,92 @@
+.message,
+.success,
+.error,
+.warning {
+  padding: 10px 15px;
+  border-radius: 4px;
+  margin-bottom: 10px;
+}
+.success {
+  background-color: #d4edda;
+  border-color: #c3e6cb;
+  color: #155724;
+}
+.error {
+  background-color: #f8d7da;
+  border-color: #f5c6cb;
+  color: #721c24;
+}
+.warning {
+  background-color: #fff3cd;
+  border-color: #ffeeba;
+  color: #856404;
+}
+.btn,
+.my-button {
+  display: inline-block;
+  padding: 8px 16px;
+}
+.btn-large {
+  padding: 12px 24px;
+}
+.btn-small {
+  padding: 4px 8px;
+}
+.my-button {
+  background: blue;
+}
+.nav .item {
+  display: inline-block;
+  padding: 10px;
+}
+.nav .item.active,
+.main-nav .current {
+  font-weight: bold;
+}
+.main-nav .current {
+  color: blue;
+}
+.link,
+.nav-link {
+  color: blue;
+  text-decoration: none;
+}
+.link:hover,
+.nav-link:hover {
+  text-decoration: underline;
+}
+.nav-link {
+  font-weight: 500;
+}
+.box,
+.card-box {
+  border: 1px solid #ddd;
+}
+.rounded,
+.card-box {
+  border-radius: 4px;
+}
+.shadowed,
+.card-box {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+.card-box {
+  padding: 20px;
+}
+@media screen and (min-width: 768px) {
+  .desktop-container,
+  .page-container {
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+}
+.page-container {
+  padding: 20px;
+}
+.parent > .child,
+.my-child {
+  margin-left: 20px;
+}
+.my-child {
+  color: red;
+}

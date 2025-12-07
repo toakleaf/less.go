@@ -1,0 +1,126 @@
+@media screen {
+  .screen-only {
+    display: block;
+  }
+}
+@media (min-width: 576px) {
+  .col-sm {
+    flex: 1;
+  }
+}
+@media (min-width: 768px) {
+  .col-md {
+    flex: 2;
+  }
+}
+@media screen {
+  .responsive {
+    width: 100%;
+  }
+}
+@media screen and (min-width: 992px) {
+  .responsive {
+    width: 50%;
+  }
+}
+.component {
+  padding: 20px;
+}
+@media print {
+  .component {
+    padding: 10px;
+    border: 1px solid black;
+  }
+}
+@media (max-width: 600px) {
+  .component {
+    padding: 10px;
+  }
+}
+@media screen and (min-width: 768px) and (max-width: 1024px) {
+  .tablet-only {
+    display: block;
+  }
+}
+@media (orientation: portrait) {
+  .portrait-layout {
+    flex-direction: column;
+  }
+}
+@media not print {
+  .no-print {
+    display: block;
+  }
+}
+@media (200px <= width <= 500px) {
+  .range-width {
+    background: yellow;
+  }
+}
+@media (height > 600px) {
+  .tall-screen {
+    min-height: 80vh;
+  }
+}
+.title {
+  font-size: 16px;
+}
+@media (min-width: 768px) {
+  .title {
+    font-size: 19.2px;
+  }
+}
+@media (min-width: 1024px) {
+  .title {
+    font-size: 24px;
+  }
+}
+.subtitle {
+  font-size: 14px;
+}
+@media (min-width: 768px) {
+  .subtitle {
+    font-size: 16.8px;
+  }
+}
+@media (min-width: 1024px) {
+  .subtitle {
+    font-size: 18px;
+  }
+}
+@media all and (aspect-ratio: 16 / 9) {
+  .widescreen {
+    padding: 0 5%;
+  }
+}
+@media handheld and (color), screen and (color) {
+  .color-device {
+    color: #ff0000;
+  }
+}
+@media print {
+  @page {
+    margin: 1in;
+  }
+  @page :first {
+    margin-top: 2in;
+  }
+}
+.outer {
+  background: white;
+}
+@media screen {
+  .outer .inner {
+    background: lightgray;
+  }
+}
+@media screen and (min-width: 800px) {
+  .outer .inner .deep {
+    background: darkgray;
+  }
+}
+@media print {
+  .print-style {
+    color: black;
+  }
+}

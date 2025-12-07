@@ -1,0 +1,16 @@
+.duplicated-style {
+  content: "I should appear only once";
+}
+.base-component {
+  display: block;
+  padding: 10px;
+}
+.multiple-allowed {
+  content: "I can appear multiple times";
+}
+.multiple-allowed {
+  content: "I can appear multiple times";
+}
+.using-base {
+  color: #336699;
+}

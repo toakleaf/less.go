@@ -1,0 +1,143 @@
+// Variation of directives-bubling test - testing @supports, @media bubbling patterns
+
+// @document with parent selector
+.wrapper {
+  color: blue;
+
+  @document domain("example.com") {
+    .inner {
+      color: green;
+    }
+  }
+}
+
+// @supports with complex selector joining
+.container {
+  @supports (display: grid) {
+    .content & {
+      display: grid;
+    }
+  }
+}
+
+@supports (display: flex) {
+  .flex-parent {
+    .flex-child {
+      flex: 1;
+    }
+  }
+}
+
+.outer {
+  .inner & {
+    @supports (gap: 10px) {
+      gap: 10px;
+    }
+  }
+}
+
+// @supports with @font-face (non-selector body)
+@supports (font-variant: small-caps) {
+  @font-face {
+    font-family: CustomFont;
+    src: local("Test");
+  }
+}
+
+@font-face {
+  @supports (font-display: swap) {
+    font-family: AnotherFont;
+    src: local("Another");
+  }
+}
+
+// Complex media + supports nesting
+@supports (transform: rotate(45deg)) {
+  .rotated & {
+    @media (min-width: 600px) {
+      @supports (will-change: transform) {
+        transform: rotate(45deg);
+      }
+    }
+  }
+}
+
+.positioned & {
+  @supports (position: sticky) {
+    @media (max-height: 800px) {
+      @supports (overscroll-behavior: contain) {
+        position: sticky;
+      }
+    }
+  }
+}
+
+// Long nested combination
+@media screen {
+  article {
+    font-size: 16px;
+    @supports (font-size-adjust: 0.5) {
+      font-size-adjust: 0.5;
+      section {
+        padding: 20px;
+        @supports (padding-inline: 20px) {
+          padding-inline: 20px;
+          @media print {
+            font-size: 12pt;
+            aside {
+              margin: 10px;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+// Another complex combination
+@media all {
+  @media (orientation: landscape) {
+    .landscape-only {
+      width: 100%;
+      @supports (aspect-ratio: 16/9) {
+        .widescreen & {
+          @supports (object-fit: cover) {
+            object-fit: cover;
+          }
+        }
+      }
+    }
+  }
+}
+
+// Mixin with @supports inside
+.responsive-supports() {
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  @supports (-moz-osx-font-smoothing: grayscale) {
+    font-weight: 300;
+    .nested-in-mixin {
+      smoothing: applied;
+    }
+  }
+}
+
+body {
+  .responsive-supports();
+}
+
+// Non-propagating directives inside selectors
+.component {
+  @font-face {
+    font-family: ComponentFont;
+    src: local("Component");
+  }
+
+  @keyframes slide-in {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(0); }
+  }
+
+  animation: slide-in 0.3s ease;
+  font-family: ComponentFont;
+}

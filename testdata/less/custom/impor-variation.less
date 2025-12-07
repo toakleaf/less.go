@@ -1,0 +1,32 @@
+// Tests for @impor typo handling - should NOT parse as @import
+// These should remain as literal CSS output, not be processed as imports
+
+// Original typo test
+@impor "this-is-not-an-import.less";
+
+// Similar typos that should NOT be treated as @import
+@imprt "also-not-import.less";
+@impot "another-typo.less";
+
+// @import-like but not quite
+@importonce "fake-directive.less";
+@importall "another-fake.less";
+
+// Custom at-rules that look similar
+@importing { value: test; }
+
+// Valid property that starts with import-like text
+.importish {
+  important: very;
+}
+
+// Selector that could be confused
+.importer {
+  color: red;
+}
+
+// Real @import would be valid, but these are typos/custom rules
+.container {
+  @impor: "variable not import";
+  value: @impor;
+}

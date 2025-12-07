@@ -1,0 +1,67 @@
+.btn.primary .primary,
+.link.primary + .primary .primary,
+.btn.primary .link,
+.link.primary + .primary .link,
+.ext-primary {
+  color: blue;
+}
+.wrapper .content .text {
+  font-size: 14px;
+}
+.wrapper {
+  padding: 20px;
+}
+.wrapper .content {
+  margin: 10px;
+}
+.wrapper .content.highlighted {
+  background: yellow;
+}
+.group1 .item1 .label1,
+.group2 .item1 .label1,
+.group1 .item2 .label1,
+.group2 .item2 .label1,
+.group1 .item1 .label2,
+.group2 .item1 .label2,
+.group1 .item2 .label2,
+.group2 .item2 .label2 {
+  display: block;
+}
+.double-amp.double-amp,
+.match-double {
+  specificity: high;
+}
+.double-amp.double-amp:hover {
+  hover-state: yes;
+}
+.form [type="text"],
+.form .form-extend {
+  border: 1px solid gray;
+}
+.form [type],
+.form .form-extend-generic {
+  outline: none;
+}
+.form [data-state="special"],
+.form .form-extend-interpolated {
+  background: lightblue;
+}
+.parent .child,
+.desc-extend {
+  relationship: descendant;
+}
+.parent > .child,
+.child-extend {
+  relationship: direct-child;
+}
+.parent + .sibling,
+.sibling-extend {
+  relationship: adjacent;
+}
+.bordered-box,
+.page .section {
+  border: 1px solid black;
+}
+.page .section > .content {
+  padding: 10px;
+}
