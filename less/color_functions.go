@@ -780,7 +780,7 @@ func ColorDarken(color, amount any, method ...any) any {
 }
 
 // toColor converts various color representations to *Color
-// Handles Color, Keyword (e.g., "red", "blue"), Quoted, and string types
+// Handles Color, Keyword (e.g., "red", "blue"), Quoted, Anonymous, and string types
 func toColor(input any) *Color {
 	// Already a Color
 	if c, ok := input.(*Color); ok {
@@ -790,6 +790,24 @@ func toColor(input any) *Color {
 	// Keyword (e.g., "red", "blue")
 	if kw, ok := input.(*Keyword); ok {
 		return FromKeyword(kw.value)
+	}
+
+	// Anonymous - commonly occurs when colors are passed through each() loops
+	if anon, ok := input.(*Anonymous); ok {
+		if anon.Value != nil {
+			// Check if Anonymous wraps a Color
+			if c, ok := anon.Value.(*Color); ok {
+				return c
+			}
+			// Check if Anonymous wraps a Keyword
+			if kw, ok := anon.Value.(*Keyword); ok {
+				return FromKeyword(kw.value)
+			}
+			// Anonymous value is a string (e.g., "white", "blue")
+			if str, ok := anon.Value.(string); ok {
+				return FromKeyword(str)
+			}
+		}
 	}
 
 	// Quoted string
@@ -977,8 +995,9 @@ func ColorGrayscale(color any) any {
 
 // ColorContrast chooses a contrasting color
 func ColorContrast(color, dark, light, threshold any) any {
-	c, ok := color.(*Color)
-	if !ok {
+	// Use toColor to handle Keywords, Quoted strings, Anonymous, etc. in addition to Colors
+	c := toColor(color)
+	if c == nil {
 		return nil
 	}
 
@@ -986,13 +1005,14 @@ func ColorContrast(color, dark, light, threshold any) any {
 	lightColor := NewColor([]float64{255, 255, 255}, 1.0, "")
 	darkColor := NewColor([]float64{0, 0, 0}, 1.0, "")
 
+	// Use toColor to handle Keywords like "black", "white" etc.
 	if light != nil {
-		if lc, ok := light.(*Color); ok {
+		if lc := toColor(light); lc != nil {
 			lightColor = lc
 		}
 	}
 	if dark != nil {
-		if dc, ok := dark.(*Color); ok {
+		if dc := toColor(dark); dc != nil {
 			darkColor = dc
 		}
 	}
