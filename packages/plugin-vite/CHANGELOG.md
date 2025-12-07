@@ -1,5 +1,12 @@
 # @lessgo/plugin-vite
 
+## 0.2.5
+
+### Patch Changes
+
+-   Updated dependencies [[`f2c69ea`](https://github.com/toakleaf/less.go/commit/f2c69eab73f2da776255a6489bb59e6ccfceb14f)]:
+    -   lessgo@0.4.0
+
 ## 0.2.4
 
 ### Patch Changes
