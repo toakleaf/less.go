@@ -1,5 +1,14 @@
 # lessgo
 
+## 0.3.1
+
+### Patch Changes
+
+-   [#470](https://github.com/toakleaf/less.go/pull/470) [`002bbdc`](https://github.com/toakleaf/less.go/commit/002bbdce4d420d60f05ea0382431e494104a4c48) Thanks [@toakleaf](https://github.com/toakleaf)! - Fix CSS relative color syntax and @layer parent selector issues
+
+    -   Add ColorOperand parser for CSS relative color syntax (oklch, hsl, rgb with calc expressions using channel identifiers l, c, h, r, g, b, s)
+    -   Fix @layer parent selector (&) resolution to properly join with parent selectors
+
 ## 0.3.0
 
 ### Minor Changes
