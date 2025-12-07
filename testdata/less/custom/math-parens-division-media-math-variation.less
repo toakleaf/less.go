@@ -1,0 +1,120 @@
+// Variation of math/parens-division/media-math
+// Tests math in media queries with parens-division mode
+// Custom tests run with default math mode (parens-division)
+
+// Basic variable usage in media queries
+@breakpoint-sm: 576px;
+@breakpoint-md: 768px;
+@breakpoint-lg: 992px;
+@breakpoint-xl: 1200px;
+
+// Simple variable in media query
+@media (min-width: @breakpoint-sm) {
+  .container {
+    width: 100%;
+  }
+}
+
+// Variable with addition
+@media (min-width: (@breakpoint-md + 32px)) {
+  .container {
+    width: 720px;
+  }
+}
+
+// Variable with subtraction
+@media (max-width: (@breakpoint-lg - 1px)) {
+  .container {
+    width: auto;
+  }
+}
+
+// Variable with multiplication (in parens)
+@base-unit: 100px;
+@media (min-width: (@base-unit * 10)) {
+  .wide-container {
+    width: 960px;
+  }
+}
+
+// Division should NOT be performed outside parens
+@media (min-width: @breakpoint-xl / 2) {
+  .half-check {
+    note: division-not-performed;
+  }
+}
+
+// Division IS performed inside parens
+@media (min-width: (@breakpoint-xl / 2)) {
+  .half-check-parens {
+    note: division-performed;
+  }
+}
+
+// Multiple conditions with variables
+@media (min-width: @breakpoint-sm) and (max-width: (@breakpoint-md - 1px)) {
+  .range {
+    display: block;
+  }
+}
+
+// Calc inside media query
+@media (min-width: 600px) {
+  .calc-test {
+    width: calc(100% - (@base-unit * 2));
+  }
+}
+
+// Complex expression
+@header-height: 60px;
+@footer-height: 40px;
+@media (min-height: (@header-height + @footer-height + 400px)) {
+  .tall-screen {
+    min-height: 100vh;
+  }
+}
+
+// Nested media query with variable
+.component {
+  color: black;
+
+  @media (min-width: @breakpoint-md) {
+    color: blue;
+  }
+
+  @media (min-width: (@breakpoint-lg + 8px)) {
+    color: green;
+  }
+}
+
+// Media query with aspect ratio (slash should be preserved)
+@media (aspect-ratio: 16/9) {
+  .widescreen {
+    aspect: wide;
+  }
+}
+
+// Edge case: variable that results in calc expression
+@dynamic-width: calc(100vw - 20px);
+@media (min-width: 800px) {
+  .dynamic {
+    width: @dynamic-width;
+  }
+}
+
+// Multiple math operations in single media query
+@grid-columns: 12;
+@column-width: 60px;
+@gutter-width: 20px;
+@media (min-width: ((@column-width * @grid-columns) + (@gutter-width * (@grid-columns - 1)))) {
+  .full-grid {
+    display: grid;
+  }
+}
+
+// Print media with variable
+@media print and (min-width: (@breakpoint-sm / 2)) {
+  .print-layout {
+    font-size: 12pt;
+  }
+}

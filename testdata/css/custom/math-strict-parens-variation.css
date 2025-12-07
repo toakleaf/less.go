@@ -1,0 +1,86 @@
+.basic-parens {
+  add: 150;
+  subtract: 70;
+  multiply: 50;
+  divide: 20;
+}
+.variable-parens {
+  with-add: 30;
+  with-subtract: 15;
+  with-multiply: 60;
+  with-divide: 5;
+}
+.multi-op-parens {
+  result: 60;
+  result: 50;
+  result: 30;
+  result: 20;
+}
+.border-with-math {
+  border: 4px solid black;
+  border-top: 3px dashed red;
+}
+.spacing-with-math {
+  margin: 16px 12px 24px 8px;
+  padding: 4px 12px;
+}
+.width-calculations {
+  half: 480px;
+  third: 320px;
+  quarter: 240px;
+  double: 1920px;
+}
+.deeply-nested {
+  result1: 10;
+  result2: 50;
+  result3: 50;
+  result4: 16;
+}
+.calc-expressions {
+  width: calc(100% - (8px * 4));
+  height: calc((100vh - 60px) - (8px * 2));
+  margin: calc(50% - (960px / 2));
+}
+.if-with-parens {
+  value1: 100;
+  value2: 100;
+  value3: large;
+}
+.negative-expressions {
+  neg1: -10;
+  neg2: -10;
+  neg3: -10;
+  neg4: -10;
+  neg5: -10;
+}
+.nesting-levels {
+  outer-in-parens: 16;
+  inner-in-parens: 4;
+  combined: 14;
+}
+.escaped-parens {
+  content: (;
+  content: );
+  content: (test);
+}
+.comparison {
+  comparison-result: greater-works;
+  comparison-result: less-works;
+}
+.grid-calc {
+  column-width: 61.66666667px;
+  half-gutter: 10px;
+  double-gutter: 40px;
+}
+.typography {
+  small: 14px;
+  large: 20px;
+  xlarge: 24px;
+  line-height: 24px;
+}
+.z-index-calc {
+  dropdown: 110;
+  modal: 200;
+  tooltip: 150;
+  header: 50;
+}

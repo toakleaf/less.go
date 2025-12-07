@@ -1,0 +1,125 @@
+// Variation of math/always/mixins-guards
+// Tests guard conditions with mathematical expressions
+// Custom tests run with default math mode (parens-division)
+
+// Test basic guard with addition
+.guard-basic-add when ((5 + 3) > 7) {
+  result: pass;
+}
+
+.guard-basic-add when ((5 + 3) < 7) {
+  result: fail-should-not-show;
+}
+
+// Test guard with multiplication
+.guard-multiply when ((3 * 4) = 12) {
+  result: pass;
+}
+
+.guard-multiply when ((3 * 4) = 11) {
+  result: fail-should-not-show;
+}
+
+// Test guard with subtraction
+.guard-subtract when ((20 - 5) >= 15) {
+  result: pass;
+}
+
+.guard-subtract when ((20 - 5) < 10) {
+  result: fail-should-not-show;
+}
+
+// Test guard with division in parentheses
+.guard-division when ((100 / 4) = 25) {
+  result: pass;
+}
+
+.guard-division when ((100 / 4) = 20) {
+  result: fail-should-not-show;
+}
+
+// Test guard with nested parentheses
+.guard-nested when ((2 * (3 + 4)) > 10) {
+  result: pass;
+}
+
+.guard-nested when ((2 * (3 + 4)) < 10) {
+  result: fail-should-not-show;
+}
+
+// Test guard with multiple conditions (and)
+.guard-and when ((5 > 3) and (10 < 20)) {
+  result: both-pass;
+}
+
+// Test guard with multiple conditions (or)
+.guard-or when ((5 > 10) or (3 < 5)) {
+  result: one-passes;
+}
+
+// Test guard with not
+.guard-not when not ((5 > 10)) {
+  result: negation-works;
+}
+
+// Test guard with variables in expression
+@guard-var: 10;
+.guard-with-var when ((@guard-var * 2) > 15) {
+  result: pass;
+}
+
+// Test guard comparing two expressions
+.guard-two-expressions when ((3 + 7) = (5 + 5)) {
+  result: equal-expressions;
+}
+
+// Test mixin with guard
+.mixin-with-guard(@val) when (@val > 50) {
+  size: large;
+}
+
+.mixin-with-guard(@val) when (@val <= 50) {
+  size: small;
+}
+
+.use-mixin-guard-1 {
+  .mixin-with-guard(75);
+}
+
+.use-mixin-guard-2 {
+  .mixin-with-guard(25);
+}
+
+// Test guard with calculated default
+.mixin-calc-default(@a: (2 + 3)) when (@a > 4) {
+  result: pass;
+}
+
+.test-calc-default {
+  .mixin-calc-default();
+}
+
+// Test guard with unit comparison
+.guard-units when ((10px + 5px) > 10px) {
+  result: units-work;
+}
+
+// Test guard with percentage
+.guard-percent when ((50% + 25%) > 50%) {
+  result: percent-works;
+}
+
+// Edge case: guard with complex nested expression
+.guard-complex when (((2 + 3) * (4 - 1)) >= 15) {
+  result: complex-pass;
+}
+
+// Edge case: guard with zero comparison
+.guard-zero when ((5 - 5) = 0) {
+  result: zero-works;
+}
+
+// Edge case: guard with negative result
+.guard-negative when ((5 - 10) < 0) {
+  result: negative-works;
+}

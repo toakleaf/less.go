@@ -1,0 +1,98 @@
+// Variation of math/always/no-sm-operations
+// Tests named colors in expressions and division operations
+// Custom tests run with default math mode (parens-division)
+
+// Named colors in different contexts
+.named-colors-variations {
+  // Color math should work
+  color-add: (#ff0000 + #000100);
+  color-subtract: (#ffffff - #010101);
+
+  // Named color as part of identifier should NOT be treated as color
+  background-color: red-gradient;
+  border-color: blue-border;
+  animation-name: green-fade;
+
+  // Dashed identifier containing color name
+  class-name: orange-button;
+  id-name: purple-header;
+}
+
+// Color operations with variables
+@my-red: red;
+@my-blue: blue;
+
+.color-var-operations {
+  mixed: (@my-red + #000100);
+  darken-effect: darken(@my-blue, 10%);
+}
+
+// Division operator variations
+.division-variations {
+  // Font shorthand with slash should be preserved
+  font: 12px/1.5;
+  font-complex: bold 16px/24px Arial, sans-serif;
+  font-with-units: 1rem/1.6em;
+
+  // Calc with division
+  calc-div: calc(100% / 3);
+  calc-complex: calc((100vw - 20px) / 2);
+
+  // Border-radius with slash (horizontal/vertical)
+  border-radius: 10px 20px / 5px 15px;
+  border-radius-simple: 5px / 10px;
+}
+
+// The ./ operator for forced division
+.forced-division {
+  half: (20px ./ 2);
+  quarter: (100 ./ 4);
+  nested: ((80 ./ 2) ./ 2);
+}
+
+// Expressions with dashes that look like subtraction
+.dash-expressions {
+  // These should NOT be subtracted
+  z-index: 100;
+  line-height: 1.5;
+  font-weight: 400;
+
+  // Custom properties with dashes
+  --custom-value: 10;
+  --another-custom: blue;
+}
+
+// Edge cases with color-like names
+.color-name-edge-cases {
+  // "red" as part of word
+  title: redirection;
+  status: credited;
+
+  // "blue" as part of word
+  desc: blueprint;
+  action: bluebird;
+
+  // "green" as part of word
+  label: greenery;
+  type: evergreen;
+}
+
+// Interpolation with color names
+@color-suffix: red;
+.interpolation-colors {
+  &-@{color-suffix} {
+    applied: yes;
+  }
+}
+
+// Complex expression edge cases
+.complex-edge-cases {
+  // Subtraction that could look like identifier
+  result: (10 - 5);
+
+  // Multiple operations
+  multi: ((10 + 5) * 2);
+
+  // With units
+  with-units: ((100px - 20px) / 2);
+}

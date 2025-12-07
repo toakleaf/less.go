@@ -1,0 +1,50 @@
+.named-colors-variations {
+  color-add: #ff0100;
+  color-subtract: #fefefe;
+  background-color: red-gradient;
+  border-color: blue-border;
+  animation-name: green-fade;
+  class-name: orange-button;
+  id-name: purple-header;
+}
+.color-var-operations {
+  mixed: #ff0100;
+  darken-effect: #0000cc;
+}
+.division-variations {
+  font: 12px/1.5;
+  font-complex: bold 16px/24px Arial, sans-serif;
+  font-with-units: 1rem/1.6em;
+  calc-div: calc(100% / 3);
+  calc-complex: calc((100vw - 20px) / 2);
+  border-radius: 10px 20px / 5px 15px;
+  border-radius-simple: 5px / 10px;
+}
+.forced-division {
+  half: 10px;
+  quarter: 25;
+  nested: 20;
+}
+.dash-expressions {
+  z-index: 100;
+  line-height: 1.5;
+  font-weight: 400;
+  --custom-value: 10;
+  --another-custom: blue;
+}
+.color-name-edge-cases {
+  title: redirection;
+  status: credited;
+  desc: blueprint;
+  action: bluebird;
+  label: greenery;
+  type: evergreen;
+}
+.interpolation-colors-red {
+  applied: yes;
+}
+.complex-edge-cases {
+  result: 5;
+  multi: 30;
+  with-units: 40px;
+}

@@ -1,0 +1,151 @@
+// Variation of math/strict/parens
+// Tests parentheses behavior - testing with default parens-division mode
+// Note: original test uses strict mode, but custom tests use parens-division
+// This tests the differences and similarities between modes
+
+// Basic parenthesized math (should work in any mode)
+.basic-parens {
+  add: (100 + 50);
+  subtract: (100 - 30);
+  multiply: (10 * 5);
+  divide: (100 / 5);
+}
+
+// Variable in parenthesized expressions
+@value: 20;
+
+.variable-parens {
+  with-add: (@value + 10);
+  with-subtract: (@value - 5);
+  with-multiply: (@value * 3);
+  with-divide: (@value / 4);
+}
+
+// Multiple operations in single parens
+.multi-op-parens {
+  result: (10 + 20 + 30);
+  result: (100 - 20 - 30);
+  result: ((10 + 5) * 2);
+  result: ((100 - 20) / 4);
+}
+
+// Border shorthand with math (common pattern)
+@border-width: 2px;
+
+.border-with-math {
+  border: (@border-width * 2) solid black;
+  border-top: (@border-width + 1px) dashed red;
+}
+
+// Margin/padding with multiple calculated values
+@spacing: 8px;
+
+.spacing-with-math {
+  margin: (@spacing * 2) (@spacing + 4px) (@spacing * 3) @spacing;
+  padding: (@spacing / 2) (@spacing * 1.5);
+}
+
+// Width calculations
+@container-width: 960px;
+
+.width-calculations {
+  half: (@container-width / 2);
+  third: (@container-width / 3);
+  quarter: (@container-width / 4);
+  double: (@container-width * 2);
+}
+
+// Deeply nested parentheses
+.deeply-nested {
+  result1: (((5 + 5)));
+  result2: ((10 * (2 + 3)));
+  result3: (((100 / 4) + (50 / 2)));
+  result4: ((((2 * 2) * 2) * 2));
+}
+
+// Calc function preserved
+.calc-expressions {
+  width: calc(100% - (@spacing * 4));
+  height: calc((100vh - 60px) - (@spacing * 2));
+  margin: calc(50% - ((@container-width / 2)));
+}
+
+// If function with parenthesized expressions
+.if-with-parens {
+  value1: if(true, (10 * 10), (5 * 5));
+  value2: if(false, (100 + 100), (50 + 50));
+  value3: if((10 > 5), large, small);
+}
+
+// Negative numbers in expressions
+@neg-base: 10;
+
+.negative-expressions {
+  neg1: -@neg-base;
+  neg2: (-@neg-base);
+  neg3: (0 - @neg-base);
+  neg4: (@neg-base * -1);
+  neg5: (-(5 + 5));
+}
+
+// Operations at different nesting levels
+@outer: 4;
+
+.nesting-levels {
+  @inner: 2;
+
+  outer-in-parens: (@outer * @outer);
+  inner-in-parens: (@inner * @inner);
+  combined: ((@outer * @inner) + (@outer + @inner));
+}
+
+// Edge: escaped content with parens
+.escaped-parens {
+  content: ~"(";
+  content: ~")";
+  content: ~"(test)";
+}
+
+// Edge: boolean results from comparisons in guards
+.comparison-mixin() when (10 > 5) {
+  comparison-result: greater-works;
+}
+
+.comparison-mixin() when (10 < 20) {
+  comparison-result: less-works;
+}
+
+.comparison {
+  .comparison-mixin();
+}
+
+// Complex real-world example
+@gutter: 20px;
+@columns: 12;
+
+.grid-calc {
+  column-width: ((@container-width - (@gutter * (@columns - 1))) / @columns);
+  half-gutter: (@gutter / 2);
+  double-gutter: (@gutter * 2);
+}
+
+// Font calculations
+@base-font: 16px;
+@line-height-ratio: 1.5;
+
+.typography {
+  small: (@base-font * 0.875);
+  large: (@base-font * 1.25);
+  xlarge: (@base-font * 1.5);
+  line-height: (@base-font * @line-height-ratio);
+}
+
+// Z-index calculations
+@z-base: 100;
+
+.z-index-calc {
+  dropdown: (@z-base + 10);
+  modal: (@z-base + 100);
+  tooltip: (@z-base + 50);
+  header: (@z-base - 50);
+}

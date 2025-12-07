@@ -1,0 +1,76 @@
+.test-simple-math-mixin {
+  first: 15;
+  second: 40;
+}
+.test-simple-math-mixin-override {
+  first: 9;
+  second: 8;
+}
+.test-division-default {
+  aspect-ratio: 16/9;
+}
+.test-division-default-override {
+  aspect-ratio: 4/3;
+}
+.test-division-parens {
+  width: 25;
+}
+.test-complex-args {
+  padding: 10px;
+  margin: 10;
+  color: blue;
+}
+.test-complex-args-partial {
+  padding: 10px;
+  margin: 10;
+  color: red;
+}
+.test-dependent-args {
+  base: 10;
+  double: 20;
+}
+.test-dependent-args-override {
+  base: 25;
+  double: 50;
+}
+.test-unit-expression {
+  width: 80px;
+  height: 60%;
+}
+.test-rest-with-math {
+  first: 10;
+  rest: 20 10;
+  all: 10 20 10;
+}
+.test-semi-separator {
+  a: first;
+  b: second;
+  c: 2;
+}
+.test-semi-separator-full {
+  a: one;
+  b: two;
+  c: 9;
+}
+.expand-test {
+  x: 2;
+  y: 4;
+  z: 6;
+}
+.test-nested-math-mixin {
+  outer: 50;
+  inner: 25;
+}
+.test-calc-default {
+  width: calc(100% - 40px);
+}
+.test-negative-args {
+  negative: -5;
+  positive: 15;
+}
+.test-string-arg {
+  content: "10 + 5";
+}
+.pattern-test-1 {
+  size: small;
+}
