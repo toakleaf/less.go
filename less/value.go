@@ -186,15 +186,25 @@ func (v *Value) GenCSS(context any, output *CSSOutput) {
 }
 
 func (v *Value) ToCSS(context any) string {
-	var strs []string
+	var builder strings.Builder
 	output := &CSSOutput{
 		Add: func(chunk any, fileInfo any, index any) {
-			strs = append(strs, fmt.Sprintf("%v", chunk))
+			if chunk == nil {
+				return
+			}
+			switch val := chunk.(type) {
+			case string:
+				builder.WriteString(val)
+			case fmt.Stringer:
+				builder.WriteString(val.String())
+			default:
+				fmt.Fprintf(&builder, "%v", chunk)
+			}
 		},
 		IsEmpty: func() bool {
-			return len(strs) == 0
+			return builder.Len() == 0
 		},
 	}
 	v.GenCSS(context, output)
-	return strings.Join(strs, "")
+	return builder.String()
 } 

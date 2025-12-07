@@ -64,23 +64,25 @@ func (p *Paren) Eval(context any) any {
 }
 
 func (p *Paren) ToCSS(context any) string {
-	strs := []string{}
+	var builder strings.Builder
 	output := &CSSOutput{
 		Add: func(chunk any, fileInfo any, index any) {
-			if strChunk, ok := chunk.(string); ok {
-				strs = append(strs, strChunk)
-			} else {
-				strs = append(strs, fmt.Sprintf("%v", chunk))
+			if chunk == nil {
+				return
+			}
+			switch v := chunk.(type) {
+			case string:
+				builder.WriteString(v)
+			case fmt.Stringer:
+				builder.WriteString(v.String())
+			default:
+				fmt.Fprintf(&builder, "%v", chunk)
 			}
 		},
 		IsEmpty: func() bool {
-			return len(strs) == 0
+			return builder.Len() == 0
 		},
 	}
 	p.GenCSS(context, output)
-	var builder strings.Builder
-	for _, s := range strs {
-		builder.WriteString(s)
-	}
 	return builder.String()
 } 
