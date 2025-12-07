@@ -140,13 +140,31 @@ func (u *URL) Eval(context any) (any, error) {
 		var quoted *Quoted
 		if anon, ok := val.(*Anonymous); ok {
 			if q, ok := anon.Value.(*Quoted); ok {
-				quoted = q
+				// Evaluate the Quoted to process variable interpolation (@{varname} syntax)
+				evalResult, err := q.Eval(context)
+				if err != nil {
+					return nil, err
+				}
+				if evalQuoted, ok := evalResult.(*Quoted); ok {
+					quoted = evalQuoted
+				} else {
+					quoted = q // fallback to original if eval doesn't return Quoted
+				}
 			} else if str, ok := anon.Value.(string); ok {
 				// Anonymous.Value is a plain string - create a Quoted without quotes (unquoted URL)
 				quoted = NewQuoted("", str, false, anon.Index, anon.FileInfo)
 			}
 		} else if q, ok := val.(*Quoted); ok {
-			quoted = q
+			// Evaluate the Quoted to process variable interpolation (@{varname} syntax)
+			evalResult, err := q.Eval(context)
+			if err != nil {
+				return nil, err
+			}
+			if evalQuoted, ok := evalResult.(*Quoted); ok {
+				quoted = evalQuoted
+			} else {
+				quoted = q // fallback to original if eval doesn't return Quoted
+			}
 		}
 
 		if quoted != nil {
