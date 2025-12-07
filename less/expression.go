@@ -286,22 +286,26 @@ func (e *Expression) GenCSS(context any, output *CSSOutput) {
 }
 
 func (e *Expression) ToCSS(context any) string {
-	var strs []string
+	var builder strings.Builder
 	output := &CSSOutput{
 		Add: func(chunk any, fileInfo any, index any) {
-			strs = append(strs, fmt.Sprintf("%v", chunk))
+			if chunk == nil {
+				return
+			}
+			switch v := chunk.(type) {
+			case string:
+				builder.WriteString(v)
+			case fmt.Stringer:
+				builder.WriteString(v.String())
+			default:
+				fmt.Fprintf(&builder, "%v", chunk)
+			}
 		},
 		IsEmpty: func() bool {
-			return len(strs) == 0
+			return builder.Len() == 0
 		},
 	}
 	e.GenCSS(context, output)
-
-	// Use strings.Builder for efficient string concatenation
-	var builder strings.Builder
-	for _, s := range strs {
-		builder.WriteString(s)
-	}
 	return builder.String()
 }
 

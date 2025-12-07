@@ -188,33 +188,38 @@ func (n *Node) Eval(context any) any {
 
 // ToCSS generates CSS string representation
 func (n *Node) ToCSS(context any) string {
-	var strs []string
+	var builder strings.Builder
 	output := &CSSOutput{
 		Add: func(chunk any, fileInfo any, index any) {
+			if chunk == nil {
+				return
+			}
 			// Optimize: Use direct type assertions instead of fmt.Sprintf
 			switch v := chunk.(type) {
 			case string:
-				strs = append(strs, v)
+				builder.WriteString(v)
 			case int:
-				strs = append(strs, strconv.Itoa(v))
+				builder.WriteString(strconv.Itoa(v))
 			case float64:
-				strs = append(strs, strconv.FormatFloat(v, 'f', -1, 64))
+				builder.WriteString(strconv.FormatFloat(v, 'f', -1, 64))
 			case bool:
 				if v {
-					strs = append(strs, "true")
+					builder.WriteString("true")
 				} else {
-					strs = append(strs, "false")
+					builder.WriteString("false")
 				}
+			case fmt.Stringer:
+				builder.WriteString(v.String())
 			default:
-				strs = append(strs, fmt.Sprintf("%v", v))
+				fmt.Fprintf(&builder, "%v", v)
 			}
 		},
 		IsEmpty: func() bool {
-			return len(strs) == 0
+			return builder.Len() == 0
 		},
 	}
 	n.GenCSS(context, output)
-	return strings.Join(strs, "")
+	return builder.String()
 }
 
 // Operate performs arithmetic operations

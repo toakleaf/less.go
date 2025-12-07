@@ -526,25 +526,27 @@ func (d *Declaration) MakeImportant() any {
 }
 
 func (d *Declaration) ToCSS(context any) string {
-	var strs []string
+	var builder strings.Builder
 	output := &CSSOutput{
 		Add: func(chunk any, fileInfo any, index any) {
-			// Optimize: use type switch to avoid fmt.Sprintf allocation for common types
+			if chunk == nil {
+				return
+			}
 			switch v := chunk.(type) {
 			case string:
-				strs = append(strs, v)
+				builder.WriteString(v)
 			case fmt.Stringer:
-				strs = append(strs, v.String())
+				builder.WriteString(v.String())
 			default:
-				strs = append(strs, fmt.Sprintf("%v", chunk))
+				fmt.Fprintf(&builder, "%v", chunk)
 			}
 		},
 		IsEmpty: func() bool {
-			return len(strs) == 0
+			return builder.Len() == 0
 		},
 	}
 	d.GenCSS(context, output)
-	return strings.Join(strs, "")
+	return builder.String()
 }
 
 // genCSSSourceMapImpl generates CSS for a declaration with source map support
@@ -661,28 +663,29 @@ func (d *Declaration) valueToCSS(context any) string {
 	}
 
 	// Use GenCSS to generate the value
-	var strs []string
+	var builder strings.Builder
 	output := &CSSOutput{
 		Add: func(chunk any, fileInfo any, index any) {
+			if chunk == nil {
+				return
+			}
 			switch v := chunk.(type) {
 			case string:
-				strs = append(strs, v)
+				builder.WriteString(v)
 			case fmt.Stringer:
-				strs = append(strs, v.String())
+				builder.WriteString(v.String())
 			default:
-				strs = append(strs, fmt.Sprintf("%v", chunk))
+				fmt.Fprintf(&builder, "%v", chunk)
 			}
 		},
 		IsEmpty: func() bool {
-			return len(strs) == 0
+			return builder.Len() == 0
 		},
 	}
 
-	if d.Value != nil {
-		d.Value.GenCSS(context, output)
-	}
+	d.Value.GenCSS(context, output)
 
-	return strings.Join(strs, "")
+	return builder.String()
 }
 
 // GenCSSSourceMap implements the SourceMapNode interface
