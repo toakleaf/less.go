@@ -1,0 +1,25 @@
+.use-base {
+  color: blue;
+  font-size: 14px;
+}
+.apply-param .wrapper {
+  background: yellow;
+  padding: 10px;
+}
+.nested-use .outer {
+  border: 1px solid;
+}
+.nested-use .inner {
+  margin: 5px;
+}
+.scope-access {
+  color: green;
+}
+.container .element {
+  display: flex;
+  --custom: value;
+}
+.use-ref {
+  background: purple;
+  border-color: #4d004d;
+}

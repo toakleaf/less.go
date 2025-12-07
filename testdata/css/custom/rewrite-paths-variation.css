@@ -1,0 +1,28 @@
+.path-styles {
+  same-dir: url("./file.png");
+  same-dir-implicit: url("file.png");
+  parent: url("../file.png");
+  grandparent: url("../../file.png");
+  sub: url("./sub/file.png");
+  deep: url("./a/b/c/file.png");
+  mixed: url("./other/file.png");
+}
+.path-interp {
+  background: url("images/icons/logo.png");
+}
+.path-contexts {
+  background: url("bg.png") center / cover;
+  font-src: url("font.woff2");
+  cursor: url("pointer.cur"), auto;
+  mask-image: url("mask.svg");
+}
+.path-edge {
+  absolute: url("https://example.com/file.png");
+  protocol-relative: url("//cdn.example.com/file.png");
+  root-relative: url("/absolute/path/file.png");
+  data: url("data:image/png;base64,ABC123");
+}
+.url-whitespace {
+  normal: url("file.png");
+  quoted-spaces: url(" file.png ");
+}

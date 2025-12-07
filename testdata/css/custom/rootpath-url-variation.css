@@ -1,0 +1,28 @@
+.rootpath-sim {
+  img: url("/cdn/v1/images/logo.png");
+  icon: url("/cdn/v1/icons/star.svg");
+}
+.url-params {
+  background: url("image.png?version=2");
+  cursor: url("cursor.cur#pointer");
+  font: url("font.woff2?v=1.2.3#iefix");
+}
+.multi-bg {
+  background: url("layer1.png") no-repeat top left, url("layer2.png") repeat-x bottom, url("layer3.png") center center;
+}
+@font-face {
+  font-family: 'CustomFont';
+  src: url('fonts/custom.woff2') format('woff2'), url('fonts/custom.woff') format('woff');
+}
+.styled-list {
+  list-style-image: url("bullet.png");
+}
+.fancy-border {
+  border-image: url("border-pattern.png") 30 round;
+}
+.with-content::before {
+  content: url("icon.svg");
+}
+.filtered {
+  filter: url("filters.svg#blur");
+}

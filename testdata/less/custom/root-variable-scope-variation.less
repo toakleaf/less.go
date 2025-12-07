@@ -1,0 +1,55 @@
+// Variation testing root-level scope and variable resolution
+// Inspired by root.less test concepts
+
+// Root level variables
+@root-color: navy;
+@root-size: 16px;
+
+// Root level computed
+@computed-size: @root-size * 1.5;
+
+// Mixin that references root variables
+.use-root() {
+  color: @root-color;
+  font-size: @root-size;
+}
+
+// Class using root-level
+.from-root {
+  .use-root();
+  line-height: @computed-size;
+}
+
+// Nested scope with same variable names
+.scope-test {
+  @root-color: red; // shadows root
+  color: @root-color; // uses local
+
+  .inner {
+    background: @root-color; // uses parent's local
+  }
+}
+
+// Variable hoisting behavior
+.hoisting {
+  prop: @hoisted;
+  @hoisted: hoisted-value;
+}
+
+// Forward reference in same scope
+.forward-ref {
+  @a: @b;
+  @b: @c;
+  @c: final;
+  value: @a;
+}
+
+// Root :root selector with CSS custom properties
+:root {
+  --primary: @root-color;
+  --size: @root-size;
+}
+
+.use-custom-props {
+  color: var(--primary);
+}

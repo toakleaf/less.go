@@ -1,0 +1,40 @@
+.color-funcs {
+  color: #3498db;
+  light: #8bc4ea;
+  dark: #196090;
+  saturated: #1c9df3;
+  desaturated: #4c93c3;
+  complement: #db7734;
+}
+.math-funcs {
+  pi: 3.14159265;
+  ceil: 5;
+  floor: 4;
+  round: 5;
+  sqrt: 4;
+  pow: 8;
+  mod: 1;
+  min: 1px;
+  max: 3px;
+  percentage: 50%;
+}
+.string-funcs {
+  escaped: hello world;
+  replaced: "hello less";
+  length: 1;
+}
+.type-funcs {
+  is-color: true;
+  is-number: true;
+  is-string: true;
+  is-pixel: true;
+}
+.list-funcs {
+  length: 4;
+  first: a;
+  last: d;
+}
+.conditional {
+  font-size: large;
+  display: block;
+}
