@@ -1,0 +1,18 @@
+.test-basic {
+  prop: a b c, 1 2 3, x y z;
+}
+.test-numbers-first {
+  prop: 1 2 3, a b c;
+}
+.test-keywords-only {
+  prop: a b c, d e f;
+}
+.test-numbers-only {
+  prop: 1 2 3, 4 5 6;
+}
+.test-single-paren {
+  prop: a b c;
+}
+.test-mixed-dimensions {
+  prop: 10px 20px, 30px 40px;
+}

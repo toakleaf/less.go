@@ -2445,15 +2445,13 @@ func (p *Parsers) Sub() any {
 				}
 				return e
 			}
-			// Addition succeeded but no closing paren - this is an error!
-			// This matches JavaScript behavior and prevents malformed expressions
-			// like "(12 (13 + 5 -23) + 5)" from being parsed incorrectly
-			p.parser.parserInput.Restore("Expected ')'")
-			return nil
+			// Addition succeeded but no closing paren - fall through to try
+			// parsing as a general expression (e.g., "(1 2 3)" where Addition
+			// only parsed "1" but we need to parse "1 2 3" as separate entities)
 		}
 
-		// Addition returned nil, try parsing as a general expression with colon support
-		// for media queries like (min-width: 480px)
+		// Try parsing as a general expression with colon support
+		// for media queries like (min-width: 480px) or space-separated values like (1 2 3)
 		p.parser.parserInput.Restore("")
 		p.parser.parserInput.Save()
 		if p.parser.parserInput.Char('(') != nil {
