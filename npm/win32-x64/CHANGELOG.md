@@ -1,5 +1,18 @@
 # @lessgo/win32-x64
 
+## 0.3.0
+
+### Minor Changes
+
+-   [#469](https://github.com/toakleaf/less.go/pull/469) [`38c34be`](https://github.com/toakleaf/less.go/commit/38c34be9d5488468a742720a52d735195777bc52) Thanks [@toakleaf](https://github.com/toakleaf)! - Full compatibility with Less.js v4.4.2
+
+    -   All 195 integration tests now passing (100%)
+    -   Fixed CSS layer syntax and nested @layer handling
+    -   Fixed @starting-style at-rule nesting behavior
+    -   Fixed container queries with scroll-state() syntax
+    -   Fixed color channel identifiers (l,c,h,r,g,b,s) as operands
+    -   Fixed fade function alpha value handling
+
 ## 0.2.2
 
 ### Patch Changes
