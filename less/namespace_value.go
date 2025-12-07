@@ -342,7 +342,6 @@ func (nv *NamespaceValue) Eval(context any) (any, error) {
 						if anon, ok := rules.(*Anonymous); ok {
 							if str, ok := anon.Value.(string); ok {
 								// Try to parse dimension strings like "10px" into *Dimension
-								// Use a simple regex-like check for dimension patterns
 								if parsed := TryParseDimensionString(str); parsed != nil {
 									rules = parsed
 								}
@@ -354,8 +353,8 @@ func (nv *NamespaceValue) Eval(context any) (any, error) {
 				// Evaluate the value if it's evaluable
 				// If this value came from a ruleset, create a context with that ruleset as a frame
 				if valueFromRuleset != nil && parentRuleset != nil {
-			context = nv.createContextWithFrame(context, parentRuleset)
-		}
+					context = nv.createContextWithFrame(context, parentRuleset)
+				}
 
 				evalResult, err := evaluator.Eval(context)
 				if err != nil {
@@ -366,6 +365,17 @@ func (nv *NamespaceValue) Eval(context any) (any, error) {
 				if resultMap, ok := evalResult.(map[string]any); ok {
 					if resultValue, exists := resultMap["value"]; exists {
 						rules = resultValue
+					}
+				}
+
+				// If the result is still an Anonymous with a string value, try to parse it
+				// This handles cases where the variable value is a dimension string like "16px"
+				if anon, ok := rules.(*Anonymous); ok {
+					if str, ok := anon.Value.(string); ok {
+						// Try to parse dimension strings like "10px" into *Dimension
+						if parsed := TryParseDimensionString(str); parsed != nil {
+							rules = parsed
+						}
 					}
 				}
 			}
