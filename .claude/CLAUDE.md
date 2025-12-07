@@ -6,18 +6,12 @@ This file provides context to Claude Code about the less.go project.
 
 A complete Go port of Less.js - the popular CSS preprocessor. The port maintains 1:1 functionality with the original JavaScript implementation while following Go idioms.
 
-**Status: Port Complete** (2025-11-30)
+**Status: Port Complete** (2025-12-07)
 - Tracking Less.js v4.4.2 (latest release, October 2025)
-- 191/195 integration tests passing (98%)
-- 99 perfect CSS matches with Less.js output
+- 195/195 integration tests passing (100%)
+- 100 perfect CSS matches with Less.js output
 - 91 error handling tests correctly failing as expected
-- 3,012 unit tests passing
-
-**Pending v4.4.2 Compatibility Fixes** (4 tests):
-- `layer.less` - Extra space in `layer()` syntax, parent selector in nested @layer
-- `starting-style.less` - Nested @starting-style incorrectly bubbling to root
-- `container.less` - Extra space in `scroll-state()` syntax
-- `colors.less` - Color channel identifiers (l,c,h,r,g,b,s) not parsed as operands
+- All unit tests passing
 
 ## Rules References
 
@@ -165,4 +159,4 @@ pnpm bench:profile
 - Compression output
 - Source maps
 
-All core features are implemented. See "Pending v4.4.2 Compatibility Fixes" above for minor issues being addressed.
+All core features are implemented with 100% compatibility with Less.js v4.4.2.

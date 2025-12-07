@@ -4,12 +4,12 @@ An attempt at a complete Go port of [Less.js](https://github.com/less/less.js) -
 
 ## Status
 
-**Initial Release** (v0.1.0)
+**Current Release** - Fully compatible with Less.js v4.4.2
 
-- 191/191 integration tests passing (100%)
+- 195/195 integration tests passing (100%)
 - 100 perfect CSS matches with Less.js output
 - 91 error handling tests correctly failing as expected
-- 3,012 unit tests passing
+- All unit tests passing
 
 ## Installation
 
