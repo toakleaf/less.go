@@ -392,6 +392,10 @@ func (p *ParserInput) ParseUntil(tok any) any {
 						returnVal = string(expected)
 						loop = false
 					}
+				} else {
+					// Unmatched closing brace - stop parsing like Less.js does
+					// This prevents consuming content beyond block boundaries
+					loop = false
 				}
 			}
 			i++
