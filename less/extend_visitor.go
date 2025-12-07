@@ -696,9 +696,6 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 			sel, originalPathsLength, ruleset.Node != nil && ruleset.Node.BlocksVisibility())
 	}
 
-	// Track which rulesets were modified so we can deduplicate their paths
-	modifiedRulesets := make(map[*Ruleset]bool)
-
 	// look at each selector path in the ruleset, find any extend matches and then copy, find and replace
 	for extendIndex = 0; extendIndex < len(allExtends); extendIndex++ {
 		for pathIndex = 0; pathIndex < originalPathsLength; pathIndex++ {
@@ -862,8 +859,6 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 						// This ensures extend chaining works correctly (.c:extend(.b) + .b:extend(.a) = .a,.b,.c)
 						// The targetRuleset is only used for visibility management (reference imports)
 						ruleset.Paths = append(ruleset.Paths, extendedSelectors)
-						// Mark this ruleset as modified so we can deduplicate it later
-						modifiedRulesets[ruleset] = true
 					}
 
 					// CRITICAL FIX: When extending into a ruleset from a reference import,
@@ -888,10 +883,10 @@ func (pev *ProcessExtendsVisitor) VisitRuleset(rulesetNode any, visitArgs *Visit
 		}
 	}
 
-	// Deduplicate paths in all modified rulesets
-	for modifiedRuleset := range modifiedRulesets {
-		modifiedRuleset.Paths = pev.deduplicatePaths(modifiedRuleset.Paths)
-	}
+	// NOTE: We intentionally do NOT deduplicate paths here.
+	// For multi-target extends like .baz:extend(.foo, .bar) {}, Less.js produces
+	// .foo, .bar, .baz, .baz - with .baz appearing once for each target.
+	// This is the expected behavior per the Less.js specification.
 }
 
 // selectorExists checks if a selector path already exists in the paths list
