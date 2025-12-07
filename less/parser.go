@@ -924,6 +924,12 @@ func (p *Parsers) Declaration() any {
 				return decl
 			}
 
+			// For variables, save position before trying Value() so we can
+			// fallback to PermissiveValue() if Value() partially parses
+			if isVariable {
+				p.parser.parserInput.Save()
+			}
+
 			value = p.Value()
 			if tracerEnabled {
 				tracer.TraceMode("Declaration: after Value()", fmt.Sprintf("value=%v", value != nil), p.parser)
@@ -937,7 +943,22 @@ func (p *Parsers) Declaration() any {
 			}
 			if value != nil {
 				important = p.Important()
+				// For variables, check if we can complete the declaration.
+				// If not, Value() may have partially parsed (e.g., "(event)" from "(event) => {...}").
+				// In that case, restore and try PermissiveValue() which handles arbitrary content.
+				if isVariable && !p.End() && !p.parser.parserInput.Peek(";") {
+					p.parser.parserInput.Restore("")
+					// Reset to try permissive parsing
+					value = nil
+					important = nil
+				} else if isVariable {
+					p.parser.parserInput.Forget()
+				}
 			} else if isVariable {
+				p.parser.parserInput.Forget()
+			}
+
+			if value == nil && isVariable {
 				// As fallback, try permissive value for variables
 				value = p.PermissiveValue(nil, false)
 				if tracerEnabled {
