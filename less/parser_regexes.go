@@ -40,6 +40,9 @@ var (
 	// Valid: #RGB, #RGBA, #RRGGBB, #RRGGBBAA
 	// Invalid: #RRRR, #RRRRR (detected via trailing character in capture group 2)
 	reColorHex = regexp.MustCompile(`^#([A-Fa-f0-9]{8}|[A-Fa-f0-9]{6}|[A-Fa-f0-9]{3,4})([\w.#\[])?`)
+	// Matches color channel identifiers (l, c, h, r, g, b, s) followed by whitespace
+	// Used for CSS relative color syntax like oklch(from #0000FF calc(l - 0.1) c h)
+	reColorOperand = regexp.MustCompile(`^[lchrgbs]\s+`)
 )
 
 // Number and dimension patterns

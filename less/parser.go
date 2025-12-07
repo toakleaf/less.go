@@ -1930,7 +1930,7 @@ func (p *Parsers) AtRule() any {
 		hasBlock = false
 	case "@keyframes", "@counter-style":
 		hasIdentifier = true
-	case "@document", "@supports":
+	case "@document", "@supports", "@layer":
 		hasUnknown = true
 		isRooted = false
 	default:
@@ -2647,6 +2647,30 @@ func (p *Parsers) Addition() any {
 	return m
 }
 
+// ColorOperand parses color channel identifiers (l, c, h, r, g, b, s)
+// Used for CSS relative color syntax like oklch(from #0000FF calc(l - 0.1) c h)
+func (p *Parsers) ColorOperand() any {
+	p.parser.parserInput.Save()
+
+	// Match color channel identifiers followed by whitespace
+	match := p.parser.parserInput.Re(reColorOperand)
+	if match != nil {
+		var matchStr string
+		if matches, ok := match.([]string); ok && len(matches) > 0 {
+			matchStr = matches[0]
+		} else if str, ok := match.(string); ok {
+			matchStr = str
+		}
+		if matchStr != "" {
+			// Trim whitespace - the regex requires trailing whitespace but we don't want it in the output
+			return NewKeyword(strings.TrimSpace(matchStr))
+		}
+	}
+
+	p.parser.parserInput.Restore("")
+	return nil
+}
+
 // Operand parses operands for operations
 func (p *Parsers) Operand() any {
 	entities := p.entities
@@ -2678,6 +2702,9 @@ func (p *Parsers) Operand() any {
 	}
 	if o == nil {
 		o = entities.ColorKeyword()
+	}
+	if o == nil {
+		o = p.ColorOperand()
 	}
 	if o == nil {
 		o = entities.MixinLookup()
