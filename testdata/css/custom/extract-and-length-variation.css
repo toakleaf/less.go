@@ -1,0 +1,64 @@
+.different-separators {
+  space-length: 4;
+  comma-length: 4;
+  space-first: foo;
+  space-last: qux;
+  comma-second: 20px;
+  comma-third: 30px;
+}
+.extract-expressions {
+  static-extract: 15;
+  dynamic-extract: 10;
+  computed-index: 10;
+}
+.nested-lists {
+  outer-length: 3;
+  first-inner: a b c;
+  second-inner: 1 2 3;
+  inner-length: 3;
+  deep-extract: 2;
+}
+.mixed-types {
+  list-length: 5;
+  keyword-item: hello;
+  dimension-item: 42px;
+  color-item: #ff0000;
+  string-item: "string value";
+  percentage-item: 50%;
+}
+.edge-cases {
+  single-length: 1;
+  single-extract: only-one;
+  empty-length: 1;
+  empty-extract: ;
+}
+.calc-with-length {
+  item-count: 5;
+  calculated-width: 20%;
+  total-padding: 25px;
+}
+.mixin-usage {
+  extracted-value: medium;
+  list-length: 4;
+}
+.loop-extract {
+  size-1: 12px;
+  at-index: 12px;
+  size-2: 14px;
+  at-index: 14px;
+  size-3: 16px;
+  at-index: 16px;
+  size-4: 18px;
+  at-index: 18px;
+}
+.variadic-usage {
+  first-arg: first;
+  rest-length: 3;
+  rest-items: second third fourth;
+  second-from-rest: second;
+}
+.extract-bounds {
+  within-bounds: b;
+  out-of-bounds: extract(a b, 5);
+  negative-index: extract(a b, -1);
+}

@@ -1,0 +1,37 @@
+.opacity-test {
+  filter: progid:DXImageTransform.Microsoft.Alpha(opacity=100);
+  filter: progid:DXImageTransform.Microsoft.Alpha(opacity=50);
+  filter: progid:DXImageTransform.Microsoft.Alpha(opacity=0);
+}
+.opacity-variable {
+  filter: progid:DXImageTransform.Microsoft.Alpha(opacity=50);
+}
+.gradient-test {
+  filter: progid:DXImageTransform.Microsoft.gradient(startColorstr="#ffffff", endColorstr="#000000", GradientType=0);
+  filter: progid:DXImageTransform.Microsoft.gradient(startColorstr="#ff6600", endColorstr="#006600", GradientType=1);
+}
+.gradient-variables {
+  filter: progid:DXImageTransform.Microsoft.gradient(startColorstr="#ff0000", endColorstr="#0000ff", GradientType=1);
+}
+.multiple-filters {
+  filter: progid:DXImageTransform.Microsoft.Alpha(opacity=80) progid:DXImageTransform.Microsoft.gradient(startColorstr="#cccccc", endColorstr="#333333", GradientType=0);
+}
+.mixin-opacity {
+  filter: progid:DXImageTransform.Microsoft.Alpha(opacity=75);
+}
+.mixin-gradient {
+  filter: progid:DXImageTransform.Microsoft.gradient(startColorstr="#aabbcc", endColorstr="#112233", GradientType=0);
+  filter: progid:DXImageTransform.Microsoft.gradient(startColorstr="#ffcc00", endColorstr="#cc9900", GradientType=1);
+}
+.calc-opacity {
+  filter: progid:DXImageTransform.Microsoft.Alpha(opacity=50);
+}
+.shadow-filter {
+  filter: progid:DXImageTransform.Microsoft.Shadow(color="#333333", Direction=135, Strength=5);
+}
+.blur-filter {
+  filter: progid:DXImageTransform.Microsoft.Blur(pixelradius=5);
+}
+.combined {
+  filter: progid:DXImageTransform.Microsoft.gradient(startColorstr="#f0f0f0", endColorstr="#c0c0c0", GradientType=0) progid:DXImageTransform.Microsoft.Alpha(opacity=90);
+}

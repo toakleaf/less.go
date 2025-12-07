@@ -1,0 +1,17 @@
+@impor "this-is-not-an-import.less";
+@imprt "also-not-import.less";
+@impot "another-typo.less";
+@importonce "fake-directive.less";
+@importall "another-fake.less";
+@importing {
+  value: test;
+}
+.importish {
+  important: very;
+}
+.importer {
+  color: red;
+}
+.container {
+  value: "variable not import";
+}

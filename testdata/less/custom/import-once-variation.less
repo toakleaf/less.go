@@ -1,0 +1,20 @@
+// Import once variation tests
+// Testing that duplicate imports are properly handled
+
+// Import a file multiple times - should only appear once
+@import "import-support/duplicated.less";
+@import "import-support/duplicated.less";
+@import "import-support/duplicated";
+
+// Import with explicit (once) - same behavior as default
+@import (once) "import-support/base-styles.less";
+@import (once) "import-support/base-styles.less";
+
+// Import with (multiple) - should appear each time
+@import (multiple) "import-support/multiple-ok.less";
+@import (multiple) "import-support/multiple-ok.less";
+
+// Use imported variables
+.using-base {
+  color: @base-color;
+}

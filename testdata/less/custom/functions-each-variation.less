@@ -1,0 +1,153 @@
+// Each function variation tests
+
+// Basic each with different list types
+@colors: red, green, blue, yellow;
+@sizes: small medium large;
+
+// Each with comma-separated list
+.color-classes {
+  each(@colors, {
+    .color-@{value} {
+      color: @value;
+    }
+  });
+}
+
+// Each with space-separated list
+.size-classes {
+  each(@sizes, {
+    .size-@{value} {
+      font-size: @value;
+    }
+  });
+}
+
+// Each with named parameters
+.named-params {
+  @items: one two three;
+  each(@items, .(@val, @key, @idx) {
+    prop-@{idx}: @val;
+    key-@{idx}: @key;
+  });
+}
+
+// Each with detached ruleset
+@styles: {
+  primary: blue;
+  secondary: gray;
+  accent: orange;
+};
+
+.from-ruleset {
+  each(@styles, {
+    @{key}: @value;
+  });
+}
+
+// Nested each
+.nested-each {
+  @rows: 1 2;
+  @cols: a b c;
+
+  each(@rows, {
+    @row: @value;
+    each(@cols, {
+      @col: @value;
+      .cell-@{row}-@{col} {
+        content: "@{row}-@{col}";
+      }
+    });
+  });
+}
+
+// Each with numeric range
+.range-each {
+  @nums: range(1, 5);
+  each(@nums, {
+    .level-@{value} {
+      z-index: @value;
+    }
+  });
+}
+
+// Each with calculations
+.calc-each {
+  @breakpoints: 320, 768, 1024, 1200;
+  each(@breakpoints, {
+    @prev: if(@index > 1, extract(@breakpoints, (@index - 1)), 0);
+    .bp-@{value} {
+      min-width: unit(@value, px);
+    }
+  });
+}
+
+// Each with guard conditions
+.pick-even(@n) when (mod(@n, 2) = 0) {
+  even-@{n}: yes;
+}
+
+.guarded-each {
+  each(range(1, 6), {
+    .pick-even(@value);
+  });
+}
+
+// Each with property merging
+.merged-props {
+  @directions: top, right, bottom, left;
+  each(@directions, {
+    margin+_: 5px;
+  });
+}
+
+// Each over nested ruleset values
+@theme-colors: {
+  @light: {
+    bg: #fff;
+    text: #000;
+  };
+  @dark: {
+    bg: #000;
+    text: #fff;
+  };
+};
+
+.theme-classes {
+  each(@theme-colors[@light], {
+    light-@{key}: @value;
+  });
+}
+
+// Each with string interpolation in selector
+@prefixes: ms, webkit, moz;
+
+.vendor-prefixes {
+  each(@prefixes, {
+    -@{value}-transform: rotate(45deg);
+  });
+}
+
+// Each producing media queries
+@media-sizes: 480 600 900 1200;
+
+each(@media-sizes, {
+  @size: @value;
+  @media (min-width: unit(@size, px)) {
+    .visible-@{size} {
+      display: block;
+    }
+  }
+});
+
+// Each with conditional output
+.conditional-each {
+  @values: 1 2 3 4 5;
+  each(@values, {
+    & when (@value > 2) {
+      item-@{value}: large;
+    }
+    & when (@value <= 2) {
+      item-@{value}: small;
+    }
+  });
+}

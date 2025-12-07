@@ -1,0 +1,26 @@
+// Import interpolation variation tests
+
+// Variable for theme selection
+@theme: "dark";
+
+// Import using variable interpolation
+@import "import-support/theme-@{theme}.less";
+
+// Use the imported theme variables
+.themed-box {
+  background: @theme-bg;
+  color: @theme-text;
+  padding: 20px;
+}
+
+// Multiple interpolation parts - variables must be defined before import
+@prefix: "shared";
+@suffix: "mixins";
+
+// This import uses the variables defined above
+@import "import-support/@{prefix}-@{suffix}.less";
+
+// Use the imported mixins
+.centered-element {
+  .center-block();
+}

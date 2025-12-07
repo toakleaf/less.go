@@ -1,0 +1,16 @@
+// Import inline variation tests
+
+// First import a regular less file
+@import "import-support/base-styles.less";
+
+// Then import CSS inline (should be included as-is without processing)
+@import (inline) "import-support/inline-raw.css";
+
+// Regular import after inline
+@import "import-support/shared-mixins.less";
+
+// Use imported content
+.my-component {
+  .clearfix();
+  background: @base-color;
+}
