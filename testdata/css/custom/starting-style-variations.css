@@ -1,0 +1,69 @@
+.modal {
+  opacity: 1;
+  transform: translateY(0);
+  @starting-style {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+}
+@starting-style {
+  .fade-in {
+    opacity: 0;
+  }
+}
+.fade-in {
+  opacity: 1;
+  transition: opacity 0.5s;
+}
+.dropdown {
+  opacity: 1;
+  max-height: 500px;
+  visibility: visible;
+  @starting-style {
+    opacity: 0;
+    max-height: 0;
+    visibility: hidden;
+  }
+}
+.zoom-in {
+  opacity: 1;
+  transform: scale(1);
+  @starting-style {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+}
+.container .tooltip {
+  opacity: 1;
+  @starting-style {
+    opacity: 0;
+  }
+}
+@starting-style {
+  .slide-left {
+    transform: translateX(-100%);
+  }
+  .slide-right {
+    transform: translateX(100%);
+  }
+}
+.slide-left,
+.slide-right {
+  transform: translateX(0);
+  transition: transform 0.3s;
+}
+.panel[open] {
+  display: block;
+  opacity: 1;
+  @starting-style {
+    opacity: 0;
+  }
+}
+.animated-element {
+  opacity: 1;
+  transform: scale(1);
+  @starting-style {
+    opacity: 0.2;
+    transform: scale(0.95);
+  }
+}

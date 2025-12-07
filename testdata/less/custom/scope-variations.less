@@ -1,0 +1,119 @@
+// Test variations for scope behavior
+// Tests variable hoisting, mixin scope propagation, and shadowing
+
+// Test 1: Variable hoisting - use before definition
+.hoisting-test {
+  value: @hoisted-var;
+  @hoisted-var: hoisted-value;
+}
+
+// Test 2: Multiple level nesting with same variable names
+@level: root;
+.level-1 {
+  @level: level1;
+  .level-2 {
+    @level: level2;
+    .level-3 {
+      level-value: @level;
+    }
+    .level-2b {
+      // should see level2
+      level-value: @level;
+    }
+  }
+  level-1-value: @level;
+}
+
+// Test 3: Mixin that introduces variables
+.var-introducer(@val) {
+  @introduced: @val;
+}
+
+.use-introduced {
+  .var-introducer(introduced-value);
+  result: @introduced;
+}
+
+// Test 4: Mixin called multiple times with scope
+.multi-call-mixin(@x) {
+  @result: @x;
+}
+
+.multi-scope-1 {
+  .multi-call-mixin(first);
+  value: @result;
+}
+
+.multi-scope-2 {
+  .multi-call-mixin(second);
+  value: @result;
+}
+
+// Test 5: Detached ruleset scope
+@detached: {
+  @color: detached-blue;
+  color: @color;
+};
+
+.detached-scope {
+  @color: outer-red;
+  @detached();
+  outer-color: @color;
+}
+
+// Test 6: Guard with scope
+.guarded-mixin(@val) when (@val = 1) {
+  @guard-result: one;
+}
+.guarded-mixin(@val) when (@val = 2) {
+  @guard-result: two;
+}
+
+.guarded-scope-1 {
+  .guarded-mixin(1);
+  result: @guard-result;
+}
+
+.guarded-scope-2 {
+  .guarded-mixin(2);
+  result: @guard-result;
+}
+
+// Test 7: Recursive mixin with scope
+.recursive(@n) when (@n > 0) {
+  .level-@{n} {
+    depth: @n;
+  }
+  .recursive((@n - 1));
+}
+
+.recursive-output {
+  .recursive(3);
+}
+
+// Test 8: Variable in selector and scope
+@selector-var: widget;
+.@{selector-var} {
+  @selector-var: inner-value;
+  value: @selector-var;
+}
+
+// Test 9: Property value uses variable defined later in same scope
+.late-definition {
+  first: @late-var;
+  @late-var: late-value;
+  second: @late-var;
+}
+
+// Test 10: Namespace with scoped mixin
+#my-namespace {
+  @ns-var: namespace-value;
+  .ns-mixin() {
+    value: @ns-var;
+  }
+}
+
+.namespace-caller {
+  @ns-var: caller-value;
+  #my-namespace.ns-mixin();
+}

@@ -1,0 +1,116 @@
+// Test variations for string handling
+// Tests interpolation, escapes, and special characters
+
+// Test 1: Basic string interpolation
+@base-path: /images;
+@file-name: logo;
+@extension: png;
+
+.logo {
+  background-image: url("@{base-path}/@{file-name}.@{extension}");
+}
+
+// Test 2: String with special characters
+.special-chars {
+  content: "Hello \"World\"";
+  quote-content: 'Single\'s quote';
+  backslash: "back\\slash";
+  newline-escape: "line1\Aline2";
+}
+
+// Test 3: Escaped string (tilde syntax)
+.escaped {
+  filter: ~"alpha(opacity=50)";
+  expression: ~"calc(100% - 20px)";
+}
+
+// Test 4: Variable in escaped string
+@opacity-val: 75;
+.escaped-with-var {
+  filter: ~"alpha(opacity=@{opacity-val})";
+}
+
+// Test 5: Nested interpolation
+@prefix: app;
+@suffix: button;
+@full-name: ~"@{prefix}-@{suffix}";
+
+.@{full-name} {
+  display: inline-block;
+}
+
+// Test 6: String concatenation
+@part1: "Hello";
+@part2: "World";
+
+.concat {
+  content: "@{part1} @{part2}";
+}
+
+// Test 7: Numeric value in string
+@size: 16;
+@unit: px;
+
+.size-string {
+  font-size: ~"@{size}@{unit}";
+}
+
+// Test 8: Color value in string
+@color: #ff0000;
+
+.color-string {
+  content: "Color is: @{color}";
+}
+
+// Test 9: URL with interpolation
+@cdn: "https://cdn.example.com";
+@version: v2;
+
+.cdn-url {
+  background: url("@{cdn}/@{version}/images/bg.jpg");
+}
+
+// Test 10: Complex string with multiple interpolations
+@theme: dark;
+@component: header;
+@state: active;
+
+.class-builder {
+  content: ".@{theme}-@{component}--@{state}";
+}
+
+// Test 11: Empty string handling
+@empty: "";
+
+.empty-test {
+  content: "@{empty}test";
+  before: "before@{empty}";
+  middle: "a@{empty}b";
+}
+
+// Test 12: String with comments-like content
+.comment-like {
+  content: "/* not a comment */";
+  content2: "// not a comment either";
+}
+
+// Test 13: Quotes inside string
+.nested-quotes {
+  content: "He said \"hi\"";
+  attr: 'data-value="test"';
+}
+
+// Test 14: Unicode in strings
+.unicode {
+  content: "\2764";
+  icon: "\f000";
+}
+
+// Test 15: Multiple interpolations adjacent
+@a: one;
+@b: two;
+@c: three;
+
+.adjacent {
+  content: "@{a}@{b}@{c}";
+}

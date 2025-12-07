@@ -1,0 +1,51 @@
+.url-formats {
+  background: url(images/bg.png);
+  background-image: url("images/icon.png");
+  border-image: url('images/border.png');
+}
+.url-spaces {
+  background: url("my folder/my image.png");
+}
+.url-special {
+  background: url("image?size=100&format=png");
+  src: url("font.woff2#iefix");
+}
+.absolute-urls {
+  background: url(https://example.com/image.png);
+  background-image: url("//cdn.example.com/asset.jpg");
+  src: url(http://fonts.example.com/font.woff);
+}
+.interpolated-url {
+  background: url("../assets/images/hero.jpg");
+}
+.url-variable {
+  background: url(background.png);
+}
+.multiple-urls {
+  background: url(bg1.png), url(bg2.png), url(bg3.png);
+}
+@font-face {
+  font-family: 'TestFont';
+  src: url('fonts/test.woff2') format('woff2'), url('fonts/test.woff') format('woff');
+}
+.with-mixin-url {
+  background-image: url("custom/bg.png");
+}
+.protocol-relative {
+  background: url(//static.example.com/image.png);
+}
+.data-url {
+  background: url(data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7);
+}
+.url-fragment {
+  src: url(sprite.svg#icon-home);
+}
+.empty-url {
+  background: url("");
+}
+.complex-path {
+  src: url("/static/v1/styles/main.css");
+}
+.url-list {
+  cursor: url(cursor.cur), pointer;
+}

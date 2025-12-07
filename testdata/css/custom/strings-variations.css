@@ -1,0 +1,54 @@
+.logo {
+  background-image: url("/images/logo.png");
+}
+.special-chars {
+  content: "Hello \"World\"";
+  quote-content: 'Single\'s quote';
+  backslash: "back\\slash";
+  newline-escape: "line1\Aline2";
+}
+.escaped {
+  filter: alpha(opacity=50);
+  expression: calc(100% - 20px);
+}
+.escaped-with-var {
+  filter: alpha(opacity=75);
+}
+.app-button {
+  display: inline-block;
+}
+.concat {
+  content: "Hello World";
+}
+.size-string {
+  font-size: 16px;
+}
+.color-string {
+  content: "Color is: #ff0000";
+}
+.cdn-url {
+  background: url("https://cdn.example.com/v2/images/bg.jpg");
+}
+.class-builder {
+  content: ".dark-header--active";
+}
+.empty-test {
+  content: "test";
+  before: "before";
+  middle: "ab";
+}
+.comment-like {
+  content: "/* not a comment */";
+  content2: "// not a comment either";
+}
+.nested-quotes {
+  content: "He said \"hi\"";
+  attr: 'data-value="test"';
+}
+.unicode {
+  content: "\2764";
+  icon: "\f000";
+}
+.adjacent {
+  content: "onetwothree";
+}
