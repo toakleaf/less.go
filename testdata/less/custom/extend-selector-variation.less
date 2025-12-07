@@ -1,0 +1,142 @@
+// Variation of extend-selector test - testing various selector extension patterns
+
+// Basic error/success pattern
+.alert {
+  padding: 15px;
+  border: 1px solid;
+}
+.alert.warning {
+  border-color: orange;
+  background: #fff3cd;
+}
+.alert.error {
+  border-color: red;
+  background: #f8d7da;
+}
+.critical-alert:extend(.alert all) {
+  font-weight: bold;
+}
+
+// Multiple selector groups
+.nav-item .link, .nav-item .button {
+  text-decoration: none;
+}
+
+.menu-entry .action
+  :extend(.nav-item all) {
+}
+
+.sidebar-link:extend(.nav-item all),
+.toolbar-link:extend(.nav-item all) {
+}
+
+// Descendant vs child selectors with extend
+div.container,
+.wrapper > .container {
+  max-width: 1200px;
+}
+
+.empty-selector,
+.page-container:extend(.container all) {
+}
+
+// Testing extend within nested context
+.base-component {
+  margin: 10px;
+}
+.variant-a, .variant-b {
+  padding: 5px;
+  .child-component:extend(.base-component all) {
+    color: blue;
+    .grandchild {
+      font-size: 12px;
+    }
+  }
+}
+
+// Replace pattern with extend all
+.old-class.old-class,
+.context.old-class + .old-class {
+  .old-class,
+  .context {
+    legacy: style;
+  }
+}
+.new-class:extend(.old-class all) {}
+
+// Attribute selectors
+.attributes-section {
+  [role="button"] {
+    cursor: pointer;
+  }
+  [role] {
+    display: inline-block;
+  }
+  @role-value: "navigation";
+  [role=@{role-value}] {
+    display: flex;
+  }
+}
+
+.attributes-section {
+  .attr-extend-button {
+    &:extend([role="button"] all);
+  }
+  .attr-extend-generic {
+    &:extend([role] all);
+  }
+  .attr-extend-interpolated {
+    &:extend([role="navigation"] all);
+  }
+}
+
+// Extend with nested pseudo-elements
+.tooltip-base {
+  .tooltip-content {
+    position: absolute;
+    visibility: hidden;
+    &::before {
+      content: '';
+      border: 8px solid transparent;
+    }
+    &::after {
+      content: attr(data-tooltip);
+    }
+  }
+}
+
+.enhanced-tooltip {
+  .enhanced-content {
+    &:extend(.tooltip-base .tooltip-content all);
+  }
+}
+
+// Issue pattern - extend with child selectors
+.bordered-element {
+  border: 2px solid currentColor;
+}
+.form-section {
+  .input-wrapper:extend(.bordered-element) {
+    &>.label {
+      font-weight: bold;
+    }
+    &>.help-text {
+      font-size: 12px;
+    }
+  }
+}
+
+// Deep nesting with extends at multiple levels
+.theme {
+  .primary-button {
+    background: blue;
+    color: white;
+    &:hover {
+      background: darkblue;
+    }
+  }
+  .secondary-button {
+    &:extend(.theme .primary-button all);
+    background: gray;
+  }
+}

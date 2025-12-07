@@ -1,0 +1,119 @@
+.wrapper {
+  color: blue;
+}
+@document domain("example.com") {
+  .wrapper .inner {
+    color: green;
+  }
+}
+@supports (display: grid) {
+  .content .container {
+    display: grid;
+  }
+}
+@supports (display: flex) {
+  .flex-parent .flex-child {
+    flex: 1;
+  }
+}
+@supports (gap: 10px) {
+  .inner .outer {
+    gap: 10px;
+  }
+}
+@supports (font-variant: small-caps) {
+  @font-face {
+    font-family: CustomFont;
+    src: local("Test");
+  }
+}
+@font-face {
+  @supports (font-display: swap) {
+    font-family: AnotherFont;
+    src: local("Another");
+  }
+}
+@supports (transform: rotate(45deg)) {
+  @media (min-width: 600px) {
+    @supports (will-change: transform) {
+      .rotated  {
+        transform: rotate(45deg);
+      }
+    }
+  }
+}
+@supports (position: sticky) {
+  @media (max-height: 800px) {
+    @supports (overscroll-behavior: contain) {
+      .positioned  {
+        position: sticky;
+      }
+    }
+  }
+}
+@media screen {
+  article {
+    font-size: 16px;
+  }
+  @supports (font-size-adjust: 0.5) {
+    article {
+      font-size-adjust: 0.5;
+    }
+    article section {
+      padding: 20px;
+    }
+    @supports (padding-inline: 20px) {
+      article section {
+        padding-inline: 20px;
+      }
+      @media print {
+        article section {
+          font-size: 12pt;
+        }
+        article section aside {
+          margin: 10px;
+        }
+      }
+    }
+  }
+}
+@media all and (orientation: landscape) {
+  .landscape-only {
+    width: 100%;
+  }
+  @supports (aspect-ratio: 16/9) {
+    @supports (object-fit: cover) {
+      .widescreen .landscape-only {
+        object-fit: cover;
+      }
+    }
+  }
+}
+body {
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+}
+@supports (-moz-osx-font-smoothing: grayscale) {
+  body {
+    font-weight: 300;
+  }
+  body .nested-in-mixin {
+    smoothing: applied;
+  }
+}
+.component {
+  animation: slide-in 0.3s ease;
+  font-family: ComponentFont;
+}
+@font-face {
+  font-family: ComponentFont;
+  src: local("Component");
+}
+@keyframes slide-in {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}

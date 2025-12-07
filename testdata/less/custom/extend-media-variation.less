@@ -1,0 +1,86 @@
+// Variation of extend-media test - testing extend behavior with media queries
+
+// Base selector outside media
+.base-style .inner-style {
+  color: navy;
+}
+
+// Extend from inside media query
+@media (screen) {
+  .base-style .screen-style {
+    font-size: 16px;
+  }
+  .screen-extender :extend(.base-style all) {
+    background: white;
+  }
+  @media (min-width: 1024px) {
+    .base-style .desktop-style {
+      font-size: 18px;
+    }
+    .desktop-extender :extend(.base-style all) {
+      background: gray;
+    }
+  }
+}
+
+// Extend from outside media (should get outer rules only)
+.outside-extender:extend(.base-style all) {
+
+}
+
+// Different media types
+@media print {
+  .print-base .child {
+    font-size: 12pt;
+  }
+  .print-extender:extend(.print-base all) {}
+}
+
+@media (color) {
+  .color-base .child {
+    color: inherit;
+  }
+  .color-extender:extend(.color-base all) {}
+  .cross-extender:extend(.print-base all) {} // Should not extend across different media
+}
+
+// Nested media with multiple extends
+@media (hover: hover) {
+  .hoverable {
+    cursor: pointer;
+    &:hover {
+      opacity: 0.8;
+    }
+  }
+
+  @media (pointer: fine) {
+    .precise {
+      padding: 5px;
+    }
+    .combined-extender {
+      &:extend(.hoverable all);
+      &:extend(.precise);
+    }
+  }
+}
+
+// Media query with all keyword extend
+@media (orientation: portrait) {
+  .portrait-layout {
+    flex-direction: column;
+    .sidebar {
+      width: 100%;
+    }
+    .main {
+      flex: 1;
+    }
+  }
+  .mobile-layout:extend(.portrait-layout all) {
+    padding: 10px;
+  }
+}
+
+// Extend outside shouldn't capture media-scoped rules
+.global-extender:extend(.portrait-layout all) {
+  // Should be empty since .portrait-layout is in media query
+}

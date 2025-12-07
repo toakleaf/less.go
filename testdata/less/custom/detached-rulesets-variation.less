@@ -1,0 +1,132 @@
+// Variation of detached-rulesets test - testing different usage patterns
+
+// Simple detached ruleset
+@simple-ruleset: {
+  font-size: 16px;
+  line-height: 1.5;
+};
+
+// Different mixin accepting ruleset
+@spacing: 8px;
+.apply-ruleset(@rules) {
+  @spacing: hidden-should-not-appear;
+  @fallback: default-value;
+  @context: from-mixin;
+  .content-area {
+    @local: local-value;
+    @rules();
+    local-var: @local;
+    fallback-var: @fallback;
+  }
+}
+
+// Call with inline ruleset
+.apply-ruleset({
+  color: blue;
+  padding: @spacing;
+  @local: overridden-should-not-appear;
+  @fallback: overridden-should-not-appear;
+  context-check: @context;
+});
+
+// Call with default argument
+.apply-ruleset(@rules: {
+  default: applied;
+});
+
+// Call with stored ruleset
+.apply-ruleset(@simple-ruleset);
+
+// Media query pattern
+.responsive-mixin(@mobile-rules) {
+  @media screen and (max-width: 768px) { @mobile-rules(); }
+  html.no-media & { @mobile-rules(); }
+}
+
+nav {
+  background: navy;
+
+  .responsive-mixin({
+    background: lightblue;
+    padding: 10px;
+  });
+}
+
+// Nested mixin calls with rulesets
+.outer-wrapper(@outer-rules) {
+  .apply-ruleset(@outer-rules);
+}
+
+.apply-ruleset({
+  test: level-one;
+  .outer-wrapper({
+    test: level-two;
+  });
+});
+
+// Ruleset with function calls
+.apply-ruleset({
+  width: unit(50px);
+  height: unit((8+8), px);
+});
+
+// Direct invocation without mixin
+@direct-ruleset: {
+  direct: invoked;
+};
+.direct-call {
+  @direct-ruleset();
+}
+
+// Ruleset containing media queries
+@media-ruleset: {
+  .selector-inside {
+    @media (screen) {
+      background: black;
+    }
+  }
+};
+
+@media (print) {
+  @media-ruleset();
+  .responsive-mixin({
+    @media (tv) {
+      .deeply-nested {
+        deep: true;
+      }
+    }
+  });
+}
+
+.wrap-with-media(@rules) {
+  @media (widescreen) {
+    @media (hd) {
+      @rules();
+    }
+    @rules();
+  }
+  @rules();
+}
+
+// Unlocking mixins via ruleset
+@mixin-container: {
+  .reusable() {
+    reusable: yes;
+  }
+};
+
+@mixin-container();
+.use-unlocked {
+  .reusable();
+}
+
+// Default arguments with empty and non-empty
+.with-defaults(@first: {}; @second: {fallback: yes;};) {
+  @first();
+  @second();
+}
+
+.defaults-test {
+  .with-defaults();
+  .with-defaults({explicit: first;}; @second: {explicit: second;});
+}

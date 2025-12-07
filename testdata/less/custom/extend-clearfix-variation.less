@@ -1,0 +1,81 @@
+// Variation of extend-clearfix test - testing extend all with pseudo-elements
+
+.floated-container {
+  overflow: hidden;
+  &::before {
+    content: '';
+    display: table;
+  }
+  &::after {
+    content: '';
+    display: table;
+    clear: both;
+  }
+}
+
+.card-list {
+  &:extend(.floated-container all);
+  margin: 20px 0;
+}
+
+.gallery {
+  &:extend(.floated-container all);
+  padding: 10px;
+}
+
+.navigation {
+  &:extend(.floated-container all);
+  background: #f0f0f0;
+}
+
+// More complex pseudo-element pattern
+.tooltip {
+  position: relative;
+  &:hover {
+    opacity: 1;
+    &::before {
+      visibility: visible;
+    }
+  }
+  &::before {
+    content: attr(data-tip);
+    position: absolute;
+    visibility: hidden;
+  }
+}
+
+.info-tip {
+  &:extend(.tooltip all);
+  color: blue;
+}
+
+.warning-tip {
+  &:extend(.tooltip all);
+  color: orange;
+}
+
+// Nested element extends
+.form-group {
+  margin-bottom: 15px;
+  .label {
+    display: block;
+    margin-bottom: 5px;
+  }
+  .input {
+    width: 100%;
+    padding: 8px;
+    &:focus {
+      outline: 2px solid blue;
+    }
+  }
+}
+
+.search-group {
+  &:extend(.form-group all);
+  display: flex;
+}
+
+.filter-group {
+  &:extend(.form-group all);
+  background: #fafafa;
+}
