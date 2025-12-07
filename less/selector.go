@@ -53,10 +53,10 @@ func NewSelector(elementsInput any, extendList []any, condition any, index int, 
 	}
 
 	s.Index = index
+	// Only set fileInfo if provided - FileInfo() method will lazily return
+	// an empty map when accessed if no fileInfo is set, avoiding unnecessary allocation
 	if currentFileInfo != nil {
 		s.SetFileInfo(currentFileInfo)
-	} else {
-		s.SetFileInfo(make(map[string]any))
 	}
 	s.CopyVisibilityInfo(visibilityInfo)
 
@@ -84,8 +84,14 @@ func NewSelector(elementsInput any, extendList []any, condition any, index int, 
 		ReleaseSelector(s)
 		// Add context to the error if it's not already a LessError
 		if _, ok := err.(*LessError); !ok {
+			filename := "<unknown>"
+			if currentFileInfo != nil {
+				if fn, ok := currentFileInfo["filename"].(string); ok {
+					filename = fn
+				}
+			}
 			err = fmt.Errorf("selector parsing failed at index %d in %s: %w",
-				index, currentFileInfo["filename"], err)
+				index, filename, err)
 		}
 		return nil, err
 	}
@@ -256,13 +262,12 @@ func (s *Selector) CreateDerived(elementsInput any, extendList []any, evaldCondi
 		index = s.GetIndex()
 	}
 
-	fileInfo := make(map[string]any)
+	// Only get fileInfo and visibilityInfo when s.Node is not nil
+	// Pass nil to NewSelector when s.Node is nil - it handles nil gracefully
+	var fileInfo map[string]any
+	var visibilityInfo map[string]any
 	if s.Node != nil {
 		fileInfo = s.FileInfo()
-	}
-
-	visibilityInfo := make(map[string]any)
-	if s.Node != nil {
 		visibilityInfo = s.VisibilityInfo()
 	}
 
