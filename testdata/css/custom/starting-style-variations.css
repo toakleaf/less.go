@@ -1,0 +1,96 @@
+.modal {
+  opacity: 1;
+  transform: scale(1);
+  @starting-style {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+}
+@starting-style {
+  .fade-in {
+    opacity: 0;
+  }
+}
+.fade-in {
+  opacity: 1;
+  transition: opacity 0.3s;
+}
+.slide {
+  transform: translateX(0);
+  opacity: 1;
+  filter: blur(0);
+  @starting-style {
+    transform: translateX(-100%);
+    opacity: 0;
+    filter: blur(10px);
+  }
+}
+.animated {
+  opacity: 1;
+  transform: scale(1);
+  @starting-style {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+}
+@starting-style {
+  .container .child {
+    opacity: 0;
+  }
+}
+.container .child {
+  opacity: 1;
+  transition: opacity 0.5s;
+}
+.panel-a {
+  height: auto;
+  @starting-style {
+    height: 0;
+  }
+}
+.panel-b {
+  width: 100%;
+  @starting-style {
+    width: 0;
+  }
+}
+@starting-style {
+  .panel-a,
+  .panel-b {
+    visibility: hidden;
+  }
+}
+[popover]:popover-open {
+  opacity: 1;
+  @starting-style {
+    opacity: 0;
+  }
+}
+.responsive-animate {
+  opacity: 1;
+  @starting-style {
+    opacity: 0;
+  }
+}
+.color-fade {
+  background-color: blue;
+  color: white;
+  @starting-style {
+    background-color: transparent;
+    color: transparent;
+  }
+}
+dialog[open] {
+  transform: translateY(0);
+  opacity: 1;
+  @starting-style {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+}
+dialog[open]::backdrop {
+  background: rgba(0, 0, 0, 0.5);
+  @starting-style {
+    background: transparent;
+  }
+}

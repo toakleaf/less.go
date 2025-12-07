@@ -1,0 +1,85 @@
+// Variations of URL tests
+// Tests different URL handling patterns (without imports to avoid path issues)
+
+// Test 1: Basic URL formats
+.basic-urls {
+    background-image: url(images/bg.png);
+    background-image: url("images/bg.png");
+    background-image: url('images/bg.png');
+}
+
+// Test 2: URL with different protocols
+.protocol-urls {
+    http-url: url(http://example.com/image.jpg);
+    https-url: url(https://example.com/image.jpg);
+    protocol-relative: url(//cdn.example.com/image.jpg);
+}
+
+// Test 3: URL with variables
+.url-variables-direct {
+    @img-url: 'images/logo.png';
+    @font-url: "fonts/custom.woff";
+    bg: url(@img-url);
+    src: url(@font-url);
+}
+
+// Test 4: URL with query strings
+.query-urls {
+    versioned: url(image.png?v=123);
+    multi-param: url(image.png?width=100&height=50);
+    quoted-query: url("font.woff?family=Open+Sans");
+}
+
+// Test 5: URL with fragments
+.fragment-urls {
+    svg-ref: url(sprites.svg#icon-home);
+    font-svg: url("font.svg#myfont");
+}
+
+// Test 6: Data URLs
+.data-urls {
+    inline-svg: url("data:image/svg+xml,<svg></svg>");
+    base64-gif: url(data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7);
+}
+
+// Test 7: URL in shorthand properties
+.shorthand-urls {
+    background: url(bg.jpg) no-repeat center center;
+    background: #fff url("pattern.png") repeat-x top left;
+    list-style: square url(bullet.png) inside;
+}
+
+// Test 8: Multiple URLs in single property
+.multi-urls {
+    background-image: url(layer1.png), url(layer2.png), url(layer3.png);
+    cursor: url(custom.cur), url(fallback.cur), pointer;
+}
+
+// Test 9: URL in font-face
+@font-face {
+    font-family: "CustomFont";
+    src: url("fonts/custom.woff2") format("woff2"),
+         url("fonts/custom.woff") format("woff");
+}
+
+// Test 10: URL with special characters
+.special-urls {
+    encoded: url(path/to/file%20with%20spaces.png);
+    parens: url("image(1).jpg");
+    unicode-path: url("fonts/\e001.woff");
+}
+
+// Test 11: URL with variable as full value
+.url-full-variable {
+    @hero-img: "https://cdn.example.com/images/hero.jpg";
+    @icon-img: "https://cdn.example.com/icons/arrow.svg";
+    bg: url(@hero-img);
+    icon: url(@icon-img);
+}
+
+// Test 12: Empty and edge case URLs
+.edge-case-urls {
+    relative-up: url(../images/bg.png);
+    deep-relative: url(../../assets/images/bg.png);
+    root-relative: url(/absolute/path/image.png);
+}

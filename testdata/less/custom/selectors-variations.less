@@ -1,0 +1,170 @@
+// Variations of selectors tests
+// Tests different selector patterns and parent selector usage
+
+// Test 1: Basic parent selector
+.button {
+    background: blue;
+
+    &-primary {
+        background: green;
+    }
+
+    &-secondary {
+        background: gray;
+    }
+
+    &--large {
+        font-size: 20px;
+    }
+
+    &__icon {
+        margin-right: 5px;
+    }
+}
+
+// Test 2: Parent selector with pseudo-classes
+.input {
+    border: 1px solid gray;
+
+    &:focus {
+        border-color: blue;
+    }
+
+    &:disabled {
+        opacity: 0.5;
+    }
+
+    &:valid {
+        border-color: green;
+    }
+
+    &:invalid {
+        border-color: red;
+    }
+}
+
+// Test 3: Parent selector position variations
+.parent {
+    .child & {
+        position: relative;
+    }
+
+    & + & {
+        margin-top: 10px;
+    }
+
+    & > & {
+        padding: 5px;
+    }
+
+    & ~ & {
+        border-top: 1px solid;
+    }
+}
+
+// Test 4: Multiple parent selectors in one rule
+.foo, .bar {
+    padding: 10px;
+
+    &:hover, &:focus {
+        outline: 1px solid;
+    }
+
+    .container &, .wrapper & {
+        margin: auto;
+    }
+}
+
+// Test 5: Selector interpolation with variables
+@element: header;
+@modifier: active;
+
+.@{element} {
+    height: 60px;
+
+    &.@{modifier} {
+        background: yellow;
+    }
+}
+
+// Test 6: Attribute selectors
+[data-type] {
+    display: block;
+}
+
+[data-value="test"] {
+    color: red;
+}
+
+[data-name^="prefix"] {
+    font-weight: bold;
+}
+
+[data-name$="suffix"] {
+    font-style: italic;
+}
+
+[data-name*="contains"] {
+    text-decoration: underline;
+}
+
+// Test 7: Pseudo-elements
+.pseudo-el {
+    &::before {
+        content: "before";
+    }
+
+    &::after {
+        content: "after";
+    }
+
+    &::first-letter {
+        font-size: 2em;
+    }
+
+    &::first-line {
+        font-weight: bold;
+    }
+}
+
+// Test 8: :not() and :is() selectors
+.modern-selectors {
+    &:not(:first-child) {
+        margin-top: 10px;
+    }
+
+    &:not(.disabled):not(.hidden) {
+        display: block;
+    }
+}
+
+:is(h1, h2, h3) {
+    font-family: serif;
+}
+
+// Test 9: Complex nesting with parent selectors
+.card {
+    .header & {
+        border: none;
+    }
+
+    body.dark & {
+        background: #333;
+    }
+
+    &.highlighted {
+        border: 2px solid gold;
+    }
+}
+
+// Test 10: Nested selector groups
+.list {
+    .item, .element {
+        padding: 5px;
+
+        &.selected, &.active {
+            background: blue;
+            color: white;
+        }
+    }
+}

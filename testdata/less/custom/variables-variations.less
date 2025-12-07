@@ -1,0 +1,145 @@
+// Variations of variables tests
+// Tests different variable patterns and operations
+
+// Test 1: Basic variable definitions and usage
+@primary: #3498db;
+@secondary: #2ecc71;
+@font-size: 16px;
+@line-height: 1.5;
+
+.basic-vars {
+    color: @primary;
+    background: @secondary;
+    font-size: @font-size;
+    line-height: @line-height;
+}
+
+// Test 2: Variable arithmetic
+@base: 10px;
+@double: @base * 2;
+@half: @base / 2;
+@added: @base + 5px;
+@subtracted: @base - 3px;
+
+.arithmetic {
+    width: @double;
+    padding: @half;
+    margin-top: @added;
+    margin-bottom: @subtracted;
+}
+
+// Test 3: Color operations with variables
+@color: #4488cc;
+.color-ops {
+    lighter: lighten(@color, 20%);
+    darker: darken(@color, 20%);
+    saturated: saturate(@color, 20%);
+    desaturated: desaturate(@color, 20%);
+    faded: fade(@color, 50%);
+}
+
+// Test 4: Variable references (variable variables)
+@var-name: real-value;
+@real-value: "resolved";
+.var-reference {
+    resolved: @@var-name;
+}
+
+// Test 5: Variable in calc
+@offset: 20px;
+.calc-vars {
+    width: calc(100% - @offset);
+    height: calc(100vh - @offset * 2);
+}
+
+// Test 6: List variables
+@list: one, two, three;
+@spaced-list: a b c d;
+
+.list-vars {
+    font-family: @list;
+    animation-name: @spaced-list;
+}
+
+// Test 7: Variable overriding in nested scope
+@scope-var: outer;
+
+.outer-scope {
+    value: @scope-var;
+
+    .inner-scope {
+        @scope-var: inner;
+        value: @scope-var;
+
+        .deep-scope {
+            @scope-var: deep;
+            value: @scope-var;
+        }
+    }
+
+    after: @scope-var;
+}
+
+// Test 8: Variables with units
+@px-val: 100px;
+@em-val: 2em;
+@rem-val: 1.5rem;
+@percent-val: 50%;
+
+.unit-vars {
+    width: @px-val;
+    font-size: @em-val;
+    padding: @rem-val;
+    opacity: @percent-val;
+}
+
+// Test 9: Variables as property values
+@display: flex;
+@position: absolute;
+@float: left;
+
+.prop-value-vars {
+    display: @display;
+    position: @position;
+    float: @float;
+}
+
+// Test 10: Late binding / lazy evaluation
+.lazy-binding {
+    early-use: @lazy;
+    @lazy: late-defined;
+    late-use: @lazy;
+}
+
+// Test 11: Variables in selectors and properties
+@selector-part: widget;
+@prop-name: color;
+
+.@{selector-part} {
+    @{prop-name}: red;
+}
+
+// Test 12: Important with variables
+@important-color: blue;
+.important-vars {
+    color: @important-color !important;
+}
+
+// Test 13: Complex expressions
+@a: 2;
+@b: 3;
+@c: 4;
+.complex-expr {
+    result: (@a + @b) * @c;
+    nested: ((@a * @a) + (@b * @b));
+}
+
+// Test 14: Default parameter patterns
+.with-default(@param: default-value) {
+    value: @param;
+}
+
+.default-test {
+    .with-default();
+    .with-default(custom-value);
+}

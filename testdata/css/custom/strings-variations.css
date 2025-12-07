@@ -1,0 +1,50 @@
+.string-types {
+  double-quoted: "double quoted string";
+  single-quoted: 'single quoted string';
+  empty-double: "";
+  empty-single: '';
+}
+.special-chars {
+  brackets: "{ } [ ] ( )";
+  symbols: "# @ $ % ^ & * !";
+  punctuation: ", . ; : ? /";
+  quotes-in-double: "he said \"hello\"";
+  quotes-in-single: 'she said "hi"';
+  apostrophe: "it's working";
+}
+.interpolation {
+  greeting: "hello world";
+  message: "the answer is 42";
+  url-like: "http://example.com/images/logo.png";
+}
+.multi-interp {
+  full: "John Doe is 30 years old";
+}
+.escapes {
+  newline: "line1\nline2";
+  tab: "col1\tcol2";
+  backslash: "path\\to\\file";
+  unicode: "\2665";
+}
+.context-usage {
+  content-prop: "::before content";
+  font-family: "Helvetica Neue", Arial;
+  quotes-prop: "\201C" "\201D";
+}
+.escaped-strings {
+  filter-like: progid:DXImageTransform.Microsoft.Alpha(Opacity=80);
+  calc-like: calc(100% - 20px);
+  custom: custom-value(123);
+}
+.concatenation {
+  combined: "pre-fix";
+  extended: "hello-extended-hello";
+}
+.numeric-strings {
+  size: "100x50";
+  ver: "version-2.0.0";
+}
+.nested-edge {
+  result: value;
+  string-result: "@inner";
+}

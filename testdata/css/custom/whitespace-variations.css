@@ -1,0 +1,73 @@
+.brace-same-line {
+  color: red;
+}
+.brace-next-line {
+  color: blue;
+}
+.brace-indented {
+  color: green;
+}
+.colon-spacing {
+  no-space: black;
+  space-before: white;
+  space-after: gray;
+  both-spaces: silver;
+}
+.multi-space {
+  margin: 10px;
+  padding: 20px   ;
+}
+.tab-indent {
+  prop1: val1;
+  prop2: val2;
+  prop3: val3;
+}
+.no-final-semi {
+  color: red;
+  background: blue;
+}
+.single-no-semi {
+  display: block;
+}
+.newline-values {
+  font-family: Arial, Helvetica, sans-serif;
+  background: linear-gradient(to bottom, red, blue);
+}
+.selector-one,
+.selector-two,
+.selector-three {
+  color: purple;
+}
+.mixed .spaces .selectors {
+  color: cyan;
+}
+.with .newlines .between {
+  color: magenta;
+}
+.compact-props {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+.many-newlines {
+  color: orange;
+  background: pink;
+}
+.outer-ws .inner-compact {
+  color: red;
+}
+.outer-ws .inner-spaced {
+  color: blue    ;
+}
+.outer-ws .inner-normal {
+  color: green;
+}
+.with-comments {
+  /* comment before */
+  color: red;
+  /* comment after */
+  background: blue;
+}
+.multiline-value {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.1), 0 4px 8px rgba(0, 0, 0, 0.1);
+}

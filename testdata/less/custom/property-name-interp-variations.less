@@ -1,0 +1,96 @@
+// Variations of property name interpolation tests
+// Tests different variable patterns and edge cases not covered in original
+
+// Test 1: Simple property name interpolation with different prefixes
+.simple-interp {
+    @prop: color;
+    @{prop}: red;
+
+    @bg: background;
+    @{bg}-color: blue;
+    @{bg}-image: none;
+}
+
+// Test 2: Multiple interpolations in a single property name
+.multi-interp {
+    @a: border;
+    @b: left;
+    @c: color;
+    @{a}-@{b}-@{c}: green;
+
+    @x: margin;
+    @y: top;
+    @{x}-@{y}: 10px;
+}
+
+// Test 3: Property names with numbers and special characters
+.numeric-interp {
+    @num: 1;
+    --custom-var-@{num}: 100px;
+
+    @dash: -webkit;
+    @{dash}-transform: rotate(45deg);
+}
+
+// Test 4: Interpolation at different positions
+.position-interp {
+    @prefix: flex;
+    @suffix: basis;
+    @{prefix}-@{suffix}: 50%;
+    @{prefix}-grow: 1;
+    @{prefix}-shrink: 0;
+}
+
+// Test 5: Variables with underscores and numbers
+.edge-cases {
+    @prop1: margin;
+    @prop_2: padding;
+    @{prop1}: 100px;
+    @{prop_2}: 200px;
+}
+
+// Test 6: Variable containing another variable name pattern
+.nested-var-name {
+    @real-prop: display;
+    @{real-prop}: block;
+}
+
+// Test 7: Multiple properties with same interpolation
+.repeated-interp {
+    @side: left;
+    margin-@{side}: 5px;
+    padding-@{side}: 10px;
+    border-@{side}: 1px solid black;
+}
+
+// Test 8: Interpolation with CSS custom properties
+.custom-props {
+    @name: theme;
+    --@{name}-color: #333;
+    --@{name}-bg: #fff;
+    --@{name}-font: sans-serif;
+    color: var(--theme-color);
+}
+
+// Test 9: Mixin with property interpolation
+.prop-interp-mixin(@property, @value) {
+    @{property}: @value;
+    @{property}-extra: inherit;
+}
+
+.use-mixin {
+    .prop-interp-mixin(font-size, 14px);
+    .prop-interp-mixin(line-height, 1.5);
+}
+
+// Test 10: Interpolation in nested context
+.nested-context {
+    @outer: text;
+    @{outer}-align: center;
+
+    .inner {
+        @inner: font;
+        @{inner}-weight: bold;
+        @{outer}-decoration: underline;
+    }
+}

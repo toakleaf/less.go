@@ -1,0 +1,143 @@
+// Variations of @starting-style tests
+// Tests different patterns of @starting-style usage
+
+// Test 1: Basic nested @starting-style
+.modal {
+    opacity: 1;
+    transform: scale(1);
+
+    @starting-style {
+        opacity: 0;
+        transform: scale(0.8);
+    }
+}
+
+// Test 2: Top-level @starting-style with selector
+@starting-style {
+    .fade-in {
+        opacity: 0;
+    }
+}
+
+.fade-in {
+    opacity: 1;
+    transition: opacity 0.3s;
+}
+
+// Test 3: Multiple properties in @starting-style
+.slide {
+    transform: translateX(0);
+    opacity: 1;
+    filter: blur(0);
+
+    @starting-style {
+        transform: translateX(-100%);
+        opacity: 0;
+        filter: blur(10px);
+    }
+}
+
+// Test 4: @starting-style with variables
+.animated {
+    @start-opacity: 0;
+    @start-scale: 0.5;
+
+    opacity: 1;
+    transform: scale(1);
+
+    @starting-style {
+        opacity: @start-opacity;
+        transform: scale(@start-scale);
+    }
+}
+
+// Test 5: Nested selectors inside @starting-style
+@starting-style {
+    .container {
+        .child {
+            opacity: 0;
+        }
+    }
+}
+
+.container {
+    .child {
+        opacity: 1;
+        transition: opacity 0.5s;
+    }
+}
+
+// Test 6: Multiple @starting-style blocks
+.panel-a {
+    height: auto;
+
+    @starting-style {
+        height: 0;
+    }
+}
+
+.panel-b {
+    width: 100%;
+
+    @starting-style {
+        width: 0;
+    }
+}
+
+@starting-style {
+    .panel-a, .panel-b {
+        visibility: hidden;
+    }
+}
+
+// Test 7: @starting-style with pseudo-selectors
+[popover] {
+    &:popover-open {
+        opacity: 1;
+
+        @starting-style {
+            opacity: 0;
+        }
+    }
+}
+
+// Test 8: @starting-style in media query context simulation
+.responsive-animate {
+    opacity: 1;
+
+    @starting-style {
+        opacity: 0;
+    }
+}
+
+// Test 9: @starting-style with color transitions
+.color-fade {
+    background-color: blue;
+    color: white;
+
+    @starting-style {
+        background-color: transparent;
+        color: transparent;
+    }
+}
+
+// Test 10: Complex @starting-style with multiple selectors
+dialog {
+    &[open] {
+        transform: translateY(0);
+        opacity: 1;
+
+        @starting-style {
+            transform: translateY(-20px);
+            opacity: 0;
+        }
+
+        &::backdrop {
+            background: rgba(0, 0, 0, 0.5);
+
+            @starting-style {
+                background: transparent;
+            }
+        }
+    }
+}

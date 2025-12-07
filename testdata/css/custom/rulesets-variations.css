@@ -1,0 +1,114 @@
+.level-one {
+  color: red;
+}
+.level-one .level-two {
+  color: blue;
+}
+.level-one .level-two .level-three {
+  color: green;
+}
+.level-one .level-two .level-three .level-four {
+  color: yellow;
+}
+.container .first-child {
+  order: 1;
+}
+.container .second-child {
+  order: 2;
+}
+.container .third-child {
+  order: 3;
+}
+article {
+  padding: 20px;
+}
+article header {
+  margin-bottom: 10px;
+}
+article header h1 {
+  font-size: 2em;
+}
+article .content p {
+  line-height: 1.6;
+}
+article footer {
+  margin-top: 10px;
+}
+.nav > .nav-item {
+  display: inline-block;
+}
+.nav > .nav-item + .nav-item {
+  margin-left: 10px;
+}
+.nav > .nav-item ~ .nav-item-last {
+  float: right;
+}
+.link {
+  color: blue;
+}
+.link:hover {
+  color: red;
+}
+.link:hover::after {
+  content: " *";
+}
+.link:focus {
+  outline: 2px solid orange;
+}
+.link:visited {
+  color: purple;
+}
+.form [type="text"] {
+  border: 1px solid gray;
+}
+.form [type="text"][required] {
+  border-color: red;
+}
+.form [type="submit"] {
+  cursor: pointer;
+}
+.alert,
+.warning,
+.error {
+  padding: 10px;
+}
+.alert .icon,
+.warning .icon,
+.error .icon {
+  margin-right: 5px;
+}
+.alert .message,
+.warning .message,
+.error .message {
+  font-weight: bold;
+}
+.responsive {
+  width: 100%;
+}
+.responsive .sidebar {
+  width: 25%;
+}
+.responsive .main {
+  width: 75%;
+}
+#main #header {
+  height: 60px;
+}
+#main #content {
+  min-height: 400px;
+}
+#main #content #sidebar {
+  width: 200px;
+}
+#main #footer {
+  height: 40px;
+}
+.table > thead > tr > th {
+  font-weight: bold;
+}
+.table > tbody > tr > td {
+  padding: 5px;
+}
+.table > tbody > tr:nth-child(odd) {
+  background: #f5f5f5;
+}
