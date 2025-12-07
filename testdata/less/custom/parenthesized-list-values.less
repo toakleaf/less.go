@@ -1,0 +1,32 @@
+// Test for parenthesized list values with comma separation
+// Issue: Parser failed on comma-separated parenthesized groups like (a b c), (1 2 3)
+
+.test-basic {
+  @outer: (a b c), (1 2 3), (x y z);
+  prop: @outer;
+}
+
+.test-numbers-first {
+  @v: (1 2 3), (a b c);
+  prop: @v;
+}
+
+.test-keywords-only {
+  @v: (a b c), (d e f);
+  prop: @v;
+}
+
+.test-numbers-only {
+  @v: (1 2 3), (4 5 6);
+  prop: @v;
+}
+
+.test-single-paren {
+  @v: (a b c);
+  prop: @v;
+}
+
+.test-mixed-dimensions {
+  @v: (10px 20px), (30px 40px);
+  prop: @v;
+}
