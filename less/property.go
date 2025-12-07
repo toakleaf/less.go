@@ -78,7 +78,20 @@ func (p *Property) Eval(context any) (any, error) {
 
 		for i, v := range vArr {
 			if decl, ok := v.(*Declaration); ok {
-				vArr[i] = decl
+				// Create a copy of the declaration to avoid modifying the original
+				// This matches Less.js behavior (see property.js lines 32-44)
+				// which creates new Declaration objects before calling mergeRules
+				newDecl, _ := NewDeclaration(
+					decl.name,
+					decl.Value,
+					decl.important,
+					decl.merge,
+					decl.GetIndex(),
+					decl.FileInfo(),
+					decl.inline,
+					decl.variable,
+				)
+				vArr[i] = newDecl
 			} else if declMap, ok := v.(map[string]any); ok {
 				merge, _ := declMap["merge"].(bool)
 				index, _ := declMap["index"].(int)
