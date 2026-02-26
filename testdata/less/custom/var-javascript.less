@@ -64,9 +64,9 @@
   length: `"@{text}".length`;
 }
 
-// JavaScript date/time (simplified)
+// JavaScript date/time (fixed for deterministic test output)
 .js-datetime {
-  year: `new Date().getFullYear()`;
+  year: `new Date(2025, 0, 1).getFullYear()`;
 }
 
 // JavaScript Math functions
