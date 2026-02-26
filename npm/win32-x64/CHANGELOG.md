@@ -1,5 +1,11 @@
 # @lessgo/win32-x64
 
+## 0.4.1
+
+### Patch Changes
+
+-   [#513](https://github.com/toakleaf/less.go/pull/513) [`dc1bbdd`](https://github.com/toakleaf/less.go/commit/dc1bbdd9d87328c1fe71ef673e0b5927ca8bd8c5) Thanks [@toakleaf](https://github.com/toakleaf)! - Fix JS plugin API compatibility for contexts.Eval visitors
+
 ## 0.4.0
 
 ### Minor Changes
