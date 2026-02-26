@@ -393,6 +393,117 @@ func TestJSPluginLoader_LoadPreEvalPlugin(t *testing.T) {
 	}
 }
 
+func TestJSPluginLoader_LoadContextsEvalPlugin(t *testing.T) {
+	pluginDir := findTestDataPluginDir()
+	if pluginDir == "" {
+		t.Skip("Test data plugin directory not found")
+	}
+
+	rt, err := NewNodeJSRuntime()
+	if err != nil {
+		t.Fatalf("NewNodeJSRuntime failed: %v", err)
+	}
+
+	err = rt.Start()
+	if err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+	defer rt.Stop()
+
+	loader := NewJSPluginLoader(rt)
+
+	// Load plugin-contexts-eval.js (expects less.contexts.Eval support)
+	pluginPath := filepath.Join(pluginDir, "plugin-contexts-eval.js")
+	result := loader.LoadPlugin(pluginPath, pluginDir, nil, nil, nil)
+
+	plugin, ok := result.(*Plugin)
+	if !ok {
+		t.Fatalf("Expected *Plugin, got %T: %v", result, result)
+	}
+	if plugin == nil {
+		t.Fatal("Plugin is nil")
+	}
+
+	if plugin.Visitors != 1 {
+		t.Errorf("plugin-contexts-eval should register 1 visitor, got %d", plugin.Visitors)
+	}
+}
+
+func TestJSPluginLoader_CheckVariableReplacementsWithContextsEvalVisitor(t *testing.T) {
+	pluginDir := findTestDataPluginDir()
+	if pluginDir == "" {
+		t.Skip("Test data plugin directory not found")
+	}
+
+	rt, err := NewNodeJSRuntime()
+	if err != nil {
+		t.Fatalf("NewNodeJSRuntime failed: %v", err)
+	}
+
+	err = rt.Start()
+	if err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+	defer rt.Stop()
+
+	loader := NewJSPluginLoader(rt)
+
+	pluginPath := filepath.Join(pluginDir, "plugin-contexts-eval-visit.js")
+	result := loader.LoadPlugin(pluginPath, pluginDir, nil, nil, nil)
+	plugin, ok := result.(*Plugin)
+	if !ok {
+		t.Fatalf("Expected *Plugin, got %T: %v", result, result)
+	}
+	if plugin == nil {
+		t.Fatal("Plugin is nil")
+	}
+	if plugin.Visitors != 1 {
+		t.Errorf("plugin-contexts-eval-visit should register 1 visitor, got %d", plugin.Visitors)
+	}
+
+	resp, err := rt.SendCommand(Command{
+		Cmd: "checkVariableReplacements",
+		Data: map[string]any{
+			"variables": []any{
+				map[string]any{
+					"id":   "var_1",
+					"name": "@replace",
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("checkVariableReplacements command failed: %v", err)
+	}
+	if !resp.Success {
+		t.Fatalf("checkVariableReplacements response failed: %s", resp.Error)
+	}
+
+	resultMap, ok := resp.Result.(map[string]any)
+	if !ok {
+		t.Fatalf("Expected map result, got %T", resp.Result)
+	}
+	replacements, ok := resultMap["replacements"].(map[string]any)
+	if !ok {
+		t.Fatalf("Expected replacements map, got %T", resultMap["replacements"])
+	}
+	replAny, ok := replacements["var_1"]
+	if !ok {
+		t.Fatalf("Expected replacement for var_1, got: %#v", replacements)
+	}
+	repl, ok := replAny.(map[string]any)
+	if !ok {
+		t.Fatalf("Expected replacement map, got %T", replAny)
+	}
+
+	if typ, _ := repl["_type"].(string); typ != "Dimension" {
+		t.Fatalf("Expected replacement type Dimension, got %#v", repl["_type"])
+	}
+	if unit, _ := repl["unit"].(string); unit != "px" {
+		t.Fatalf("Expected replacement unit px, got %#v", repl["unit"])
+	}
+}
+
 func TestJSPluginLoader_LoadGlobalPlugin(t *testing.T) {
 	pluginDir := findTestDataPluginDir()
 	if pluginDir == "" {

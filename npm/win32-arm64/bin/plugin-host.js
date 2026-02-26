@@ -509,12 +509,81 @@ function createNode(type, props = {}) {
   };
 }
 
+const evalCopyProperties = [
+  'paths',
+  'compress',
+  'math',
+  'strictUnits',
+  'sourceMap',
+  'importMultiple',
+  'urlArgs',
+  'javascriptEnabled',
+  'pluginManager',
+  'importantScope',
+  'rewriteUrls',
+];
+
+function copyContextProperties(source, destination, properties) {
+  if (!source) return;
+  for (const prop of properties) {
+    if (Object.prototype.hasOwnProperty.call(source, prop)) {
+      destination[prop] = source[prop];
+    }
+  }
+}
+
+const LessMath = {
+  ALWAYS: 0,
+  PARENS_DIVISION: 1,
+  PARENS: 2,
+};
+
+const RewriteUrls = {
+  OFF: 0,
+  LOCAL: 1,
+  ALL: 2,
+};
+
+function isPathRelative(path) {
+  return !/^(?:[a-z-]+:|\/|#)/i.test(path);
+}
+
+function isPathLocalRelative(path) {
+  return path && path.charAt(0) === '.';
+}
+
+function unitToString(unit) {
+  if (unit === null || unit === undefined) {
+    return '';
+  }
+
+  if (typeof unit === 'string') {
+    return unit;
+  }
+
+  if (typeof unit === 'object') {
+    const numerator = Array.isArray(unit.numerator) ? unit.numerator : [];
+    const denominator = Array.isArray(unit.denominator) ? unit.denominator : [];
+
+    if (numerator.length === 1 && denominator.length === 0) {
+      return numerator[0];
+    }
+
+    const base = numerator.join('*');
+    const den = denominator.map((d) => `/${d}`).join('');
+    const fallback = typeof unit.backupUnit === 'string' ? unit.backupUnit : '';
+    return `${base}${den}` || fallback;
+  }
+
+  return String(unit);
+}
+
 // Less API with node constructors
 const less = {
   version: [4, 0, 0],
 
   // Node constructors (matching less.js tree API)
-  dimension: (value, unit) => createNode('Dimension', { value, unit: unit || '' }),
+  dimension: (value, unit) => createNode('Dimension', { value, unit: unitToString(unit) }),
   color: (rgb, alpha) => {
     // Handle both [r,g,b] array and {r,g,b} object
     if (Array.isArray(rgb)) {
@@ -569,6 +638,20 @@ const less = {
     },
   },
 
+  // Context namespace (for compatibility with plugins that use contexts.Eval)
+  contexts: {
+    Eval: function Eval(options, frames) {
+      copyContextProperties(options, this, evalCopyProperties);
+
+      if (typeof this.paths === 'string') {
+        this.paths = [this.paths];
+      }
+
+      this.frames = frames || [];
+      this.importantScope = this.importantScope || [];
+    },
+  },
+
   // Tree namespace (for compatibility with plugins that use less.tree)
   tree: {
     Anonymous: function (value) {
@@ -581,7 +664,29 @@ const less = {
       if (isNaN(numValue)) {
         throw new Error('Dimension is not a number.');
       }
-      return createNode('Dimension', { value: numValue, unit: unit || '' });
+      return createNode('Dimension', { value: numValue, unit: unitToString(unit) });
+    },
+    Comment: function (value, isLineComment, index, currentFileInfo) {
+      return createNode('Comment', {
+        value: value || '',
+        isLineComment: !!isLineComment,
+        _index: index,
+        _fileInfo: currentFileInfo,
+        allowRoot: true,
+      });
+    },
+    Unit: function (numerator, denominator, backupUnit) {
+      const num = Array.isArray(numerator) ? [...numerator].sort() : [];
+      const den = Array.isArray(denominator) ? [...denominator].sort() : [];
+      const node = createNode('Unit', { numerator: num, denominator: den });
+
+      if (backupUnit) {
+        node.backupUnit = backupUnit;
+      } else if (num.length) {
+        node.backupUnit = num[0];
+      }
+
+      return node;
     },
     Color: function (rgb, alpha, originalForm) {
       let rgbArray;
@@ -696,6 +801,90 @@ const less = {
   },
 };
 
+less.contexts.Eval.prototype.enterCalc = function () {
+  if (!this.calcStack) {
+    this.calcStack = [];
+  }
+  this.calcStack.push(true);
+  this.inCalc = true;
+};
+
+less.contexts.Eval.prototype.exitCalc = function () {
+  this.calcStack.pop();
+  if (!this.calcStack.length) {
+    this.inCalc = false;
+  }
+};
+
+less.contexts.Eval.prototype.inParenthesis = function () {
+  if (!this.parensStack) {
+    this.parensStack = [];
+  }
+  this.parensStack.push(true);
+};
+
+less.contexts.Eval.prototype.outOfParenthesis = function () {
+  this.parensStack.pop();
+};
+
+less.contexts.Eval.prototype.inCalc = false;
+less.contexts.Eval.prototype.mathOn = true;
+less.contexts.Eval.prototype.isMathOn = function (op) {
+  if (!this.mathOn) {
+    return false;
+  }
+  if (op === '/' && this.math !== LessMath.ALWAYS && (!this.parensStack || !this.parensStack.length)) {
+    return false;
+  }
+  if (this.math > LessMath.PARENS_DIVISION) {
+    return this.parensStack && this.parensStack.length;
+  }
+  return true;
+};
+
+less.contexts.Eval.prototype.pathRequiresRewrite = function (path) {
+  const isRelative = this.rewriteUrls === RewriteUrls.LOCAL ? isPathLocalRelative : isPathRelative;
+  return isRelative(path);
+};
+
+less.contexts.Eval.prototype.rewritePath = function (path, rootpath) {
+  rootpath = rootpath || '';
+  let newPath = this.normalizePath(rootpath + path);
+
+  // Keep explicit local-relative paths local-relative after rewrite.
+  if (isPathLocalRelative(path) && isPathRelative(rootpath) && isPathLocalRelative(newPath) === false) {
+    newPath = `./${newPath}`;
+  }
+
+  return newPath;
+};
+
+less.contexts.Eval.prototype.normalizePath = function (path) {
+  const segments = path.split('/').reverse();
+  let segment;
+  const normalized = [];
+
+  while (segments.length !== 0) {
+    segment = segments.pop();
+    switch (segment) {
+      case '.':
+        break;
+      case '..':
+        if ((normalized.length === 0) || (normalized[normalized.length - 1] === '..')) {
+          normalized.push(segment);
+        } else {
+          normalized.pop();
+        }
+        break;
+      default:
+        normalized.push(segment);
+        break;
+    }
+  }
+
+  return normalized.join('/');
+};
+
 // Create global references for legacy plugins that use `tree` and `functions` directly
 const tree = less.tree;
 
@@ -709,6 +898,27 @@ tree.Variable.prototype.find = function (frames, callback) {
     }
   }
   return null;
+};
+
+tree.Unit.prototype.toString = function () {
+  let out = (this.numerator || []).join('*');
+  const denominator = this.denominator || [];
+  for (let i = 0; i < denominator.length; i++) {
+    out += `/${denominator[i]}`;
+  }
+  return out;
+};
+
+tree.Unit.prototype.is = function (unitString) {
+  return this.toString().toUpperCase() === String(unitString || '').toUpperCase();
+};
+
+tree.Unit.prototype.isEmpty = function () {
+  return (this.numerator || []).length === 0 && (this.denominator || []).length === 0;
+};
+
+tree.Unit.prototype.isSingular = function () {
+  return (this.numerator || []).length <= 1 && (this.denominator || []).length === 0;
 };
 
 // Function registry - now uses scoped function management
@@ -1559,7 +1769,7 @@ function convertJSResultToGo(result) {
   switch (nodeType) {
     case 'Dimension':
       goNode.value = typeof result.value === 'number' ? result.value : parseFloat(result.value) || 0;
-      goNode.unit = result.unit || '';
+      goNode.unit = unitToString(result.unit);
       break;
 
     case 'Color':
@@ -3592,6 +3802,24 @@ function handleCheckVariableReplacements(id, data) {
         _type: 'Variable',
         type: 'Variable',
         name: varInfo.name,
+        eval(context) {
+          if (!context || !Array.isArray(context.frames)) {
+            throw new Error(`variable ${this.name} is undefined`);
+          }
+
+          for (let i = 0; i < context.frames.length; i++) {
+            const frame = context.frames[i];
+            if (!frame || typeof frame.variable !== 'function') {
+              continue;
+            }
+            const found = frame.variable(this.name);
+            if (found && found.value !== undefined) {
+              return found.value;
+            }
+          }
+
+          throw new Error(`variable ${this.name} is undefined`);
+        },
       };
 
       // Check each visitor
