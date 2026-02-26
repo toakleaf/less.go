@@ -1,5 +1,11 @@
 # @less/test-import-module
 
+## 4.0.8
+
+### Patch Changes
+
+-   [#512](https://github.com/toakleaf/less.go/pull/512) [`d1e1846`](https://github.com/toakleaf/less.go/commit/d1e1846dd6a2da14a1ef0e5f76861ee7fff14a84) Thanks [@toakleaf](https://github.com/toakleaf)! - Fix JS plugin API compatibility for contexts.Eval visitors
+
 ## 4.0.7
 
 ### Patch Changes
