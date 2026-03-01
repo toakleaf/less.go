@@ -87,11 +87,11 @@ type Ruleset struct {
 	Root            bool
 	// Extend support
 	ExtendOnEveryPath bool
-	Paths            [][]any
-	FirstRoot       bool
-	AllowImports    bool
-	AllExtends      []*Extend // For storing extends found by ExtendFinderVisitor
-	FunctionRegistry any // Changed from *functions.Registry to avoid import cycle
+	Paths             [][]any
+	FirstRoot         bool
+	AllowImports      bool
+	AllExtends        []*Extend // For storing extends found by ExtendFinderVisitor
+	FunctionRegistry  any       // Changed from *functions.Registry to avoid import cycle
 	// Parser functions for handling dynamic content
 	SelectorsParseFunc SelectorsParseFunc
 	ValueParseFunc     ValueParseFunc
@@ -233,7 +233,7 @@ func (r *Ruleset) ToCSS(options map[string]any) (string, error) {
 	if _, hasCompress := contextMap["compress"]; !hasCompress {
 		contextMap["compress"] = false
 	}
-	
+
 	// Create CSS output implementation
 	cssOutput := &CSSOutput{
 		Add: func(chunk, fileInfo, index any) {
@@ -254,10 +254,10 @@ func (r *Ruleset) ToCSS(options map[string]any) (string, error) {
 			return output.Len() == 0
 		},
 	}
-	
+
 	// Generate CSS using the GenCSS method
 	r.GenCSS(contextMap, cssOutput)
-	
+
 	// Return the generated CSS output
 	result := output.String()
 
@@ -271,7 +271,7 @@ func (r *Ruleset) ToCSSString(context any) string {
 	if ctx, ok := context.(map[string]any); ok {
 		options = ctx
 	}
-	
+
 	result, _ := r.ToCSS(options)
 	return result
 }
@@ -557,7 +557,7 @@ func (r *Ruleset) Eval(context any) (any, error) {
 					}
 				}
 			}
-			
+
 			if len(toParseSelectors) > 0 {
 				// Parse the selectors string (equivalent to JS parseNode call)
 				selectorString := strings.Join(toParseSelectors, ",")
@@ -585,7 +585,7 @@ func (r *Ruleset) Eval(context any) (any, error) {
 				}
 			}
 		}
-		
+
 		// Match JavaScript: defaultFunc.reset();
 		if evalCtx != nil && evalCtx.DefaultFunc != nil {
 			evalCtx.DefaultFunc.Reset()
@@ -740,7 +740,9 @@ func (r *Ruleset) Eval(context any) (any, error) {
 	for i, rule := range rsRules {
 		if r, ok := rule.(interface{ EvalFirst() bool }); ok && r.EvalFirst() {
 			// Handle MixinDefinition specifically (returns *MixinDefinition, not any)
-			if eval, ok := rule.(interface{ Eval(any) (*MixinDefinition, error) }); ok {
+			if eval, ok := rule.(interface {
+				Eval(any) (*MixinDefinition, error)
+			}); ok {
 				evaluated, err := eval.Eval(context)
 				if err != nil {
 					return nil, err
@@ -805,7 +807,7 @@ func (r *Ruleset) Eval(context any) (any, error) {
 								filtered = append(filtered, r)
 							}
 						}
-						
+
 						// rsRules.splice.apply(rsRules, [i, 1].concat(rules))
 						newRules := make([]any, len(rsRules)+len(filtered)-1)
 						copy(newRules, rsRules[:i])
@@ -879,7 +881,9 @@ func (r *Ruleset) Eval(context any) (any, error) {
 
 		// Try different Eval signatures
 		switch evalRule := rule.(type) {
-		case interface{ Eval(any) (*MixinDefinition, error) }:
+		case interface {
+			Eval(any) (*MixinDefinition, error)
+		}:
 			// Handle MixinDefinition
 			evaluated, err := evalRule.Eval(context)
 			if err != nil {
@@ -1022,7 +1026,13 @@ func (r *Ruleset) Eval(context any) (any, error) {
 
 	if os.Getenv("LESS_GO_TRACE") != "" {
 		fmt.Fprintf(os.Stderr, "[RULESET.Eval] Root check: Root=%v, len(mediaPath)=%d, len(mediaBlocks)=%d\n",
-			ruleset.Root, len(mediaPath), func() int { if mediaBlocks != nil { return len(mediaBlocks) } else { return 0 } }())
+			ruleset.Root, len(mediaPath), func() int {
+				if mediaBlocks != nil {
+					return len(mediaBlocks)
+				} else {
+					return 0
+				}
+			}())
 	}
 
 	if ruleset.Root && len(mediaPath) == 0 && mediaBlocks != nil && len(mediaBlocks) > 0 {
@@ -1147,15 +1157,15 @@ func (r *Ruleset) MatchCondition(args []any, context any) bool {
 	if len(r.Selectors) == 0 {
 		return false
 	}
-	
+
 	lastSelector := r.Selectors[len(r.Selectors)-1]
-	
+
 	// Check evaldCondition
 	if sel, ok := lastSelector.(*Selector); ok {
 		if !sel.EvaldCondition {
 			return false
 		}
-		
+
 		// Check condition
 		if sel.Condition != nil {
 			if eval, ok := sel.Condition.(interface{ Eval(any) (any, error) }); ok {
@@ -1169,7 +1179,7 @@ func (r *Ruleset) MatchCondition(args []any, context any) bool {
 				if frames, ok := ctx["frames"].([]any); ok {
 					ctx["frames"] = frames
 				}
-				
+
 				// IMPORTANT: Preserve the defaultFunc in the context
 				// This is needed for the default() function in mixin guards
 				if evalCtx, ok := context.(EvalContext); ok {
@@ -1181,12 +1191,12 @@ func (r *Ruleset) MatchCondition(args []any, context any) bool {
 						ctx["defaultFunc"] = df
 					}
 				}
-				
+
 				result, err := eval.Eval(ctx)
 				if err != nil {
 					return false
 				}
-				
+
 				// Check if result is falsy
 				if isFalsy(result) {
 					return false
@@ -1194,7 +1204,7 @@ func (r *Ruleset) MatchCondition(args []any, context any) bool {
 			}
 		}
 	}
-	
+
 	return true
 }
 
@@ -1222,7 +1232,10 @@ func isFalsy(v any) bool {
 // This is used to skip rules from reference imports during CSS generation
 func ruleBlocksVisibility(rule any) bool {
 	// Check if the rule has visibility blocking methods
-	if visNode, ok := rule.(interface{ BlocksVisibility() bool; IsVisible() *bool }); ok {
+	if visNode, ok := rule.(interface {
+		BlocksVisibility() bool
+		IsVisible() *bool
+	}); ok {
 		if visNode.BlocksVisibility() {
 			nodeVisible := visNode.IsVisible()
 			// If visibility is nil or false, check for visible paths from extends
@@ -1505,7 +1518,7 @@ func (r *Ruleset) Properties() map[string][]any {
 			} else {
 				name = fmt.Sprintf("%v", decl.name)
 			}
-			
+
 			key := "$" + name
 			// Properties don't overwrite as they can merge (from JavaScript comment)
 			if _, exists := r.properties[key]; !exists {
@@ -1515,7 +1528,7 @@ func (r *Ruleset) Properties() map[string][]any {
 			}
 		}
 	}
-	
+
 	return r.properties
 }
 
@@ -1603,7 +1616,7 @@ func (r *Ruleset) LastDeclaration() any {
 	if r.Rules == nil {
 		return nil
 	}
-	
+
 	// for (let i = this.rules.length; i > 0; i--) like JavaScript
 	for i := len(r.Rules); i > 0; i-- {
 		decl := r.Rules[i-1]
@@ -1618,7 +1631,7 @@ func (r *Ruleset) ParseValue(toParse any) any {
 	if toParse == nil {
 		return nil
 	}
-	
+
 	// Handle arrays
 	if arr, ok := toParse.([]any); ok {
 		nodes := make([]any, len(arr))
@@ -1627,7 +1640,7 @@ func (r *Ruleset) ParseValue(toParse any) any {
 		}
 		return nodes
 	}
-	
+
 	return r.transformDeclaration(toParse)
 }
 
@@ -1663,7 +1676,7 @@ func (r *Ruleset) transformDeclaration(decl any) any {
 						}
 						return dCopy
 					} else if len(result) > 0 {
-						
+
 						// The parser returns Value>Expression>Dimension for "10px"
 						// We should use the parsed Value directly, not wrap it again
 						var valueCopy *Value
@@ -1673,7 +1686,7 @@ func (r *Ruleset) transformDeclaration(decl any) any {
 							// Fallback: wrap in Value if not already a Value
 							valueCopy, _ = NewValue([]any{result[0]})
 						}
-						
+
 						nodeCopy := NewNode()
 						nodeCopy.CopyVisibilityInfo(d.Node.VisibilityInfo())
 						nodeCopy.Parsed = true
@@ -1779,7 +1792,7 @@ func (r *Ruleset) Find(selector any, self any, filter func(any) bool) []any {
 		if rule == self {
 			continue
 		}
-		
+
 		// Handle both *Ruleset and *MixinDefinition (which embeds *Ruleset)
 		var rulesetSelectors []any
 		switch r := rule.(type) {
@@ -1793,7 +1806,7 @@ func (r *Ruleset) Find(selector any, self any, filter func(any) bool) []any {
 				rulesetSelectors = rs.GetSelectors()
 			}
 		}
-		
+
 		if rulesetSelectors != nil {
 			for j := 0; j < len(rulesetSelectors); j++ {
 				if sel, ok := selector.(*Selector); ok {
@@ -1808,7 +1821,9 @@ func (r *Ruleset) Find(selector any, self any, filter func(any) bool) []any {
 									newSelector, err := NewSelector(remainingElements, nil, nil, sel.GetIndex(), sel.FileInfo(), nil)
 									if err == nil {
 										// Use Find method on the rule (works for both Ruleset and MixinDefinition)
-										if finder, ok := rule.(interface{ Find(any, any, func(any) bool) []any }); ok {
+										if finder, ok := rule.(interface {
+											Find(any, any, func(any) bool) []any
+										}); ok {
 											foundMixins = finder.Find(newSelector, self, filter)
 										}
 										for i := 0; i < len(foundMixins); i++ {
@@ -1922,7 +1937,6 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 		}
 	}
 
-
 	// Check if this is a container ruleset (no selectors/paths)
 	// Container rulesets inside at-rules (@supports, @document) don't output their own braces,
 	// so they shouldn't increment tabLevel
@@ -1966,7 +1980,7 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 			tabSetStr = ""
 		}
 	}
-	
+
 	// Organize rules by type like JavaScript version
 	var charsetRuleNodes []any
 	// Pre-allocate ruleNodes with capacity of Rules length to avoid reallocation
@@ -2056,7 +2070,6 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 	// Check if this ruleset contains only extends (no actual CSS output)
 	// If so, we'll skip generating selectors/braces but still complete normally for proper spacing
 	hasOnlyExtends := !r.Root && len(r.Rules) > 0 && len(ruleNodes) == 0
-
 
 	// Track how many paths were actually output (for visibility filtering)
 	outputCount := 0
@@ -2196,160 +2209,162 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 		ctx["tabLevel"] = tabLevel + 1
 	}
 	if !hasOnlyExtends {
-	for i, rule := range ruleNodes {
-		if i+1 == len(ruleNodes) {
-			ctx["lastRule"] = true
-		} else {
-			// Explicitly set to false for non-last rules to override any parent context setting
-			ctx["lastRule"] = false
-		}
-
-		currentLastRule := false
-		if lr, ok := ctx["lastRule"].(bool); ok {
-			currentLastRule = lr
-		}
-
-		// Check IsRulesetLike - handle both bool return and any return (AtRule returns any)
-		isRulesetLikeForCtx := false
-		if rl, ok := rule.(interface{ IsRulesetLike() any }); ok {
-			result := rl.IsRulesetLike()
-			if result != nil {
-				if b, ok := result.(bool); ok {
-					isRulesetLikeForCtx = b
-				} else {
-					// Non-nil, non-bool (like rules slice) means ruleset-like
-					isRulesetLikeForCtx = true
-				}
-			}
-		} else if rl, ok := rule.(interface{ IsRulesetLike() bool }); ok {
-			isRulesetLikeForCtx = rl.IsRulesetLike()
-		}
-		if isRulesetLikeForCtx {
-			ctx["lastRule"] = false
-		}
-
-		// For file-level root rulesets: mark child rulesets as top-level so they format correctly
-		// This ensures extracted rulesets (that were moved to root's rules) are treated as top-level
-		// Only do this for the actual file root (tabLevel == 0), not for container rulesets like @keyframes
-		childContext := ctx
-		if r.Root && tabLevel == 0 {
-			if childRuleset, ok := rule.(*Ruleset); ok && !childRuleset.Root {
-				// Create a new context for the child with topLevel flag
-				// Don't modify tabLevel - let it stay as-is so declarations inside have correct indentation
-				// Pre-allocate with capacity for all keys + 1 for topLevel
-				childContext = make(map[string]any, len(ctx)+1)
-				for k, v := range ctx {
-					childContext[k] = v
-				}
-				childContext["topLevel"] = true
-				// Note: We don't set tabLevel=0 because that would affect indentation of declarations
-				// The topLevel flag will prevent incrementing tabLevel, which is what we want
-			}
-		}
-
-		// Generate CSS for the rule
-		if gen, ok := rule.(interface{ GenCSS(any, *CSSOutput) }); ok {
-			gen.GenCSS(childContext, output)
-		} else if val, ok := rule.(interface{ GetValue() any }); ok {
-			output.Add(fmt.Sprintf("%v", val.GetValue()), nil, nil)
-		}
-
-		ctx["lastRule"] = currentLastRule
-
-		// Add newline after rule if it's not the last rule
-		if !currentLastRule {
-			shouldAddNewline := false
-
-			// Check if rule is visible (for declarations, etc.)
-			// Also check if rule blocks visibility but is not explicitly visible (from reference imports)
-			// IMPORTANT: Check for Node visibility (BlocksVisibility/IsVisible *bool) FIRST,
-			// before checking simple IsVisible() bool, because Comment has both methods
-			// and we want to respect the Node's visibility from reference imports
-			if visNode, ok := rule.(interface{ BlocksVisibility() bool; IsVisible() *bool }); ok {
-				blocksVis := visNode.BlocksVisibility()
-				if blocksVis {
-					// Node blocks visibility (from reference import) - only visible if explicitly marked
-					nodeVisible := visNode.IsVisible()
-					if nodeVisible != nil && *nodeVisible {
-						shouldAddNewline = true
-					}
-					// else: invisible, don't add newline
-				} else {
-					// Node doesn't block visibility - check IsVisible *bool
-					// A nil return from IsVisible() means not visible (e.g., from reference imports that were skipped)
-					nodeVisible := visNode.IsVisible()
-					if nodeVisible != nil && *nodeVisible {
-						shouldAddNewline = true
-					}
-				}
-			} else if vis, ok := rule.(interface{ IsVisible() bool }); ok && vis.IsVisible() {
-				// Node doesn't have BlocksVisibility/IsVisible *bool, and IsVisible() is true
-				shouldAddNewline = true
+		for i, rule := range ruleNodes {
+			if i+1 == len(ruleNodes) {
+				ctx["lastRule"] = true
+			} else {
+				// Explicitly set to false for non-last rules to override any parent context setting
+				ctx["lastRule"] = false
 			}
 
-			// Special case: Add newlines for child rulesets inside container rulesets
-			// (like @keyframes which creates a container ruleset with no selectors)
+			currentLastRule := false
+			if lr, ok := ctx["lastRule"].(bool); ok {
+				currentLastRule = lr
+			}
+
 			// Check IsRulesetLike - handle both bool return and any return (AtRule returns any)
-			isRulesetLike := false
+			isRulesetLikeForCtx := false
 			if rl, ok := rule.(interface{ IsRulesetLike() any }); ok {
 				result := rl.IsRulesetLike()
 				if result != nil {
 					if b, ok := result.(bool); ok {
-						isRulesetLike = b
+						isRulesetLikeForCtx = b
 					} else {
 						// Non-nil, non-bool (like rules slice) means ruleset-like
-						isRulesetLike = true
+						isRulesetLikeForCtx = true
 					}
 				}
 			} else if rl, ok := rule.(interface{ IsRulesetLike() bool }); ok {
-				isRulesetLike = rl.IsRulesetLike()
+				isRulesetLikeForCtx = rl.IsRulesetLike()
 			}
-			if isRulesetLike {
-				// Skip adding newlines for MixinDefinitions - they don't output anything
-				if _, isMixinDef := rule.(*MixinDefinition); isMixinDef {
-					// Don't add newline after mixin definitions
-				} else if rs, isRuleset := rule.(*Ruleset); isRuleset && isExtendOnlyRuleset(rs) {
-					// Don't add newline after extend-only rulesets - they don't output anything
-				} else if rs, isRuleset := rule.(*Ruleset); isRuleset && hasNoVisibleContent(rs) {
-					// Don't add newline after rulesets with no visible content (e.g., parent containers after children bubbled)
-				} else if at, isAtRule := rule.(*AtRule); isAtRule && atRuleHasOnlySilentContent(at) {
-					// Don't add newline after AtRules with only silent content (line comments)
-				} else {
-					// Only add newline if parent ruleset has no selectors (is a container)
-					// and we're not at the file-level root (tabLevel > 0)
-					// Also consider rulesets where all selectors are MediaEmpty (like @layer inner rulesets)
-					isParentContainer := (r.Paths == nil || len(r.Paths) == 0) && (r.Selectors == nil || len(r.Selectors) == 0 || allSelectorsMediaEmpty(r.Selectors))
-					if isParentContainer && tabLevel > 0 {
-						shouldAddNewline = true
+			if isRulesetLikeForCtx {
+				ctx["lastRule"] = false
+			}
+
+			// For file-level root rulesets: mark child rulesets as top-level so they format correctly
+			// This ensures extracted rulesets (that were moved to root's rules) are treated as top-level
+			// Only do this for the actual file root (tabLevel == 0), not for container rulesets like @keyframes
+			childContext := ctx
+			if r.Root && tabLevel == 0 {
+				if childRuleset, ok := rule.(*Ruleset); ok && !childRuleset.Root {
+					// Create a new context for the child with topLevel flag
+					// Don't modify tabLevel - let it stay as-is so declarations inside have correct indentation
+					// Pre-allocate with capacity for all keys + 1 for topLevel
+					childContext = make(map[string]any, len(ctx)+1)
+					for k, v := range ctx {
+						childContext[k] = v
 					}
-					// Also add newline for top-level rulesets (children of root)
-					if r.Root && tabLevel == 0 {
-						shouldAddNewline = true
-					}
+					childContext["topLevel"] = true
+					// Note: We don't set tabLevel=0 because that would affect indentation of declarations
+					// The topLevel flag will prevent incrementing tabLevel, which is what we want
 				}
 			}
 
-
-			// Special case: Import nodes should always have a newline after them
-			if ruleType, ok := rule.(interface{ GetType() string }); ok && ruleType.GetType() == "Import" {
-				shouldAddNewline = true
+			// Generate CSS for the rule
+			if gen, ok := rule.(interface{ GenCSS(any, *CSSOutput) }); ok {
+				gen.GenCSS(childContext, output)
+			} else if val, ok := rule.(interface{ GetValue() any }); ok {
+				output.Add(fmt.Sprintf("%v", val.GetValue()), nil, nil)
 			}
 
-			// Special case: AtRules without rules (like @charset, @namespace) at root level need newlines
-			if at, isAtRule := rule.(*AtRule); isAtRule && r.Root && tabLevel == 0 {
-				// AtRules without rules produce output and need newlines
-				if at.Rules == nil || len(at.Rules) == 0 {
+			ctx["lastRule"] = currentLastRule
+
+			// Add newline after rule if it's not the last rule
+			if !currentLastRule {
+				shouldAddNewline := false
+
+				// Check if rule is visible (for declarations, etc.)
+				// Also check if rule blocks visibility but is not explicitly visible (from reference imports)
+				// IMPORTANT: Check for Node visibility (BlocksVisibility/IsVisible *bool) FIRST,
+				// before checking simple IsVisible() bool, because Comment has both methods
+				// and we want to respect the Node's visibility from reference imports
+				if visNode, ok := rule.(interface {
+					BlocksVisibility() bool
+					IsVisible() *bool
+				}); ok {
+					blocksVis := visNode.BlocksVisibility()
+					if blocksVis {
+						// Node blocks visibility (from reference import) - only visible if explicitly marked
+						nodeVisible := visNode.IsVisible()
+						if nodeVisible != nil && *nodeVisible {
+							shouldAddNewline = true
+						}
+						// else: invisible, don't add newline
+					} else {
+						// Node doesn't block visibility - check IsVisible *bool
+						// A nil return from IsVisible() means not visible (e.g., from reference imports that were skipped)
+						nodeVisible := visNode.IsVisible()
+						if nodeVisible != nil && *nodeVisible {
+							shouldAddNewline = true
+						}
+					}
+				} else if vis, ok := rule.(interface{ IsVisible() bool }); ok && vis.IsVisible() {
+					// Node doesn't have BlocksVisibility/IsVisible *bool, and IsVisible() is true
 					shouldAddNewline = true
 				}
-			}
 
-			if shouldAddNewline && !compress {
-				output.Add("\n"+tabRuleStr, nil, nil)
+				// Special case: Add newlines for child rulesets inside container rulesets
+				// (like @keyframes which creates a container ruleset with no selectors)
+				// Check IsRulesetLike - handle both bool return and any return (AtRule returns any)
+				isRulesetLike := false
+				if rl, ok := rule.(interface{ IsRulesetLike() any }); ok {
+					result := rl.IsRulesetLike()
+					if result != nil {
+						if b, ok := result.(bool); ok {
+							isRulesetLike = b
+						} else {
+							// Non-nil, non-bool (like rules slice) means ruleset-like
+							isRulesetLike = true
+						}
+					}
+				} else if rl, ok := rule.(interface{ IsRulesetLike() bool }); ok {
+					isRulesetLike = rl.IsRulesetLike()
+				}
+				if isRulesetLike {
+					// Skip adding newlines for MixinDefinitions - they don't output anything
+					if _, isMixinDef := rule.(*MixinDefinition); isMixinDef {
+						// Don't add newline after mixin definitions
+					} else if rs, isRuleset := rule.(*Ruleset); isRuleset && isExtendOnlyRuleset(rs) {
+						// Don't add newline after extend-only rulesets - they don't output anything
+					} else if rs, isRuleset := rule.(*Ruleset); isRuleset && hasNoVisibleContent(rs) {
+						// Don't add newline after rulesets with no visible content (e.g., parent containers after children bubbled)
+					} else if at, isAtRule := rule.(*AtRule); isAtRule && atRuleHasOnlySilentContent(at) {
+						// Don't add newline after AtRules with only silent content (line comments)
+					} else {
+						// Only add newline if parent ruleset has no selectors (is a container)
+						// and we're not at the file-level root (tabLevel > 0)
+						// Also consider rulesets where all selectors are MediaEmpty (like @layer inner rulesets)
+						isParentContainer := (r.Paths == nil || len(r.Paths) == 0) && (r.Selectors == nil || len(r.Selectors) == 0 || allSelectorsMediaEmpty(r.Selectors))
+						if isParentContainer && tabLevel > 0 {
+							shouldAddNewline = true
+						}
+						// Also add newline for top-level rulesets (children of root)
+						if r.Root && tabLevel == 0 {
+							shouldAddNewline = true
+						}
+					}
+				}
+
+				// Special case: Import nodes should always have a newline after them
+				if ruleType, ok := rule.(interface{ GetType() string }); ok && ruleType.GetType() == "Import" {
+					shouldAddNewline = true
+				}
+
+				// Special case: AtRules without rules (like @charset, @namespace) at root level need newlines
+				if at, isAtRule := rule.(*AtRule); isAtRule && r.Root && tabLevel == 0 {
+					// AtRules without rules produce output and need newlines
+					if at.Rules == nil || len(at.Rules) == 0 {
+						shouldAddNewline = true
+					}
+				}
+
+				if shouldAddNewline && !compress {
+					output.Add("\n"+tabRuleStr, nil, nil)
+				}
+			} else {
+				ctx["lastRule"] = false
 			}
-		} else {
-			ctx["lastRule"] = false
 		}
-	}
 	}
 
 	// Decrement tab level FIRST for correct newline logic
@@ -2371,7 +2386,7 @@ func (r *Ruleset) GenCSS(context any, output *CSSOutput) {
 			output.Add("\n"+tabSetStr+"}", nil, nil)
 		}
 	}
-	
+
 	// Add final newline for first root
 	if !output.IsEmpty() && !compress && r.FirstRoot {
 		output.Add("\n", nil, nil)
@@ -2482,7 +2497,7 @@ func (r *Ruleset) JoinSelector(paths *[][]any, context [][]any, selector any) {
 		return newSelectorPath
 	}
 
-	// addAllReplacementsIntoPath helper function  
+	// addAllReplacementsIntoPath helper function
 	addAllReplacementsIntoPath := func(beginningPaths [][]any, addPaths []any, replacedElement *Element, originalSelector *Selector, result *[][]any) {
 		for j := 0; j < len(beginningPaths); j++ {
 			newSelectorPath := addReplacementIntoPath(beginningPaths[j], addPaths, replacedElement, originalSelector)
@@ -2676,8 +2691,8 @@ func (r *Ruleset) JoinSelector(paths *[][]any, context [][]any, selector any) {
 			newPaths = [][]any{}
 			for idx := 0; idx < len(context); idx++ {
 				concatenated := make([]any, len(context[idx])+1)
-				
-				// Map over context[idx] using deriveSelector  
+
+				// Map over context[idx] using deriveSelector
 				for j, ctxSel := range context[idx] {
 					if ctxSelector, ok := ctxSel.(*Selector); ok {
 						concatenated[j] = deriveSelector(sel.VisibilityInfo(), ctxSelector)
@@ -2702,38 +2717,44 @@ func GetDebugInfo(context map[string]any, ruleset *Ruleset, separator string) st
 	if context == nil || ruleset == nil {
 		return ""
 	}
-	
+
 	// Check if dumpLineNumbers is enabled and not compressing
-	dumpLineNumbers, hasDump := context["dumpLineNumbers"]
-	compress, hasCompress := context["compress"]
-	
-	if !hasDump || (hasCompress && compress.(bool)) {
+	dumpLineNumbers, dumpEnabled := normalizeDumpLineNumbersOption(context["dumpLineNumbers"])
+	compress, _ := context["compress"].(bool)
+	if !dumpEnabled {
 		return ""
 	}
-	
+	dumpMode, ok := dumpLineNumbers.(string)
+	if !ok || dumpMode == "" {
+		return ""
+	}
+	if compress && dumpMode != "all" {
+		return ""
+	}
+
 	// Create debug context from ruleset
 	debugCtx := createDebugContextFromRuleset(context, ruleset)
 	if debugCtx == nil {
 		return ""
 	}
-	
+
 	// Get line number and filename from debug context
 	lineNumber := 0
 	fileName := ""
-	
+
 	if ln, ok := debugCtx["lineNumber"].(int); ok {
 		lineNumber = ln
 	}
 	if fn, ok := debugCtx["fileName"].(string); ok {
 		fileName = fn
 	}
-	
+
 	if lineNumber == 0 || fileName == "" {
 		return ""
 	}
-	
+
 	var result string
-	switch dumpLineNumbers {
+	switch dumpMode {
 	case "comments":
 		result = asComment(lineNumber, fileName)
 	case "mediaquery":
@@ -2745,7 +2766,7 @@ func GetDebugInfo(context map[string]any, ruleset *Ruleset, separator string) st
 		}
 		result += asMediaQuery(lineNumber, fileName)
 	}
-	
+
 	return result
 }
 
@@ -2763,16 +2784,16 @@ func createDebugContextFromRuleset(context map[string]any, ruleset *Ruleset) map
 	if fileInfo == nil {
 		return nil
 	}
-	
+
 	var filename string
 	var lineNumber int
-	
+
 	if fn, ok := fileInfo["filename"]; ok {
 		if fnStr, ok := fn.(string); ok {
 			filename = fnStr
 		}
 	}
-	
+
 	if ln, ok := fileInfo["lineNumber"]; ok {
 		if lnInt, ok := ln.(int); ok {
 			lineNumber = lnInt
@@ -2781,7 +2802,7 @@ func createDebugContextFromRuleset(context map[string]any, ruleset *Ruleset) map
 	if lineNumber == 0 {
 		lineNumber = 1 // Default line number
 	}
-	
+
 	return map[string]any{
 		"fileName":   filename,
 		"lineNumber": lineNumber,
@@ -2811,12 +2832,12 @@ func (r *Ruleset) shouldIncludeSubRule(subRule any, parentRuleset *Ruleset) bool
 	if subNode, ok := subRule.(interface{ CopyVisibilityInfo(map[string]any) }); ok {
 		subNode.CopyVisibilityInfo(parentRuleset.VisibilityInfo())
 	}
-	
+
 	// Check if it's a variable declaration (like JavaScript: !(subRule instanceof Declaration) || !subRule.variable)
 	if r.isVariableDeclaration(subRule) {
 		return false // Don't include variable declarations
 	}
-	
+
 	return true // Include everything else
 }
 
@@ -2825,7 +2846,7 @@ func (r *Ruleset) isVariableDeclaration(rule any) bool {
 	if decl, ok := rule.(*Declaration); ok {
 		return decl.variable
 	}
-	
+
 	// Handle mock declarations using reflection (for tests)
 	if node, ok := rule.(interface{ GetType() string }); ok && node.GetType() == "Declaration" {
 		if v := reflect.ValueOf(rule); v.Kind() == reflect.Ptr && !v.IsNil() {
@@ -2836,7 +2857,7 @@ func (r *Ruleset) isVariableDeclaration(rule any) bool {
 			}
 		}
 	}
-	
+
 	return false
 }
 
@@ -3339,4 +3360,4 @@ func (r *Ruleset) GenCSSSourceMap(context map[string]any, output *SourceMapOutpu
 			output.Add("}\n", fileInfo, index, false)
 		}
 	}
-} 
+}

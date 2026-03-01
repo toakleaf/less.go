@@ -10,7 +10,7 @@ import (
 // ParseCallbackFunc represents the callback function signature for parse operations
 type ParseCallbackFunc func(error, any, *ImportManager, map[string]any)
 
-// ParseFunc represents the parse function signature returned by the factory  
+// ParseFunc represents the parse function signature returned by the factory
 type ParseFunc func(string, map[string]any, ParseCallbackFunc) any
 
 // LessContext represents the "this" context that contains options and importManager
@@ -21,7 +21,7 @@ type LessContext struct {
 	Functions     Functions
 	// PluginBridge provides lazy access to the Node.js plugin system.
 	// It is initialized on first use and should be closed after compilation.
-	PluginBridge  *LazyNodeJSPluginBridge
+	PluginBridge *LazyNodeJSPluginBridge
 }
 
 // NewLessContext creates a new LessContext
@@ -42,9 +42,9 @@ func NewLessContextWithPlugins(options map[string]any) (*LessContext, func() err
 	bridge := NewLazyNodeJSPluginBridge()
 
 	ctx := &LessContext{
-		Options: options,
+		Options:      options,
 		PluginLoader: LazyPluginLoaderFactory(bridge),
-		Functions: &DefaultFunctions{},
+		Functions:    &DefaultFunctions{},
 		PluginBridge: bridge,
 	}
 
@@ -118,7 +118,7 @@ func performParse(lessContext *LessContext, input string, options map[string]any
 	// Handle JavaScript-style overloading: parse.js lines 10-16
 	// In JavaScript: if (typeof options === 'function') { callback = options; options = ... }
 	// In Go, we can't dynamically check if options is a function, so we assume correct typing
-	
+
 	if callback == nil {
 		// No callback provided - return promise (parse.js lines 18-28)
 		if lessContext.Options != nil {
@@ -126,7 +126,7 @@ func performParse(lessContext *LessContext, input string, options map[string]any
 		} else {
 			actualOptions = CopyOptions(map[string]any{}, options)
 		}
-		
+
 		// Return promise equivalent
 		return createPromise(lessContext, input, actualOptions, environment, parseTree, importManagerFactory)
 	} else {
@@ -142,7 +142,7 @@ func performParse(lessContext *LessContext, input string, options map[string]any
 	// Main parsing logic - mirrors parse.js lines 30-84
 	var context *Parse
 	var rootFileInfo map[string]any
-	
+
 	// Create plugin manager (equivalent to: const pluginManager = new PluginManager(this, !options.reUsePluginManager))
 	// Note: reUsePluginManager affects plugin manager creation behavior in JavaScript
 	pluginManager := NewPluginManager(lessContext)
@@ -152,7 +152,7 @@ func performParse(lessContext *LessContext, input string, options map[string]any
 	if lessContext.PluginBridge != nil {
 		actualOptions["pluginBridge"] = lessContext.PluginBridge
 	}
-	
+
 	// Create parsing context (equivalent to: context = new contexts.Parse(options))
 	if os.Getenv("LESS_GO_DEBUG") == "1" {
 		fmt.Printf("[DEBUG performParse] Creating Parse context with actualOptions paths: %v\n", actualOptions["paths"])
@@ -161,7 +161,7 @@ func performParse(lessContext *LessContext, input string, options map[string]any
 	if os.Getenv("LESS_GO_DEBUG") == "1" {
 		fmt.Printf("[DEBUG performParse] Created Parse context with context.Paths: %v\n", context.Paths)
 	}
-	
+
 	// Handle rootFileInfo (parse.js lines 38-55)
 	if rootFileInfoVal, ok := actualOptions["rootFileInfo"]; ok {
 		if rootInfo, ok := rootFileInfoVal.(map[string]any); ok {
@@ -174,10 +174,10 @@ func performParse(lessContext *LessContext, input string, options map[string]any
 				filename = fn
 			}
 		}
-		
+
 		// Extract directory path using regex (equivalent to filename.replace(/[^/\\]*$/, ''))
 		entryPath := reFilenameOnly.ReplaceAllString(filename, "")
-		
+
 		rootFileInfo = map[string]any{
 			"filename":         filename,
 			"rewriteUrls":      context.RewriteUrls,
@@ -186,7 +186,7 @@ func performParse(lessContext *LessContext, input string, options map[string]any
 			"entryPath":        entryPath,
 			"rootFilename":     filename,
 		}
-		
+
 		// Add missing trailing slash to rootpath (parse.js lines 52-54)
 		if rootpath, ok := rootFileInfo["rootpath"].(string); ok {
 			if rootpath != "" && !strings.HasSuffix(rootpath, "/") {
@@ -194,7 +194,7 @@ func performParse(lessContext *LessContext, input string, options map[string]any
 			}
 		}
 	}
-	
+
 	// Create import manager (equivalent to: const imports = new ImportManager(this, context, rootFileInfo))
 	if os.Getenv("LESS_GO_DEBUG") == "1" {
 		fmt.Printf("[DEBUG performParse] About to call importManagerFactory with context.Paths: %v\n", context.Paths)
@@ -206,7 +206,7 @@ func performParse(lessContext *LessContext, input string, options map[string]any
 
 	// Set importManager on the context (equivalent to: this.importManager = imports)
 	lessContext.ImportManager = imports
-	
+
 	// Handle plugins (parse.js lines 63-77)
 	if pluginsVal, ok := actualOptions["plugins"]; ok {
 		if plugins, ok := pluginsVal.([]any); ok {
@@ -216,23 +216,23 @@ func performParse(lessContext *LessContext, input string, options map[string]any
 						if fileContent, ok := fileContentVal.(string); ok {
 							// Remove BOM character (equivalent to contents = plugin.fileContent.replace(/^\uFEFF/, ''))
 							contents := strings.TrimPrefix(fileContent, "\uFEFF")
-							
+
 							var pluginOptions map[string]any
 							if optsVal, ok := plugin["options"]; ok {
 								if opts, ok := optsVal.(map[string]any); ok {
 									pluginOptions = opts
 								}
 							}
-							
+
 							var filename any
 							if filenameVal, ok := plugin["filename"]; ok {
 								filename = filenameVal
 							}
-							
+
 							// Try to evaluate plugin if PluginLoader is available
 							if pluginManager.Loader != nil {
 								evalResult := pluginManager.Loader.EvalPlugin(contents, context, imports, pluginOptions, filename)
-								
+
 								// Check if evalResult is a LessError (parse.js lines 69-71)
 								if lessErr, ok := evalResult.(*LessError); ok {
 									actualCallback(lessErr, nil, nil, nil)
@@ -248,66 +248,68 @@ func performParse(lessContext *LessContext, input string, options map[string]any
 			}
 		}
 	}
-	
+
 	// Create parser and parse (equivalent to: new Parser(context, imports, rootFileInfo).parse(input, function (e, root) { ... }, options))
 	// This mirrors parse.js lines 79-83
 	go func() {
 		// Convert Parse context to map for NewParser
 		contextMap := map[string]any{
-			"paths":            context.Paths,
-			"rewriteUrls":      context.RewriteUrls,
-			"rootpath":         context.Rootpath,
-			"strictImports":    context.StrictImports,
-			"insecure":         context.Insecure,
-			"dumpLineNumbers":  context.DumpLineNumbers,
-			"compress":         context.Compress,
-			"syncImport":       context.SyncImport,
-			"chunkInput":       context.ChunkInput,
-			"mime":             context.Mime,
-			"useFileCache":     context.UseFileCache,
-			"processImports":   context.ProcessImports,
-			"pluginManager":    context.PluginManager,
-			"quiet":            context.Quiet,
+			"paths":          context.Paths,
+			"rewriteUrls":    context.RewriteUrls,
+			"rootpath":       context.Rootpath,
+			"strictImports":  context.StrictImports,
+			"insecure":       context.Insecure,
+			"compress":       context.Compress,
+			"syncImport":     context.SyncImport,
+			"chunkInput":     context.ChunkInput,
+			"mime":           context.Mime,
+			"useFileCache":   context.UseFileCache,
+			"processImports": context.ProcessImports,
+			"pluginManager":  context.PluginManager,
+			"quiet":          context.Quiet,
 		}
-		
+		if dumpLineNumbers, ok := normalizeDumpLineNumbersOption(context.DumpLineNumbers); ok {
+			contextMap["dumpLineNumbers"] = dumpLineNumbers
+		}
+
 		// Create imports map for NewParser (basic structure to match JavaScript)
 		importsMap := map[string]any{
 			"contents":             make(map[string]string),
 			"contentsIgnoredChars": make(map[string]int),
 			"rootFilename":         rootFileInfo["filename"],
 		}
-		
+
 		// Create parser instance
 		parser := NewParser(contextMap, importsMap, rootFileInfo, 0)
-		
+
 		// Prepare additional data for parsing
 		additionalData := &AdditionalData{}
-		
+
 		// Set options from actualOptions if they exist
 		if globalVarsVal, ok := actualOptions["globalVars"]; ok {
 			if globalVars, ok := globalVarsVal.(map[string]any); ok {
 				additionalData.GlobalVars = globalVars
 			}
 		}
-		
+
 		if modifyVarsVal, ok := actualOptions["modifyVars"]; ok {
 			if modifyVars, ok := modifyVarsVal.(map[string]any); ok {
 				additionalData.ModifyVars = modifyVars
 			}
 		}
-		
+
 		if bannerVal, ok := actualOptions["banner"]; ok {
 			if banner, ok := bannerVal.(string); ok {
 				additionalData.Banner = banner
 			}
 		}
-		
+
 		if disablePluginRuleVal, ok := actualOptions["disablePluginRule"]; ok {
 			if disablePluginRule, ok := disablePluginRuleVal.(bool); ok {
 				additionalData.DisablePluginRule = disablePluginRule
 			}
 		}
-		
+
 		// Call the actual parser
 		parser.Parse(input, func(err *LessError, root *Ruleset) {
 			if err != nil {
@@ -317,7 +319,7 @@ func performParse(lessContext *LessContext, input string, options map[string]any
 			}
 		}, additionalData)
 	}()
-	
+
 	return nil
 }
 
@@ -394,7 +396,7 @@ func (d *DefaultPluginLoader) LoadPlugin(path, currentDirectory string, context 
 }
 
 // DefaultFunctions provides a basic implementation of Functions
-type DefaultFunctions struct{
+type DefaultFunctions struct {
 	registry *Registry
 }
 

@@ -20,22 +20,25 @@ var (
 
 // Debug configuration from environment
 var (
-	debugMode    = os.Getenv("LESS_GO_DEBUG") == "1"
-	showAST      = os.Getenv("LESS_GO_AST") == "1"
-	showTrace    = os.Getenv("LESS_GO_TRACE") == "1"
-	showDiff     = os.Getenv("LESS_GO_DIFF") == "1"
-	strictMode   = os.Getenv("LESS_GO_STRICT") == "1"  // Fail tests on output differences
-	quietMode    = os.Getenv("LESS_GO_QUIET") == "1"   // Suppress individual test output
-	jsonOutput   = os.Getenv("LESS_GO_JSON") == "1"    // Output results as JSON
-	skipCustom   = os.Getenv("LESS_GO_SKIP_CUSTOM") == "1"  // Skip custom integration tests
-	customOnly   = os.Getenv("LESS_GO_CUSTOM_ONLY") == "1"  // Run only custom integration tests
-	isCI         = os.Getenv("CI") == "true"               // Running in CI environment (GitHub Actions, etc.)
+	debugMode   = os.Getenv("LESS_GO_DEBUG") == "1"
+	showAST     = os.Getenv("LESS_GO_AST") == "1"
+	showTrace   = os.Getenv("LESS_GO_TRACE") == "1"
+	showDiff    = os.Getenv("LESS_GO_DIFF") == "1"
+	strictMode  = os.Getenv("LESS_GO_STRICT") == "1"       // Fail tests on output differences
+	quietMode   = os.Getenv("LESS_GO_QUIET") == "1"        // Suppress individual test output
+	jsonOutput  = os.Getenv("LESS_GO_JSON") == "1"         // Output results as JSON
+	skipCustom  = os.Getenv("LESS_GO_SKIP_CUSTOM") == "1"  // Skip custom integration tests
+	customOnly  = os.Getenv("LESS_GO_CUSTOM_ONLY") == "1"  // Run only custom integration tests
+	isCI        = os.Getenv("CI") == "true"                // Running in CI environment (GitHub Actions, etc.)
+	skipNetwork = os.Getenv("LESS_GO_SKIP_NETWORK") == "1" // Skip tests that require outbound network access
 )
 
 // Tests that require network access and should be skipped in CI
 // Note: import-remote was removed after pinning @less/test-data@4.4.2 to fix
 // intermittent failures caused by missing empty.less in @4.4.3
-var networkDependentTests = map[string]bool{}
+var networkDependentTests = map[string]bool{
+	"import-remote": true,
+}
 
 // addTestResult safely adds a test result to the global results slice
 func addTestResult(result TestResult) {
@@ -50,14 +53,14 @@ func TestIntegrationSuite(t *testing.T) {
 	resultsMutex.Lock()
 	integrationResults = []TestResult{}
 	resultsMutex.Unlock()
-	
+
 	// Track overall progress
 	startTime := time.Now()
 	if debugMode {
 		fmt.Println("\n🚀 Starting Integration Test Suite with Debug Mode")
 		fmt.Printf("   Debug Options: AST=%v, Trace=%v, Diff=%v\n", showAST, showTrace, showDiff)
 	}
-	
+
 	// Base paths for test data - from less/ to testdata
 	testDataRoot := "../testdata"
 	lessRoot := filepath.Join(testDataRoot, "less")
@@ -69,15 +72,15 @@ func TestIntegrationSuite(t *testing.T) {
 			Name: "main",
 			Options: map[string]any{
 				"relativeUrls":      true,
-				"silent":           true,
+				"silent":            true,
 				"javascriptEnabled": true,
 			},
 			Folder: "_main/",
 		},
 		{
-			Name:   "namespacing",
+			Name:    "namespacing",
 			Options: map[string]any{},
-			Folder: "namespacing/",
+			Folder:  "namespacing/",
 		},
 		{
 			Name: "math-parens",
@@ -293,13 +296,13 @@ func TestIntegrationSuite(t *testing.T) {
 		resultsCopy := make([]TestResult, len(integrationResults))
 		copy(resultsCopy, integrationResults)
 		resultsMutex.Unlock()
-		
+
 		printTestSummary(t, resultsCopy)
-		
+
 		// Show timing information
 		duration := time.Since(startTime)
 		t.Logf("\n⏱️  Total test duration: %v", duration)
-		
+
 		// Memory usage in debug mode
 		if debugMode {
 			var m runtime.MemStats
@@ -319,14 +322,14 @@ type TestSuite struct {
 }
 
 type TestResult struct {
-	Suite        string
-	TestName     string
-	Status       string // "pass", "fail", "skip"
-	Category     string // "perfect_match", "compilation_failed", "output_differs", "correctly_failed", "expected_error"
-	ExpectError  bool   // Whether this test should fail
-	Error        string
-	ExpectedCSS  string
-	ActualCSS    string
+	Suite       string
+	TestName    string
+	Status      string // "pass", "fail", "skip"
+	Category    string // "perfect_match", "compilation_failed", "output_differs", "correctly_failed", "expected_error"
+	ExpectError bool   // Whether this test should fail
+	Error       string
+	ExpectedCSS string
+	ActualCSS   string
 }
 
 func runTestSuite(t *testing.T, suite TestSuite, lessRoot, cssRoot string) {
@@ -351,9 +354,9 @@ func runTestSuite(t *testing.T, suite TestSuite, lessRoot, cssRoot string) {
 		testName := strings.TrimSuffix(fileName, ".less")
 
 		t.Run(testName, func(t *testing.T) {
-			// Skip network-dependent tests in CI environments
-			if isCI && networkDependentTests[testName] {
-				t.Skipf("Skipping %s in CI (requires network access)", testName)
+			// Skip network-dependent tests when running in CI or explicitly disabling network tests.
+			if networkDependentTests[testName] && (isCI || skipNetwork) {
+				t.Skipf("Skipping %s (requires network access)", testName)
 				return
 			}
 
@@ -640,10 +643,10 @@ func formatDiff(expected, actual string) string {
 	if !showDiff {
 		return ""
 	}
-	
+
 	expectedLines := strings.Split(expected, "\n")
 	actualLines := strings.Split(actual, "\n")
-	
+
 	var diff strings.Builder
 	diff.WriteString("\n--- Expected CSS ---\n")
 	for i, line := range expectedLines {
@@ -653,7 +656,7 @@ func formatDiff(expected, actual string) string {
 	for i, line := range actualLines {
 		diff.WriteString(fmt.Sprintf("%3d | %s\n", i+1, line))
 	}
-	
+
 	// Find first difference
 	for i := 0; i < len(expectedLines) && i < len(actualLines); i++ {
 		if expectedLines[i] != actualLines[i] {
@@ -663,7 +666,7 @@ func formatDiff(expected, actual string) string {
 			break
 		}
 	}
-	
+
 	return diff.String()
 }
 
@@ -672,16 +675,16 @@ func enhancedErrorReport(t *testing.T, err error, lessFile string, lessContent s
 	if !debugMode {
 		return
 	}
-	
+
 	t.Logf("\n🔍 Enhanced Error Report:")
 	t.Logf("   File: %s", lessFile)
-	
+
 	// Try to extract line/column from error
 	errStr := err.Error()
 	if strings.Contains(errStr, "line") || strings.Contains(errStr, "Line") {
 		t.Logf("   Position: %s", errStr)
 	}
-	
+
 	// Show file context if possible
 	lines := strings.Split(lessContent, "\n")
 	if len(lines) <= 20 {
@@ -690,7 +693,7 @@ func enhancedErrorReport(t *testing.T, err error, lessFile string, lessContent s
 			t.Logf("   %3d | %s", i+1, line)
 		}
 	}
-	
+
 	// Provide suggestions based on error type
 	if strings.Contains(errStr, "Parse") || strings.Contains(errStr, "parse") {
 		t.Logf("\n💡 Parser Error Suggestions:")
@@ -708,7 +711,7 @@ func enhancedErrorReport(t *testing.T, err error, lessFile string, lessContent s
 		t.Logf("   • Check import resolution logic")
 		t.Logf("   • Ensure imported files exist")
 	}
-	
+
 	// Stack trace if available
 	if debugMode {
 		t.Logf("\n📚 Stack Trace:")
@@ -1046,10 +1049,10 @@ func printJSONSummary(t *testing.T, results []TestResult, perfectMatches, compil
 			"expected_error":     len(expectedError),
 			"skipped":            len(skipped),
 		},
-		"success_rate":      float64(len(perfectMatches)+len(correctlyFailed)) / float64(len(results)-len(skipped)) * 100,
-		"compilation_rate":  float64(len(results)-len(skipped)-len(compilationFailed)) / float64(len(results)-len(skipped)) * 100,
+		"success_rate":       float64(len(perfectMatches)+len(correctlyFailed)) / float64(len(results)-len(skipped)) * 100,
+		"compilation_rate":   float64(len(results)-len(skipped)-len(compilationFailed)) / float64(len(results)-len(skipped)) * 100,
 		"perfect_match_rate": float64(len(perfectMatches)) / float64(len(results)-len(skipped)) * 100,
-		"results":           results,
+		"results":            results,
 	}
 
 	// Format as JSON (simple manual formatting to avoid import)
@@ -1069,4 +1072,3 @@ func printJSONSummary(t *testing.T, results []TestResult, perfectMatches, compil
 	t.Logf(`  }`)
 	t.Logf("}")
 }
-

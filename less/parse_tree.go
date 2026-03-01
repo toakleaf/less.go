@@ -15,7 +15,6 @@ func (e *sourceMapEnv) EncodeBase64(str string) string {
 	return base64.StdEncoding.EncodeToString([]byte(str))
 }
 
-
 // ParseTreeFactory represents the factory function type that creates ParseTree classes
 type ParseTreeFactory func(sourceMapBuilder any) *ParseTreeClass
 
@@ -27,16 +26,16 @@ type ParseTreeClass struct {
 // NewParseTree creates a new ParseTree instance
 func (ptc *ParseTreeClass) NewParseTree(root any, imports *ImportManager) *ParseTree {
 	return &ParseTree{
-		Root:    root,
-		Imports: imports,
+		Root:             root,
+		Imports:          imports,
 		sourceMapBuilder: ptc.SourceMapBuilder,
 	}
 }
 
 // ParseTree represents a Less parse tree that can be converted to CSS
 type ParseTree struct {
-	Root    any
-	Imports *ImportManager
+	Root             any
+	Imports          *ImportManager
 	sourceMapBuilder any
 }
 
@@ -55,7 +54,7 @@ type ToCSSOptions struct {
 	NumPrecision      int
 	SourceMap         any
 	PluginManager     any
-	PluginBridge      any      // *LazyNodeJSPluginBridge or *NodeJSPluginBridge for JS plugin function lookup
+	PluginBridge      any // *LazyNodeJSPluginBridge or *NodeJSPluginBridge for JS plugin function lookup
 	Functions         any
 	ProcessImports    bool
 	ImportManager     any
@@ -79,7 +78,6 @@ func (pt *ParseTree) ToCSS(options *ToCSSOptions) (*ToCSSResult, error) {
 	if options != nil {
 		optionsMap = map[string]any{
 			"compress":          options.Compress,
-			"dumpLineNumbers":   options.DumpLineNumbers,
 			"strictUnits":       options.StrictUnits,
 			"numPrecision":      options.NumPrecision,
 			"sourceMap":         options.SourceMap,
@@ -94,6 +92,9 @@ func (pt *ParseTree) ToCSS(options *ToCSSOptions) (*ToCSSResult, error) {
 			"paths":             options.Paths,
 			"urlArgs":           options.UrlArgs,
 			"javascriptEnabled": options.JavascriptEnabled,
+		}
+		if dumpLineNumbers, ok := normalizeDumpLineNumbersOption(options.DumpLineNumbers); ok {
+			optionsMap["dumpLineNumbers"] = dumpLineNumbers
 		}
 	} else {
 		optionsMap = make(map[string]any)
@@ -140,16 +141,15 @@ func (pt *ParseTree) ToCSS(options *ToCSSOptions) (*ToCSSResult, error) {
 		strictUnits = options.StrictUnits
 	}
 
-	var dumpLineNumbers any
-	if options != nil {
-		dumpLineNumbers = options.DumpLineNumbers
-	}
-
 	toCSSOptions := map[string]any{
-		"compress":         compress,
-		"dumpLineNumbers":  dumpLineNumbers,
-		"strictUnits":      strictUnits,
-		"numPrecision":     8,  // Match less.js default precision
+		"compress":     compress,
+		"strictUnits":  strictUnits,
+		"numPrecision": 8, // Match less.js default precision
+	}
+	if options != nil {
+		if dumpLineNumbers, ok := normalizeDumpLineNumbersOption(options.DumpLineNumbers); ok {
+			toCSSOptions["dumpLineNumbers"] = dumpLineNumbers
+		}
 	}
 
 	// Handle source map generation
@@ -386,4 +386,3 @@ func DefaultParseTreeFactory(sourceMapBuilder any) *ParseTreeClass {
 		SourceMapBuilder: sourceMapBuilder,
 	}
 }
-
