@@ -467,7 +467,9 @@ func (p *Parser) parseInternal(str string, callback func(*LessError, *Ruleset), 
 		preProcessors := pluginManager.GetPreProcessors()
 		for _, processor := range preProcessors {
 			// Check if processor has Process method
-			if proc, ok := processor.(interface{ Process(string, map[string]any) string }); ok {
+			if proc, ok := processor.(interface {
+				Process(string, map[string]any) string
+			}); ok {
 				str = proc.Process(str, map[string]any{
 					"context":  p.context,
 					"imports":  p.imports,
@@ -529,7 +531,7 @@ func (p *Parser) parseInternal(str string, callback func(*LessError, *Ruleset), 
 	root = NewRuleset(nil, p.parsers.Primary(), false, nil, p.CreateSelectorsParseFunc(), p.CreateValueParseFunc(), p.context, p.imports)
 	root.Root = true
 	root.FirstRoot = true
-	
+
 	// Set up function registry for the root
 	if funcRegistry, ok := p.context["functionRegistry"].(*Registry); ok && funcRegistry != nil {
 		// Create an inherited registry for this parse tree
@@ -1802,7 +1804,7 @@ func (p *Parsers) Ruleset() any {
 
 	p.parser.parserInput.Save()
 
-	if context, ok := p.parser.context["dumpLineNumbers"]; ok && context != nil {
+	if dumpLineNumbersEnabled(p.parser.context["dumpLineNumbers"]) {
 		debugInfo = p.parser.getDebugInfo(p.parser.parserInput.GetIndex())
 	}
 
@@ -2028,7 +2030,7 @@ func (p *Parsers) AtRule() any {
 	if rules != nil || (!hasBlock && value != nil && p.parser.parserInput.Char(';') != nil) {
 		p.parser.parserInput.Forget()
 		var debugInfo map[string]any
-		if p.parser.context["dumpLineNumbers"] != nil {
+		if dumpLineNumbersEnabled(p.parser.context["dumpLineNumbers"]) {
 			debugInfo = p.parser.getDebugInfo(index)
 		}
 		return NewAtRule(name, value, rules, index+p.parser.currentIndex, p.parser.fileInfo, debugInfo, isRooted, nil)
@@ -2433,7 +2435,7 @@ func (p *Parsers) Plugin() any {
 	if dir == nil {
 		return nil
 	}
-	
+
 	args = p.PluginArgs()
 	if args != "" {
 		options = map[string]any{
@@ -3183,7 +3185,7 @@ func (p *Parsers) NestableAtRule() any {
 	var debugInfo map[string]any
 	index := p.parser.parserInput.GetIndex()
 
-	if p.parser.context["dumpLineNumbers"] != nil {
+	if dumpLineNumbersEnabled(p.parser.context["dumpLineNumbers"]) {
 		debugInfo = p.parser.getDebugInfo(index)
 	}
 
@@ -3258,7 +3260,7 @@ func (p *Parsers) Element() any {
 			if v = p.Selector(false); v != nil {
 				var selectors []any
 				selectors = append(selectors, v)
-				
+
 				// Handle comma-separated selectors in parentheses
 				for p.parser.parserInput.Char(',') != nil {
 					selectors = append(selectors, NewAnonymous(",", index+p.parser.currentIndex, p.parser.fileInfo, false, false, nil))
@@ -3266,7 +3268,7 @@ func (p *Parsers) Element() any {
 						selectors = append(selectors, v)
 					}
 				}
-				
+
 				if p.parser.parserInput.Char(')') != nil {
 					if len(selectors) > 1 {
 						// Create a SelectorList to hold multiple comma-separated selectors
@@ -4178,11 +4180,11 @@ func (p *Parsers) IeAlpha() []any {
 	if p.parser.parserInput.Re(reAlphaOpacity) == nil {
 		return nil
 	}
-	
+
 	// First try to parse a number
 	value := p.parser.parserInput.Re(reNumber)
 	var valueStr string
-	
+
 	if value != nil {
 		// We have a numeric value
 		if matches, ok := value.([]string); ok && len(matches) > 0 {
@@ -4200,7 +4202,7 @@ func (p *Parsers) IeAlpha() []any {
 			}
 		}
 	}
-	
+
 	p.parser.expectChar(')', "")
 
 	// Return a Quoted node with the full alpha function string
