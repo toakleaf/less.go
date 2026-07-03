@@ -32,6 +32,8 @@ func putMathEnabledEvalContext(ctx *Eval) {
 	ctx.Paths = nil
 	ctx.ImportantScope = nil
 	ctx.Frames = nil
+	ctx.parserFrames = nil
+	ctx.SelectorStack = nil
 	ctx.CalcStack = nil
 	ctx.ParensStack = nil
 	ctx.DefaultFunc = nil
@@ -124,7 +126,6 @@ func (f *DefaultFunctionCallerFactory) NewFunctionCaller(name string, context Ev
 	// Get function definition from registry via adapter
 	lowerName := strings.ToLower(name)
 	funcDef := f.adapter.Get(lowerName)
-
 
 	if funcDef == nil {
 		// Check if this might be a plugin function
@@ -355,8 +356,8 @@ func (c *DefaultParserFunctionCaller) Call(args []any) (any, error) {
 			Frames: []*Frame{
 				{
 					FunctionRegistry: tempRegistry,
-					EvalContext:      c.context,   // Pass the evaluation context for variable resolution
-					CurrentFileInfo:  c.fileInfo,  // Pass the current file information
+					EvalContext:      c.context,  // Pass the evaluation context for variable resolution
+					CurrentFileInfo:  c.fileInfo, // Pass the current file information
 				},
 			},
 		}
@@ -819,7 +820,7 @@ func (c *Call) Eval(context any) (any, error) {
 			return nil, lessErr
 		}
 		exitCalc()
-		
+
 		// Check if result is a LessError and return it as an error
 		if result != nil {
 			if lessErr, ok := result.(*LessError); ok {
@@ -839,7 +840,7 @@ func (c *Call) Eval(context any) (any, error) {
 				// Has GetType method, likely a node
 				isNodeType = true
 			}
-			
+
 			if !isNodeType {
 				// Check for falsy values or true - these should return empty Anonymous nodes
 				// JavaScript behavior: if (!result || result === true)
@@ -879,7 +880,7 @@ func (c *Call) Eval(context any) (any, error) {
 			evaledArgs[i] = arg
 		}
 	}
-	
+
 	// Important: exit calc AFTER evaluating arguments
 	exitCalc()
 
@@ -1079,7 +1080,7 @@ func (c *Call) GenCSS(context any, output *CSSOutput) {
 			return
 		}
 	}
-	
+
 	// Special case: alpha() function for IE compatibility
 	if c.Name == "alpha" && len(c.Args) == 1 {
 		if assignment, ok := c.Args[0].(*Assignment); ok && assignment.Key == "opacity" {
@@ -1091,7 +1092,7 @@ func (c *Call) GenCSS(context any, output *CSSOutput) {
 			return
 		}
 	}
-	
+
 	output.Add(c.Name+"(", c.FileInfo(), c.GetIndex())
 
 	for i, arg := range c.Args {
@@ -1118,7 +1119,7 @@ func (c *Call) preprocessArgs(args []any) []any {
 		if c.isComment(arg) {
 			continue
 		}
-		
+
 		// Process expressions - flatten single-item expressions
 		if expr, ok := arg.(*Expression); ok {
 			// Filter out comments from expression value
@@ -1160,7 +1161,7 @@ func (c *Call) preprocessArgs(args []any) []any {
 			processed = append(processed, arg)
 		}
 	}
-	
+
 	return processed
 }
 

@@ -20,29 +20,21 @@ var nodePool = sync.Pool{
 // rulesetPool is a pool for reusing Ruleset objects.
 var rulesetPool = sync.Pool{
 	New: func() any {
-		return &Ruleset{
-			Selectors: make([]any, 0, 8),
-			Rules:     make([]any, 0, 16),
-		}
+		return &Ruleset{}
 	},
 }
 
 // expressionPool is a pool for reusing Expression objects.
 var expressionPool = sync.Pool{
 	New: func() any {
-		return &Expression{
-			Value: make([]any, 0, 4),
-		}
+		return &Expression{}
 	},
 }
 
 // selectorPool is a pool for reusing Selector objects.
 var selectorPool = sync.Pool{
 	New: func() any {
-		return &Selector{
-			Elements:   make([]*Element, 0, 4),
-			ExtendList: make([]any, 0, 2),
-		}
+		return &Selector{}
 	},
 }
 
@@ -63,10 +55,7 @@ var elementPool = sync.Pool{
 // unitPool is a pool for reusing Unit objects.
 var unitPool = sync.Pool{
 	New: func() any {
-		return &Unit{
-			Numerator:   make([]string, 0, 4),
-			Denominator: make([]string, 0, 2),
-		}
+		return &Unit{}
 	},
 }
 

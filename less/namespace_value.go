@@ -23,13 +23,13 @@ func NewNamespaceValue(ruleCall any, lookups []string, index int, fileInfo map[s
 		_index:    index,
 		_fileInfo: fileInfo,
 	}
-	
+
 	// Set the node's index and fileInfo
 	nv.Node.Index = index
 	if fileInfo != nil {
 		nv.Node.SetFileInfo(fileInfo)
 	}
-	
+
 	return nv
 }
 
@@ -95,14 +95,14 @@ func (nv *NamespaceValue) Eval(context any) (any, error) {
 	}
 
 	// Track variables from the last lookup iteration for context preservation
-	var parentRuleset any     // Track the ruleset that contains a variable
-	var valueFromRuleset any  // Track if the value came from a ruleset
+	var parentRuleset any    // Track the ruleset that contains a variable
+	var valueFromRuleset any // Track if the value came from a ruleset
 
 	// Process each lookup
 	for i := 0; i < len(nv.lookups); i++ {
 		name = nv.lookups[i]
-		parentRuleset = nil       // Reset for each iteration
-		valueFromRuleset = nil    // Reset for each iteration
+		parentRuleset = nil    // Reset for each iteration
+		valueFromRuleset = nil // Reset for each iteration
 
 		// CRITICAL: Array conversion must happen INSIDE the loop - matches JavaScript behavior
 		// Eval'd DRs return rulesets.
@@ -231,7 +231,7 @@ func (nv *NamespaceValue) Eval(context any) (any, error) {
 					name = "$" + name
 				}
 			}
-			
+
 			// Match JavaScript: if (rules.properties) { rules = rules.property(name); }
 			hasPropertiesProperty := false
 			if propertyChecker, ok := rules.(interface{ HasProperties() bool }); ok {
@@ -558,10 +558,7 @@ func (nv *NamespaceValue) createContextWithFrame(context any, frame any) any {
 		newFrames[0] = frame
 		copy(newFrames[1:], evalCtx.Frames)
 
-		// Create a shallow copy of the Eval context with new frames
-		newEvalCtx := *evalCtx
-		newEvalCtx.Frames = newFrames
-		return &newEvalCtx
+		return evalCtx.CopyWithFrames(newFrames)
 	} else if ctx, ok := context.(map[string]any); ok {
 		// For map-based context
 		// Create a shallow copy of the context
@@ -650,7 +647,7 @@ func (nv *NamespaceValue) GenCSS(context any, output *CSSOutput) {
 		// Panic to propagate the error during CSS generation
 		panic(err)
 	}
-	
+
 	// Generate CSS from the evaluated result
 	if gen, ok := result.(interface{ GenCSS(any, *CSSOutput) }); ok {
 		gen.GenCSS(context, output)

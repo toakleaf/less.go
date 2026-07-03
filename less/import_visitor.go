@@ -330,7 +330,7 @@ func (iv *ImportVisitor) onImported(importNode any, context *Eval, args ...any) 
 	}
 
 	inlineCSS := iv.getOptionBool(importNode, "inline", false)
-	isPlugin := iv.getOptionBool(importNode, "isPlugin", false)  
+	isPlugin := iv.getOptionBool(importNode, "isPlugin", false)
 	isOptional := iv.getOptionBool(importNode, "optional", false)
 	duplicateImport := importedAtRoot || iv.recursionDetector[fullPath]
 
@@ -385,7 +385,7 @@ func (iv *ImportVisitor) onImported(importNode any, context *Eval, args ...any) 
 					}
 				}
 				if !alreadyInFrames {
-					oldContext.Frames = append(oldContext.Frames, rootRuleset)
+					oldContext.SetFrames(append(oldContext.Frames, rootRuleset))
 				}
 			}
 			iv.context = oldContext
@@ -605,7 +605,7 @@ func (iv *ImportVisitor) callImporterPush(importNode any, tryAppendLessExtension
 				callback(nil, root, importedEqualsRoot, fullPath)
 			}
 		}
-		
+
 		importManager.Push(path, tryAppendLessExtension, currentFileInfo, importOptions, pushCallback)
 		return
 	}
@@ -693,67 +693,59 @@ func (iv *ImportVisitor) getOptions(node any) map[string]any {
 
 func (iv *ImportVisitor) VisitDeclaration(declNode any, visitArgs *VisitArgs) {
 	if iv.isDetachedRuleset(declNode) {
-		iv.context.Frames = append([]any{declNode}, iv.context.Frames...)
+		iv.context.PushFrame(declNode)
 	} else if iv.declarationContainsDetachedRuleset(declNode) {
-		iv.context.Frames = append([]any{declNode}, iv.context.Frames...)
+		iv.context.PushFrame(declNode)
 	} else {
 		visitArgs.VisitDeeper = false
 	}
 }
 
 func (iv *ImportVisitor) VisitDeclarationOut(declNode any) {
-	if (iv.isDetachedRuleset(declNode) || iv.declarationContainsDetachedRuleset(declNode)) && len(iv.context.Frames) > 0 {
-		iv.context.Frames = iv.context.Frames[1:]
+	if iv.isDetachedRuleset(declNode) || iv.declarationContainsDetachedRuleset(declNode) {
+		iv.context.PopFrame()
 	}
 }
 
 func (iv *ImportVisitor) VisitAtRule(atRuleNode any, visitArgs *VisitArgs) {
-	iv.context.Frames = append([]any{atRuleNode}, iv.context.Frames...)
+	iv.context.PushFrame(atRuleNode)
 }
 
 func (iv *ImportVisitor) VisitAtRuleOut(atRuleNode any) {
-	if len(iv.context.Frames) > 0 {
-		iv.context.Frames = iv.context.Frames[1:]
-	}
+	iv.context.PopFrame()
 }
 
 func (iv *ImportVisitor) VisitMixinDefinition(mixinDefinitionNode any, visitArgs *VisitArgs) {
-	iv.context.Frames = append([]any{mixinDefinitionNode}, iv.context.Frames...)
+	iv.context.PushFrame(mixinDefinitionNode)
 }
 
 func (iv *ImportVisitor) VisitMixinDefinitionOut(mixinDefinitionNode any) {
-	if len(iv.context.Frames) > 0 {
-		iv.context.Frames = iv.context.Frames[1:]
-	}
+	iv.context.PopFrame()
 }
 
 func (iv *ImportVisitor) VisitRuleset(rulesetNode any, visitArgs *VisitArgs) {
-	iv.context.Frames = append([]any{rulesetNode}, iv.context.Frames...)
+	iv.context.PushFrame(rulesetNode)
 }
 
 func (iv *ImportVisitor) VisitRulesetOut(rulesetNode any) {
-	if len(iv.context.Frames) > 0 {
-		iv.context.Frames = iv.context.Frames[1:]
-	}
+	iv.context.PopFrame()
 }
 
 func (iv *ImportVisitor) VisitMedia(mediaNode any, visitArgs *VisitArgs) {
 	if n, ok := mediaNode.(map[string]any); ok {
 		if rules, hasRules := n["rules"].([]any); hasRules && len(rules) > 0 {
-			iv.context.Frames = append([]any{rules[0]}, iv.context.Frames...)
+			iv.context.PushFrame(rules[0])
 		}
 	} else if media, ok := mediaNode.(interface{ GetRules() []any }); ok {
 		rules := media.GetRules()
 		if len(rules) > 0 {
-			iv.context.Frames = append([]any{rules[0]}, iv.context.Frames...)
+			iv.context.PushFrame(rules[0])
 		}
 	}
 }
 
 func (iv *ImportVisitor) VisitMediaOut(mediaNode any) {
-	if len(iv.context.Frames) > 0 {
-		iv.context.Frames = iv.context.Frames[1:]
-	}
+	iv.context.PopFrame()
 }
 
 func (iv *ImportVisitor) isDetachedRuleset(node any) bool {

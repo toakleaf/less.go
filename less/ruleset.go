@@ -170,21 +170,11 @@ func NewRuleset(selectors []any, rules []any, strictImports bool, visibilityInfo
 	if len(parseFuncs) > 2 {
 		if parseContext, ok := parseFuncs[2].(map[string]any); ok {
 			r.ParseContext = parseContext
-			// Also set in Parse object for JavaScript compatibility
-			if r.Parse == nil {
-				r.Parse = make(map[string]any)
-			}
-			r.Parse["context"] = parseContext
 		}
 	}
 	if len(parseFuncs) > 3 {
 		if parseImports, ok := parseFuncs[3].(map[string]any); ok {
 			r.ParseImports = parseImports
-			// Also set in Parse object for JavaScript compatibility
-			if r.Parse == nil {
-				r.Parse = make(map[string]any)
-			}
-			r.Parse["importManager"] = parseImports
 		}
 	}
 
@@ -434,10 +424,6 @@ func (r *Ruleset) Eval(context any) (any, error) {
 
 	if ec, ok := context.(*Eval); ok {
 		evalCtx = ec
-		// Create a minimal map for state tracking (selectors, etc.)
-		// We'll pass the *Eval context to child evaluations
-		// Pre-allocate with capacity 2 since we typically only use selectors and maybe frames
-		ctx = make(map[string]any, 2)
 	} else if mapCtx, ok := context.(map[string]any); ok {
 		ctx = mapCtx
 	} else {
@@ -454,8 +440,10 @@ func (r *Ruleset) Eval(context any) (any, error) {
 	var pluginEvalCtx *Eval
 	if evalCtx != nil {
 		pluginEvalCtx = evalCtx
-	} else if parentEval, ok := ctx["_evalContext"].(*Eval); ok {
-		pluginEvalCtx = parentEval
+	} else if ctx != nil {
+		if parentEval, ok := ctx["_evalContext"].(*Eval); ok {
+			pluginEvalCtx = parentEval
+		}
 	}
 	// Check for both direct PluginBridge and LazyPluginBridge (which wraps PluginBridge)
 	scopeEntered := false
@@ -494,11 +482,13 @@ func (r *Ruleset) Eval(context any) (any, error) {
 				"type":    "Syntax",
 				"message": "it is currently only allowed in parametric mixin guards,",
 			})
-		} else if df, ok := ctx["defaultFunc"].(interface{ Error(map[string]any) }); ok {
-			df.Error(map[string]any{
-				"type":    "Syntax",
-				"message": "it is currently only allowed in parametric mixin guards,",
-			})
+		} else if ctx != nil {
+			if df, ok := ctx["defaultFunc"].(interface{ Error(map[string]any) }); ok {
+				df.Error(map[string]any{
+					"type":    "Syntax",
+					"message": "it is currently only allowed in parametric mixin guards,",
+				})
+			}
 		}
 
 		// Evaluate selectors - pass the original context (either *Eval or map)
@@ -589,8 +579,10 @@ func (r *Ruleset) Eval(context any) (any, error) {
 		// Match JavaScript: defaultFunc.reset();
 		if evalCtx != nil && evalCtx.DefaultFunc != nil {
 			evalCtx.DefaultFunc.Reset()
-		} else if df, ok := ctx["defaultFunc"].(interface{ Reset() }); ok {
-			df.Reset()
+		} else if ctx != nil {
+			if df, ok := ctx["defaultFunc"].(interface{ Reset() }); ok {
+				df.Reset()
+			}
 		}
 	} else {
 		hasOnePassingSelector = true
@@ -635,8 +627,10 @@ func (r *Ruleset) Eval(context any) (any, error) {
 	// Get frames from the appropriate context type
 	if evalCtx != nil {
 		frames = evalCtx.Frames
-	} else if framesVal, ok := ctx["frames"].([]any); ok {
-		frames = framesVal
+	} else if ctx != nil {
+		if framesVal, ok := ctx["frames"].([]any); ok {
+			frames = framesVal
+		}
 	}
 
 	// Check evalCtx for FunctionRegistry first
@@ -672,19 +666,23 @@ func (r *Ruleset) Eval(context any) (any, error) {
 
 	// Update frames in the appropriate context type
 	if evalCtx != nil {
-		evalCtx.Frames = newFrames
+		evalCtx.SetFrames(newFrames)
 	} else {
 		ctx["frames"] = newFrames
 	}
 
-	// Current selectors - store in map for both context types
-	if selectors := ctx["selectors"]; selectors == nil {
-		ctx["selectors"] = []any{r.Selectors}
-	} else if sels, ok := selectors.([]any); ok {
-		newSelectors := make([]any, len(sels)+1)
-		newSelectors[0] = r.Selectors
-		copy(newSelectors[1:], sels)
-		ctx["selectors"] = newSelectors
+	// Current selectors.
+	if evalCtx != nil {
+		evalCtx.PushSelectors(r.Selectors)
+	} else {
+		if selectors := ctx["selectors"]; selectors == nil {
+			ctx["selectors"] = []any{r.Selectors}
+		} else if sels, ok := selectors.([]any); ok {
+			newSelectors := make([]any, len(sels)+1)
+			newSelectors[0] = r.Selectors
+			copy(newSelectors[1:], sels)
+			ctx["selectors"] = newSelectors
+		}
 	}
 
 	// Ensure function registry is available in context
@@ -762,8 +760,10 @@ func (r *Ruleset) Eval(context any) (any, error) {
 	mediaBlockCount := 0
 	if evalCtx != nil && evalCtx.MediaBlocks != nil {
 		mediaBlockCount = len(evalCtx.MediaBlocks)
-	} else if mediaBlocks, ok := ctx["mediaBlocks"].([]any); ok {
-		mediaBlockCount = len(mediaBlocks)
+	} else if ctx != nil {
+		if mediaBlocks, ok := ctx["mediaBlocks"].([]any); ok {
+			mediaBlockCount = len(mediaBlocks)
+		}
 	}
 
 	if os.Getenv("LESS_GO_TRACE") != "" {
@@ -790,30 +790,8 @@ func (r *Ruleset) Eval(context any) (any, error) {
 						if err != nil {
 							return nil, err
 						}
-						// Match JavaScript filter logic: !(ruleset.variable(r.name))
-						filtered := make([]any, 0, len(rules))
-						for _, r := range rules {
-							if decl, ok := r.(*Declaration); ok && decl.variable {
-								// Match JavaScript: return !(ruleset.variable(r.name))
-								if nameStr, ok := decl.name.(string); ok {
-									if ruleset.Variable(nameStr) == nil {
-										filtered = append(filtered, r) // Include if variable doesn't exist
-									}
-									// Skip if variable already exists (don't pollute scope)
-								} else {
-									filtered = append(filtered, r)
-								}
-							} else {
-								filtered = append(filtered, r)
-							}
-						}
-
-						// rsRules.splice.apply(rsRules, [i, 1].concat(rules))
-						newRules := make([]any, len(rsRules)+len(filtered)-1)
-						copy(newRules, rsRules[:i])
-						copy(newRules[i:], filtered)
-						copy(newRules[i+len(filtered):], rsRules[i+1:])
-						rsRules = newRules
+						filtered := filterMixinReplacementRules(ruleset, rules)
+						rsRules = replaceRuleAtIndex(rsRules, i, filtered)
 						ruleset.Rules = rsRules
 						i += len(filtered) - 1
 						ruleset.ResetCache()
@@ -835,26 +813,13 @@ func (r *Ruleset) Eval(context any) (any, error) {
 						}
 
 						if evalRules != nil {
-							// Match JavaScript: filter out all variable declarations
-							rules := make([]any, 0, len(evalRules))
-							for _, r := range evalRules {
-								if decl, ok := r.(*Declaration); ok && decl.variable {
-									// do not pollute the scope at all
-									continue
-								}
-								rules = append(rules, r)
-							}
+							rules := filterVariableCallReplacementRules(evalRules)
 
 							// NOTE: We no longer add mediaBlocks to rules here.
 							// MediaBlocks are properly propagated through context via MixinDefinition.EvalCall
 							// and DetachedRuleset.CallEval, and output via evalTop's MultiMedia Ruleset.
 
-							// rsRules.splice.apply(rsRules, [i, 1].concat(rules))
-							newRules := make([]any, len(rsRules)+len(rules)-1)
-							copy(newRules, rsRules[:i])
-							copy(newRules[i:], rules)
-							copy(newRules[i+len(rules):], rsRules[i+1:])
-							rsRules = newRules
+							rsRules = replaceRuleAtIndex(rsRules, i, rules)
 							ruleset.Rules = rsRules
 							i += len(rules) - 1
 							ruleset.ResetCache()
@@ -949,25 +914,29 @@ func (r *Ruleset) Eval(context any) (any, error) {
 	// Pop the stack
 	if evalCtx != nil {
 		// Pop from *Eval context
-		if len(evalCtx.Frames) > 0 {
-			evalCtx.Frames = evalCtx.Frames[1:]
-		}
+		evalCtx.PopFrame()
 	} else {
 		// Pop from map context
 		if frames, ok := ctx["frames"].([]any); ok && len(frames) > 0 {
 			ctx["frames"] = frames[1:]
 		}
 	}
-	if selectors, ok := ctx["selectors"].([]any); ok && len(selectors) > 0 {
-		ctx["selectors"] = selectors[1:]
+	if evalCtx != nil {
+		evalCtx.PopSelectors()
+	} else {
+		if selectors, ok := ctx["selectors"].([]any); ok && len(selectors) > 0 {
+			ctx["selectors"] = selectors[1:]
+		}
 	}
 
 	// Handle media blocks - check both *Eval and map contexts
 	var mediaBlocks []any
 	if evalCtx != nil && evalCtx.MediaBlocks != nil {
 		mediaBlocks = evalCtx.MediaBlocks
-	} else if mb, ok := ctx["mediaBlocks"].([]any); ok {
-		mediaBlocks = mb
+	} else if ctx != nil {
+		if mb, ok := ctx["mediaBlocks"].([]any); ok {
+			mediaBlocks = mb
+		}
 	}
 
 	if os.Getenv("LESS_GO_TRACE") != "" {
@@ -2811,11 +2780,72 @@ func createDebugContextFromRuleset(context map[string]any, ruleset *Ruleset) map
 
 // Helper methods for array manipulation and rule checking
 
+func filterMixinReplacementRules(scope *Ruleset, rules []any) []any {
+	var filtered []any
+	for i, rule := range rules {
+		include := true
+		if decl, ok := rule.(*Declaration); ok && decl.variable {
+			if nameStr, ok := decl.name.(string); ok {
+				include = scope.Variable(nameStr) == nil
+			}
+		}
+		if include {
+			if filtered != nil {
+				filtered = append(filtered, rule)
+			}
+			continue
+		}
+		if filtered == nil {
+			filtered = make([]any, 0, len(rules)-1)
+			filtered = append(filtered, rules[:i]...)
+		}
+	}
+	if filtered != nil {
+		return filtered
+	}
+	return rules
+}
+
+func filterVariableCallReplacementRules(rules []any) []any {
+	var filtered []any
+	for i, rule := range rules {
+		if decl, ok := rule.(*Declaration); ok && decl.variable {
+			if filtered == nil {
+				filtered = make([]any, 0, len(rules)-1)
+				filtered = append(filtered, rules[:i]...)
+			}
+			continue
+		}
+		if filtered != nil {
+			filtered = append(filtered, rule)
+		}
+	}
+	if filtered != nil {
+		return filtered
+	}
+	return rules
+}
+
+func replaceRuleAtIndex(rules []any, index int, replacement []any) []any {
+	switch len(replacement) {
+	case 0:
+		copy(rules[index:], rules[index+1:])
+		rules[len(rules)-1] = nil
+		return rules[:len(rules)-1]
+	case 1:
+		rules[index] = replacement[0]
+		return rules
+	default:
+		newRules := make([]any, len(rules)+len(replacement)-1)
+		copy(newRules, rules[:index])
+		copy(newRules[index:], replacement)
+		copy(newRules[index+len(replacement):], rules[index+1:])
+		return newRules
+	}
+}
+
 func (r *Ruleset) removeRuleAtIndex(rules []any, index int) []any {
-	newRules := make([]any, len(rules)-1)
-	copy(newRules, rules[:index])
-	copy(newRules[index:], rules[index+1:])
-	return newRules
+	return replaceRuleAtIndex(rules, index, nil)
 }
 
 func (r *Ruleset) insertRuleAtIndex(rules []any, index int, rule any) []any {

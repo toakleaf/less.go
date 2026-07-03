@@ -324,9 +324,6 @@ func compileWithContext(lessContext *LessContext, input string, options map[stri
 		return factory(environment, contextMap, fileInfo)
 	})
 
-	resultChan := make(chan *CompileResult, 1)
-	errorChan := make(chan error, 1)
-
 	mergedOptions := make(map[string]any)
 	if lessContext.Options != nil {
 		for k, v := range lessContext.Options {
@@ -343,9 +340,12 @@ func compileWithContext(lessContext *LessContext, input string, options map[stri
 		mergedOptions["pluginBridge"] = lessContext.PluginBridge
 	}
 
+	var compileResult *CompileResult
+	var compileErr error
+
 	parseFunc(input, mergedOptions, func(err error, root any, imports *ImportManager, opts map[string]any) {
 		if err != nil {
-			errorChan <- err
+			compileErr = err
 			return
 		}
 
@@ -367,7 +367,7 @@ func compileWithContext(lessContext *LessContext, input string, options map[stri
 						fmt.Fprintf(os.Stderr, "\n=== PANIC in compile ===\nError: %s\nStack:\n%s\n===\n", errMsg, stackTrace)
 					}
 
-					errorChan <- fmt.Errorf("compilation failed: %s", errMsg)
+					compileErr = fmt.Errorf("compilation failed: %s", errMsg)
 				}
 			}()
 
@@ -462,11 +462,11 @@ func compileWithContext(lessContext *LessContext, input string, options map[stri
 
 			cssResult, err := parseTreeInstance.ToCSS(toCSSOptions)
 			if err != nil {
-				errorChan <- err
+				compileErr = err
 				return
 			}
 
-			resultChan <- &CompileResult{
+			compileResult = &CompileResult{
 				CSS:     cssResult.CSS,
 				Map:     cssResult.Map,
 				Imports: cssResult.Imports,
@@ -474,10 +474,8 @@ func compileWithContext(lessContext *LessContext, input string, options map[stri
 		}()
 	})
 
-	select {
-	case err := <-errorChan:
-		return nil, err
-	case result := <-resultChan:
-		return result, nil
+	if compileErr != nil {
+		return nil, compileErr
 	}
+	return compileResult, nil
 }

@@ -41,7 +41,7 @@ func GetEvalFromPool(source *Eval, frames []any) *Eval {
 	e.MathOn = source.MathOn
 	e.DefaultFunc = source.DefaultFunc
 	e.FunctionRegistry = nil // NOT copied - should be inherited from frames during evaluation
-	e.MediaBlocks = nil // Intentionally nil - child contexts get fresh media arrays
+	e.MediaBlocks = nil      // Intentionally nil - child contexts get fresh media arrays
 	e.MediaPath = nil
 	e.PluginBridge = source.PluginBridge
 	e.LazyPluginBridge = source.LazyPluginBridge
@@ -62,6 +62,7 @@ func PutEvalToPool(e *Eval) {
 	e.ImportantScope = nil
 	e.Frames = nil
 	e.parserFrames = nil
+	e.SelectorStack = nil
 	e.CalcStack = nil
 	e.ParensStack = nil
 	e.DefaultFunc = nil
@@ -132,7 +133,7 @@ type Parse struct {
 	UseFileCache    bool
 	ProcessImports  bool
 	PluginManager   any
-	Quiet         bool
+	Quiet           bool
 }
 
 func NewParse(options map[string]any) *Parse {
@@ -170,16 +171,17 @@ type Eval struct {
 	RewriteUrls       RewriteUrlsType
 	NumPrecision      int
 
-	Frames       []any
-	parserFrames []ParserFrame // Cached typed frames to avoid allocation in GetFrames()
-	CalcStack    []bool
-	ParensStack  []bool
-	InCalc       bool
-	MathOn       bool
-	DefaultFunc  *DefaultFunc
+	Frames           []any
+	parserFrames     []ParserFrame // Cached typed frames to avoid allocation in GetFrames()
+	SelectorStack    []any
+	CalcStack        []bool
+	ParensStack      []bool
+	InCalc           bool
+	MathOn           bool
+	DefaultFunc      *DefaultFunc
 	FunctionRegistry *Registry
-	MediaBlocks  []any
-	MediaPath    []any
+	MediaBlocks      []any
+	MediaPath        []any
 
 	PluginBridge     *NodeJSPluginBridge
 	LazyPluginBridge *LazyNodeJSPluginBridge // Lazy bridge for deferred initialization
@@ -206,10 +208,9 @@ func buildParserFramesCache(frames []any) []ParserFrame {
 func NewEval(options map[string]any, frames []any) *Eval {
 	e := &Eval{
 		Frames:         frames,
-		parserFrames:   buildParserFramesCache(frames),
 		MathOn:         true,
 		ImportantScope: []ImportantScopeEntry{},
-		NumPrecision:   0, // Default to 0 to preserve full JavaScript number precision
+		NumPrecision:   0,              // Default to 0 to preserve full JavaScript number precision
 		RewriteUrls:    RewriteUrlsOff, // Default to OFF to match JavaScript default (false)
 	}
 	copyFromOriginal(options, e)
@@ -236,7 +237,6 @@ func NewEvalFromEval(parent *Eval, frames []any) *Eval {
 		RewriteUrls:       parent.RewriteUrls,
 		NumPrecision:      parent.NumPrecision,
 		Frames:            frames,
-		parserFrames:      buildParserFramesCache(frames),
 		CalcStack:         nil, // Fresh stacks for new context
 		ParensStack:       nil,
 		InCalc:            false,
@@ -405,7 +405,42 @@ func (e *Eval) IsInCalc() bool {
 }
 
 func (e *Eval) GetFrames() []ParserFrame {
-	return buildParserFramesCache(e.Frames)
+	if len(e.Frames) == 0 {
+		e.parserFrames = nil
+		return nil
+	}
+	if e.parserFrames == nil {
+		e.parserFrames = buildParserFramesCache(e.Frames)
+	}
+	return e.parserFrames
+}
+
+func (e *Eval) SetFrames(frames []any) {
+	e.Frames = frames
+	e.parserFrames = nil
+}
+
+func (e *Eval) PushFrame(frame any) {
+	newFrames := make([]any, len(e.Frames)+1)
+	newFrames[0] = frame
+	copy(newFrames[1:], e.Frames)
+	e.SetFrames(newFrames)
+}
+
+func (e *Eval) PopFrame() {
+	if len(e.Frames) > 0 {
+		e.SetFrames(e.Frames[1:])
+	}
+}
+
+func (e *Eval) PushSelectors(selectors []any) {
+	e.SelectorStack = append(e.SelectorStack, selectors)
+}
+
+func (e *Eval) PopSelectors() {
+	if len(e.SelectorStack) > 0 {
+		e.SelectorStack = e.SelectorStack[:len(e.SelectorStack)-1]
+	}
 }
 
 func (e *Eval) GetImportantScope() []map[string]bool {
@@ -759,7 +794,6 @@ func (e *Eval) NewMixinEvalContext(frames []any) *Eval {
 		RewriteUrls:       e.RewriteUrls,
 		NumPrecision:      e.NumPrecision,
 		Frames:            frames,
-		parserFrames:      buildParserFramesCache(frames),
 		CalcStack:         nil, // Fresh stacks
 		ParensStack:       nil,
 		InCalc:            e.InCalc,
@@ -790,7 +824,6 @@ func (e *Eval) CopyWithFrames(frames []any) *Eval {
 		RewriteUrls:       e.RewriteUrls,
 		NumPrecision:      e.NumPrecision,
 		Frames:            frames,
-		parserFrames:      buildParserFramesCache(frames),
 		CalcStack:         e.CalcStack,
 		ParensStack:       e.ParensStack,
 		InCalc:            e.InCalc,

@@ -22,9 +22,9 @@ var benchmarkTestFiles = []struct {
 		suite:  "main",
 		folder: "_main/",
 		options: map[string]any{
-			"relativeUrls":       true,
-			"silent":             true,
-			"javascriptEnabled":  true,
+			"relativeUrls":      true,
+			"silent":            true,
+			"javascriptEnabled": true,
 		},
 		// All passing _main tests EXCEPT those requiring plugins/Node.js or network
 		// Excluded: import, import-module, javascript, plugin, plugin-module, plugin-preeval
@@ -246,7 +246,7 @@ var benchmarkTestFiles = []struct {
 		suite:  "include-path",
 		folder: "include-path/",
 		options: map[string]any{
-			"paths": []string{"data/", "_main/import/"},
+			"paths": []string{"../testdata/less/data/", "../testdata/less/_main/import/"},
 		},
 		files: []string{
 			"include-path",
@@ -421,9 +421,9 @@ var benchmarkPluginTestFiles = []struct {
 		suite:  "main-plugins",
 		folder: "_main/",
 		options: map[string]any{
-			"relativeUrls":       true,
-			"silent":             true,
-			"javascriptEnabled":  true,
+			"relativeUrls":      true,
+			"silent":            true,
+			"javascriptEnabled": true,
 		},
 		// Tests that require plugin system / Node.js IPC
 		files: []string{
@@ -533,16 +533,191 @@ func BenchmarkLessCompilationColdStart(b *testing.B) {
 	}
 }
 
-// BenchmarkLessParsing benchmarks the compilation (currently we don't have an easy way to separate parsing)
-// This is kept for compatibility but measures full compilation like BenchmarkLessCompilation
-func BenchmarkLessParsing(b *testing.B) {
-	b.Skip("Skipping - parsing cannot be easily separated from evaluation in current implementation")
+func cloneBenchmarkOptions(source map[string]any, filename string) map[string]any {
+	options := make(map[string]any, len(source)+1)
+	for k, v := range source {
+		options[k] = v
+	}
+	options["filename"] = filename
+	return options
 }
 
-// BenchmarkLessEvaluation benchmarks the compilation (currently we don't have an easy way to separate evaluation)
-// This is kept for compatibility but measures full compilation like BenchmarkLessCompilation
+func parseLessForBenchmark(input string, options map[string]any) (any, *ImportManager, map[string]any, error) {
+	env := createEnvironment(nil, nil)
+	lessContext := NewLessContext(options)
+	pluginManager := NewPluginManager(lessContext)
+
+	parseFunc := CreateParse(env, nil, func(environment any, context *Parse, rootFileInfo map[string]any) *ImportManager {
+		factory := NewImportManager(&SimpleImportManagerEnvironment{})
+
+		fileInfo := &FileInfo{Filename: "input"}
+		if rootFileInfo != nil {
+			if fn, ok := rootFileInfo["filename"].(string); ok {
+				fileInfo.Filename = fn
+			}
+		}
+
+		contextMap := map[string]any{
+			"parserFactory": func(parserContext map[string]any, parserImports map[string]any, parserFileInfo map[string]any, currentIndex int) ParserInterface {
+				return NewParser(parserContext, parserImports, parserFileInfo, currentIndex)
+			},
+			"pluginManager": pluginManager,
+		}
+		if context != nil && len(context.Paths) > 0 {
+			contextMap["paths"] = context.Paths
+		} else {
+			contextMap["paths"] = []string{}
+		}
+		if context != nil {
+			contextMap["rewriteUrls"] = context.RewriteUrls
+			if context.Rootpath != "" {
+				contextMap["rootpath"] = context.Rootpath
+			}
+			contextMap["syncImport"] = context.SyncImport
+			contextMap["strictImports"] = context.StrictImports
+			contextMap["insecure"] = context.Insecure
+		}
+
+		return factory(environment, contextMap, fileInfo)
+	})
+
+	mergedOptions := make(map[string]any, len(options)+1)
+	for k, v := range options {
+		mergedOptions[k] = v
+	}
+	mergedOptions["pluginManager"] = pluginManager
+
+	var root any
+	var imports *ImportManager
+	var callbackOptions map[string]any
+	var parseErr error
+	parseFunc(input, mergedOptions, func(err error, parsedRoot any, parsedImports *ImportManager, opts map[string]any) {
+		parseErr = err
+		root = parsedRoot
+		imports = parsedImports
+		callbackOptions = opts
+	})
+	if parseErr != nil {
+		return nil, nil, nil, parseErr
+	}
+	return root, imports, callbackOptions, nil
+}
+
+func benchmarkToCSSOptions(opts map[string]any, imports *ImportManager) *ToCSSOptions {
+	toCSSOptions := &ToCSSOptions{
+		Compress:       false,
+		StrictUnits:    false,
+		NumPrecision:   8,
+		Functions:      createFunctions(createEnvironment(nil, nil)),
+		ProcessImports: true,
+		ImportManager:  imports,
+		Math:           Math.ParensDivision,
+	}
+	if opts == nil {
+		return toCSSOptions
+	}
+	if compress, ok := opts["compress"].(bool); ok {
+		toCSSOptions.Compress = compress
+	}
+	if strictUnits, ok := opts["strictUnits"].(bool); ok {
+		toCSSOptions.StrictUnits = strictUnits
+	}
+	if rewriteUrls, ok := opts["rewriteUrls"]; ok {
+		toCSSOptions.RewriteUrls = rewriteUrls
+	}
+	if rootpath, ok := opts["rootpath"].(string); ok {
+		toCSSOptions.Rootpath = rootpath
+	}
+	if math, ok := opts["math"].(MathType); ok {
+		toCSSOptions.Math = math
+	} else if mathInt, ok := opts["math"].(int); ok {
+		toCSSOptions.Math = MathType(mathInt)
+	}
+	if paths, ok := opts["paths"].([]string); ok {
+		toCSSOptions.Paths = paths
+	}
+	if urlArgs, ok := opts["urlArgs"].(string); ok {
+		toCSSOptions.UrlArgs = urlArgs
+	}
+	if processImports, ok := opts["processImports"].(bool); ok {
+		toCSSOptions.ProcessImports = processImports
+	}
+	if javascriptEnabled, ok := opts["javascriptEnabled"].(bool); ok {
+		toCSSOptions.JavascriptEnabled = javascriptEnabled
+	}
+	return toCSSOptions
+}
+
+// BenchmarkLessParsing benchmarks parser and import processing without transform/render.
+func BenchmarkLessParsing(b *testing.B) {
+	testDataRoot := "../testdata"
+	lessRoot := filepath.Join(testDataRoot, "less")
+
+	for _, suite := range benchmarkTestFiles {
+		for _, fileName := range suite.files {
+			testName := fmt.Sprintf("%s/%s", suite.suite, fileName)
+			lessFile := filepath.Join(lessRoot, suite.folder, fileName+".less")
+
+			b.Run(testName, func(b *testing.B) {
+				lessData, err := ioutil.ReadFile(lessFile)
+				if err != nil {
+					b.Skipf("Cannot read %s: %v", lessFile, err)
+					return
+				}
+				options := cloneBenchmarkOptions(suite.options, lessFile)
+
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					_, _, _, parseErr := parseLessForBenchmark(string(lessData), options)
+					if parseErr != nil {
+						b.Fatalf("Parse error: %v", parseErr)
+					}
+				}
+			})
+		}
+	}
+}
+
+// BenchmarkLessEvaluation benchmarks transform/evaluation plus CSS rendering.
+// Parsing is performed outside the timer each iteration so the measured section
+// is ParseTree.ToCSS: TransformTree visitors, Less eval, and CSS generation.
 func BenchmarkLessEvaluation(b *testing.B) {
-	b.Skip("Skipping - evaluation cannot be easily separated from parsing in current implementation")
+	testDataRoot := "../testdata"
+	lessRoot := filepath.Join(testDataRoot, "less")
+
+	for _, suite := range benchmarkTestFiles {
+		for _, fileName := range suite.files {
+			testName := fmt.Sprintf("%s/%s", suite.suite, fileName)
+			lessFile := filepath.Join(lessRoot, suite.folder, fileName+".less")
+
+			b.Run(testName, func(b *testing.B) {
+				lessData, err := ioutil.ReadFile(lessFile)
+				if err != nil {
+					b.Skipf("Cannot read %s: %v", lessFile, err)
+					return
+				}
+				options := cloneBenchmarkOptions(suite.options, lessFile)
+
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					b.StopTimer()
+					root, imports, opts, parseErr := parseLessForBenchmark(string(lessData), options)
+					if parseErr != nil {
+						b.Fatalf("Parse error: %v", parseErr)
+					}
+					parseTreeFactory := DefaultParseTreeFactory(nil)
+					parseTreeInstance := parseTreeFactory.NewParseTree(root, imports)
+					toCSSOptions := benchmarkToCSSOptions(opts, imports)
+					b.StartTimer()
+
+					_, compileErr := parseTreeInstance.ToCSS(toCSSOptions)
+					if compileErr != nil {
+						b.Fatalf("ToCSS error: %v", compileErr)
+					}
+				}
+			})
+		}
+	}
 }
 
 // BenchmarkLargeSuite runs a comprehensive benchmark on multiple files at once

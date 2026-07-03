@@ -92,7 +92,7 @@ func parseVersion(version string) VersionInfo {
 	major, _ := strconv.Atoi(parts[0])
 	minor, _ := strconv.Atoi(parts[1])
 	patch, _ := strconv.Atoi(parts[2])
-	
+
 	return VersionInfo{
 		Major: major,
 		Minor: minor,
@@ -308,12 +308,12 @@ func createRender(env any, parseTree any, importManager any) func(string, ...any
 			return result
 		})
 
-		resultChan := make(chan any, 1)
-		errorChan := make(chan error, 1)
+		var renderResult any
+		var renderErr error
 
 		parseFunc(input, options, func(err error, root any, imports *ImportManager, opts map[string]any) {
 			if err != nil {
-				errorChan <- err
+				renderErr = err
 			} else {
 				parseTreeFactory := DefaultParseTreeFactory(nil)
 				parseTreeInstance := parseTreeFactory.NewParseTree(root, imports)
@@ -321,13 +321,13 @@ func createRender(env any, parseTree any, importManager any) func(string, ...any
 				functionsObj := createFunctions(env)
 
 				toCSSOptions := &ToCSSOptions{
-					Compress:      false,
-					StrictUnits:   false,
-					NumPrecision:  8,  // Match less.js default precision
-					Functions:     functionsObj,
-					ProcessImports: true,  // Default: enable import processing
-					ImportManager: imports, // Pass the import manager
-					Math:          Math.ParensDivision, // Default math mode
+					Compress:       false,
+					StrictUnits:    false,
+					NumPrecision:   8, // Match less.js default precision
+					Functions:      functionsObj,
+					ProcessImports: true,                // Default: enable import processing
+					ImportManager:  imports,             // Pass the import manager
+					Math:           Math.ParensDivision, // Default math mode
 				}
 				if opts != nil {
 					if compress, ok := opts["compress"].(bool); ok {
@@ -381,26 +381,24 @@ func createRender(env any, parseTree any, importManager any) func(string, ...any
 								fmt.Printf("\n=== PANIC in ToCSS ===\nError: %s\nStack:\n%s\n===\n", errMsg, stackTrace)
 							}
 
-							errorChan <- fmt.Errorf("%s", errMsg)
+							renderErr = fmt.Errorf("%s", errMsg)
 						}
 					}()
 
 					cssResult, err := parseTreeInstance.ToCSS(toCSSOptions)
 					if err != nil {
-						errorChan <- err
+						renderErr = err
 					} else {
-						resultChan <- cssResult.CSS
+						renderResult = cssResult.CSS
 					}
 				}()
 			}
 		})
 
-		select {
-		case err := <-errorChan:
-			return map[string]any{"error": err.Error()}
-		case result := <-resultChan:
-			return result
+		if renderErr != nil {
+			return map[string]any{"error": renderErr.Error()}
 		}
+		return renderResult
 	}
 }
 
@@ -485,23 +483,21 @@ func createParse(env any, parseTree any, importManager any) func(string, ...any)
 			options = make(map[string]any)
 		}
 
-		resultChan := make(chan any, 1)
-		errorChan := make(chan error, 1)
+		var parseResult any
+		var parseErr error
 
 		realParseFunc(input, options, func(err error, root any, imports *ImportManager, opts map[string]any) {
 			if err != nil {
-				errorChan <- err
+				parseErr = err
 			} else {
-				resultChan <- root
+				parseResult = root
 			}
 		})
 
-		select {
-		case err := <-errorChan:
-			return map[string]any{"error": err.Error()}
-		case result := <-resultChan:
-			return result
+		if parseErr != nil {
+			return map[string]any{"error": parseErr.Error()}
 		}
+		return parseResult
 	}
 }
 
@@ -589,11 +585,11 @@ func createFunctions(env any) any {
 			if rangeFn, ok := fn.(func(any, any, any) *Expression); ok {
 				// Wrap the function to match the expected signature
 				registry.Add(name, &FlexibleFunctionDef{
-					name:      name,
-					minArgs:   1,
-					maxArgs:   3,
-					variadic:  false,
-					fn:        func(args ...any) any {
+					name:     name,
+					minArgs:  1,
+					maxArgs:  3,
+					variadic: false,
+					fn: func(args ...any) any {
 						var start, end, step any
 						if len(args) > 0 {
 							start = args[0]
@@ -637,7 +633,7 @@ func createFunctions(env any) any {
 	registry.AddMultiple(GetWrappedTypesFunctions())
 
 	registry.Add("default", &DefaultFunctionDefinition{})
-	
+
 	return &DefaultFunctions{registry: registry}
 }
 
@@ -716,7 +712,7 @@ func (s *SimpleImportManagerEnvironment) GetFileManager(path, currentDirectory s
 	return NewFileSystemFileManager()
 }
 
-type SimpleFileManager struct{
+type SimpleFileManager struct {
 	*AbstractFileManager
 }
 

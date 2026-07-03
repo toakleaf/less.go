@@ -121,21 +121,23 @@ result, err := less.Compile(source, &less.CompileOptions{
 
 ## Performance
 
-less.go provides native binary performance without requiring a JavaScript runtime:
+less.go provides native binary performance without requiring a JavaScript runtime. Current benchmarks cover 212 integration files and use Less.js v4.4.2 as the comparison point:
 
 | Metric | Less.js | less.go | Difference |
 |--------|---------|---------|------------|
-| Full suite (90 files) | 380ms | 175ms | **Go 2.2x faster** |
-| Per file average | 4.23ms | 1.95ms | **Go 2.2x faster** |
-| Memory per file | - | 0.56 MB | Efficient memory usage |
+| Cold per-file average | 880.46µs | 712.86µs | Similar, Go ~19% faster |
+| Warm per-file average | 457.09µs | 667.49µs | Go ~1.46x slower |
+| Warm all-files total | 96.90ms | 141.51ms | Go ~1.46x slower |
+| Memory per file | - | 0.34 MB | ~6,451 allocations |
 
-- **No JIT warmup required** - Consistent performance from first run
+- **Cold-start remains competitive** - No JavaScript runtime required for core functionality
+- **Warm Less.js JIT is still faster** - `pnpm bench:compare` is the parity gate for optimizer work
 - **Native binary** - No JavaScript runtime needed for core functionality
 
 Run benchmarks yourself:
 ```bash
-pnpm bench:compare:suite  # Recommended: realistic full-suite comparison
-pnpm bench:compare        # Per-file comparison (for debugging)
+pnpm bench:compare        # Warm/cold per-file comparison across 212 files
+pnpm bench:compare:suite  # Realistic full-suite comparison
 ```
 
 ## Features

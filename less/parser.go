@@ -23,16 +23,12 @@ func (p *Parser) CreateSelectorParseFunc() SelectorParseFunc {
 		// Create a new parser instance for parsing the selector string
 		subParser := NewParser(context, imports, fileInfo, index)
 
-		// Use channel to capture result from callback
-		resultChan := make(chan *ParseNodeResult, 1)
-
 		// Parse the input as a selector and extract elements
-		subParser.parseNode(input, []string{"selector"}, func(result *ParseNodeResult) {
-			resultChan <- result
+		var result *ParseNodeResult
+		subParser.parseNode(input, []string{"selector"}, func(res *ParseNodeResult) {
+			result = res
 		})
 
-		// Get result from channel
-		result := <-resultChan
 		if result.Error != nil {
 			return nil, fmt.Errorf("parse error: %v", result.Error)
 		}
@@ -54,16 +50,12 @@ func (p *Parser) CreateSelectorsParseFunc() SelectorsParseFunc {
 		// Create a new parser instance for parsing the selectors string
 		subParser := NewParser(context, imports, fileInfo, index)
 
-		// Use channel to capture result from callback
-		resultChan := make(chan *ParseNodeResult, 1)
-
 		// Parse the input as selectors
-		subParser.parseNode(input, []string{"selectors"}, func(result *ParseNodeResult) {
-			resultChan <- result
+		var result *ParseNodeResult
+		subParser.parseNode(input, []string{"selectors"}, func(res *ParseNodeResult) {
+			result = res
 		})
 
-		// Get result from channel
-		result := <-resultChan
 		if result.Error != nil {
 			return nil, fmt.Errorf("parse error: %v", result.Error)
 		}
@@ -78,16 +70,12 @@ func (p *Parser) CreateValueParseFunc() ValueParseFunc {
 		// Create a new parser instance for parsing the value string
 		subParser := NewParser(context, imports, fileInfo, index)
 
-		// Use channel to capture result from callback
-		resultChan := make(chan *ParseNodeResult, 1)
-
 		// Parse the input as value and important
-		subParser.parseNode(input, []string{"value", "important"}, func(result *ParseNodeResult) {
-			resultChan <- result
+		var result *ParseNodeResult
+		subParser.parseNode(input, []string{"value", "important"}, func(res *ParseNodeResult) {
+			result = res
 		})
 
-		// Get result from channel
-		result := <-resultChan
 		if result.Error != nil {
 			return nil, fmt.Errorf("parse error: %v", result.Error)
 		}

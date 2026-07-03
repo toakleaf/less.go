@@ -51,17 +51,17 @@ Both run JavaScript and Go benchmarks and display a clear side-by-side compariso
 ║              LESS.JS vs LESS.GO PERFORMANCE COMPARISON                       ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 
-Test Files: 73
-Go warm benchmarked: 72, Go cold benchmarked: 72
+Test Files: 212
+Go warm benchmarked: 212, Go cold benchmarked: 212
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ 🥶 COLD START PERFORMANCE (1st iteration, no warmup)                        │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                    │  JavaScript  │      Go      │   Difference             │
 ├────────────────────┼──────────────┼──────────────┼──────────────────────────┤
-│ Per File (avg)     │ 993.37µs     │ 930.77µs     │ Similar (~6.3%)          │
-│ Per File (median)  │ 546.48µs     │ 484.29µs     │ Similar (~11.4%)         │
-│ All Files (total)  │ 71.52ms      │ 67.02ms      │ Similar (~6.3%)          │
+│ Per File (avg)     │ 880.46µs     │ 712.86µs     │ Similar (~19%)           │
+│ Per File (median)  │ 511.25µs     │ 553.33µs     │ Similar (~8.2%)          │
+│ All Files (total)  │ 185.78ms     │ 151.13ms     │ Similar (~18.7%)         │
 └────────────────────┴──────────────┴──────────────┴──────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -69,27 +69,27 @@ Go warm benchmarked: 72, Go cold benchmarked: 72
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                    │  JavaScript  │      Go      │   Difference             │
 ├────────────────────┼──────────────┼──────────────┼──────────────────────────┤
-│ Per File (avg)     │ 428.03µs     │ 882.52µs     │ Go 2.1x slower           │
-│ Per File (median)  │ 232.29µs     │ 441.15µs     │ Go 1.9x slower           │
-│ All Files (total)  │ 31.25ms      │ 63.54ms      │ Go 2.0x slower           │
+│ Per File (avg)     │ 457.09µs     │ 667.49µs     │ Go 1.5x slower           │
+│ Per File (median)  │ 288.08µs     │ 497.13µs     │ Go 1.7x slower           │
+│ All Files (total)  │ 96.90ms      │ 141.51ms     │ Go 1.5x slower           │
 └────────────────────┴──────────────┴──────────────┴──────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ MEMORY & ALLOCATIONS (Go only, averaged per file)                          │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│ Memory per file:         0.56 MB                                              │
-│ Allocations per file:    10,296 allocations                                   │
+│ Memory per file:         0.34 MB                                              │
+│ Allocations per file:    6,451 allocations                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 🔥 WARM PERFORMANCE (primary comparison metric):
-   🐌 Go is 2.1x SLOWER than JavaScript (warm)
+   🐌 Go is 1.5x slower than JavaScript (warm)
 
 🥶 COLD START PERFORMANCE:
    ⚖️  Cold-start performance is SIMILAR (within 20%)
 
 📈 WARMUP EFFECT:
-   JavaScript: 56.9% faster after warmup
-   Go:         5.2% faster after warmup
+   JavaScript: 48.1% faster after warmup
+   Go:         6.4% faster after warmup
 ```
 
 ### Run Individual Benchmarks
@@ -133,16 +133,16 @@ pnpm bench:go:suite
 - **JavaScript**: 30 separate `node` processes
 - **Go**: 30 independent benchmark iterations (fresh factory each time)
 - **Use case**: Measuring real-world build tool performance
-- **Process behavior**: Each iteration = fresh process start → compile all 73 files → exit
+- **Process behavior**: Each iteration = fresh process start → compile all 212 benchmarked files → exit
 - **No warmup**: Each build is independent, like real CLI usage
 - **Run with**: `pnpm bench:compare:suite`
 
 **This is what actually happens in production:**
 ```
-Build 1: Start process → [file1, file2, ..., file73] → Exit
-Build 2: Start process → [file1, file2, ..., file73] → Exit
+Build 1: Start process → [file1, file2, ..., file212] → Exit
+Build 2: Start process → [file1, file2, ..., file212] → Exit
 ...
-Build 30: Start process → [file1, file2, ..., file73] → Exit
+Build 30: Start process → [file1, file2, ..., file212] → Exit
 ```
 
 **Why this matters**: Real-world CLI tools don't benefit from JIT warmup or in-process caching. Each build starts fresh.
@@ -175,7 +175,7 @@ Build 30: Start process → [file1, file2, ..., file73] → Exit
 
 ## What's Being Tested?
 
-The benchmarks test **73 LESS files** from our integration test suite, including:
+The benchmarks test **212 LESS files** from our integration test suite, including:
 
 - ✅ Core LESS features (variables, mixins, operations)
 - ✅ Extend functionality
@@ -186,6 +186,8 @@ The benchmarks test **73 LESS files** from our integration test suite, including
 - ✅ Guards and conditionals
 - ✅ Functions
 - ✅ Compression
+
+The `include-path/include-path` case is included in the aggregate benchmark set; the benchmark paths are configured so it no longer silently skips that file.
 
 All test files produce **identical CSS output** in both implementations, ensuring we're comparing equivalent functionality.
 

@@ -368,9 +368,9 @@ Object pooling via `sync.Pool` for frequently allocated types:
 
 | Metric | less.js | less.go | Notes |
 |--------|---------|---------|-------|
-| Cold start | ~993µs/file | ~931µs/file | Go ~6% faster |
-| Warm (JIT) | ~428µs/file | ~883µs/file | JS JIT advantage |
-| Memory/file | - | 0.56 MB | With 10k allocations |
+| Cold start | ~880µs/file | ~713µs/file | Similar, Go ~19% faster |
+| Warm (JIT) | ~457µs/file | ~667µs/file | JS JIT advantage remains |
+| Memory/file | - | 0.34 MB | ~6.5k allocations |
 
 ### Benchmarking
 

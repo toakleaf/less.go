@@ -6,7 +6,6 @@ import (
 	"reflect"
 )
 
-
 // TransformTree transforms the root AST node using various visitors
 // This is a direct port of the JavaScript transform-tree.js default export function
 func TransformTree(root any, options map[string]any) any {
@@ -51,7 +50,7 @@ func TransformTree(root any, options map[string]any) any {
 			}
 		}
 	}
-	
+
 	// Add function registry support - check if functions are provided in options
 	var functionRegistry *Registry
 	if functionsObj, ok := options["functions"]; ok {
@@ -108,11 +107,11 @@ func TransformTree(root any, options map[string]any) any {
 			case "length":
 				if lengthFn, ok := fn.(func(any) *Dimension); ok {
 					functionRegistry.Add(name, &FlexibleFunctionDef{
-						name:      name,
-						minArgs:   1,
-						maxArgs:   1,
-						variadic:  false,
-						fn:        func(args ...any) any {
+						name:     name,
+						minArgs:  1,
+						maxArgs:  1,
+						variadic: false,
+						fn: func(args ...any) any {
 							return lengthFn(args[0])
 						},
 						needsEval: true,
@@ -121,11 +120,11 @@ func TransformTree(root any, options map[string]any) any {
 			case "extract":
 				if extractFn, ok := fn.(func(any, any) any); ok {
 					functionRegistry.Add(name, &FlexibleFunctionDef{
-						name:      name,
-						minArgs:   2,
-						maxArgs:   2,
-						variadic:  false,
-						fn:        func(args ...any) any {
+						name:     name,
+						minArgs:  2,
+						maxArgs:  2,
+						variadic: false,
+						fn: func(args ...any) any {
 							return extractFn(args[0], args[1])
 						},
 						needsEval: true,
@@ -160,14 +159,14 @@ func TransformTree(root any, options map[string]any) any {
 	//
 	// Handle variables exactly like JavaScript (including the null bug)
 	// In JavaScript: typeof null === 'object' && !Array.isArray(null) === true
-	if (variables != nil && reflect.TypeOf(variables).Kind() == reflect.Map && !isArray(variables)) || 
-	   (variables != nil && reflect.TypeOf(variables).Kind() == reflect.Ptr && reflect.ValueOf(variables).IsNil()) {
+	if (variables != nil && reflect.TypeOf(variables).Kind() == reflect.Map && !isArray(variables)) ||
+		(variables != nil && reflect.TypeOf(variables).Kind() == reflect.Ptr && reflect.ValueOf(variables).IsNil()) {
 		// Check for the JavaScript null bug case
 		if reflect.TypeOf(variables).Kind() == reflect.Ptr && reflect.ValueOf(variables).IsNil() {
 			// Reproduce JavaScript's Object.keys(null) error
 			panic("Cannot convert undefined or null to object")
 		}
-		
+
 		varsMap := variables.(map[string]any)
 		declarations := make([]any, 0, len(varsMap))
 
@@ -195,7 +194,7 @@ func TransformTree(root any, options map[string]any) any {
 			}
 			declarations = append(declarations, decl)
 		}
-		evalEnv.Frames = []any{NewRuleset(nil, declarations, false, nil)}
+		evalEnv.SetFrames([]any{NewRuleset(nil, declarations, false, nil)})
 	}
 
 	// Create visitors exactly like JavaScript
@@ -226,7 +225,7 @@ func TransformTree(root any, options map[string]any) any {
 
 	/**
 	 * first() / get() allows visitors to be added while visiting
-	 * 
+	 *
 	 * @todo Add scoping for visitors just like functions for @plugin; right now they're global
 	 */
 	if pluginManager := options["pluginManager"]; pluginManager != nil {
@@ -242,7 +241,7 @@ func TransformTree(root any, options map[string]any) any {
 						if v == nil {
 							break
 						}
-						
+
 						if preEvalVisitor, ok := v.(interface{ IsPreEvalVisitor() bool }); ok && preEvalVisitor.IsPreEvalVisitor() {
 							if i == 0 || !containsVisitor(preEvalVisitors, v) {
 								preEvalVisitors = append(preEvalVisitors, v)
@@ -277,7 +276,7 @@ func TransformTree(root any, options map[string]any) any {
 			processImports = flag
 		}
 	}
-	
+
 	// Process imports if enabled (before evaluation)
 	var processedRoot any = root
 	if processImports {

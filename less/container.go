@@ -16,7 +16,7 @@ func NewContainer(value any, features any, index int, currentFileInfo map[string
 	if err != nil {
 		return nil, err
 	}
-	
+
 	emptySelectors, err := selector.CreateEmptySelectors()
 	if err != nil {
 		return nil, err
@@ -191,10 +191,7 @@ func (c *Container) Eval(context any) (any, error) {
 				}
 			}
 
-			newFrames := make([]any, len(evalCtx.Frames)+1)
-			newFrames[0] = ruleset
-			copy(newFrames[1:], evalCtx.Frames)
-			evalCtx.Frames = newFrames
+			evalCtx.PushFrame(ruleset)
 
 			evaluated, err := ruleset.Eval(context)
 			if err != nil {
@@ -202,9 +199,7 @@ func (c *Container) Eval(context any) (any, error) {
 			}
 			media.Rules = []any{evaluated}
 
-			if len(evalCtx.Frames) > 0 {
-				evalCtx.Frames = evalCtx.Frames[1:]
-			}
+			evalCtx.PopFrame()
 		}
 	}
 
@@ -584,4 +579,4 @@ func (c *Container) BubbleSelectors(selectors any) {
 	newRuleset := NewRuleset(anySelectors, []any{c.Rules[0]}, false, nil)
 	c.Rules = []any{newRuleset}
 	c.SetParent(c.Rules, c.Node)
-} 
+}

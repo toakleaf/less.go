@@ -18,7 +18,7 @@ func NewMedia(value any, features any, index int, currentFileInfo map[string]any
 	// Match JavaScript: (new Selector([], null, null, this._index, this._fileInfo)).createEmptySelectors()
 	selector, _ := NewSelector([]any{}, nil, nil, index, currentFileInfo, nil)
 	emptySelectors, _ := selector.CreateEmptySelectors()
-	
+
 	// Convert selectors to []any for Ruleset
 	selectors := make([]any, len(emptySelectors))
 	for i, sel := range emptySelectors {
@@ -400,7 +400,7 @@ func (m *Media) Permute(arr []any) any {
 	} else {
 		result := []any{}
 		rest := m.Permute(arr[1:])
-		
+
 		restArray, ok := rest.([]any)
 		if !ok {
 			return nil
@@ -416,7 +416,7 @@ func (m *Media) Permute(arr []any) any {
 			if !ok {
 				restItem = []any{restArray[i]}
 			}
-			
+
 			for j := 0; j < len(firstArray); j++ {
 				combined := append([]any{firstArray[j]}, restItem...)
 				result = append(result, combined)
@@ -752,10 +752,7 @@ func (m *Media) Eval(context any) (any, error) {
 			}
 
 			// Match JavaScript: context.frames.unshift(this.rules[0]);
-			newFrames := make([]any, len(evalCtx.Frames)+1)
-			newFrames[0] = ruleset
-			copy(newFrames[1:], evalCtx.Frames)
-			evalCtx.Frames = newFrames
+			evalCtx.PushFrame(ruleset)
 
 			// Match JavaScript: media.rules = [this.rules[0].eval(context)];
 			evaluated, err := ruleset.Eval(context)
@@ -785,9 +782,7 @@ func (m *Media) Eval(context any) (any, error) {
 			}
 
 			// Match JavaScript: context.frames.shift();
-			if len(evalCtx.Frames) > 0 {
-				evalCtx.Frames = evalCtx.Frames[1:]
-			}
+			evalCtx.PopFrame()
 		}
 	}
 
@@ -1031,7 +1026,13 @@ func (m *Media) evalWithMapContext(ctx map[string]any) (any, error) {
 	// Match JavaScript: return context.mediaPath.length === 0 ? media.evalTop(context) : media.evalNested(context);
 	if mediaPath, ok := ctx["mediaPath"].([]any); ok {
 		if os.Getenv("LESS_GO_DEBUG") == "1" {
-			fmt.Fprintf(os.Stderr, "[MEDIA.evalWithMapContext] mediaPath len after pop=%d, calling %s\n", len(mediaPath), func() string { if len(mediaPath) == 0 { return "evalTop" } else { return "evalNested" } }())
+			fmt.Fprintf(os.Stderr, "[MEDIA.evalWithMapContext] mediaPath len after pop=%d, calling %s\n", len(mediaPath), func() string {
+				if len(mediaPath) == 0 {
+					return "evalTop"
+				} else {
+					return "evalNested"
+				}
+			}())
 		}
 		if len(mediaPath) == 0 {
 			result := media.EvalTop(ctx)
@@ -1042,4 +1043,4 @@ func (m *Media) evalWithMapContext(ctx map[string]any) (any, error) {
 	}
 
 	return media.EvalTop(ctx), nil
-} 
+}

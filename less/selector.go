@@ -196,11 +196,8 @@ func (s *Selector) getElements(elsInput any) ([]*Element, error) {
 	}
 
 	if elsSlice, ok := elsInput.([]*Element); ok {
-		// Make a copy to avoid sharing the underlying array between selectors
-		// This is critical for nested selectors with multiple & references
-		elementsCopy := make([]*Element, len(elsSlice))
-		copy(elementsCopy, elsSlice)
-		return elementsCopy, nil
+		// NewSelector copies the returned slice into selector-owned storage.
+		return elsSlice, nil
 	}
 
 	if elsSliceAny, ok := elsInput.([]any); ok {
@@ -225,13 +222,13 @@ func (s *Selector) getElements(elsInput any) ([]*Element, error) {
 			// Fallback to old stubbed behavior for backward compatibility
 			return nil, errors.New("Selector.getElements: string parsing via Parser not yet implemented (stubbed for string: '" + elsStr + "')")
 		}
-		
+
 		elements, err := s.ParseFunc(elsStr, s.ParseContext, s.ParseImports, s.FileInfo(), s.GetIndex())
 		if err != nil {
 			// Convert to LessError format to match JavaScript behavior
 			return nil, fmt.Errorf("selector parsing error: %w", err)
 		}
-		
+
 		return elements, nil
 	}
 
@@ -354,7 +351,6 @@ func (s *Selector) Match(other *Selector) int {
 // Following: ([\w-]|(\\.))*  -> word char or hyphen, OR escaped char, repeated
 var mixinElementsRegex = regexp.MustCompile(`[,\x26#*\.\w\-]([\w\-]|(\\.))*`)
 
-
 // MixinElements gets the string parts of the selector for mixin matching.
 func (s *Selector) MixinElements() ([]string, error) {
 	if s.MixinElements_ != nil {
@@ -383,19 +379,19 @@ func (s *Selector) MixinElements() ([]string, error) {
 			if joinedString == "&" && elements[0] == "&" { // Special case for only "&"
 				elements = []string{}
 			} else if elements[0] == "&" {
-                 // If elements are like ["&", "foo"], result should be ["foo"]
-                 // This needs careful slicing or reconstruction if the first part is just "&"
-                 // and not part of a combined token like "&foo"
-                 // The JS `elements.shift()` modifies the array in place.
-                 // If `joinedString` was `&.foo` and regex gives `["&", ".foo"]` (unlikely, more like `["&.foo"]` or `["&", "foo"]` if split)
-                 // The original JS regex is `match(/[,&#*.\w-]([\w-]|(\\.))*/g)`
-                 // If map is `["&", ".foo"]`, join is `"&.foo"`. `match` on this is `["&", ".foo"]` or `["&.foo"]`.
-                 // If `["&", ".foo"]`, then `elements.shift()` gives `[".foo"]`.
-                 // If it's `["&.foo"]` and `elements[0]` is `"&.foo"`, then `elements[0] === '&'` is false.
-                 
-                 // Re-evaluating: if the first token found by the regex is exactly "&", it's removed.
-                 elements = elements[1:]
-            }
+				// If elements are like ["&", "foo"], result should be ["foo"]
+				// This needs careful slicing or reconstruction if the first part is just "&"
+				// and not part of a combined token like "&foo"
+				// The JS `elements.shift()` modifies the array in place.
+				// If `joinedString` was `&.foo` and regex gives `["&", ".foo"]` (unlikely, more like `["&.foo"]` or `["&", "foo"]` if split)
+				// The original JS regex is `match(/[,&#*.\w-]([\w-]|(\\.))*/g)`
+				// If map is `["&", ".foo"]`, join is `"&.foo"`. `match` on this is `["&", ".foo"]` or `["&.foo"]`.
+				// If `["&", ".foo"]`, then `elements.shift()` gives `[".foo"]`.
+				// If it's `["&.foo"]` and `elements[0]` is `"&.foo"`, then `elements[0] === '&'` is false.
+
+				// Re-evaluating: if the first token found by the regex is exactly "&", it's removed.
+				elements = elements[1:]
+			}
 		}
 	} else {
 		elements = []string{}
@@ -603,4 +599,4 @@ func (s *Selector) SetExtendList(extends []*Extend) {
 	for i, ext := range extends {
 		s.ExtendList[i] = ext
 	}
-} 
+}

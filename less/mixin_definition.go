@@ -85,12 +85,12 @@ func NewMixinDefinition(name string, params []any, rules []any, condition any, v
 	// Calculate required parameters and collect optional ones
 	required := 0
 	optionalParameters := []string{}
-	
+
 	for _, p := range params {
 		if param, ok := p.(map[string]any); ok {
 			paramName := param["name"]
 			paramValue := param["value"]
-			
+
 			// Extract name string from either string or Variable
 			var nameStr string
 			if s, ok := paramName.(string); ok {
@@ -98,7 +98,7 @@ func NewMixinDefinition(name string, params []any, rules []any, condition any, v
 			} else if v, ok := paramName.(*Variable); ok {
 				nameStr = v.GetName()
 			}
-			
+
 			// JavaScript logic: !p.name || (p.name && !p.value)
 			// Required if: no name OR empty string name OR (has name but no value)
 			if paramName == nil || nameStr == "" || (paramName != nil && paramValue == nil) {
@@ -178,8 +178,7 @@ func (md *MixinDefinition) Accept(visitor any) {
 // EvalParams evaluates mixin parameters and creates parameter frame
 func (md *MixinDefinition) EvalParams(context any, mixinEnv any, args []any, evaldArguments []any) (*Ruleset, error) {
 	frame := NewRuleset(nil, nil, false, nil)
-	
-	
+
 	var varargs []any
 	var arg any
 	params := md.Params // No need to copy - params are only read, not modified
@@ -188,7 +187,7 @@ func (md *MixinDefinition) EvalParams(context any, mixinEnv any, args []any, eva
 	var isNamedFound bool
 	argIndex := 0
 	argsLength := 0
-	
+
 	// Set up function registry inheritance
 	if env, ok := mixinEnv.(map[string]any); ok {
 		if frames, ok := env["frames"].([]any); ok && len(frames) > 0 {
@@ -196,37 +195,15 @@ func (md *MixinDefinition) EvalParams(context any, mixinEnv any, args []any, eva
 				if funcRegistry, ok := frameMap["functionRegistry"]; ok {
 					frame.FunctionRegistry = funcRegistry
 				}
+			} else if ruleset, ok := frames[0].(*Ruleset); ok {
+				frame.FunctionRegistry = ruleset.FunctionRegistry
 			}
 		}
-	}
-
-	// Create new evaluation context
-	// Pre-calculate frames capacity and use copy instead of append
-	var newFrames []any
-	if env, ok := mixinEnv.(map[string]any); ok {
-		if frames, ok := env["frames"].([]any); ok {
-			newFrames = make([]any, 1+len(frames))
-			newFrames[0] = frame
-			copy(newFrames[1:], frames)
-		} else {
-			newFrames = []any{frame}
-		}
-	} else {
-		newFrames = []any{frame}
-	}
-
-	// Use pool for evalContext to reduce allocations
-	evalContext := GetContextMapFromPool()
-	defer ReleaseContextMap(evalContext)
-	evalContext["frames"] = newFrames
-	if env, ok := mixinEnv.(map[string]any); ok {
-		for k, v := range env {
-			if k != "frames" {
-				evalContext[k] = v
-			}
+	} else if env, ok := mixinEnv.(*Eval); ok && len(env.Frames) > 0 {
+		if ruleset, ok := env.Frames[0].(*Ruleset); ok {
+			frame.FunctionRegistry = ruleset.FunctionRegistry
 		}
 	}
-	// else: evalContext just has frames, which is already set
 
 	if args != nil {
 		args = CopyArray(args)
@@ -238,17 +215,17 @@ func (md *MixinDefinition) EvalParams(context any, mixinEnv any, args []any, eva
 				if argName, ok := argMap["name"].(string); ok && argName != "" {
 					name = argName
 					isNamedFound = false
-					
+
 					// Ensure evaldArguments has enough slots
 					for len(evaldArguments) < len(params) {
 						evaldArguments = append(evaldArguments, nil)
 					}
-					
+
 					for j := 0; j < len(params); j++ {
 						if evaldArguments[j] != nil {
 							continue
 						}
-						
+
 						if paramMap, ok := params[j].(map[string]any); ok {
 							// Handle both string names and Variable objects
 							var paramNameStr string
@@ -257,8 +234,7 @@ func (md *MixinDefinition) EvalParams(context any, mixinEnv any, args []any, eva
 							} else if paramVar, ok := paramMap["name"].(*Variable); ok {
 								paramNameStr = paramVar.GetName()
 							}
-							
-							
+
 							if paramNameStr != "" && name == paramNameStr {
 								// Handle values that implement Eval with error return
 								if argValue, ok := argMap["value"].(interface{ Eval(any) (any, error) }); ok {
@@ -306,7 +282,7 @@ func (md *MixinDefinition) EvalParams(context any, mixinEnv any, args []any, eva
 							}
 						}
 					}
-					
+
 					if isNamedFound {
 						// Remove processed argument
 						newArgs := make([]any, len(args)-1)
@@ -324,7 +300,7 @@ func (md *MixinDefinition) EvalParams(context any, mixinEnv any, args []any, eva
 		}
 	}
 
-	// Process positional arguments  
+	// Process positional arguments
 	argIndex = 0
 	for i := 0; i < len(params); i++ {
 		if i < len(evaldArguments) && evaldArguments[i] != nil {
@@ -344,12 +320,12 @@ func (md *MixinDefinition) EvalParams(context any, mixinEnv any, args []any, eva
 			} else if v, ok := paramMap["name"].(*Variable); ok {
 				paramNameStr = v.GetName()
 			}
-			
+
 			if paramNameStr != "" {
 				name = paramNameStr
 				// Debug: check if name has @ prefix
 				// fmt.Printf("DEBUG: Parameter name: %s\n", name)
-				
+
 				if variadic, ok := paramMap["variadic"].(bool); ok && variadic {
 					varargs = make([]any, 0, argsLength-argIndex)
 					for j := argIndex; j < argsLength; j++ {
@@ -453,10 +429,16 @@ func (md *MixinDefinition) EvalParams(context any, mixinEnv any, args []any, eva
 									defaultParamEnv.(map[string]any)[k] = v
 								}
 								if frames, ok := mixinEnvMap["frames"].([]any); ok {
-									updatedFrames := []any{frame}
-									updatedFrames = append(updatedFrames, frames...)
+									updatedFrames := make([]any, len(frames)+1)
+									updatedFrames[0] = frame
+									copy(updatedFrames[1:], frames)
 									defaultParamEnv.(map[string]any)["frames"] = updatedFrames
 								}
+							} else if evalCtx, ok := mixinEnv.(*Eval); ok {
+								updatedFrames := make([]any, len(evalCtx.Frames)+1)
+								updatedFrames[0] = frame
+								copy(updatedFrames[1:], evalCtx.Frames)
+								defaultParamEnv = evalCtx.CopyWithFrames(updatedFrames)
 							}
 							evalResult, err := evalValue.Eval(defaultParamEnv)
 							if err != nil {
@@ -476,10 +458,16 @@ func (md *MixinDefinition) EvalParams(context any, mixinEnv any, args []any, eva
 									defaultParamEnv.(map[string]any)[k] = v
 								}
 								if frames, ok := mixinEnvMap["frames"].([]any); ok {
-									updatedFrames := []any{frame}
-									updatedFrames = append(updatedFrames, frames...)
+									updatedFrames := make([]any, len(frames)+1)
+									updatedFrames[0] = frame
+									copy(updatedFrames[1:], frames)
 									defaultParamEnv.(map[string]any)["frames"] = updatedFrames
 								}
+							} else if evalCtx, ok := mixinEnv.(*Eval); ok {
+								updatedFrames := make([]any, len(evalCtx.Frames)+1)
+								updatedFrames[0] = frame
+								copy(updatedFrames[1:], evalCtx.Frames)
+								defaultParamEnv = evalCtx.CopyWithFrames(updatedFrames)
 							}
 							val = evalValue.Eval(defaultParamEnv)
 							// Continue evaluating if result is still a Variable
@@ -642,24 +630,24 @@ func (md *MixinDefinition) EvalCall(context any, args []any, important bool) (*R
 		mixinFrames = ctxFrames
 	}
 
-	// Create mixin environment using pool to reduce allocations
-	// NOTE: Do NOT copy mediaBlocks/mediaPath from parent context, matching JavaScript's
-	// contexts.Eval which doesn't include them in evalCopyProperties
-	mixinEnv := GetContextMapFromPool()
-	defer ReleaseContextMap(mixinEnv)
-	mixinEnv["frames"] = mixinFrames
-	if ctx, ok := context.(map[string]any); ok {
+	// Create mixin environment. The pure-Go path keeps the typed Eval context;
+	// map contexts are preserved for compatibility.
+	var mixinEnv any
+	if evalCtx, ok := context.(*Eval); ok {
+		mixinEnv = evalCtx.NewMixinEvalContext(mixinFrames)
+	} else if ctx, ok := context.(map[string]any); ok {
+		mixinEnvMap := GetContextMapFromPool()
+		defer ReleaseContextMap(mixinEnvMap)
+		mixinEnvMap["frames"] = mixinFrames
 		for k, v := range ctx {
 			if k != "frames" && k != "mediaBlocks" && k != "mediaPath" {
-				mixinEnv[k] = v
+				mixinEnvMap[k] = v
 			}
 		}
-	} else if evalCtx, ok := context.(*Eval); ok {
-		// Efficiently copy Eval fields to map, but NOT mediaBlocks/mediaPath
-		// (matching JavaScript's contexts.Eval which doesn't include them in evalCopyProperties)
-		evalCtx.CopyEvalToMap(mixinEnv, false)
+		mixinEnv = mixinEnvMap
+	} else {
+		mixinEnv = map[string]any{"frames": mixinFrames}
 	}
-	// else: mixinEnv just has frames, which is already set
 
 	// Evaluate parameters
 	frame, err := md.EvalParams(context, mixinEnv, args, arguments)
@@ -831,34 +819,35 @@ func (md *MixinDefinition) EvalCall(context any, args []any, important bool) (*R
 		fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] No pluginBridge in context\n")
 	}
 
-	// Create evalContext using pool to reduce allocations
-	// Skip "mediaBlocks"/"mediaPath" which should NOT be inherited.
-	// In JavaScript's contexts.Eval constructor, mediaBlocks and mediaPath are NOT in
-	// evalCopyProperties, meaning mixin body evaluation gets a fresh media context.
-	// This is critical for correct media query merging when a mixin contains
-	// nested @media rules with detached ruleset calls.
-	evalContext := GetContextMapFromPool()
-	defer ReleaseContextMap(evalContext)
-	evalContext["frames"] = evalFrames
-	if ctx, ok := context.(map[string]any); ok {
+	// Create evalContext. Skip mediaBlocks/mediaPath: JavaScript's contexts.Eval
+	// constructor does not inherit them, so mixin bodies get a fresh media context.
+	var evalContext any
+	if evalCtx, ok := context.(*Eval); ok {
+		evalContext = evalCtx.NewMixinEvalContext(evalFrames)
+	} else if ctx, ok := context.(map[string]any); ok {
+		evalContextMap := GetContextMapFromPool()
+		defer ReleaseContextMap(evalContextMap)
+		evalContextMap["frames"] = evalFrames
 		for k, v := range ctx {
 			if k != "frames" && k != "mediaBlocks" && k != "mediaPath" {
-				evalContext[k] = v
+				evalContextMap[k] = v
 			}
 		}
-	} else if evalCtx, ok := context.(*Eval); ok {
-		// Efficiently copy Eval fields to map (with closures for compatibility)
-		// Pass false for includeMediaContext to NOT copy mediaBlocks/mediaPath
-		evalCtx.CopyEvalToMap(evalContext, false)
+		evalContext = evalContextMap
+	} else {
+		evalContext = map[string]any{"frames": evalFrames}
 	}
-	// else: evalContext just has frames, which is already set
 
 	// Debug: trace evalContext mediaPath after copy
 	if os.Getenv("LESS_GO_TRACE") != "" {
-		if mp, ok := evalContext["mediaPath"].([]any); ok {
-			fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] %s: evalContext after copy, mediaPath len=%d\n", md.Name, len(mp))
-		} else {
-			fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] %s: evalContext after copy, mediaPath is nil/not []any\n", md.Name)
+		if evalCtx, ok := evalContext.(*Eval); ok {
+			fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] %s: evalContext after copy, mediaPath len=%d\n", md.Name, len(evalCtx.MediaPath))
+		} else if evalContextMap, ok := evalContext.(map[string]any); ok {
+			if mp, ok := evalContextMap["mediaPath"].([]any); ok {
+				fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] %s: evalContext after copy, mediaPath len=%d\n", md.Name, len(mp))
+			} else {
+				fmt.Fprintf(os.Stderr, "[MixinDefinition.EvalCall] %s: evalContext after copy, mediaPath is nil/not []any\n", md.Name)
+			}
 		}
 	}
 
@@ -933,9 +922,7 @@ func (md *MixinDefinition) MatchCondition(args []any, context any) bool {
 	var mixinEnv any
 	if evalCtx, ok := context.(*Eval); ok {
 		// Preserve *Eval context with DefaultFunc
-		newEvalCtx := &Eval{}
-		*newEvalCtx = *evalCtx
-		newEvalCtx.Frames = mixinFrames
+		newEvalCtx := evalCtx.CopyWithFrames(mixinFrames)
 		mixinEnv = newEvalCtx
 		debugTrace := os.Getenv("LESS_GO_TRACE") == "1"
 		if debugTrace {
@@ -984,10 +971,7 @@ func (md *MixinDefinition) MatchCondition(args []any, context any) bool {
 	var evalContext any
 	if evalCtx, ok := context.(*Eval); ok {
 		// Preserve *Eval context with DefaultFunc
-		newEvalCtx := &Eval{}
-		*newEvalCtx = *evalCtx
-		newEvalCtx.Frames = evalFrames
-		evalContext = newEvalCtx
+		evalContext = evalCtx.CopyWithFrames(evalFrames)
 	} else {
 		// Map context - use pool to reduce allocations
 		evalContextMap := GetContextMapFromPool()
@@ -1028,7 +1012,6 @@ func (md *MixinDefinition) MatchCondition(args []any, context any) bool {
 
 	return false
 }
-
 
 // MatchArgs checks if the mixin arguments match
 func (md *MixinDefinition) MatchArgs(args []any, context any) bool {
@@ -1283,4 +1266,4 @@ func ensureMixinContentVisibility(node any) {
 			ensureMixinContentVisibility(item)
 		}
 	}
-} 
+}
