@@ -60,7 +60,7 @@ func TestSimpleIntegration(t *testing.T) {
 
 			// Attempt to compile
 			t.Logf("Testing %s: compiling %d bytes of Less code", tc.name, len(lessContent))
-			
+
 			result, err := compileLessForTest(factory, string(lessContent), options)
 			if err != nil {
 				t.Logf("Compilation failed for %s: %v", tc.name, err)
@@ -90,7 +90,7 @@ func compileLessForTest(factory map[string]any, input string, options map[string
 	// Try the render function approach
 	if renderFunc, ok := factory["render"].(func(string, ...any) any); ok {
 		result := renderFunc(input, options)
-		
+
 		// Handle different result types
 		switch v := result.(type) {
 		case string:
@@ -138,7 +138,7 @@ func compileLessForTest(factory map[string]any, input string, options map[string
 // TestFactoryCreation tests that the factory can be created without errors
 func TestFactoryCreation(t *testing.T) {
 	factory := Factory(nil, nil)
-	
+
 	// Check that factory has expected keys
 	expectedKeys := []string{
 		"version", "data", "tree", "Environment", "AbstractFileManager",
@@ -157,10 +157,89 @@ func TestFactoryCreation(t *testing.T) {
 	}
 }
 
+func TestRecursiveMixinSelectorInterpolation(t *testing.T) {
+	input := `
+.loop(@i: 1) when (@i <= 3) {
+  .col-@{i} {
+    width: @i;
+  }
+  .loop((@i + 1));
+}
+.loop();
+`
+	expected := `.col-1 {
+  width: 1;
+}
+.col-2 {
+  width: 2;
+}
+.col-3 {
+  width: 3;
+}`
+
+	factory := Factory(nil, nil)
+	result, err := compileLessForTest(factory, input, map[string]any{
+		"filename": "recursive-mixin-selector-interpolation.less",
+	})
+	if err != nil {
+		t.Fatalf("compile failed: %v", err)
+	}
+
+	actual := strings.TrimSpace(result)
+	if actual != expected {
+		t.Fatalf("unexpected CSS:\nexpected:\n%s\nactual:\n%s", expected, actual)
+	}
+}
+
+func TestNestedRecursiveMixinSelectorInterpolation(t *testing.T) {
+	input := `
+#make-col(@size, @columns) {
+  flex: (@size / @columns);
+}
+#media-up(@breakpoint, @content) {
+  @content();
+}
+#outer(@columns: 3) {
+  @infix: "";
+  #media-up(xs, {
+    #inner(@iii: 1) when (@iii <= @columns) {
+      .col@{infix}-@{iii} {
+        #make-col(@iii, @columns);
+      }
+      #inner((@iii + 1));
+    } #inner();
+  });
+}
+#outer();
+`
+	expected := `.col-1 {
+  flex: 0.33333333;
+}
+.col-2 {
+  flex: 0.66666667;
+}
+.col-3 {
+  flex: 1;
+}`
+
+	factory := Factory(nil, nil)
+	result, err := compileLessForTest(factory, input, map[string]any{
+		"filename": "nested-recursive-mixin-selector-interpolation.less",
+	})
+	if err != nil {
+		t.Fatalf("compile failed: %v", err)
+	}
+
+	actual := strings.TrimSpace(result)
+	if actual != expected {
+		t.Fatalf("unexpected CSS:\nexpected:\n%s\nactual:\n%s", expected, actual)
+	}
+}
+
 // TestRenderFunctionExists tests that render function is callable
 func TestRenderFunctionExists(t *testing.T) {
 	factory := Factory(nil, nil)
-	
+
 	renderFunc, exists := factory["render"]
 	if !exists {
 		t.Fatal("render function not found in factory")
@@ -169,14 +248,14 @@ func TestRenderFunctionExists(t *testing.T) {
 	// Check if it's callable
 	if fn, ok := renderFunc.(func(string, ...any) any); ok {
 		t.Log("✓ render function is callable")
-		
+
 		// Try a minimal call (expect it to fail, but not panic)
 		defer func() {
 			if r := recover(); r != nil {
 				t.Logf("render function panicked (expected): %v", r)
 			}
 		}()
-		
+
 		result := fn("body { color: red; }", map[string]any{})
 		t.Logf("render result: %+v", result)
 	} else {
@@ -187,15 +266,15 @@ func TestRenderFunctionExists(t *testing.T) {
 // TestSimpleCompilation tests the most basic possible compilation
 func TestSimpleCompilation(t *testing.T) {
 	factory := Factory(nil, nil)
-	
+
 	// Test the simplest possible CSS
 	input := "body { color: red; }"
 	options := map[string]any{
 		"filename": "test.less",
 	}
-	
+
 	t.Logf("Attempting to compile simple CSS: %s", input)
-	
+
 	result, err := compileLessForTest(factory, input, options)
 	if err != nil {
 		t.Logf("Simple compilation failed: %v", err)

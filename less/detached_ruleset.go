@@ -287,18 +287,18 @@ func (dr *DetachedRuleset) CallEval(context any) any {
 				}
 			}
 
-			// Convert evalContext to map for Ruleset.Eval (it expects map[string]any or *Eval)
-			// The child context has its own isolated mediaBlocks/mediaPath, so Media nodes
-			// inside will add to the child's arrays. These Media nodes will be returned as
-			// part of the result rules and re-evaluated with the parent's context in the
-			// second loop of Ruleset.Eval, where they'll properly add to the parent's mediaBlocks.
-			mapContext := evalContextToMap(evalContext)
+			rulesetEvalContext := evalContextForRuleset(evalContext)
 			if debug {
-				mb, _ := mapContext["mediaBlocks"].([]any)
-				mp, _ := mapContext["mediaPath"].([]any)
-				fmt.Fprintf(os.Stderr, "[DetachedRuleset.CallEval] mapContext after evalContextToMap: mediaBlocks=%v (len=%d), mediaPath=%v (len=%d)\n", mapContext["mediaBlocks"], len(mb), mapContext["mediaPath"], len(mp))
+				switch ctx := rulesetEvalContext.(type) {
+				case *Eval:
+					fmt.Fprintf(os.Stderr, "[DetachedRuleset.CallEval] evalContext before ruleset eval: mediaBlocks=%v (len=%d), mediaPath=%v (len=%d)\n", ctx.MediaBlocks, len(ctx.MediaBlocks), ctx.MediaPath, len(ctx.MediaPath))
+				case map[string]any:
+					mb, _ := ctx["mediaBlocks"].([]any)
+					mp, _ := ctx["mediaPath"].([]any)
+					fmt.Fprintf(os.Stderr, "[DetachedRuleset.CallEval] evalContext before ruleset eval: mediaBlocks=%v (len=%d), mediaPath=%v (len=%d)\n", ctx["mediaBlocks"], len(mb), ctx["mediaPath"], len(mp))
+				}
 			}
-			result, err := ruleset.Eval(mapContext)
+			result, err := ruleset.Eval(rulesetEvalContext)
 			if err != nil {
 				// Match JavaScript behavior - throw the error
 				panic(err)
@@ -325,10 +325,7 @@ func (dr *DetachedRuleset) CallEval(context any) any {
 					fmt.Fprintf(os.Stderr, "[DEBUG DetachedRuleset.CallEval] Evaluating Node.Value Ruleset with %d selectors, %d rules\n", len(ruleset.Selectors), len(ruleset.Rules))
 				}
 
-				// Convert evalContext to map for Ruleset.Eval
-				// The child context has its own isolated mediaBlocks/mediaPath (see comment above)
-				mapContext := evalContextToMap(evalContext)
-				result, err := ruleset.Eval(mapContext)
+				result, err := ruleset.Eval(evalContextForRuleset(evalContext))
 				if err != nil {
 					panic(err)
 				}
@@ -372,6 +369,15 @@ func (dr *DetachedRuleset) CallEval(context any) any {
 	}
 
 	return nil
+}
+
+func evalContextForRuleset(context any) any {
+	switch context.(type) {
+	case *Eval, map[string]any:
+		return context
+	default:
+		return evalContextToMap(context)
+	}
 }
 
 func evalContextToMap(context any) map[string]any {
@@ -426,4 +432,4 @@ func (dr *DetachedRuleset) HasRuleset() bool {
 
 func (dr *DetachedRuleset) GetRuleset() any {
 	return dr.ruleset
-} 
+}
