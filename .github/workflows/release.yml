@@ -40,9 +40,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      # Ensure npm CLI supports OIDC trusted publishing (requires 11.5.1+)
+      # npm 11 supports OIDC trusted publishing and Node 20. Pin it so a future
+      # npm major cannot raise its Node requirement and break the release job.
       - name: Update npm for OIDC support
-        run: npm install -g npm@latest
+        run: npm install -g npm@11.18.0
 
       - name: Configure git
         run: |
