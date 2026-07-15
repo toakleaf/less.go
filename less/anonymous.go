@@ -7,27 +7,27 @@ import (
 
 type Anonymous struct {
 	*Node
-	Value      any
-	Index      int
-	FileInfo   map[string]any
-	MapLines   bool
+	nodeStorage Node
+	Value       any
+	Index       int
+	FileInfo    map[string]any
+	MapLines    bool
 	RulesetLike bool
-	AllowRoot  bool
+	AllowRoot   bool
 }
 
 func NewAnonymous(value any, index int, fileInfo map[string]any, mapLines bool, rulesetLike bool, visibilityInfo map[string]any) *Anonymous {
-	node := NewNode()
+	anon := &Anonymous{}
+	node := initEmbeddedNode(&anon.nodeStorage)
 	node.TypeIndex = GetTypeIndexForNodeType("Anonymous")
 
-	anon := &Anonymous{
-		Node:        node,
-		Value:       value,
-		Index:       index,
-		FileInfo:    fileInfo,
-		MapLines:    mapLines,
-		RulesetLike: rulesetLike,
-		AllowRoot:   true,
-	}
+	anon.Node = node
+	anon.Value = value
+	anon.Index = index
+	anon.FileInfo = fileInfo
+	anon.MapLines = mapLines
+	anon.RulesetLike = rulesetLike
+	anon.AllowRoot = true
 	if visibilityInfo != nil {
 		if blocks, ok := visibilityInfo["visibilityBlocks"].(int); ok {
 			anon.VisibilityBlocks = &blocks
@@ -75,7 +75,7 @@ func (a *Anonymous) Compare(other any) any {
 			return 0
 		}
 	}
-	
+
 	return nil
 }
 
@@ -185,4 +185,4 @@ func (a *Anonymous) CopyVisibilityInfo(info map[string]any) {
 	if visible, ok := info["nodeVisible"].(bool); ok {
 		a.NodeVisible = &visible
 	}
-} 
+}

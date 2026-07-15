@@ -19,16 +19,6 @@ var visitArgsPool = sync.Pool{
 	},
 }
 
-func getVisitArgs() *VisitArgs {
-	args := visitArgsPool.Get().(*VisitArgs)
-	args.VisitDeeper = true // Reset to default
-	return args
-}
-
-func releaseVisitArgs(args *VisitArgs) {
-	visitArgsPool.Put(args)
-}
-
 type TreeRegistry struct {
 	NodeTypes map[string]any
 }
@@ -77,11 +67,33 @@ type VisitFunc func(node any, visitArgs *VisitArgs) any
 type VisitOutFunc func(node any)
 
 type Visitor struct {
-	implementation   any
-	visitInCache     map[int]VisitFunc
-	visitOutCache    map[int]VisitOutFunc
-	methodLookup     map[string]reflect.Value // Pre-built method lookup map
+	implementation    any
+	visitInCache      map[int]VisitFunc
+	visitOutCache     map[int]VisitOutFunc
+	methodLookup      map[string]reflect.Value // Pre-built method lookup map
 	cachedIsReplacing bool                     // Cached result of isReplacing() - computed once at construction
+	visitArgs         [64]VisitArgs
+	visitDepth        int
+}
+
+func (v *Visitor) acquireVisitArgs() (*VisitArgs, bool) {
+	depth := v.visitDepth
+	v.visitDepth++
+	if depth < len(v.visitArgs) {
+		args := &v.visitArgs[depth]
+		args.VisitDeeper = true
+		return args, false
+	}
+	args := visitArgsPool.Get().(*VisitArgs)
+	args.VisitDeeper = true
+	return args, true
+}
+
+func (v *Visitor) releaseVisitArgs(args *VisitArgs, pooled bool) {
+	v.visitDepth--
+	if pooled {
+		visitArgsPool.Put(args)
+	}
 }
 
 func NewVisitor(implementation any) *Visitor {
@@ -164,8 +176,8 @@ func (v *Visitor) Visit(node any) any {
 		return node
 	}
 
-	visitArgs := getVisitArgs()
-	defer releaseVisitArgs(visitArgs)
+	visitArgs, pooledVisitArgs := v.acquireVisitArgs()
+	defer v.releaseVisitArgs(visitArgs, pooledVisitArgs)
 
 	// Fast path: Check if implementation supports direct dispatch (no reflection)
 	if directDispatcher, ok := v.implementation.(DirectDispatchVisitor); ok {
@@ -435,13 +447,13 @@ func (v *Visitor) convertToSlice(obj any) []any {
 		}
 		return result
 	}
-	
+
 	// Fallback: try to access like JS array (length property + numeric indexing)
 	objValue := reflect.ValueOf(obj)
 	if objValue.Kind() == reflect.Ptr && !objValue.IsNil() {
 		objValue = objValue.Elem()
 	}
-	
+
 	if objValue.Kind() == reflect.Struct {
 		lengthField := objValue.FieldByName("length")
 		if lengthField.IsValid() && lengthField.Kind() == reflect.Int {
@@ -464,7 +476,7 @@ func (v *Visitor) convertToSlice(obj any) []any {
 		}
 		return result
 	}
-	
+
 	return nil
 }
 
@@ -474,42 +486,42 @@ func initializeTree() {
 	// For now, create placeholder prototypes that match the expected node types
 	// This will work with the dynamic method resolution pattern
 	treeRegistry.NodeTypes = map[string]any{
-		"Node":               createNodePrototype("Node"),
-		"Color":              createNodePrototype("Color"),
-		"AtRule":             createNodePrototype("AtRule"),
-		"DetachedRuleset":    createNodePrototype("DetachedRuleset"),
-		"Operation":          createNodePrototype("Operation"),
-		"Dimension":          createNodePrototype("Dimension"),
-		"Unit":               createNodePrototype("Unit"),
-		"Keyword":            createNodePrototype("Keyword"),
-		"Variable":           createNodePrototype("Variable"),
-		"Property":           createNodePrototype("Property"),
-		"Ruleset":            createNodePrototype("Ruleset"),
-		"Element":            createNodePrototype("Element"),
-		"Attribute":          createNodePrototype("Attribute"),
-		"Combinator":         createNodePrototype("Combinator"),
-		"Selector":           createNodePrototype("Selector"),
-		"Quoted":             createNodePrototype("Quoted"),
-		"Expression":         createNodePrototype("Expression"),
-		"Declaration":        createNodePrototype("Declaration"),
-		"Call":               createNodePrototype("Call"),
-		"URL":                createNodePrototype("URL"),
-		"Import":             createNodePrototype("Import"),
-		"Comment":            createNodePrototype("Comment"),
-		"Anonymous":          createNodePrototype("Anonymous"),
-		"Value":              createNodePrototype("Value"),
-		"JavaScript":         createNodePrototype("JavaScript"),
-		"Assignment":         createNodePrototype("Assignment"),
-		"Condition":          createNodePrototype("Condition"),
-		"QueryInParens":      createNodePrototype("QueryInParens"),
-		"Paren":              createNodePrototype("Paren"),
-		"Media":              createNodePrototype("Media"),
-		"Container":          createNodePrototype("Container"),
-		"UnicodeDescriptor":  createNodePrototype("UnicodeDescriptor"),
-		"Negative":           createNodePrototype("Negative"),
-		"Extend":             createNodePrototype("Extend"),
-		"VariableCall":       createNodePrototype("VariableCall"),
-		"NamespaceValue":     createNodePrototype("NamespaceValue"),
+		"Node":              createNodePrototype("Node"),
+		"Color":             createNodePrototype("Color"),
+		"AtRule":            createNodePrototype("AtRule"),
+		"DetachedRuleset":   createNodePrototype("DetachedRuleset"),
+		"Operation":         createNodePrototype("Operation"),
+		"Dimension":         createNodePrototype("Dimension"),
+		"Unit":              createNodePrototype("Unit"),
+		"Keyword":           createNodePrototype("Keyword"),
+		"Variable":          createNodePrototype("Variable"),
+		"Property":          createNodePrototype("Property"),
+		"Ruleset":           createNodePrototype("Ruleset"),
+		"Element":           createNodePrototype("Element"),
+		"Attribute":         createNodePrototype("Attribute"),
+		"Combinator":        createNodePrototype("Combinator"),
+		"Selector":          createNodePrototype("Selector"),
+		"Quoted":            createNodePrototype("Quoted"),
+		"Expression":        createNodePrototype("Expression"),
+		"Declaration":       createNodePrototype("Declaration"),
+		"Call":              createNodePrototype("Call"),
+		"URL":               createNodePrototype("URL"),
+		"Import":            createNodePrototype("Import"),
+		"Comment":           createNodePrototype("Comment"),
+		"Anonymous":         createNodePrototype("Anonymous"),
+		"Value":             createNodePrototype("Value"),
+		"JavaScript":        createNodePrototype("JavaScript"),
+		"Assignment":        createNodePrototype("Assignment"),
+		"Condition":         createNodePrototype("Condition"),
+		"QueryInParens":     createNodePrototype("QueryInParens"),
+		"Paren":             createNodePrototype("Paren"),
+		"Media":             createNodePrototype("Media"),
+		"Container":         createNodePrototype("Container"),
+		"UnicodeDescriptor": createNodePrototype("UnicodeDescriptor"),
+		"Negative":          createNodePrototype("Negative"),
+		"Extend":            createNodePrototype("Extend"),
+		"VariableCall":      createNodePrototype("VariableCall"),
+		"NamespaceValue":    createNodePrototype("NamespaceValue"),
 		// Mixin types
 		"MixinCall":       createNodePrototype("MixinCall"),
 		"MixinDefinition": createNodePrototype("MixinDefinition"),

@@ -7,17 +7,15 @@ import (
 
 type Keyword struct {
 	*Node
-	value string
-	type_ string
+	nodeStorage Node
+	value       string
+	type_       string
 }
 
 func NewKeyword(value string) *Keyword {
 	internedValue := Intern(value)
-	k := &Keyword{
-		Node:  NewNode(),
-		value: internedValue,
-		type_: "Keyword",
-	}
+	k := &Keyword{value: internedValue, type_: "Keyword"}
+	k.Node = initEmbeddedNode(&k.nodeStorage)
 	k.Value = internedValue
 	return k
 }
@@ -75,4 +73,4 @@ func (k *Keyword) Eval(context any) (any, error) {
 var (
 	KeywordTrue  = NewKeyword("true")
 	KeywordFalse = NewKeyword("false")
-) 
+)

@@ -26,6 +26,8 @@
     "bench:go:parse": "go test -bench=BenchmarkLessParsing -benchmem -benchtime=10s ./less",
     "bench:go:eval": "go test -bench=BenchmarkLessEvaluation -benchmem -benchtime=10s ./less",
     "bench:go:suite": "go test -bench=BenchmarkLargeSuite -benchmem -benchtime=30x ./less",
+    "bench:go:suite:gc200": "GOGC=200 go test -bench=BenchmarkLargeSuite -benchmem -benchtime=30x ./less",
+    "bench:go:public": "go test -bench=BenchmarkPublicCompile -benchmem -benchtime=10s ./less",
     "bench:js": "node benchmark/suite.js",
     "bench:js:detailed": "node benchmark/suite.js --detailed",
     "bench:js:json": "node benchmark/suite.js --json",

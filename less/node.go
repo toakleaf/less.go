@@ -8,17 +8,18 @@ import (
 
 // Node represents a base node in the Less AST
 type Node struct {
-	Parent          *Node
+	Parent           *Node
 	VisibilityBlocks *int
-	NodeVisible     *bool
-	RootNode        *Node
-	Parsed          any
-	Value           any
-	Index           int
-	fileInfo        map[string]any
-	Parens          bool
-	ParensInOp      bool
-	TypeIndex       int // Index for visitor pattern lookup
+	NodeVisible      *bool
+	RootNode         *Node
+	Parsed           any
+	Value            any
+	Index            int
+	fileInfo         map[string]any
+	Parens           bool
+	ParensInOp       bool
+	embedded         bool
+	TypeIndex        int // Index for visitor pattern lookup
 }
 
 // GenCSSSourceMap implements SourceMapNode interface for Node
@@ -27,10 +28,13 @@ func (n *Node) GenCSSSourceMap(context map[string]any, output *SourceMapOutput) 
 }
 
 // NewNode creates a new Node instance.
-// OPTIMIZATION: Uses sync.Pool to reuse Node objects and reduce GC pressure.
-// Call ReleaseNode when the Node is no longer needed to return it to the pool.
 func NewNode() *Node {
-	return GetNodeFromPool()
+	return &Node{}
+}
+
+func initEmbeddedNode(node *Node) *Node {
+	node.embedded = true
+	return node
 }
 
 // SetParent sets the parent for one or more nodes
@@ -380,12 +384,12 @@ func NumericCompareStrings(a, b string) int {
 	// Try to parse as numbers first
 	aNum, aErr := strconv.ParseFloat(a, 64)
 	bNum, bErr := strconv.ParseFloat(b, 64)
-	
+
 	if aErr == nil && bErr == nil {
 		// Both are numbers
 		return NumericCompare(aNum, bNum)
 	}
-	
+
 	// Fall back to string comparison
 	if a < b {
 		return -1
@@ -457,7 +461,7 @@ func (n *Node) ClearVisibilityBlocks() {
 func (n *Node) VisibilityInfo() map[string]any {
 	return map[string]any{
 		"visibilityBlocks": n.VisibilityBlocks,
-		"nodeVisible":     n.NodeVisible,
+		"nodeVisible":      n.NodeVisible,
 	}
 }
 
@@ -472,4 +476,4 @@ func (n *Node) CopyVisibilityInfo(info map[string]any) {
 	if visible, ok := info["nodeVisible"].(*bool); ok {
 		n.NodeVisible = visible
 	}
-} 
+}

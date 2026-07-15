@@ -1579,9 +1579,11 @@ func (e *EntityParsers) Keyword() any {
 
 	k := e.parsers.parser.parserInput.Char('%')
 	if k == nil {
-		k = e.parsers.parser.parserInput.Re(reEntityName)
+		if entityName := e.parsers.parser.parserInput.matchEntityName(); entityName != "" {
+			k = entityName
+		}
 		if tracerEnabled {
-			tracer.TraceMode("Keyword: after regex", fmt.Sprintf("matched=%v, value=%v", k != nil, k), e.parsers.parser)
+			tracer.TraceMode("Keyword: after entity name", fmt.Sprintf("matched=%v, value=%v", k != nil, k), e.parsers.parser)
 		}
 	}
 
@@ -1692,24 +1694,17 @@ func (e *EntityParsers) Color() any {
 func (e *EntityParsers) ColorKeyword() any {
 	e.parsers.parser.parserInput.Save()
 	// Note: autoCommentAbsorb access would need to be implemented in ParserInput
-	k := e.parsers.parser.parserInput.Re(reIdentifier)
+	k := e.parsers.parser.parserInput.matchIdentifier()
 
-	if k == nil {
+	if k == "" {
 		e.parsers.parser.parserInput.Forget()
 		return nil
 	}
 	e.parsers.parser.parserInput.Restore("")
 
-	var kStr string
-	if matches, ok := k.([]string); ok {
-		kStr = matches[0]
-	} else if match, ok := k.(string); ok {
-		kStr = match
-	}
-
-	color := FromKeyword(kStr)
+	color := FromKeyword(k)
 	if color != nil {
-		e.parsers.parser.parserInput.Str(kStr)
+		e.parsers.parser.parserInput.Str(k)
 		return color
 	}
 	return nil
@@ -1736,15 +1731,8 @@ func (e *EntityParsers) Dimension() any {
 
 // UnicodeDescriptor parses unicode descriptors - U+0?? or U+00A1-00A9
 func (e *EntityParsers) UnicodeDescriptor() any {
-	ud := e.parsers.parser.parserInput.Re(reUnicodeRange)
-	if ud != nil {
-		var udStr string
-		if matches, ok := ud.([]string); ok {
-			udStr = matches[0]
-		} else if match, ok := ud.(string); ok {
-			udStr = match
-		}
-		return NewUnicodeDescriptor(udStr)
+	if ud := e.parsers.parser.parserInput.matchUnicodeRange(); ud != "" {
+		return NewUnicodeDescriptor(ud)
 	}
 	return nil
 }
@@ -3425,35 +3413,22 @@ func (e *EntityParsers) Call() any {
 		return nil
 	}
 
-	e.parsers.parser.parserInput.Save()
+	name, nameLength := e.parsers.parser.parserInput.PeekFunctionName()
 	if tracer.IsEnabled() {
-		tracer.TraceSaveRestore("Save", "Call", e.parsers.parser)
+		tracer.TraceRegex("Call", "^([\\w-]+|%|~|progid:[\\w.]+)\\(", nameLength != 0, name)
 	}
-
-	nameMatch := e.parsers.parser.parserInput.Re(reFunctionName)
-	if tracer.IsEnabled() {
-		tracer.TraceRegex("Call", "^([\\w-]+|%|~|progid:[\\w.]+)\\(", nameMatch != nil, nameMatch)
-	}
-	if nameMatch == nil {
-		e.parsers.parser.parserInput.Forget()
+	if nameLength == 0 {
 		if tracer.IsEnabled() {
-			tracer.TraceSaveRestore("Forget", "Call", e.parsers.parser)
 			tracer.TraceResult("Call", nil, "no function name matched")
 		}
 		return nil
 	}
 
-	// Extract the function name from the captured group
-	if matches, ok := nameMatch.([]string); ok && len(matches) > 1 {
-		name = matches[1]
-	} else {
-		e.parsers.parser.parserInput.Forget()
-		if tracer.IsEnabled() {
-			tracer.TraceSaveRestore("Forget", "Call", e.parsers.parser)
-			tracer.TraceResult("Call", nil, "failed to extract function name")
-		}
-		return nil
+	e.parsers.parser.parserInput.Save()
+	if tracer.IsEnabled() {
+		tracer.TraceSaveRestore("Save", "Call", e.parsers.parser)
 	}
+	e.parsers.parser.parserInput.advance(nameLength)
 
 	function = e.CustomFuncCall(name)
 	if funcMap, ok := function.(map[string]any); ok {

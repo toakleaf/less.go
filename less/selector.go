@@ -14,6 +14,7 @@ type SelectorParseFunc func(input string, context map[string]any, imports map[st
 // Selector represents a CSS selector.
 type Selector struct {
 	*Node
+	nodeStorage    Node
 	Elements       []*Element
 	ExtendList     []any // Placeholder for actual type e.g., []*Extend
 	Condition      any   // Placeholder for actual type e.g., ConditionNode
@@ -29,11 +30,9 @@ type Selector struct {
 // NewSelector creates a new Selector instance.
 // elementsInput can be []*Element, *Element, or string.
 // For backward compatibility, parseFunc, parseContext, and parseImports are optional.
-// OPTIMIZATION: Uses sync.Pool to reuse Selector objects and reduce GC pressure.
-// Call Release() when the Selector is no longer needed to return it to the pool.
 func NewSelector(elementsInput any, extendList []any, condition any, index int, currentFileInfo map[string]any, visibilityInfo map[string]any, parseFunc ...any) (*Selector, error) {
-	s := GetSelectorFromPool()
-	s.Node = NewNode()
+	s := &Selector{}
+	s.Node = initEmbeddedNode(&s.nodeStorage)
 	s.Condition = condition
 	s.EvaldCondition = condition == nil
 
@@ -43,7 +42,7 @@ func NewSelector(elementsInput any, extendList []any, condition any, index int, 
 	} else if len(extendList) == 0 {
 		s.ExtendList = s.ExtendList[:0]
 	} else {
-		// Copy extendList to pooled slice
+		// Keep a private copy because visitors may replace elements.
 		if cap(s.ExtendList) < len(extendList) {
 			s.ExtendList = make([]any, len(extendList))
 		} else {
@@ -96,7 +95,7 @@ func NewSelector(elementsInput any, extendList []any, condition any, index int, 
 		return nil, err
 	}
 
-	// Copy elements to pooled slice
+	// Keep a private copy because visitors may replace elements.
 	if cap(s.Elements) < len(parsedElements) {
 		s.Elements = make([]*Element, len(parsedElements))
 	} else {

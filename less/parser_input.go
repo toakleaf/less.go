@@ -2,22 +2,24 @@ package less_go
 
 import (
 	"regexp"
+	"strings"
+	"unicode/utf8"
 )
 
 // ParserInput represents the parser input state
 type ParserInput struct {
-	input                    string
-	i                        int
-	j                        int
-	current                  string
-	currentPos               int
-	furthest                 int
+	input                        string
+	i                            int
+	j                            int
+	current                      string
+	currentPos                   int
+	furthest                     int
 	furthestPossibleErrorMessage string
-	chunks                   []string
-	saveStack                []saveState
-	autoCommentAbsorb        bool
-	commentStore             []inputComment
-	finished                 bool
+	chunks                       []string
+	saveStack                    []saveState
+	autoCommentAbsorb            bool
+	commentStore                 []inputComment
+	finished                     bool
 }
 
 type saveState struct {
@@ -29,8 +31,8 @@ type saveState struct {
 
 // inputComment represents a parsed comment in the input
 type inputComment struct {
-	index        int
-	text         string
+	index         int
+	text          string
 	isLineComment bool
 }
 
@@ -71,10 +73,10 @@ func NewParserInput() *ParserInput {
 
 func (p *ParserInput) skipWhitespace(length int) bool {
 	oldi := p.i
-	curr := oldi - p.currentPos             // Calculate current position within the chunk *before* advancing
+	curr := oldi - p.currentPos              // Calculate current position within the chunk *before* advancing
 	endIndex := oldi + len(p.current) - curr // Calculate end index relative to *start* of skipWhitespace
-	mem := oldi + length                 // Target index after initial length advancement
-	p.i = mem                            // Advance p.i by initial length
+	mem := oldi + length                     // Target index after initial length advancement
+	p.i = mem                                // Advance p.i by initial length
 
 	inp := p.input
 	var c byte
@@ -153,7 +155,7 @@ func (p *ParserInput) skipWhitespace(length int) bool {
 
 	// Sync current field after advancing
 	p.syncCurrent()
-	
+
 	return p.i > oldi
 }
 
@@ -207,15 +209,160 @@ func (p *ParserInput) Re(tok *regexp.Regexp) any {
 	if match == nil {
 		return nil
 	}
-
 	matchLen := len(match[0])
 	p.i += matchLen
 	p.skipWhitespace(0)
-	p.syncCurrent()     // Sync current field
+	p.syncCurrent() // Sync current field
 	if len(match) == 1 {
 		return match[0]
 	}
 	return match
+}
+
+// PeekFunctionName recognizes the function-name prefix consumed by Call without
+// invoking the regular-expression engine. It returns the name and the byte
+// length including the opening parenthesis, but does not advance the parser.
+func (p *ParserInput) PeekFunctionName() (string, int) {
+	if p.i >= len(p.input) {
+		return "", 0
+	}
+
+	input := p.input[p.i:]
+	if len(input) >= 2 && (input[0] == '%' || input[0] == '~') && input[1] == '(' {
+		return input[:1], 2
+	}
+
+	if strings.HasPrefix(input, "progid:") {
+		end := len("progid:")
+		for end < len(input) && (isASCIIWord(input[end]) || input[end] == '.') {
+			end++
+		}
+		if end > len("progid:") && end < len(input) && input[end] == '(' {
+			return input[:end], end + 1
+		}
+	}
+
+	end := 0
+	for end < len(input) && (isASCIIWord(input[end]) || input[end] == '-') {
+		end++
+	}
+	if end > 0 && end < len(input) && input[end] == '(' {
+		return input[:end], end + 1
+	}
+	return "", 0
+}
+
+func isASCIIWord(c byte) bool {
+	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '_'
+}
+
+func isASCIIHex(c byte) bool {
+	return c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F'
+}
+
+func (p *ParserInput) consumeMatch(length int) string {
+	start := p.i
+	match := p.input[start : start+length]
+	p.advance(length)
+	return match
+}
+
+// matchEntityName recognizes the same token as reEntityName without creating
+// regexp match state. CSS escapes consume either 1-6 hex digits plus an
+// optional space, or one non-hex rune.
+func (p *ParserInput) matchEntityName() string {
+	if p.i >= len(p.input) {
+		return ""
+	}
+
+	input := p.input[p.i:]
+	end := 0
+	if input[0] == '[' {
+		end++
+	}
+	tokenStart := end
+
+	for end < len(input) {
+		c := input[end]
+		if isASCIIWord(c) || c == '-' {
+			end++
+			continue
+		}
+		if c != '\\' || end+1 >= len(input) {
+			break
+		}
+
+		escapeStart := end + 1
+		if isASCIIHex(input[escapeStart]) {
+			end = escapeStart + 1
+			for end < len(input) && end-escapeStart < 6 && isASCIIHex(input[end]) {
+				end++
+			}
+			if end < len(input) && input[end] == ' ' {
+				end++
+			}
+			continue
+		}
+
+		_, size := utf8.DecodeRuneInString(input[escapeStart:])
+		end = escapeStart + size
+	}
+
+	if end == tokenStart {
+		return ""
+	}
+	if end < len(input) && input[end] == ']' {
+		end++
+	}
+	return p.consumeMatch(end)
+}
+
+func (p *ParserInput) matchIdentifier() string {
+	if p.i >= len(p.input) {
+		return ""
+	}
+	input := p.input[p.i:]
+	if !(input[0] == '_' || input[0] == '-' || input[0] >= 'a' && input[0] <= 'z' || input[0] >= 'A' && input[0] <= 'Z') {
+		return ""
+	}
+
+	end := 1
+	for end < len(input) && (isASCIIWord(input[end]) || input[end] == '-') {
+		end++
+	}
+	if end < 2 {
+		return ""
+	}
+	return p.consumeMatch(end)
+}
+
+func (p *ParserInput) matchUnicodeRange() string {
+	input := p.input[p.i:]
+	if len(input) < 3 || input[0] != 'U' || input[1] != '+' {
+		return ""
+	}
+
+	end := 2
+	for end < len(input) && (isASCIIHex(input[end]) || input[end] == '?') {
+		end++
+	}
+	if end == 2 {
+		return ""
+	}
+
+	if end+1 < len(input) && input[end] == '-' && (isASCIIHex(input[end+1]) || input[end+1] == '?') {
+		end += 2
+		for end < len(input) && (isASCIIHex(input[end]) || input[end] == '?') {
+			end++
+		}
+	}
+	return p.consumeMatch(end)
+}
+
+func (p *ParserInput) advance(length int) {
+	p.i += length
+	p.skipWhitespace(0)
+	p.syncCurrent()
 }
 
 func (p *ParserInput) Char(tok byte) any {
@@ -256,7 +403,7 @@ func (p *ParserInput) Str(tok string) any {
 
 	p.i += tokLength
 	p.skipWhitespace(0)
-	p.syncCurrent()     // Sync current field
+	p.syncCurrent() // Sync current field
 	return tok
 }
 
@@ -493,11 +640,11 @@ func (p *ParserInput) Start(str string, chunkInput bool, failFunction func(strin
 }
 
 type EndState struct {
-	IsFinished              bool
-	Furthest                int
+	IsFinished                   bool
+	Furthest                     int
 	FurthestPossibleErrorMessage string
-	FurthestReachedEnd      bool
-	FurthestChar            byte
+	FurthestReachedEnd           bool
+	FurthestChar                 byte
 }
 
 func (p *ParserInput) End() EndState {
@@ -515,11 +662,11 @@ func (p *ParserInput) End() EndState {
 	}
 
 	return EndState{
-		IsFinished:              isFinished,
-		Furthest:                p.i,
+		IsFinished:                   isFinished,
+		Furthest:                     p.i,
 		FurthestPossibleErrorMessage: message,
-		FurthestReachedEnd:      p.i >= len(p.input)-1,
-		FurthestChar:            furthestChar,
+		FurthestReachedEnd:           p.i >= len(p.input)-1,
+		FurthestChar:                 furthestChar,
 	}
 }
 
@@ -572,4 +719,4 @@ func (p *ParserInput) GetAutoCommentAbsorb() bool {
 // SetAutoCommentAbsorb sets the autoCommentAbsorb setting
 func (p *ParserInput) SetAutoCommentAbsorb(value bool) {
 	p.autoCommentAbsorb = value
-} 
+}

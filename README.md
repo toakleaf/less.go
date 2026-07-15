@@ -121,23 +121,27 @@ result, err := less.Compile(source, &less.CompileOptions{
 
 ## Performance
 
-less.go provides native binary performance without requiring a JavaScript runtime. Current benchmarks cover 212 integration files and use Less.js v4.4.2 as the comparison point:
+less.go provides native binary performance without requiring a JavaScript runtime. Current benchmarks cover 212 integration files and use Less.js v4.4.2 as the comparison point. These results were measured on an Apple M1 Max with Go 1.24.5 and Node.js 24.4.1:
 
 | Metric | Less.js | less.go | Difference |
 |--------|---------|---------|------------|
-| Cold per-file average | 880.46µs | 712.86µs | Similar, Go ~19% faster |
-| Warm per-file average | 457.09µs | 667.49µs | Go ~1.46x slower |
-| Warm all-files total | 96.90ms | 141.51ms | Go ~1.46x slower |
-| Memory per file | - | 0.34 MB | ~6,451 allocations |
+| Fresh-process full build | 207.08ms | 117.46ms | Go 1.8x faster |
+| Cold per-file average | 799.19µs | 505.55µs | Go 1.6x faster |
+| Warm per-file average | 402.75µs | 476.68µs | Go 1.18x slower |
+| Memory per file | - | 0.30 MB | ~5,408 allocations |
 
-- **Cold-start remains competitive** - No JavaScript runtime required for core functionality
-- **Warm Less.js JIT is still faster** - `pnpm bench:compare` is the parity gate for optimizer work
-- **Native binary** - No JavaScript runtime needed for core functionality
+- **CLI/build workloads are faster in Go** - The fresh-process 212-file workload is 1.8x faster than Less.js
+- **Peak-JIT microbenchmarks are close** - V8 retains an 18% lead when each file is compiled repeatedly in isolation
+- **GC tuning closes the aggregate warm gap** - `GOGC=200` reduced the same-process Go suite from about 112ms to 97ms in local testing, slightly ahead of the 103ms warmed Node suite, at the cost of a larger heap target
+
+`GOGC` is process-wide, so the library does not change it automatically. Throughput-oriented services can start with `GOGC=200`, measure their own memory envelope, and consider `GOGC=400` only when latency matters more than memory.
 
 Run benchmarks yourself:
 ```bash
 pnpm bench:compare        # Warm/cold per-file comparison across 212 files
 pnpm bench:compare:suite  # Realistic full-suite comparison
+pnpm bench:go:public      # Main exported Compile API
+pnpm bench:go:suite:gc200 # Suite with the throughput-oriented GC setting
 ```
 
 ## Features

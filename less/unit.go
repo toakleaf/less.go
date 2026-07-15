@@ -114,7 +114,7 @@ func (u *Unit) IsLength() bool {
 		"px", "em", "ex", "ch", "rem", "in", "cm", "mm", "pc", "pt",
 		"vw", "vh", "vmin", "vmax",
 	}
-	
+
 	for _, lengthUnit := range lengthUnits {
 		if strings.EqualFold(css, lengthUnit) {
 			return true
@@ -218,4 +218,4 @@ func (u *Unit) Cancel() {
 
 	sort.Strings(u.Numerator)
 	sort.Strings(u.Denominator)
-} 
+}

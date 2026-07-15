@@ -8,10 +8,11 @@ import (
 
 type Expression struct {
 	*Node
-	Value      []any
-	NoSpacing  bool
-	Parens     bool
-	ParensInOp bool
+	nodeStorage Node
+	Value       []any
+	NoSpacing   bool
+	Parens      bool
+	ParensInOp  bool
 }
 
 func NewExpression(value []any, noSpacing bool) (*Expression, error) {
@@ -19,11 +20,11 @@ func NewExpression(value []any, noSpacing bool) (*Expression, error) {
 		return nil, fmt.Errorf("Expression requires an array parameter")
 	}
 
-	e := GetExpressionFromPool()
-	e.Node = NewNode()
+	e := &Expression{}
+	e.Node = initEmbeddedNode(&e.nodeStorage)
 	e.NoSpacing = noSpacing
 
-	// Copy value to pooled slice
+	// Keep a private copy because evaluation may replace elements in place.
 	if cap(e.Value) < len(value) {
 		e.Value = make([]any, len(value))
 	} else {
@@ -124,11 +125,10 @@ func (e *Expression) Eval(context any) (any, error) {
 				newValues[i] = nil
 				continue
 			}
-			
-			
+
 			newValues[i] = SafeEval(val, context)
 		}
-		
+
 		expr, _ := NewExpression(newValues, e.NoSpacing)
 		returnValue = expr
 	} else if len(e.Value) == 1 {
@@ -337,4 +337,3 @@ func (e *Expression) GetType() string {
 func (e *Expression) GetValue() []any {
 	return e.Value
 }
- 

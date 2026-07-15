@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 func Factory(environment map[string]any, fileManagers []any) map[string]any {
@@ -201,6 +202,8 @@ func createParseTree(sourceMapBuilder any) any {
 }
 
 func createRender(env any, parseTree any, importManager any) func(string, ...any) any {
+	functionsObj := createFunctions(env)
+
 	return func(input string, args ...any) (result any) {
 		defer func() {
 			if r := recover(); r != nil {
@@ -317,8 +320,6 @@ func createRender(env any, parseTree any, importManager any) func(string, ...any
 			} else {
 				parseTreeFactory := DefaultParseTreeFactory(nil)
 				parseTreeInstance := parseTreeFactory.NewParseTree(root, imports)
-
-				functionsObj := createFunctions(env)
 
 				toCSSOptions := &ToCSSOptions{
 					Compress:       false,
@@ -551,90 +552,98 @@ func createParser() any {
 	return map[string]any{"type": "Parser"}
 }
 
+var (
+	builtInFunctionsOnce     sync.Once
+	builtInFunctionsRegistry *Registry
+)
+
 func createFunctions(env any) any {
-	registry := DefaultRegistry.Inherit()
+	builtInFunctionsOnce.Do(func() {
+		registry := DefaultRegistry.Inherit()
 
-	RegisterTestFunctions(registry)
+		RegisterTestFunctions(registry)
 
-	listFunctions := GetWrappedListFunctions()
-	for name, fn := range listFunctions {
-		switch name {
-		case "_SELF":
-			if selfFn, ok := fn.(func(any) any); ok {
-				registry.Add(name, &FlexibleFunctionDef{
-					name:      name,
-					minArgs:   1,
-					maxArgs:   1,
-					variadic:  false,
-					fn:        selfFn,
-					needsEval: true,
-				})
-			}
-		case "~":
-			if spaceFn, ok := fn.(func(...any) any); ok {
-				registry.Add(name, &FlexibleFunctionDef{
-					name:      name,
-					minArgs:   0,
-					maxArgs:   -1,
-					variadic:  true,
-					fn:        spaceFn,
-					needsEval: true,
-				})
-			}
-		case "range":
-			if rangeFn, ok := fn.(func(any, any, any) *Expression); ok {
-				// Wrap the function to match the expected signature
-				registry.Add(name, &FlexibleFunctionDef{
-					name:     name,
-					minArgs:  1,
-					maxArgs:  3,
-					variadic: false,
-					fn: func(args ...any) any {
-						var start, end, step any
-						if len(args) > 0 {
-							start = args[0]
-						}
-						if len(args) > 1 {
-							end = args[1]
-						}
-						if len(args) > 2 {
-							step = args[2]
-						}
-						return rangeFn(start, end, step)
-					},
-					needsEval: true,
-				})
-			}
-		case "each":
-			// Register the EachFunctionDef which supports context
-			registry.Add(name, &EachFunctionDef{
-				name: name,
-			})
-		default:
-			// Try as 2-argument function (extract, length)
-			if functionImpl, ok := fn.(func(any, any) any); ok {
-				registry.Add(name, &SimpleFunctionDef{
+		listFunctions := GetWrappedListFunctions()
+		for name, fn := range listFunctions {
+			switch name {
+			case "_SELF":
+				if selfFn, ok := fn.(func(any) any); ok {
+					registry.Add(name, &FlexibleFunctionDef{
+						name:      name,
+						minArgs:   1,
+						maxArgs:   1,
+						variadic:  false,
+						fn:        selfFn,
+						needsEval: true,
+					})
+				}
+			case "~":
+				if spaceFn, ok := fn.(func(...any) any); ok {
+					registry.Add(name, &FlexibleFunctionDef{
+						name:      name,
+						minArgs:   0,
+						maxArgs:   -1,
+						variadic:  true,
+						fn:        spaceFn,
+						needsEval: true,
+					})
+				}
+			case "range":
+				if rangeFn, ok := fn.(func(any, any, any) *Expression); ok {
+					// Wrap the function to match the expected signature
+					registry.Add(name, &FlexibleFunctionDef{
+						name:     name,
+						minArgs:  1,
+						maxArgs:  3,
+						variadic: false,
+						fn: func(args ...any) any {
+							var start, end, step any
+							if len(args) > 0 {
+								start = args[0]
+							}
+							if len(args) > 1 {
+								end = args[1]
+							}
+							if len(args) > 2 {
+								step = args[2]
+							}
+							return rangeFn(start, end, step)
+						},
+						needsEval: true,
+					})
+				}
+			case "each":
+				// Register the EachFunctionDef which supports context
+				registry.Add(name, &EachFunctionDef{
 					name: name,
-					fn:   functionImpl,
 				})
+			default:
+				// Try as 2-argument function (extract, length)
+				if functionImpl, ok := fn.(func(any, any) any); ok {
+					registry.Add(name, &SimpleFunctionDef{
+						name: name,
+						fn:   functionImpl,
+					})
+				}
 			}
 		}
-	}
 
-	registry.AddMultiple(GetWrappedStringFunctions())
-	registry.AddMultiple(GetWrappedMathFunctions())
-	registry.AddMultiple(GetWrappedNumberFunctions())
-	registry.AddMultiple(GetWrappedBooleanFunctions())
-	registry.AddMultiple(GetWrappedSvgFunctions())
-	registry.AddMultiple(GetWrappedStyleFunctions())
-	registry.AddMultiple(GetWrappedDataURIFunctions())
-	registry.AddMultiple(GetWrappedColorBlendingFunctions())
-	registry.AddMultiple(GetWrappedColorFunctions())
-	registry.AddMultiple(GetWrappedTypesFunctions())
+		registry.AddMultiple(GetWrappedStringFunctions())
+		registry.AddMultiple(GetWrappedMathFunctions())
+		registry.AddMultiple(GetWrappedNumberFunctions())
+		registry.AddMultiple(GetWrappedBooleanFunctions())
+		registry.AddMultiple(GetWrappedSvgFunctions())
+		registry.AddMultiple(GetWrappedStyleFunctions())
+		registry.AddMultiple(GetWrappedDataURIFunctions())
+		registry.AddMultiple(GetWrappedColorBlendingFunctions())
+		registry.AddMultiple(GetWrappedColorFunctions())
+		registry.AddMultiple(GetWrappedTypesFunctions())
 
-	registry.Add("default", &DefaultFunctionDefinition{})
+		registry.Add("default", &DefaultFunctionDefinition{})
+		builtInFunctionsRegistry = registry
+	})
 
-	return &DefaultFunctions{registry: registry}
+	return &DefaultFunctions{registry: builtInFunctionsRegistry.Inherit()}
 }
 
 func createContexts() any {
