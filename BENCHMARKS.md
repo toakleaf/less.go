@@ -59,9 +59,9 @@ Go warm benchmarked: 212, Go cold benchmarked: 212
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                    │  JavaScript  │      Go      │   Difference             │
 ├────────────────────┼──────────────┼──────────────┼──────────────────────────┤
-│ Per File (avg)     │ 880.46µs     │ 712.86µs     │ Similar (~19%)           │
-│ Per File (median)  │ 511.25µs     │ 553.33µs     │ Similar (~8.2%)          │
-│ All Files (total)  │ 185.78ms     │ 151.13ms     │ Similar (~18.7%)         │
+│ Per File (avg)     │ 799.19µs     │ 505.55µs     │ Go 1.6x faster           │
+│ Per File (median)  │ 483.42µs     │ 385.98µs     │ Go 1.3x faster           │
+│ All Files (total)  │ 168.63ms     │ 107.18ms     │ Go 1.6x faster           │
 └────────────────────┴──────────────┴──────────────┴──────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -69,28 +69,30 @@ Go warm benchmarked: 212, Go cold benchmarked: 212
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                    │  JavaScript  │      Go      │   Difference             │
 ├────────────────────┼──────────────┼──────────────┼──────────────────────────┤
-│ Per File (avg)     │ 457.09µs     │ 667.49µs     │ Go 1.5x slower           │
-│ Per File (median)  │ 288.08µs     │ 497.13µs     │ Go 1.7x slower           │
-│ All Files (total)  │ 96.90ms      │ 141.51ms     │ Go 1.5x slower           │
+│ Per File (avg)     │ 402.75µs     │ 476.68µs     │ Similar (~18.4%)         │
+│ Per File (median)  │ 272.10µs     │ 363.09µs     │ Go 1.3x slower           │
+│ All Files (total)  │ 85.38ms      │ 101.06ms     │ Similar (~18.4%)         │
 └────────────────────┴──────────────┴──────────────┴──────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ MEMORY & ALLOCATIONS (Go only, averaged per file)                          │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│ Memory per file:         0.34 MB                                              │
-│ Allocations per file:    6,451 allocations                                    │
+│ Memory per file:         0.30 MB                                              │
+│ Allocations per file:    5,408 allocations                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 🔥 WARM PERFORMANCE (primary comparison metric):
-   🐌 Go is 1.5x slower than JavaScript (warm)
+   ⚖️  Warm performance is similar (within 20%)
 
 🥶 COLD START PERFORMANCE:
-   ⚖️  Cold-start performance is SIMILAR (within 20%)
+   🚀 Go is 1.6x faster than JavaScript (cold start)
 
 📈 WARMUP EFFECT:
-   JavaScript: 48.1% faster after warmup
-   Go:         6.4% faster after warmup
+   JavaScript: 49.6% faster after warmup
+   Go:         5.7% faster after warmup
 ```
+
+The sample above was measured on July 15, 2026 on an Apple M1 Max with Go 1.24.5 and Node.js 24.4.1. Benchmark results are machine-dependent; compare changes on the same idle system.
 
 ### Run Individual Benchmarks
 
@@ -124,6 +126,8 @@ pnpm bench:go:suite
 | `pnpm bench:go` | Per-file warm benchmarks (with 5 warmup runs) |
 | `pnpm bench:go:cold` | Per-file cold-start benchmarks (no warmup) |
 | `pnpm bench:go:suite` | Suite mode: All files sequentially, 30x with warmup |
+| `pnpm bench:go:suite:gc200` | Suite mode with a throughput-oriented Go GC target |
+| `pnpm bench:go:public` | Main exported `Compile` API |
 
 ## Benchmark Methodologies
 
@@ -131,7 +135,7 @@ pnpm bench:go:suite
 **Simulates actual CLI/build tool usage**
 - **What it does**: Runs 30 independent processes, each compiling all files once
 - **JavaScript**: 30 separate `node` processes
-- **Go**: 30 independent benchmark iterations (fresh factory each time)
+- **Go**: 30 separate executions of a precompiled Go benchmark binary
 - **Use case**: Measuring real-world build tool performance
 - **Process behavior**: Each iteration = fresh process start → compile all 212 benchmarked files → exit
 - **No warmup**: Each build is independent, like real CLI usage
@@ -146,6 +150,18 @@ Build 30: Start process → [file1, file2, ..., file212] → Exit
 ```
 
 **Why this matters**: Real-world CLI tools don't benefit from JIT warmup or in-process caching. Each build starts fresh.
+
+### Go GC Throughput Tuning
+
+The suite allocates about 65 MB while compiling 212 files, but most objects die quickly. On the measured system, Go's default `GOGC=100` ran roughly 553 GC cycles during a 15-build benchmark. Increasing the heap-growth target produced the following same-process results:
+
+| Setting | Median suite time | GC cycles | Maximum observed heap goal |
+|---------|------------------:|----------:|---------------------------:|
+| `GOGC=100` | 112.07ms | 553 | 10 MB |
+| `GOGC=200` | 96.78ms | 193 | 15 MB |
+| `GOGC=400` | 91.34ms | 76 | 27 MB |
+
+The warmed Node.js suite median was 102.57ms in the same session. `GOGC=200` is therefore the recommended starting point for throughput-oriented services. This is a process-wide Go runtime setting, so less.go deliberately does not change it inside the library. Re-measure under the application's actual memory limit and concurrency.
 
 ### Per-File Mode (Good for Optimization Work)
 **Measures JIT optimization potential**
@@ -316,9 +332,8 @@ The comparison script (`pnpm bench:compare`) runs both warm and cold-start bench
 - JavaScript's JIT needs warmup to reach peak performance, Go doesn't
 - Both metrics matter: warm for long-running processes, cold for CLI tools
 
-**Q: Why is Go currently 2.1x slower (warm)?**
-**A: Primarily allocations (~10,300 per file) and reflection usage.** The port has been significantly optimized but still has room for improvement. Recent optimizations have reduced allocations by ~78% and improved speed by ~4x. See detailed analysis:
-- 📄 [`.claude/benchmarks/PERFORMANCE_ANALYSIS.md`](./.claude/benchmarks/PERFORMANCE_ANALYSIS.md)
+**Q: Why does warmed V8 still win the isolated per-file benchmark?**
+**A: Allocation and garbage-collection work now dominate the remaining gap.** The current suite allocates about 5,400 objects per file. The aggregate same-process gap is smaller than the isolated-file gap, and a measured `GOGC=200` setting closes it when the application can accept a modestly larger heap target.
 
 **Q: How can I find the bottlenecks?**
 **A: Use profiling:**
@@ -329,13 +344,7 @@ pnpm bench:profile
 This will show CPU hot spots, memory allocations, and allocation hotspots.
 
 **Q: Is this performance acceptable?**
-**A: Yes, and improving rapidly!** Recent optimizations (#229-#233) have achieved:
-- ✅ **78% reduction** in memory allocations (47k → 10.3k per file)
-- ✅ **4x performance improvement** (8.1x slower → 2.1x slower warm)
-- ✅ **Cold-start parity** with JavaScript (actually slightly faster!)
-- ✅ **80+ tests passing** with identical CSS output
-
-With continued targeted optimization, Go can match or exceed JavaScript warm performance while maintaining its cold-start advantage.
+**A: Yes.** The fresh-process build benchmark is 1.8x faster than Less.js, cold per-file compilation is 1.6x faster, and the peak-JIT isolated-file gap is down to 18%. For long-lived throughput-oriented processes, `GOGC=200` moved the aggregate Go suite slightly ahead of the warmed Node suite in local testing.
 
 ## Contributing
 

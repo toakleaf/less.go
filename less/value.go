@@ -28,7 +28,8 @@ type CSSGenerator interface {
 // Value represents a value node in the Less AST
 type Value struct {
 	*Node
-	Value []any
+	nodeStorage Node
+	Value       []any
 }
 
 func NewValue(value any) (*Value, error) {
@@ -36,9 +37,8 @@ func NewValue(value any) (*Value, error) {
 		return nil, &ValueError{Message: "Value requires an array argument"}
 	}
 
-	v := &Value{
-		Node: NewNode(),
-	}
+	v := &Value{}
+	v.Node = initEmbeddedNode(&v.nodeStorage)
 
 	// If value is not an array, wrap it in one
 	if arr, ok := value.([]any); ok {
@@ -207,4 +207,4 @@ func (v *Value) ToCSS(context any) string {
 	}
 	v.GenCSS(context, output)
 	return builder.String()
-} 
+}

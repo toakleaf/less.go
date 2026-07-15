@@ -11,8 +11,9 @@ import (
 
 type Dimension struct {
 	*Node
-	Value float64
-	Unit  *Unit
+	nodeStorage Node
+	Value       float64
+	Unit        *Unit
 }
 
 func NewDimension(value any, unit any) (*Dimension, error) {
@@ -58,11 +59,8 @@ func NewDimension(value any, unit any) (*Dimension, error) {
 		}
 	}
 
-	d := &Dimension{
-		Node:  NewNode(),
-		Value: v,
-		Unit:  u,
-	}
+	d := &Dimension{Value: v, Unit: u}
+	d.Node = initEmbeddedNode(&d.nodeStorage)
 	d.SetParent(d.Unit, d.Node)
 	return d, nil
 }
@@ -72,11 +70,8 @@ func NewDimensionFrom(value float64, unit *Unit) *Dimension {
 	if math.IsNaN(value) {
 		return nil
 	}
-	d := &Dimension{
-		Node:  NewNode(),
-		Value: value,
-		Unit:  unit,
-	}
+	d := &Dimension{Value: value, Unit: unit}
+	d.Node = initEmbeddedNode(&d.nodeStorage)
 	d.SetParent(d.Unit, d.Node)
 	return d
 }
@@ -308,7 +303,7 @@ func (d *Dimension) Compare(other any) *int {
 }
 
 func (d *Dimension) Unify() *Dimension {
-	conv := map[string]any{ "length": "px", "duration": "s", "angle": "rad" }
+	conv := map[string]any{"length": "px", "duration": "s", "angle": "rad"}
 	return d.ConvertTo(conv)
 }
 
@@ -369,4 +364,4 @@ func (d *Dimension) ConvertTo(conversions any) *Dimension {
 
 	unit.Cancel()
 	return NewDimensionFrom(value, unit)
-} 
+}

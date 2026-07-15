@@ -7,6 +7,7 @@ import (
 
 type Element struct {
 	*Node
+	nodeStorage Node
 	Combinator  *Combinator
 	Value       any
 	IsVariable  bool
@@ -75,8 +76,8 @@ func NewElement(combinator any, value any, isVariable bool, index int, currentFi
 		val = v
 	}
 
-	e := GetElementFromPool()
-	e.Node = NewNode()
+	e := &Element{}
+	e.Node = initEmbeddedNode(&e.nodeStorage)
 	e.Combinator = comb
 	e.Value = val
 	e.IsVariable = isVariable
@@ -200,7 +201,7 @@ func (e *Element) Eval(context any) (any, error) {
 		}
 		break
 	}
-	endUnwrap:
+endUnwrap:
 
 	// Handle potential nil Node
 	// OPTIMIZATION: Only allocate maps when e.Node is nil.
@@ -316,4 +317,4 @@ func (e *Element) ToCSS(context any) string {
 	builder.WriteString(valueCSS)
 
 	return builder.String()
-} 
+}

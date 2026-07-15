@@ -8,20 +8,20 @@ import (
 
 type Declaration struct {
 	*Node
-	name      any
-	Value     *Value
-	important string
-	merge     any // Can be bool or string ('+' for comma merge)
-	inline    bool
-	variable  bool
+	nodeStorage Node
+	name        any
+	Value       *Value
+	important   string
+	merge       any // Can be bool or string ('+' for comma merge)
+	inline      bool
+	variable    bool
 }
 
-// Uses sync.Pool to reuse Declaration objects.
 func NewDeclaration(name any, value any, important any, merge any, index int, fileInfo map[string]any, inline bool, variable any) (*Declaration, error) {
-	node := NewNode()
+	d := &Declaration{}
+	node := initEmbeddedNode(&d.nodeStorage)
 	node.TypeIndex = GetTypeIndexForNodeType("Declaration")
 
-	d := GetDeclarationFromPool()
 	d.Node = node
 	// Intern property names when they are strings (most common case)
 	if nameStr, ok := name.(string); ok {
@@ -63,7 +63,7 @@ func NewDeclaration(name any, value any, important any, merge any, index int, fi
 			// Has GetType method, likely a node
 			isNode = true
 		}
-		
+
 		if isNode {
 			// Value is already a Node, wrap it in Value([node])
 			newValue, err := NewValue([]any{value})
@@ -451,7 +451,7 @@ func (d *Declaration) GenCSS(context any, output *CSSOutput) {
 			default:
 				errMsg = fmt.Sprintf("%v", e)
 			}
-			
+
 			// Create an error with index and filename similar to JavaScript
 			filename := ""
 			if d.FileInfo() != nil {
@@ -459,7 +459,7 @@ func (d *Declaration) GenCSS(context any, output *CSSOutput) {
 					filename = f
 				}
 			}
-			
+
 			// Re-panic with enhanced error message
 			panic(fmt.Errorf("%s (index: %d, filename: %s)", errMsg, d.GetIndex(), filename))
 		}
@@ -496,7 +496,6 @@ func (d *Declaration) GenCSS(context any, output *CSSOutput) {
 		output.Add("", d.FileInfo(), d.GetIndex())
 	}
 }
-
 
 func isLastRule(context any) bool {
 	if ctx, ok := context.(map[string]any); ok {
@@ -691,4 +690,4 @@ func (d *Declaration) valueToCSS(context any) string {
 // GenCSSSourceMap implements the SourceMapNode interface
 func (d *Declaration) GenCSSSourceMap(context map[string]any, output *SourceMapOutput) {
 	d.genCSSSourceMapImpl(context, output)
-} 
+}

@@ -65,6 +65,71 @@ func TestParserInput(t *testing.T) {
 		}
 	})
 
+	t.Run("function name fast path", func(t *testing.T) {
+		tests := []struct {
+			input      string
+			wantName   string
+			wantLength int
+		}{
+			{input: "rgb(1, 2, 3)", wantName: "rgb", wantLength: 4},
+			{input: "%-format(test)", wantName: "", wantLength: 0},
+			{input: "%(test)", wantName: "%", wantLength: 2},
+			{input: "~(test)", wantName: "~", wantLength: 2},
+			{input: "progid:DXImageTransform.Microsoft.Alpha(opacity=50)", wantName: "progid:DXImageTransform.Microsoft.Alpha", wantLength: 40},
+			{input: "not-a-call", wantName: "", wantLength: 0},
+			{input: "func (test)", wantName: "", wantLength: 0},
+		}
+
+		for _, test := range tests {
+			t.Run(test.input, func(t *testing.T) {
+				parserInput := NewParserInput()
+				parserInput.Start(test.input, false, nil)
+				start := parserInput.GetIndex()
+				name, length := parserInput.PeekFunctionName()
+				if name != test.wantName || length != test.wantLength {
+					t.Fatalf("PeekFunctionName() = (%q, %d), want (%q, %d)", name, length, test.wantName, test.wantLength)
+				}
+				if parserInput.GetIndex() != start {
+					t.Fatalf("PeekFunctionName advanced input from %d to %d", start, parserInput.GetIndex())
+				}
+			})
+		}
+	})
+
+	t.Run("entity scanner fast paths", func(t *testing.T) {
+		tests := []struct {
+			name  string
+			match func(*ParserInput) string
+			input string
+			want  string
+		}{
+			{name: "entity", match: (*ParserInput).matchEntityName, input: "border-collapse: 1", want: "border-collapse"},
+			{name: "bracketed entity", match: (*ParserInput).matchEntityName, input: "[data-name] rest", want: "[data-name]"},
+			{name: "hex escape", match: (*ParserInput).matchEntityName, input: `foo\000026 bar`, want: `foo\000026 bar`},
+			{name: "escaped punctuation", match: (*ParserInput).matchEntityName, input: `foo\:bar`, want: `foo\:bar`},
+			{name: "empty brackets", match: (*ParserInput).matchEntityName, input: "[]", want: ""},
+			{name: "identifier", match: (*ParserInput).matchIdentifier, input: "rebeccapurple;", want: "rebeccapurple"},
+			{name: "identifier minimum length", match: (*ParserInput).matchIdentifier, input: "x ", want: ""},
+			{name: "unicode wildcard", match: (*ParserInput).matchUnicodeRange, input: "U+0??,", want: "U+0??"},
+			{name: "unicode range", match: (*ParserInput).matchUnicodeRange, input: "U+00A1-00A9;", want: "U+00A1-00A9"},
+			{name: "lowercase unicode prefix", match: (*ParserInput).matchUnicodeRange, input: "u+00A1", want: ""},
+		}
+
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				parserInput := NewParserInput()
+				parserInput.Start(test.input, false, nil)
+				got := test.match(parserInput)
+				if got != test.want {
+					t.Fatalf("match(%q) = %q, want %q", test.input, got, test.want)
+				}
+				if got == "" && parserInput.GetIndex() != 0 {
+					t.Fatalf("failed match advanced input to %d", parserInput.GetIndex())
+				}
+			})
+		}
+	})
+
 	t.Run("$char method", func(t *testing.T) {
 		parserInput := NewParserInput()
 		parserInput.Start("test", false, nil)
@@ -567,38 +632,38 @@ func TestParserInput(t *testing.T) {
 		// Test patterns common in CSS parsing
 		pi := NewParserInput()
 		pi.Start("body { color: red; }", false, nil)
-		
+
 		// Test identifier matching
 		result := pi.Str("body")
 		if result != "body" {
 			t.Error("should match CSS selector")
 		}
-		
+
 		// Test brace matching
 		result = pi.Char('{')
 		if char, ok := result.(byte); !ok || char != '{' {
 			t.Error("should match opening brace")
 		}
-		
+
 		// Test property name
 		identRegex := regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9-]*`)
 		result = pi.Re(identRegex)
 		if result != "color" {
 			t.Error("should match CSS property name")
 		}
-		
+
 		// Test colon
 		result = pi.Char(':')
 		if char, ok := result.(byte); !ok || char != ':' {
 			t.Error("should match property separator")
 		}
-		
+
 		// Test value
 		result = pi.Re(identRegex)
 		if result != "red" {
 			t.Error("should match CSS property value")
 		}
-		
+
 		t.Logf("✓ CSS tokenization patterns work correctly")
 	})
 
@@ -606,33 +671,33 @@ func TestParserInput(t *testing.T) {
 		// Test Less-specific syntax
 		pi := NewParserInput()
 		pi.Start("@color: #ff0000;", false, nil)
-		
+
 		// Test variable declaration
 		result := pi.Char('@')
 		if char, ok := result.(byte); !ok || char != '@' {
 			t.Error("should match Less variable prefix")
 		}
-		
+
 		// Test variable name
 		identRegex := regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9-]*`)
 		result = pi.Re(identRegex)
 		if result != "color" {
 			t.Error("should match Less variable name")
 		}
-		
+
 		// Test colon
 		result = pi.Char(':')
 		if char, ok := result.(byte); !ok || char != ':' {
 			t.Error("should match assignment operator")
 		}
-		
+
 		// Test hex color
 		hexRegex := regexp.MustCompile(`^#[0-9a-fA-F]+`)
 		result = pi.Re(hexRegex)
 		if result != "#ff0000" {
 			t.Error("should match hex color value")
 		}
-		
+
 		t.Logf("✓ Less syntax patterns work correctly")
 	})
-} 
+}

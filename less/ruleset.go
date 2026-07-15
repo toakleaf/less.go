@@ -69,9 +69,15 @@ type SelectorsParseFunc func(input string, context map[string]any, imports map[s
 // ValueParseFunc is a function type for parsing value strings into values
 type ValueParseFunc func(input string, context map[string]any, imports map[string]any, fileInfo map[string]any, index int) ([]any, error)
 
+var defaultFuncRulesetError = map[string]any{
+	"type":    "Syntax",
+	"message": "it is currently only allowed in parametric mixin guards,",
+}
+
 // Ruleset represents a ruleset node in the Less AST
 type Ruleset struct {
 	*Node
+	nodeStorage   Node
 	Selectors     []any
 	Rules         []any
 	StrictImports bool
@@ -111,13 +117,11 @@ type Ruleset struct {
 	LoadedPluginFunctions map[string]bool
 }
 
-// OPTIMIZATION: Uses sync.Pool to reuse Ruleset objects and reduce GC pressure.
-// Call Release() when the Ruleset is no longer needed to return it to the pool.
 func NewRuleset(selectors []any, rules []any, strictImports bool, visibilityInfo map[string]any, parseFuncs ...any) *Ruleset {
-	node := NewNode()
+	r := &Ruleset{}
+	node := initEmbeddedNode(&r.nodeStorage)
 	node.TypeIndex = GetTypeIndexForNodeType("Ruleset")
 
-	r := GetRulesetFromPool()
 	r.Node = node
 	r.StrictImports = strictImports
 	r.AllowRoot = true
@@ -128,7 +132,7 @@ func NewRuleset(selectors []any, rules []any, strictImports bool, visibilityInfo
 	} else if len(selectors) == 0 {
 		r.Selectors = r.Selectors[:0]
 	} else {
-		// Copy selectors to pooled slice
+		// Keep a private selector slice because visitors may replace elements.
 		if cap(r.Selectors) < len(selectors) {
 			r.Selectors = make([]any, len(selectors))
 		} else {
@@ -143,7 +147,7 @@ func NewRuleset(selectors []any, rules []any, strictImports bool, visibilityInfo
 	} else if len(rules) == 0 {
 		r.Rules = r.Rules[:0]
 	} else {
-		// Copy rules to pooled slice
+		// Keep a private rule slice because evaluation replaces elements in place.
 		if cap(r.Rules) < len(rules) {
 			r.Rules = make([]any, len(rules))
 		} else {
@@ -478,16 +482,10 @@ func (r *Ruleset) Eval(context any) (any, error) {
 
 		// Match JavaScript: defaultFunc.error({type: 'Syntax', message: 'it is currently only allowed in parametric mixin guards,'});
 		if evalCtx != nil && evalCtx.DefaultFunc != nil {
-			evalCtx.DefaultFunc.Error(map[string]any{
-				"type":    "Syntax",
-				"message": "it is currently only allowed in parametric mixin guards,",
-			})
+			evalCtx.DefaultFunc.Error(defaultFuncRulesetError)
 		} else if ctx != nil {
 			if df, ok := ctx["defaultFunc"].(interface{ Error(map[string]any) }); ok {
-				df.Error(map[string]any{
-					"type":    "Syntax",
-					"message": "it is currently only allowed in parametric mixin guards,",
-				})
+				df.Error(defaultFuncRulesetError)
 			}
 		}
 

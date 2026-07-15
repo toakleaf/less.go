@@ -67,6 +67,7 @@ func ReleaseNode(n *Node) {
 	if n == nil {
 		return
 	}
+	embedded := n.embedded
 	n.Parent = nil
 	n.VisibilityBlocks = nil
 	n.NodeVisible = nil
@@ -78,6 +79,10 @@ func ReleaseNode(n *Node) {
 	n.Parens = false
 	n.ParensInOp = false
 	n.TypeIndex = 0
+	if embedded {
+		n.embedded = true
+		return
+	}
 	nodePool.Put(n)
 }
 
